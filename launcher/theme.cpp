@@ -987,6 +987,60 @@ QPalette themedPalette(const QBrush & window, const QColor & base, const QColor 
 	return palette;
 }
 
+/// WCAG relative luminance, and the contrast ratio of two colours (1 for the same, 21 for black on white)
+double luminanceOf(const QColor & colour)
+{
+	const auto channel = [](double value)
+	{
+		return value <= 0.03928 ? value / 12.92 : std::pow((value + 0.055) / 1.055, 2.4);
+	};
+	return 0.2126 * channel(colour.redF()) + 0.7152 * channel(colour.greenF()) + 0.0722 * channel(colour.blueF());
+}
+
+double contrastOf(const QColor & a, const QColor & b)
+{
+	const double la = luminanceOf(a), lb = luminanceOf(b);
+	return (std::max(la, lb) + 0.05) / (std::min(la, lb) + 0.05);
+}
+
+/// the average colour of a brush's picture (or its plain colour): the ground the slots' colours are read against
+QColor groundOf(const QBrush & window)
+{
+	const QImage image = window.textureImage();
+	if(image.isNull())
+		return window.color();
+	long long red = 0, green = 0, blue = 0, count = 0;
+	for(int y = 0; y < image.height(); y += 8)
+		for(int x = 0; x < image.width(); x += 8)
+		{
+			const QRgb pixel = image.pixel(x, y);
+			red += qRed(pixel);
+			green += qGreen(pixel);
+			blue += qBlue(pixel);
+			++count;
+		}
+	return count == 0 ? window.color() : QColor(static_cast<int>(red / count), static_cast<int>(green / count), static_cast<int>(blue / count));
+}
+
+/// `ink` as it is when it stands out of `ground` by `ratio`, else lightened (on a dark ground) or darkened (on a light one)
+/// toward white or black until it does: black partitions on a silver background, or a deep red on black, stay the
+/// colour the player picked wherever it can be seen, and are the nearest visible tone of it where it cannot
+QColor legible(const QColor & ink, const QColor & ground, double ratio)
+{
+	if(contrastOf(ink, ground) >= ratio)
+		return ink;
+	const QColor end = luminanceOf(ground) < 0.4 ? QColor(255, 255, 255) : QColor(0, 0, 0);
+	for(int step = 1; step <= 20; ++step)
+	{
+		const double t = step / 20.0;
+		const QColor mixed(static_cast<int>(ink.red() + (end.red() - ink.red()) * t), static_cast<int>(ink.green() + (end.green() - ink.green()) * t),
+			static_cast<int>(ink.blue() + (end.blue() - ink.blue()) * t));
+		if(contrastOf(mixed, ground) >= ratio)
+			return mixed;
+	}
+	return end;
+}
+
 /// the launcher's whole style sheet and palette for `slots`; `leather` is null before the game's files are imported
 struct AppliedLook
 {
@@ -1044,6 +1098,17 @@ AppliedLook buildLook(const LookSlots & look_, const QPixmap & leather)
 		window = QBrush(QColor(tintPixel(60, look_.background, 0.4)));
 	const QColor accent = recoloured(gold, look_.partitions, partitionsWeight);
 	const QColor highlighted = accent.lightness() < 90 ? QColor(text) : QColor(Qt::black);
+	// the Settings page's heading and the frames of its panel and dropdowns are the partitions' colour read against the
+	// window's own ground: where that colour cannot be seen on it (black partitions on a silver background, a deep red
+	// heading on black) they are its nearest visible tone, and elsewhere unchanged
+	const QColor windowGround = groundOf(window);
+	const QColor titleInk = legible(accent, windowGround, 4.5);
+	const QColor frameInk = legible(accent, windowGround, 1.8);
+	if(titleInk != accent)
+		sheet += QString("QLabel[dmbSettingsTitle=\"true\"] { color: %1; }").arg(titleInk.name());
+	if(frameInk != accent)
+		sheet += QString("#dmbSettingsPanel { border-color: %1; } CSettingsView QComboBox { border-color: %1; }"
+			" CSettingsView QComboBox QAbstractItemView { border-color: %1; }").arg(frameInk.name());
 	AppliedLook look;
 	look.sheet = sheet;
 	look.palette = themedPalette(window, ground(base), ground(alternate), ground(button), accent, QColor(text), highlighted);

@@ -24,6 +24,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QStyleFactory>
 #include <QTimer>
 #include <QToolButton>
@@ -36,6 +37,9 @@ namespace
 {
 /// whether windows get Windows' dark title bar: in the leather and dark looks
 bool darkFrames = false;
+
+/// whether the carved words on the buttons are light, for a primary slot of black, where the game's black letters would vanish
+bool lightLettering = false;
 
 /// the height every launcher button's gold bar is drawn at (wordlessBar), the game's own 40 px bars
 /// scaled down to the launcher's own, smaller buttons; a carved word is scaled the same amount, so its
@@ -335,42 +339,103 @@ QImage wordlessChoice(const QImage & frame)
 	return piece;
 }
 
-/// The game's gold in silver, for the dark look (K, September 27th: "a dark-silver/grey that's still
-/// light enough to contrast the black font"): the grey of each pixel, a little lighter and cooler
-/// The harvested blue choice art in a dark red (K, September 29th: "for the dark version, we need to replace the
-/// blue with another color... i'm thinking red, but it needs to be a fairly dark shade of red so it's not too loud
-/// on the eyes"): each pixel keeps its own lightness, so the bevel and the marbling stay, and takes a muted red
-/// (about 140, 40, 38 at the art's brightest) in the blue's place.
-QImage reddened(const QImage & image)
+/// The colours a launcher slot (background, partitions, primary buttons, secondary buttons) can take, K, October 1st:
+/// "black is definitely allowed in the background slot, andi suppose silver can be too, why not ... everything is
+/// configurable now, so by default red with dark mode, but each should be changeable. One color per slot. max
+/// configurability." The eight hero colours are the game's own player colours: the six numbers each has in the
+/// game's config (settings, interface, playerColoredBackground) are the range each colour channel of the game's
+/// brown leather is stretched to for that player, and are used here the same way on the lightness of any art.
+const std::vector<std::string> SLOT_COLOUR_NAMES = {"red", "blue", "tan", "green", "orange", "purple", "teal", "pink", "silver", "black"};
+
+using ColourRange = std::array<float, 6>; // min r, g, b, max r, g, b
+
+/// The game's player colours: from its own config when the launcher can read it, else the numbers it ships with
+const std::map<std::string, ColourRange> & heroRanges()
+{
+	static const std::map<std::string, ColourRange> ranges = []()
+	{
+		std::map<std::string, ColourRange> shipped = {
+			{"red",    {0.25f, 0.00f, 0.00f, 1.25f, 0.00f, 0.00f}},
+			{"blue",   {0.00f, 0.00f, 0.00f, 0.45f, 1.20f, 4.50f}},
+			{"tan",    {0.40f, 0.27f, 0.23f, 1.10f, 1.20f, 1.15f}},
+			{"green",  {-0.27f, 0.10f, -0.27f, 0.70f, 1.70f, 0.70f}},
+			{"orange", {0.47f, 0.17f, -0.27f, 1.60f, 1.20f, 0.70f}},
+			{"purple", {0.12f, -0.10f, 0.25f, 1.15f, 1.20f, 2.20f}},
+			{"teal",   {-0.13f, 0.23f, 0.23f, 0.90f, 1.20f, 2.20f}},
+			{"pink",   {0.44f, 0.15f, 0.25f, 1.00f, 1.00f, 1.75f}},
+		};
+		try
+		{
+			const JsonNode config(JsonPath::builtin("config/gameConfig.json"));
+			const JsonNode & filters = config["settings"]["interface"]["playerColoredBackground"];
+			for(auto & [name, range] : shipped)
+			{
+				const auto & numbers = filters[name].Vector();
+				if(numbers.size() == range.size())
+					for(size_t i = 0; i < range.size(); ++i)
+						range[i] = static_cast<float>(numbers[i].Float());
+			}
+		}
+		catch(const std::exception &)
+		{
+			// the numbers above stand
+		}
+		return shipped;
+	}();
+	return ranges;
+}
+
+/// One pixel of art as `colour`, keeping its lightness (so the bevels, the marbling and the grain stay): a hero
+/// colour through the game's range for that player, softened a tenth of the way back to grey; silver and black
+/// as greys; `weight` darkens (the dark look). `lightness` is 0 to 255.
+QRgb tintPixel(int lightness, const std::string & colour, double weight)
+{
+	const double l = std::clamp(lightness, 0, 255) / 255.0;
+	double r, g, b;
+	if(colour == "silver")
+	{
+		// the cool tint is added after the weight, so a lifted silver does not turn blue
+		const auto grey = [&](double tint) { return std::clamp(static_cast<int>(std::lround((l * 0.86 * weight + tint / 255.0) * 255.0)), 0, 255); };
+		return qRgb(grey(0), grey(3), grey(8));
+	}
+	else if(colour == "black")
+	{
+		const auto grey = [&](double tint) { return std::clamp(static_cast<int>(std::lround((l * 0.30 * weight + tint / 255.0) * 255.0)), 0, 255); };
+		return qRgb(grey(0), grey(0), grey(2));
+	}
+	else
+	{
+		const auto found = heroRanges().find(colour);
+		if(found == heroRanges().end())
+			return qRgb(lightness, lightness, lightness);
+		const ColourRange & range = found->second;
+		// the lightest art (a button's highlight) a little below the colour's own top, or a pale colour such as tan
+		// would turn it white; softened only a tenth of the way back to grey, so the colour reads
+		const double lit = l * 0.85;
+		const auto channel = [&](int c) { return (lit * (range[3 + c] - range[c]) + range[c]) * 0.9 + lit * 0.1; };
+		r = channel(0);
+		g = channel(1);
+		b = channel(2);
+	}
+	const auto byte = [weight](double v) { return std::clamp(static_cast<int>(std::lround(v * weight * 255.0)), 0, 255); };
+	return qRgb(byte(r), byte(g), byte(b));
+}
+
+/// `image` as `colour` (tintPixel on each pixel's lightness; the alpha stays)
+QImage tinted(const QImage & image, const std::string & colour, double weight)
 {
 	QImage out = image.convertToFormat(QImage::Format_ARGB32);
 	for(int y = 0; y < out.height(); ++y)
 	{
 		auto * line = reinterpret_cast<QRgb *>(out.scanLine(y));
 		for(int x = 0; x < out.width(); ++x)
-		{
-			const int lightness = qGray(line[x]);
-			line[x] = qRgba(std::min(255, lightness * 118 / 100), lightness * 30 / 100, lightness * 29 / 100, qAlpha(line[x]));
-		}
+			line[x] = (tintPixel(qGray(line[x]), colour, weight) & 0x00FFFFFF) | (static_cast<QRgb>(qAlpha(line[x])) << 24);
 	}
 	return out;
 }
 
-QImage silvered(const QImage & image)
-{
-	QImage result = image.convertToFormat(QImage::Format_ARGB32);
-	for(int y = 0; y < result.height(); ++y)
-	{
-		auto * line = reinterpret_cast<QRgb *>(result.scanLine(y));
-		for(int x = 0; x < result.width(); ++x)
-		{
-			const int grey = qGray(line[x]);
-			const auto channel = [grey](int lift) { return std::clamp(grey * 86 / 100 + lift, 0, 255); };
-			line[x] = qRgba(channel(0), channel(3), channel(8), qAlpha(line[x]));
-		}
-	}
-	return result;
-}
+constexpr double SECONDARY_DARK_WEIGHT = 0.8; // the dark look's switches: the game's colour at this much of its brightness
+
 
 /// a button's frame, through the launcher's own resource access (CResourceHandler, readH3DefFrame);
 /// the game engine reads the same buttons a different way (client/render/GameLettering.cpp)
@@ -510,7 +575,8 @@ QImage carvedButtonWord(const QString & text)
 			const int py = cell.second;
 			if(px < 0 || px >= width || py < 0 || py >= lettering.band)
 				continue;
-			const auto value = static_cast<int>(std::lround(std::clamp(255.0 * share.white / a, 0.0, 255.0)));
+			const auto shade = static_cast<int>(std::lround(std::clamp(255.0 * share.white / a, 0.0, 255.0)));
+			const int value = lightLettering ? 255 - shade : shade;
 			const auto opacity = static_cast<int>(std::lround(std::clamp(a, 0.0, 1.0) * 255));
 			image.setPixelColor(px, py, QColor(value, value, value, opacity));
 		}
@@ -578,12 +644,118 @@ void carveEveryButton(bool active)
 		carveEveryButtonUnder(top, active);
 }
 
+/// What each of the launcher's four slots holds. "default" is the slot's own vanilla (leather, gold, gold, blue);
+/// a look gives the slots their starting choices, and a player's choices (launcher.look.*) replace them.
+struct LookSlots
+{
+	std::string background = "default";
+	std::string partitions = "default";
+	std::string primary = "default";
+	std::string secondary = "default";
+	bool dark = false;
+};
+
+bool knownColour(const std::string & colour)
+{
+	return colour == "default" || std::find(SLOT_COLOUR_NAMES.begin(), SLOT_COLOUR_NAMES.end(), colour) != SLOT_COLOUR_NAMES.end();
+}
+
+LookSlots lookSlots(const std::string & theme)
+{
+	LookSlots look_;
+	look_.dark = theme == "dark";
+	if(look_.dark)
+	{
+		// the dark look as it has been: silver edges and buttons, or the game's gold for the player who kept it
+		// (launcher.darkAccent, the setting this replaces), and K's red in the place of the blue (October 1st)
+		const bool gold = settings["launcher"]["darkAccent"].String() == "gold";
+		look_.partitions = look_.primary = gold ? "default" : "silver";
+		look_.secondary = "red";
+	}
+	const JsonNode & look = settings["launcher"]["look"];
+	const auto choose = [&look](const char * key, std::string & slot)
+	{
+		if(look[key].isString() && !look[key].String().empty() && knownColour(look[key].String()))
+			slot = look[key].String();
+	};
+	choose("background", look_.background);
+	choose("partitions", look_.partitions);
+	choose("primary", look_.primary);
+	choose("secondary", look_.secondary);
+	return look_;
+}
+
+/// how much of its brightness a hero colour keeps in a slot: the dark look's buttons and switches are darker
+double slotWeight(const LookSlots & look_, const std::string & colour, double dark)
+{
+	return look_.dark && colour != "silver" && colour != "black" ? dark : 1.0;
+}
+
+/// vanilla colour, and the grey it becomes in silver (the dark look's, as K approved it, September 27th)
+const std::vector<std::pair<const char *, const char *>> & vanillaColours()
+{
+	static const std::vector<std::pair<const char *, const char *>> colours = {
+		{"#f3d27a", "#c6cad1"}, {"#d9a83e", "#9fa4ac"}, {"#9c6d1c", "#686c73"}, {"#fbe29a", "#d9dce1"},
+		{"#e8bc55", "#b2b6bd"}, {"#ae7e2a", "#7b7f86"}, {"#8a6a2a", "#5c6067"}, {"#4a3008", "#2f3237"},
+		{"#3a2a12", "#2a2c30"}, {"#7d6a4c", "#686b70"}, {"#1c1307", "#1a1a1b"}, {"#2b1d08", "#2a2b2d"},
+		{"#24170a", "#202122"}, {"#1a1108", "#171718"}, {"#2a1a0a", "#1e1e1f"}, {"#e8c86a", "#d7dbe1"},
+		{"#fff0b0", "#ffffff"}, {"#2a1c0c", "#222326"}, {"#3a2410", "#2c2c2c"},
+	};
+	return colours;
+}
+
+/// a vanilla colour of the launcher's gold-and-brown palette as `colour`
+QColor recoloured(const QColor & vanilla, const std::string & colour, double weight)
+{
+	if(colour == "default")
+		return vanilla;
+	if(colour == "silver")
+		for(const auto & [gold, silver] : vanillaColours())
+			if(QColor(gold) == vanilla)
+				return QColor(silver);
+	return QColor(tintPixel(qGray(vanilla.rgb()), colour, weight));
+}
+
+/// a style sheet's gold-and-brown colours as `colour`
+QString inColour(QString sheet, const std::string & colour, double weight)
+{
+	if(colour == "default")
+		return sheet;
+	for(const auto & [vanilla, silver] : vanillaColours())
+	{
+		(void)silver;
+		// through a marker, so a colour once replaced is never replaced again by a later one
+		sheet.replace(vanilla, "@" + recoloured(QColor(vanilla), colour, weight).name().mid(1) + "@", Qt::CaseInsensitive);
+	}
+	static const QRegularExpression marked("@([0-9a-fA-F]{6})@");
+	sheet.replace(marked, "#\\1");
+	return sheet;
+}
+
+/// the light text of the look: parchment, or the cool white the silver dark look has had since September 27th
+QString textColour(const LookSlots & look_)
+{
+	return look_.dark && !(look_.partitions == "default" && look_.primary == "default") ? "#e8eaed" : "#f3e7c9";
+}
+
+/// a colour dark enough that black lettering on it cannot be read
+bool needsLightLettering(const std::string & colour)
+{
+	return colour == "black";
+}
+
+struct ButtonStyles
+{
+	QString primary;
+	QString secondary;
+};
+
 /// The launcher's buttons as the game's own gold bars (K, September 26th: "these buttons need to
 /// actually mimic the heroes 3 buttons exactly"), from the player's own game files, written to the
-/// user's cache for the style sheet to name, in silver for the dark look unless the player keeps gold.
-/// The Settings page's categories are the same bars (K, September 27th). Empty before an import: then
-/// they keep the painted gold.
-QString gameButtonStyle(bool silver, bool red = false)
+/// user's cache for the style sheet to name, in the primary slot's colour (gold when it is the default). The Settings
+/// page's categories are the same bars (K, September 27th). Empty before an import: then they keep the
+/// painted gold. The switches are the Random Map Setup's blue choices, in the secondary slot's colour.
+ButtonStyles gameButtonStyle(const LookSlots & look_)
 {
 	const AnimationPath path = AnimationPath::builtin("SPRITES/RANSHOW");
 	if(!CResourceHandler::get()->existsResource(path))
@@ -595,11 +767,28 @@ QString gameButtonStyle(bool silver, bool red = false)
 	QImage lit = wordlessBar(readH3DefFrame(bytes, data.second, 3));
 	if(normal.isNull() || pressed.isNull() || lit.isNull())
 		return {};
-	if(silver)
+	const std::string primary = look_.primary;
+	if(primary != "default")
 	{
-		normal = silvered(normal);
-		pressed = silvered(pressed);
-		lit = silvered(lit);
+		const double weight = slotWeight(look_, primary, 0.9);
+		normal = tinted(normal, primary, weight);
+		pressed = tinted(pressed, primary, weight);
+		lit = tinted(lit, primary, weight);
+	}
+	// black lettering on a bar that is dark (black, or a deep red) cannot be read: light lettering on those
+	{
+		long long total = 0, count = 0;
+		for(int y = 0; y < normal.height(); ++y)
+		{
+			const auto * line = reinterpret_cast<const QRgb *>(normal.constScanLine(y));
+			for(int x = 0; x < normal.width(); ++x)
+				if(qAlpha(line[x]) > 200)
+				{
+					total += qGray(line[x]);
+					++count;
+				}
+		}
+		lightLettering = count > 0 && total / count < 105;
 	}
 	// a button that cannot be pressed: the normal bar, dimmed
 	QImage dimmed = normal;
@@ -618,7 +807,7 @@ QString gameButtonStyle(bool silver, bool red = false)
 		const QString file = QString::fromStdString((folder / (name + ".png")).string());
 		return image.save(file, "PNG") ? QDir::fromNativeSeparators(file) : QString();
 	};
-	const std::string metal = silver ? "-silver" : "";
+	const std::string metal = (primary == "default" ? "" : "-" + primary) + (look_.dark && primary != "default" ? "-dark" : "");
 	const QString files[] = { write(normal, "dmb-button" + metal), write(pressed, "dmb-button-pressed" + metal),
 		write(lit, "dmb-button-lit" + metal), write(dimmed, "dmb-button-disabled" + metal) };
 	for(const auto & file : files)
@@ -631,8 +820,10 @@ QString gameButtonStyle(bool silver, bool red = false)
 	{
 		return QString("border-image: url(\"%1\") 4 %2 4 %2 stretch stretch;").arg(file).arg(end);
 	};
-	QString style = QString(
-		"QPushButton { color: black; background: transparent; border-radius: 0; border-width: 4px %1px; padding: 1px 2px; %2 }"
+	const QString ink = lightLettering ? textColour(look_) : "black";
+	ButtonStyles styles;
+	styles.primary = QString(
+		"QPushButton { color: %6; background: transparent; border-radius: 0; border-width: 4px %1px; padding: 1px 2px; %2 }"
 		"QPushButton:hover { %3 }"
 		"QPushButton:pressed { %4 }"
 		// Gemini's read of K's launcher screenshot, relayed by K overnight into September 28th: "Import
@@ -641,59 +832,80 @@ QString gameButtonStyle(bool silver, bool red = false)
 		// against the dimmed bar in either look, where the near-black original barely stood out from it.
 		"QPushButton:disabled { color: #f3e7c9; %5 }"
 		// the Settings page's categories: the same bars, the open one pressed in
-		"#dmbSettingsCategories QPushButton { color: black; background: transparent; border-radius: 0; border-width: 4px %1px;"
+		"#dmbSettingsCategories QPushButton { color: %6; background: transparent; border-radius: 0; border-width: 4px %1px;"
 		" padding: 3px 6px; text-align: center; font-weight: bold; %2 }"
-		"#dmbSettingsCategories QPushButton:hover { color: black; background: transparent; %3 }"
-		"#dmbSettingsCategories QPushButton:checked { color: black; background: transparent; %4 }")
-		.arg(end).arg(face(files[0]), face(files[2]), face(files[1]), face(files[3]));
+		"#dmbSettingsCategories QPushButton:hover { color: %6; background: transparent; %3 }"
+		"#dmbSettingsCategories QPushButton:checked { color: %6; background: transparent; %4 }")
+		.arg(end).arg(face(files[0]), face(files[2]), face(files[1]), face(files[3]), ink);
 
-	// the Settings page's switches as the Random Map Setup's choices: blue, and framed in gold when on;
+	// the Settings page's switches as the Random Map Setup's choices: blue, and framed when on;
 	// their marbled middle repeats rather than stretching
 	const AnimationPath choicePath = AnimationPath::builtin("SPRITES/RANWEAK");
 	if(!CResourceHandler::get()->existsResource(choicePath))
-		return style;
+		return styles;
 	const auto choiceData = CResourceHandler::get()->load(choicePath)->readAll();
 	const auto * choiceBytes = reinterpret_cast<const ui8 *>(choiceData.first.get());
-	const auto choice = [&](int frame) { const QImage art = wordlessChoice(readH3DefFrame(choiceBytes, choiceData.second, frame)); return red ? reddened(art) : art; };
-	const QString off = write(choice(0), std::string("dmb-choice") + (red ? "-red" : ""));
-	const QString on = write(choice(3), std::string("dmb-choice-on") + (red ? "-red" : ""));
+	const std::string secondary = look_.secondary;
+	// the blue choice art is dark in lightness, so silver on it would read near black: lifted (K's other colours get their
+	// own range, which does that)
+	const double secondaryWeight = secondary == "silver" ? 2.6 : slotWeight(look_, secondary, SECONDARY_DARK_WEIGHT);
+	const auto choice = [&](int frame)
+	{
+		const QImage art = wordlessChoice(readH3DefFrame(choiceBytes, choiceData.second, frame));
+		return secondary == "default" ? art : tinted(art, secondary, secondaryWeight);
+	};
+	const std::string tone = (secondary == "default" ? "" : "-" + secondary) + (look_.dark && secondary != "default" ? "-dark" : "");
+	const QString off = write(choice(0), "dmb-choice" + tone);
+	const QString on = write(choice(3), "dmb-choice-on" + tone);
 	if(off.isEmpty() || on.isEmpty())
-		return style;
-	return style + QString(
-		"CSettingsView QToolButton { color: #e8c86a; background: transparent; border-radius: 0; border-width: 4px 6px; padding: 1px 4px;"
+		return styles;
+	const QString text = textColour(look_);
+	styles.secondary = QString(
+		"CSettingsView QToolButton { color: %3; background: transparent; border-radius: 0; border-width: 4px 6px; padding: 1px 4px;"
 		" border-image: url(\"%1\") 4 6 4 6 repeat stretch; }"
-		"CSettingsView QToolButton:checked { color: #fff0b0; background: transparent; border-image: url(\"%2\") 4 6 4 6 repeat stretch; }"
-		"CSettingsView QToolButton:hover { color: #fbe29a; }"
-		"CSettingsView QToolButton:disabled { color: #7d6a4c; }")
-		.arg(off, on);
+		"CSettingsView QToolButton:checked { color: #ffffff; background: transparent; border-image: url(\"%2\") 4 6 4 6 repeat stretch; }"
+		"CSettingsView QToolButton:hover { color: #ffffff; }"
+		"CSettingsView QToolButton:disabled { color: #8a8a8a; }")
+		.arg(off, on, text);
+	return styles;
 }
 
-/// Dark mode's background: the same leather tinted toward black, so the two looks share one grain
-/// (K, September 26th: one harvested texture in two tints, not a second dark design)
-QPixmap darkened(const QPixmap & leather)
+/// The background slot: the game's leather as it is, or as `colour` (the game's player colours do the same to it for
+/// a player's windows). The dark look has its own: the leather tinted toward black (K, September 26th: one harvested
+/// texture in two tints, not a second dark design), the grain staying and the brown mostly going; a colour chosen
+/// there is the same grain in that colour, dark.
+QPixmap backgroundOf(const QPixmap & leather, const LookSlots & look_)
 {
 	QImage image = leather.toImage().convertToFormat(QImage::Format_RGB32);
+	if(look_.background != "default")
+	{
+		// dark: silver stays a visible grey and black stays black, the colours at under half their brightness
+		const double weight = !look_.dark ? 1.0 : look_.background == "silver" ? 0.9 : look_.background == "black" ? 0.4 : 0.45;
+		return QPixmap::fromImage(tinted(image, look_.background, weight).convertToFormat(QImage::Format_RGB32));
+	}
+	if(!look_.dark)
+		return leather;
 	for(int y = 0; y < image.height(); ++y)
 	{
 		auto * line = reinterpret_cast<QRgb *>(image.scanLine(y));
 		for(int x = 0; x < image.width(); ++x)
 		{
-			// two thirds of the way to grey, then down to 30% of the brightness: the grain stays, the brown mostly goes
+			// two thirds of the way to grey, then down to 30% of the brightness
 			const int grey = qGray(line[x]);
-			const auto tint = [grey](int channel) { return (channel + 2 * grey) / 3 * 30 / 100; };
-			line[x] = qRgb(tint(qRed(line[x])), tint(qGreen(line[x])), tint(qBlue(line[x])));
+			const auto dim = [grey](int channel) { return (channel + 2 * grey) / 3 * 30 / 100; };
+			line[x] = qRgb(dim(qRed(line[x])), dim(qGreen(line[x])), dim(qBlue(line[x])));
 		}
 	}
 	return QPixmap::fromImage(image);
 }
 
 const QColor gold(217, 168, 62);
-const QColor parchment(243, 231, 201);
 
-// Gold buttons with black text, as the game draws its own; the side menu and tabs in the same gold. The
-// Settings page's categories gold on black down its left, the category's settings framed in gold, its
-// dropdowns and its buttons that switch a setting in the game's gold (K, September 26th).
-const char * commonStyle = R"(
+// Gold buttons with black text, as the game draws its own, and the Settings page's categories gold on black down
+// its left. In three parts, one for each slot of the look that colours them (the background is the window's own
+// brush): the primary buttons; the partitions, the side menu, tabs, frames and dropdowns; the secondary buttons,
+// the Settings page's switches.
+const char * primaryStyle = R"(
 QPushButton {
 	color: black;
 	background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f3d27a, stop:0.5 #d9a83e, stop:1 #9c6d1c);
@@ -704,14 +916,6 @@ QPushButton {
 QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fbe29a, stop:0.5 #e8bc55, stop:1 #ae7e2a); }
 QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #9c6d1c, stop:1 #d9a83e); }
 QPushButton:disabled { color: #3a2a12; background: #7d6a4c; border-color: #3a2a12; }
-QToolButton { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 2px; }
-QToolButton:checked, QToolButton:hover { background: rgba(0, 0, 0, 90); border: 1px solid #d9a83e; }
-QTabBar::tab { padding: 4px 14px; border: 1px solid #8a6a2a; border-bottom: none; }
-QTabBar::tab:selected { color: black; background: #d9a83e; }
-QHeaderView::section { padding: 3px 6px; border: none; border-right: 1px solid #8a6a2a; border-bottom: 1px solid #8a6a2a; }
-QToolTip { color: #f3e7c9; background: #2a1a0a; border: 1px solid #d9a83e; }
-QProgressBar { border: 1px solid #8a6a2a; text-align: center; }
-QProgressBar::chunk { background: #d9a83e; }
 #dmbSettingsCategories QPushButton {
 	color: #d9a83e;
 	background: black;
@@ -724,11 +928,32 @@ QProgressBar::chunk { background: #d9a83e; }
 }
 #dmbSettingsCategories QPushButton:hover { color: #fbe29a; background: #1c1307; }
 #dmbSettingsCategories QPushButton:checked { color: #fbe29a; background: #2b1d08; border: 1px solid #d9a83e; }
+)";
+
+const char * partitionsStyle = R"(
+QToolButton { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 2px; }
+QToolButton:checked, QToolButton:hover { background: rgba(0, 0, 0, 90); border: 1px solid #d9a83e; }
+QTabBar::tab { padding: 4px 14px; border: 1px solid #8a6a2a; border-bottom: none; }
+QTabBar::tab:selected { color: black; background: #d9a83e; }
+QHeaderView::section { padding: 3px 6px; border: none; border-right: 1px solid #8a6a2a; border-bottom: 1px solid #8a6a2a; }
+QToolTip { color: #f3e7c9; background: #2a1a0a; border: 1px solid #d9a83e; }
+QProgressBar { border: 1px solid #8a6a2a; text-align: center; }
+QProgressBar::chunk { background: #d9a83e; }
 #dmbSettingsPanel { border: 2px solid #d9a83e; border-radius: 3px; }
 QLabel[dmbSettingsTitle="true"] { color: #d9a83e; font-size: 13pt; font-weight: bold; }
-CSettingsView QComboBox { color: #f3e7c9; background: #24170a; border: 1px solid #d9a83e; border-radius: 3px; padding: 3px 8px; }
+CSettingsView QComboBox { border: 1px solid #d9a83e; border-radius: 3px; padding: 3px 8px; }
 CSettingsView QComboBox:hover { border-color: #fbe29a; }
-CSettingsView QComboBox QAbstractItemView { color: #f3e7c9; background: #1a1108; border: 1px solid #d9a83e; selection-color: black; selection-background-color: #d9a83e; }
+CSettingsView QComboBox QAbstractItemView { border: 1px solid #d9a83e; selection-color: black; selection-background-color: #d9a83e; }
+)";
+
+// the dropdowns' own ground: dark, in the colour of the window's background (or of the partitions when the background keeps
+// the game's own leather, so the dark look's silver dropdowns stay)
+const char * fieldsStyle = R"(
+CSettingsView QComboBox { color: #f3e7c9; background: #24170a; }
+CSettingsView QComboBox QAbstractItemView { color: #f3e7c9; background: #1a1108; }
+)";
+
+const char * secondaryStyle = R"(
 CSettingsView QToolButton { color: #f3e7c9; background: #24170a; border: 1px solid #8a6a2a; border-radius: 3px; padding: 3px 10px; }
 CSettingsView QToolButton:hover { border-color: #d9a83e; }
 CSettingsView QToolButton:checked {
@@ -739,7 +964,7 @@ CSettingsView QToolButton:checked {
 )";
 
 QPalette themedPalette(const QBrush & window, const QColor & base, const QColor & alternate, const QColor & button,
-	const QColor & accent = gold, const QColor & text = parchment)
+	const QColor & accent, const QColor & text, const QColor & highlighted)
 {
 	QPalette palette;
 	palette.setBrush(QPalette::Window, window);
@@ -752,7 +977,7 @@ QPalette themedPalette(const QBrush & window, const QColor & base, const QColor 
 	palette.setColor(QPalette::ButtonText, text);
 	palette.setColor(QPalette::BrightText, accent);
 	palette.setColor(QPalette::Highlight, accent);
-	palette.setColor(QPalette::HighlightedText, Qt::black);
+	palette.setColor(QPalette::HighlightedText, highlighted);
 	palette.setColor(QPalette::Link, accent);
 	palette.setColor(QPalette::ToolTipBase, QColor(42, 26, 10));
 	palette.setColor(QPalette::ToolTipText, text);
@@ -762,19 +987,67 @@ QPalette themedPalette(const QBrush & window, const QColor & base, const QColor 
 	return palette;
 }
 
-/// The style sheet's gold, its browns and its parchment text in the silver and greys of the dark look
-QString inSilver(QString style)
+/// the launcher's whole style sheet and palette for `slots`; `leather` is null before the game's files are imported
+struct AppliedLook
 {
-	static const std::vector<std::pair<const char *, const char *>> colours = {
-		{"#f3d27a", "#c6cad1"}, {"#d9a83e", "#9fa4ac"}, {"#9c6d1c", "#686c73"}, {"#fbe29a", "#d9dce1"},
-		{"#e8bc55", "#b2b6bd"}, {"#ae7e2a", "#7b7f86"}, {"#8a6a2a", "#5c6067"}, {"#4a3008", "#2f3237"},
-		{"#3a2a12", "#2a2c30"}, {"#7d6a4c", "#686b70"}, {"#1c1307", "#1a1a1b"}, {"#2b1d08", "#2a2b2d"},
-		{"#24170a", "#202122"}, {"#1a1108", "#171718"}, {"#2a1a0a", "#1e1e1f"}, {"#e8c86a", "#d7dbe1"},
-		{"#fff0b0", "#ffffff"}, {"#2a1c0c", "#222326"}, {"#f3e7c9", "#e8eaed"},
+	QString sheet;
+	QPalette palette;
+};
+
+AppliedLook buildLook(const LookSlots & look_, const QPixmap & leather)
+{
+	const QString text = textColour(look_);
+	const auto lighten = [&text](QString sheet, const std::string & colour)
+	{
+		// black lettering and black selections on a black slot cannot be read: the look's light text instead
+		if(needsLightLettering(colour))
+			sheet.replace("color: black", "color: " + text);
+		return sheet;
 	};
-	for(const auto & [goldColour, silverColour] : colours)
-		style.replace(goldColour, silverColour, Qt::CaseInsensitive);
-	return style;
+	const double partitionsWeight = slotWeight(look_, look_.partitions, 0.85);
+	const double secondaryWeight = slotWeight(look_, look_.secondary, SECONDARY_DARK_WEIGHT);
+	const double primaryWeight = slotWeight(look_, look_.primary, 0.9);
+
+	const ButtonStyles game = gameButtonStyle(look_);
+	QString sheet = lighten(inColour(primaryStyle, look_.primary, primaryWeight), look_.primary) + game.primary;
+	sheet += lighten(inColour(partitionsStyle, look_.partitions, partitionsWeight), look_.partitions);
+	const bool fieldsFollowBackground = look_.background != "default";
+	sheet += inColour(fieldsStyle, fieldsFollowBackground ? look_.background : look_.partitions,
+		fieldsFollowBackground ? slotWeight(look_, look_.background, 0.5) : partitionsWeight);
+	sheet += lighten(inColour(secondaryStyle, look_.secondary, secondaryWeight), look_.secondary) + game.secondary;
+
+	// tabs and column headers: a dark ground in the partitions' colour
+	QString tabGround = look_.dark ? "#2c2c2c" : "#3a2410";
+	if(look_.partitions != "default" && look_.partitions != "silver")
+		tabGround = look_.dark ? QColor(tintPixel(44, look_.partitions, partitionsWeight)).name()
+			: recoloured(QColor("#3a2410"), look_.partitions, partitionsWeight).name();
+	else if(look_.partitions == "silver" && !look_.dark)
+		tabGround = "#2c2c2c";
+	sheet += QString("QTabBar::tab, QHeaderView::section { color: %1; background: %2; }").arg(text, tabGround);
+	// the platform's own parchment text, and the light text this look uses in its place
+	sheet.replace("#f3e7c9", text, Qt::CaseInsensitive);
+
+	// lists and text fields; the same ground as the window, a step darker
+	const QColor base = look_.dark ? QColor(16, 16, 16) : QColor(34, 22, 10);
+	const QColor alternate = look_.dark ? QColor(30, 30, 30) : QColor(46, 30, 14);
+	const QColor button = look_.dark ? QColor(44, 44, 44) : QColor(70, 46, 20);
+	const auto ground = [&look_](const QColor & vanilla)
+	{
+		return look_.background == "default" ? vanilla : recoloured(vanilla, look_.background, 1.0);
+	};
+	QBrush window;
+	if(!leather.isNull())
+		window = QBrush(backgroundOf(leather, look_));
+	else if(look_.background == "default")
+		window = QBrush(QColor(24, 24, 24));
+	else
+		window = QBrush(QColor(tintPixel(60, look_.background, 0.4)));
+	const QColor accent = recoloured(gold, look_.partitions, partitionsWeight);
+	const QColor highlighted = accent.lightness() < 90 ? QColor(text) : QColor(Qt::black);
+	AppliedLook look;
+	look.sheet = sheet;
+	look.palette = themedPalette(window, ground(base), ground(alternate), ground(button), accent, QColor(text), highlighted);
+	return look;
 }
 }
 
@@ -919,27 +1192,49 @@ void LauncherTheme::apply()
 	const QPixmap leather = playerLeather();
 
 	QApplication::setStyle(QStyleFactory::create("Fusion")); // the one style that follows the palette everywhere
-	if(theme == "leather" && !leather.isNull())
-	{
-		// the tile itself behind every window; lists and text on a dark brown, so they stay readable
-		QApplication::setPalette(themedPalette(QBrush(leather), QColor(34, 22, 10), QColor(46, 30, 14), QColor(70, 46, 20)));
-		qApp->setStyleSheet(QString(commonStyle) + gameButtonStyle(false) +
-			"QTabBar::tab, QHeaderView::section { color: #f3e7c9; background: #3a2410; }" + gameFontStyle());
-		logGlobal->info("Launcher look: leather, from the player's game files");
-	}
-	else
-	{
-		// the same leather tinted near black; a flat near black only before the game files are imported.
-		// Its buttons and edges in silver, unless the player keeps the gold (launcher.darkAccent)
-		const bool silver = settings["launcher"]["darkAccent"].String() != "gold";
-		const QBrush window = leather.isNull() ? QBrush(QColor(24, 24, 24)) : QBrush(darkened(leather));
-		const QString style = QString(commonStyle) + gameButtonStyle(silver, true) +
-			"QTabBar::tab, QHeaderView::section { color: #f3e7c9; background: #2c2c2c; }" + gameFontStyle();
-		QApplication::setPalette(themedPalette(window, QColor(16, 16, 16), QColor(30, 30, 30), QColor(44, 44, 44),
-			silver ? QColor(159, 164, 172) : gold, silver ? QColor(232, 234, 237) : parchment));
-		qApp->setStyleSheet(silver ? inSilver(style) : style);
-		logGlobal->info("Launcher look: dark in %s, %s", silver ? "silver" : "gold", leather.isNull()
-			? "flat (no game files to read the leather from yet)" : "the leather tinted near black");
-	}
+	// the leather look needs the game's leather; before the files are imported it is the dark look, flat
+	const bool useLeather = theme == "leather" && !leather.isNull();
+	const LookSlots look_ = lookSlots(useLeather ? "leather" : "dark");
+	lightLettering = needsLightLettering(look_.primary);
+	const AppliedLook look = buildLook(look_, leather);
+	QApplication::setPalette(look.palette);
+	qApp->setStyleSheet(look.sheet + gameFontStyle());
+	logGlobal->info("Launcher look: %s%s; background %s, partitions %s, primary buttons %s, secondary buttons %s",
+		useLeather ? "leather" : "dark", leather.isNull() ? " (flat, no game files to read the leather from yet)" : "",
+		look_.background, look_.partitions, look_.primary, look_.secondary);
 	carveEveryButton(true);
+}
+
+std::vector<std::string> LauncherTheme::slotColours()
+{
+	std::vector<std::string> colours = {"default"};
+	colours.insert(colours.end(), SLOT_COLOUR_NAMES.begin(), SLOT_COLOUR_NAMES.end());
+	return colours;
+}
+
+std::string LauncherTheme::slotColour(const std::string & slot)
+{
+	const LookSlots look_ = lookSlots(settings["launcher"]["theme"].String() == "dark" ? "dark" : "leather");
+	if(slot == "background")
+		return look_.background;
+	if(slot == "partitions")
+		return look_.partitions;
+	if(slot == "primary")
+		return look_.primary;
+	return look_.secondary;
+}
+
+unsigned LauncherTheme::slotSwatch(const std::string & slot, const std::string & colour)
+{
+	if(colour == "default")
+	{
+		if(slot == "background")
+			return 0x5a3c1e;
+		return slot == "secondary" ? 0x284696 : 0xd9a83e;
+	}
+	if(colour == "silver")
+		return 0xa0a4ac;
+	if(colour == "black")
+		return 0x181818;
+	return tintPixel(slot == "background" ? 90 : 150, colour, 1.0) & 0xFFFFFF;
 }

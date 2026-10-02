@@ -10,6 +10,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 class QString;
 class QIcon;
@@ -27,6 +28,20 @@ class QPushButton;
 namespace LauncherTheme
 {
 	void apply();
+
+	/// The look's four colour slots (K, October 1st: "everything is configurable now ... One color per slot"): the
+	/// window's background, the partitions (frames, tabs, side menu, titles), the primary buttons and the secondary
+	/// buttons (the Settings page's switches). Each takes "default" (the slot's own in the game's leather look: leather,
+	/// gold, gold, blue), one of the game's eight hero colours (read from its own player colours), silver or black.
+	/// The look gives each slot a starting colour (the dark look: silver edges and buttons, red switches); the
+	/// player's own choice is settings launcher.look.<slot>, which replaces it.
+	std::vector<std::string> slotColours();
+
+	/// what `slot` ("background", "partitions", "primary", "secondary") shows now, in the current look
+	std::string slotColour(const std::string & slot);
+
+	/// the colour as a 0xRRGGBB swatch for `slot`'s dropdown
+	unsigned slotSwatch(const std::string & slot, const std::string & colour);
 
 	/// the least a button can be and still carve `text` in gold-button lettering; 0 if there is
 	/// nothing to carve it with yet (the language is not English, a letter is missing, or nothing has

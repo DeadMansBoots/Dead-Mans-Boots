@@ -125,6 +125,17 @@ private:
 	std::vector<SettingsCategory> categories;
 	QStackedWidget * categoryPages = nullptr;
 
+	/// DMB: the look's four colour slots (launcher/theme.h), a dropdown each below Launcher Look
+	/// (K, October 1st: "max configurability"), made with the pages
+	struct LookSlotRow
+	{
+		const char * slot;
+		QComboBox * combo;
+	};
+	std::vector<LookSlotRow> lookSlotRows;
+	/// the dropdowns showing what each slot holds now, in the current look
+	void fillLookSlots();
+
 	void fillValidRenderers();
 	void fillValidResolutionsForScreen(int screenIndex);
 	void fillValidScalingRange();

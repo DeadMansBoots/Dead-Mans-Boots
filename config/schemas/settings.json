@@ -801,7 +801,8 @@
 				"trackClipboardState",
 				"dmbHomepage",
 				"theme",
-				"darkAccent"
+				"darkAccent",
+				"look"
 			],
 			"properties" : {
 				// DMB: the launcher's look (launcher/theme.h): the game's leather from the player's own
@@ -816,6 +817,21 @@
 					"type" : "string",
 					"enum" : [ "silver", "gold" ],
 					"default" : "silver"
+				},
+				// DMB: the launcher's four colour slots (K, October 1st: "everything is configurable now ... One color per
+				// slot"). Each is "default" (the slot's own in the look), a hero colour, silver or black; a slot left
+				// empty takes what the look gives it (red switches and silver edges in the dark look, the game's own in leather)
+				"look" : {
+					"type" : "object",
+					"additionalProperties" : false,
+					"default" : {},
+					"required" : [ "background", "partitions", "primary", "secondary" ],
+					"properties" : {
+						"background" : { "type" : "string", "default" : "" },
+						"partitions" : { "type" : "string", "default" : "" },
+						"primary" : { "type" : "string", "default" : "" },
+						"secondary" : { "type" : "string", "default" : "" }
+					}
 				},
 				"defaultRepositoryEnabled" : {
 					"type" : "boolean",

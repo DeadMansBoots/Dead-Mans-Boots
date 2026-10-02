@@ -282,21 +282,17 @@ void CSettingsView::loadSettings()
 	Languages::fillLanguages(ui->comboBoxLanguage, false);
 	fillValidRenderers();
 
-	// DMB: the launcher's look (theme.h), switched on the spot; the dark look in silver, or keeping the
-	// game's gold (launcher.darkAccent)
+	// DMB: the launcher's look (theme.h), switched on the spot; its colour slots below it start from the look
 	{
 		const QSignalBlocker quiet(ui->comboBoxLauncherLook);
 		ui->comboBoxLauncherLook->clear();
 		ui->comboBoxLauncherLook->addItem(tr("Leather"), QString("leather"));
-		ui->comboBoxLauncherLook->addItem(tr("Dark, silver"), QString("dark:silver"));
-		ui->comboBoxLauncherLook->addItem(tr("Dark, gold"), QString("dark:gold"));
+		ui->comboBoxLauncherLook->addItem(tr("Dark"), QString("dark"));
 		ui->comboBoxLauncherLook->addItem(tr("System"), QString("system"));
-		QString look = QString::fromStdString(settings["launcher"]["theme"].String());
-		if(look == "dark")
-			look += ":" + QString::fromStdString(settings["launcher"]["darkAccent"].String());
-		const int stored = ui->comboBoxLauncherLook->findData(look);
+		const int stored = ui->comboBoxLauncherLook->findData(QString::fromStdString(settings["launcher"]["theme"].String()));
 		ui->comboBoxLauncherLook->setCurrentIndex(std::max(0, stored));
 	}
+	fillLookSlots();
 
 	std::string upscalingFilter = settings["video"]["upscalingFilter"].String();
 	int upscalingFilterIndex = vstd::find_pos(upscalingFilterTypes, upscalingFilter);
@@ -580,6 +576,42 @@ void CSettingsView::buildCategoryPages()
 		cells.push_back(cell);
 	}
 
+	// DMB: a dropdown for each colour slot of the look, the rows under Launcher Look (row 2): everything below moves down to make room
+	{
+		const struct { const char * slot; const char * text; } slotRows[] = {
+			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
+			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
+		constexpr int added = 4;
+		constexpr int firstFree = 3;
+		std::map<int, QLabel *> moved;
+		for(auto & [row, header] : starts)
+			moved[row >= firstFree ? row + added : row] = header;
+		starts = moved;
+		for(auto & cell : cells)
+			if(cell.row >= firstFree)
+				cell.row += added;
+		int row = firstFree;
+		for(const auto & entry : slotRows)
+		{
+			auto * label = new QLabel(tr(entry.text), this);
+			auto * combo = new QComboBox(this);
+			combo->setObjectName(QString("comboBoxLook_") + entry.slot);
+			cells.push_back({new QWidgetItem(label), row, 0, 1, 1});
+			cells.push_back({new QWidgetItem(combo), row, 1, 1, 5});
+			lookSlotRows.push_back({entry.slot, combo});
+			connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [combo, slot = std::string(entry.slot)](int index)
+			{
+				{
+					Settings node = settings.write["launcher"]["look"][slot];
+					node->String() = combo->itemData(index).toString().toStdString();
+				}
+				LauncherTheme::apply();
+			});
+			++row;
+		}
+		fillLookSlots();
+	}
+
 	auto * bar = new QWidget(this);
 	bar->setObjectName("dmbSettingsCategories");
 	bar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
@@ -823,17 +855,45 @@ void CSettingsView::on_buttonAutoSave_toggled(bool value)
 
 void CSettingsView::on_comboBoxLauncherLook_currentIndexChanged(int index)
 {
-	const QStringList look = ui->comboBoxLauncherLook->itemData(index).toString().split(':');
 	{
 		Settings node = settings.write["launcher"]["theme"];
-		node->String() = look.value(0).toStdString();
+		node->String() = ui->comboBoxLauncherLook->itemData(index).toString().toStdString();
 	}
-	if(look.size() > 1)
+	// a look brings its own colours: what the player changed in the slots, and the older gold-or-silver
+	// choice of the dark look (launcher.darkAccent), are replaced by the look's
 	{
 		Settings accent = settings.write["launcher"]["darkAccent"];
-		accent->String() = look.value(1).toStdString();
+		accent->String() = "silver";
+	}
+	for(const auto & row : lookSlotRows)
+	{
+		Settings slot = settings.write["launcher"]["look"][row.slot];
+		slot->String() = "";
 	}
 	LauncherTheme::apply();
+	fillLookSlots();
+}
+
+void CSettingsView::fillLookSlots()
+{
+	static const std::map<std::string, const char *> names = {
+		{"default", QT_TR_NOOP("Standard")}, {"red", QT_TR_NOOP("Red")}, {"blue", QT_TR_NOOP("Blue")}, {"tan", QT_TR_NOOP("Tan")},
+		{"green", QT_TR_NOOP("Green")}, {"orange", QT_TR_NOOP("Orange")}, {"purple", QT_TR_NOOP("Purple")},
+		{"teal", QT_TR_NOOP("Teal")}, {"pink", QT_TR_NOOP("Pink")}, {"silver", QT_TR_NOOP("Silver")}, {"black", QT_TR_NOOP("Black")}};
+	const bool themed = settings["launcher"]["theme"].String() != "system";
+	for(const auto & row : lookSlotRows)
+	{
+		const QSignalBlocker quiet(row.combo);
+		row.combo->clear();
+		for(const std::string & colour : LauncherTheme::slotColours())
+		{
+			QPixmap swatch(28, 14);
+			swatch.fill(QColor::fromRgb(LauncherTheme::slotSwatch(row.slot, colour)));
+			row.combo->addItem(QIcon(swatch), tr(names.at(colour)), QString::fromStdString(colour));
+		}
+		row.combo->setCurrentIndex(std::max(0, row.combo->findData(QString::fromStdString(LauncherTheme::slotColour(row.slot)))));
+		row.combo->setEnabled(themed); // the platform's own look has no slots
+	}
 }
 
 void CSettingsView::on_comboBoxLanguage_currentIndexChanged(int index)

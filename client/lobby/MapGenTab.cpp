@@ -47,6 +47,7 @@
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/texts/MetaString.h"
 
+#include <chrono>
 #include <fstream>
 #include <random>
 #include <thread>
@@ -100,10 +101,42 @@ namespace
 class HoverTip : public CIntObject, public IStatusBar, public std::enable_shared_from_this<HoverTip>
 {
 	static constexpr int WRAP_WIDTH = 300;
+	/// K, October 1st: "the tooltip should only show up after a second, if the mouse doesn't move after it stops on a
+	/// button/text/bar". Any movement hides the box and starts the wait again, so it is never drawn while the pointer moves.
+	static constexpr std::chrono::milliseconds STILL_FOR{1000};
 
 	std::string title;
 	std::string body;
 	std::function<std::string(const std::string &)> bodyOf;
+	Point lastCursor{-1, -1};
+	std::chrono::steady_clock::time_point movedAt = std::chrono::steady_clock::now();
+	bool shown = false;
+
+	/// The box is wanted (a control is named and the pointer has rested a second) or not; leaving the wanted state clears
+	/// the box's place on the screen once.
+	void settle()
+	{
+		const Point cursor = ENGINE->getCursorPosition();
+		const auto now = std::chrono::steady_clock::now();
+		if(!(cursor == lastCursor))
+		{
+			lastCursor = cursor;
+			movedAt = now;
+			hideBox();
+		}
+		else if(!shown && !title.empty() && now - movedAt >= STILL_FOR)
+		{
+			shown = true;
+		}
+	}
+
+	void hideBox()
+	{
+		if(!shown)
+			return;
+		shown = false;
+		redraw();
+	}
 
 public:
 	HoverTip(const Rect & area, std::function<std::string(const std::string &)> lookup)
@@ -121,6 +154,9 @@ public:
 			return;
 		title = text;
 		body = title.empty() ? std::string() : bodyOf(title);
+		// the wait is on the pointer being still, not on the text: a control that names itself again under a still
+		// pointer is shown as soon as the second is up
+		shown = false;
 		redraw();
 	}
 
@@ -150,18 +186,20 @@ public:
 		ENGINE->setStatusbar(nullptr);
 		title.clear();
 		body.clear();
+		shown = false;
 		CIntObject::deactivate();
 	}
 
 	/// every frame, after the labels: a CLabel redraws itself each frame, which would paint its text over a box drawn once
 	void show(Canvas & to) override
 	{
+		settle();
 		showAll(to);
 	}
 
 	void showAll(Canvas & to) override
 	{
-		if(title.empty())
+		if(title.empty() || !shown)
 			return;
 		const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
 		std::vector<std::string> lines;

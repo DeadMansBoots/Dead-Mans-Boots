@@ -59,6 +59,13 @@ CHoverableArea::~CHoverableArea()
 {
 }
 
+bool LRClickableAreaWText::receiveEvent(const Point & position, int eventType) const
+{
+	if(eventType == LCLICK && clickWidth > 0 && position.x >= pos.x + clickWidth)
+		return false;
+	return CHoverableArea::receiveEvent(position, eventType);
+}
+
 void LRClickableAreaWText::clickPressed(const Point & cursorPosition)
 {
 	if(text.empty())

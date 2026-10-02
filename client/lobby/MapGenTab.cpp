@@ -239,14 +239,27 @@ public:
 /// the template a generator picks for itself from those that fit (OmniMapGen reads "random" so)
 static const std::string RANDOM_TEMPLATE = "random";
 
-/// OmniMapGen's Water page, as its own files number it (params/waterContent's stops, and its stockChoices.js
-/// applyWaterContent): None, Normal and Islands each stand for a level of the amount of water and, for
-/// Islands, a layout (params/waterShape stop 5, "Islands"); the amount is 20% for both Normal and Islands
+/// OmniMapGen's Water page, as its own files number it (params/waterContent's stops, params/waterShape's stops).
+/// K, October 1st: None, Normal and Islands each set both the Water layout dropdown and the Amount slider to what the
+/// original game's generator makes for that choice, measured by MapGen Dev's engine water sweep (93 templates at four
+/// sizes, 4 seeds each; DMB\docs\water-buttons.md has the table and where it comes from). This is THE one table of these
+/// numbers: change them here and in that file together.
 const int WATER_NONE = 0;
 const int WATER_NORMAL = 1;
 const int WATER_ISLANDS = 2;
-const double WATER_LEVEL = 0.2;
+const int WATER_SHAPE_LAKES = 0;
 const int WATER_SHAPE_ISLANDS = 5;
+struct WaterChoice
+{
+	int content;
+	double amount; // the Amount slider steps by 0.05, so the engine's measured share is given to the nearest step
+	int shape;
+};
+const WaterChoice WATER_CHOICES[] = {
+	{WATER_NONE, 0.00, WATER_SHAPE_LAKES},     // engine: no water
+	{WATER_NORMAL, 0.20, WATER_SHAPE_LAKES},   // engine: 0.20 of the surface (0.10 to 0.33) as about ten small lakes; Lakes is the nearest layout
+	{WATER_ISLANDS, 0.45, WATER_SHAPE_ISLANDS} // engine: 0.47 (0.35 to 0.66) as about eight land masses
+};
 
 /// One of the texts the tab itself shows: the mod's own wording ("vcmi.mapGen.<name>", from its
 /// translation) when it brings one, else DMB's generic text ("vcmi.dmb.mapGenerator.<name>"). The
@@ -277,7 +290,10 @@ MapGenPage::MapGenPage(const JsonNode & layout, const std::function<void(MapGenP
 	// the controls drawn over it keep their own help
 	for(const auto & [name, object] : namedWidgets())
 		if(const auto area = std::dynamic_pointer_cast<LRClickableAreaWText>(object); area && area->pos.w < 312 && boost::algorithm::starts_with(name, "help_"))
+		{
+			area->clickWidth = area->pos.w; // a left click is still only the label's: the controls over the row keep theirs
 			area->pos.w = 312;
+		}
 	if(after)
 		after(*this);
 }
@@ -341,9 +357,9 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		{
 			// K, September 28th, and again on the 29th after two fixes that did not move it: "the old 'none'
 			// 'Normal' 'Islands' should automatically move the slider to where the correlatory original game
-			// water content level was". Each choice sets the levels the generator itself takes for it
-			// (stockChoices.js applyWaterContent, and the choice's own help text): None a dry map, Normal and
-			// Islands 20% water, Islands laid out as islands. Every time it is picked, whatever the slider was:
+			// water content level was". Each choice sets the Water layout and the Amount to what the original
+			// generator makes for it (WATER_CHOICES, from the engine's water sweep of October 1st, K's order).
+			// Every time it is picked, whatever the slider was:
 			// a saved preset comes back with its own amount, so a rule that waited for 0% never fired for K, and
 			// None did nothing at all. Random leaves both as they are.
 			const JsonNode & params = persistentStorage["mapGen"]["params"];
@@ -352,12 +368,14 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 			const int shape = params["waterShape"].isNumber() ? static_cast<int>(params["waterShape"].Float()) : 0;
 			double wantedCoverage = coverage;
 			int wantedShape = shape;
-			if(content == WATER_NONE)
-				wantedCoverage = 0;
-			else if(content == WATER_NORMAL || content == WATER_ISLANDS)
-				wantedCoverage = WATER_LEVEL;
-			if(content == WATER_ISLANDS)
-				wantedShape = WATER_SHAPE_ISLANDS;
+			for(const auto & choice : WATER_CHOICES)
+			{
+				if(choice.content == content)
+				{
+					wantedCoverage = choice.amount;
+					wantedShape = choice.shape;
+				}
+			}
 			if(wantedCoverage != coverage || wantedShape != shape)
 			{
 				Settings coverageSetting = persistentStorage.write["mapGen"]["params"]["waterCoverage"];

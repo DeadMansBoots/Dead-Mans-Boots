@@ -52,11 +52,17 @@ class LRClickableAreaWText: public CHoverableArea
 {
 public:
 	std::string text;
+	/// DMB: when above 0, a left click is answered only this far from the area's left edge: a map generator's setting row
+	/// is one help area wider than the label it was made for, so that hover and right-click answer over the row's slider
+	/// too, and a left click on the slider must not also open the help text (it goes to the slider alone)
+	int clickWidth = 0;
 
 	LRClickableAreaWText();
 	LRClickableAreaWText(const Rect & Pos, const std::string & HoverText = "", const std::string & ClickText = "");
 	virtual ~LRClickableAreaWText();
 	void init();
+
+	bool receiveEvent(const Point & position, int eventType) const override;
 
 	void clickPressed(const Point & cursorPosition) override;
 	void showPopupWindow(const Point & cursorPosition) override;

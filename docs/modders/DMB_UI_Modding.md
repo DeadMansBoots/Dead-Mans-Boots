@@ -198,11 +198,19 @@ that mod is active. Menu mods conflict with one another, so only one can be acti
 to the game for that session and shows its picture and buttons as that mod lays them out. The setting stores `mod:<mod id>`.
 "Random" is drawn once each time the game starts.
 
-A player adds any picture of their own by putting a `.png`, `.jpg` or `.bmp` into the `MenuBackgrounds` folder of their
+A player adds any picture of their own by putting a `.png` or `.bmp` (not `.jpg`: the game's image library reads no JPEG) into the `MenuBackgrounds` folder of their
 DMB folder (Documents\My Games\Dead Man's Boots\MenuBackgrounds, made by the game the first time it starts). Each file is an
 entry named after the file (`dusk_over_the_abyss.png` is "Dusk over the abyss"), joins the random draw, and is drawn behind the
 first release's buttons; the setting stores `file:<file name>`. Art for the menu leaves the right side free, as the game's own
 does (800x600 proportions, any larger size of the same shape).
+
+The loading screen works the same way: a `.png` or `.bmp` put into the `LoadingScreens` folder of the DMB folder (made by the game the
+first time it starts) is an entry named after the file and joins the loading screens. The setting `general.loadingScreen` is `random`
+(one of them, or the game's own, each time a game loads; the default), `default` (the game's own) or `file:<file name>`; the launcher's
+Settings, General page has the choice beside the main menu background. The picture is cut to 800x600 from the middle, as the menu's
+is, and should carry its own progress bar frame at x 395, y 548 (360 by 18 pixels), where the game draws the progress blocks and the
+phase text. A larger copy made for sharper screens goes in `LoadingScreens\Upscaled\DATA2X`, `DATA3X` and `DATA4X` (1600x1200,
+2400x1800 and 3200x2400), named `DMBLoad-<file name without its extension, lower case, anything but letters and digits a dash>.png`.
 
 A mod adds pictures with a file `config/mainMenuBackgrounds.json` (every active mod's file is merged; level 5):
 

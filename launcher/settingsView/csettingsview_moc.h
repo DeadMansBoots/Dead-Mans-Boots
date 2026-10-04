@@ -147,6 +147,9 @@ private:
 	/// release's own picture from the player's game files; the dropdown below the look's slots
 	QComboBox * menuBackgroundCombo = nullptr;
 	void fillMenuBackgrounds();
+	/// DMB: the loading screen (general.loadingScreen): random, the game's own, or one picture of the LoadingScreens folder
+	QComboBox * loadingScreenCombo = nullptr;
+	void fillLoadingScreens();
 
 	void fillValidRenderers();
 	void fillValidResolutionsForScreen(int screenIndex);

@@ -582,7 +582,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 5; // the four slots and the main menu background
+		constexpr int added = 6; // the four slots, the main menu background and the loading screen
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -623,6 +623,18 @@ void CSettingsView::buildCategoryPages()
 			node->String() = menuBackgroundCombo->itemData(index).toString().toStdString();
 		});
 		fillMenuBackgrounds();
+
+		auto * loadingLabel = new QLabel(tr("Loading screen"), this);
+		loadingScreenCombo = new QComboBox(this);
+		loadingScreenCombo->setObjectName("comboBoxLoadingScreen");
+		cells.push_back({new QWidgetItem(loadingLabel), row + 1, 0, 1, 1});
+		cells.push_back({new QWidgetItem(loadingScreenCombo), row + 1, 1, 1, 5});
+		connect(loadingScreenCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index)
+		{
+			Settings node = settings.write["general"]["loadingScreen"];
+			node->String() = loadingScreenCombo->itemData(index).toString().toStdString();
+		});
+		fillLoadingScreens();
 	}
 
 	auto * bar = new QWidget(this);
@@ -935,6 +947,27 @@ void CSettingsView::fillMenuBackgrounds()
 		index = menuBackgroundCombo->count() - 1;
 	}
 	menuBackgroundCombo->setCurrentIndex(std::max(0, index));
+}
+
+void CSettingsView::fillLoadingScreens()
+{
+	if(loadingScreenCombo == nullptr)
+		return;
+	const QSignalBlocker quiet(loadingScreenCombo);
+	loadingScreenCombo->clear();
+	loadingScreenCombo->addItem(tr("Random"), QString("random"));
+	loadingScreenCombo->addItem(tr("The game's own"), QString("default"));
+	for(const auto & file : MenuBackgrounds::loadingScreens()) // a picture dropped into the LoadingScreens folder
+		loadingScreenCombo->addItem(QString::fromStdString(file.title), QString::fromStdString(file.id));
+	// a picture that is no longer in the folder stays as the setting says until it is changed
+	const QString stored = QString::fromStdString(settings["general"]["loadingScreen"].String());
+	int index = loadingScreenCombo->findData(stored);
+	if(index < 0 && !stored.isEmpty())
+	{
+		loadingScreenCombo->addItem(stored, stored);
+		index = loadingScreenCombo->count() - 1;
+	}
+	loadingScreenCombo->setCurrentIndex(std::max(0, index));
 }
 
 void CSettingsView::on_comboBoxLanguage_currentIndexChanged(int index)

@@ -35,12 +35,13 @@ struct DLL_LINKAGE MenuMod
 	boost::filesystem::path folder; // the mod's own folder (its mod.json, Content.zip or Content)
 };
 
-/// A picture the player dropped into the MenuBackgrounds folder of their own DMB folder (a .png, .jpg or .bmp of any size): it joins the
+/// A picture the player dropped into the MenuBackgrounds folder of their own DMB folder (a .png or .bmp of any size; the game's image library here reads no JPEG): it joins the
 /// rotation and the Settings choice under its file name.
 struct DLL_LINKAGE MenuFile
 {
 	std::string id; // "file:" and the file's name in lower case
 	std::string title; // the file's name without its extension, words apart: "Dusk over the Abyss"
+	std::string slug; // the file's name without its extension in lower case, anything but letters and digits a dash: the name of its generated image
 	boost::filesystem::path path;
 };
 
@@ -70,6 +71,13 @@ public:
 
 	/// every picture in that folder, by file name
 	static const std::vector<MenuFile> & dropIns();
+
+	/// the folder the player drops loading screens into (their DMB folder's LoadingScreens, with an Upscaled folder beside the pictures
+	/// as MenuBackgrounds has), made when it is first asked for
+	static boost::filesystem::path loadingFolder();
+
+	/// every loading screen in that folder, by file name (the same picture files as the menu's: any size, cut to 800x600 from the middle)
+	static const std::vector<MenuFile> & loadingScreens();
 
 	/// the picture's own bytes (a Heroes III .pcx), empty when the archive cannot be read
 	static std::vector<ui8> pcx(const MenuEra & era);

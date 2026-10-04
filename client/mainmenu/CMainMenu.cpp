@@ -958,6 +958,9 @@ void CSimpleJoinScreen::startConnection(const std::string & addr, ui16 port)
 		GAME->server().connectToServer(addr, port);
 }
 
+/// DMB: the generated picture the last default loading screen chose from the player's LoadingScreens folder; empty when it was the game's own
+static std::string customLoadingPicture;
+
 CLoadingScreen::CLoadingScreen()
 	: CLoadingScreen(getBackground())
 {
@@ -967,6 +970,7 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	: CWindowObject(BORDERED, background)
 {
 	OBJECT_CONSTRUCTION;
+	const bool customPicture = !customLoadingPicture.empty() && background == ImagePath::builtin(customLoadingPicture);
 
 	addUsedEvents(TIME);
 
@@ -975,7 +979,7 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	const auto& conf = CMainMenuConfig::get().getConfig()["loading"];
 
 	const auto& backgroundConfig = conf["background"];
-	if (!backgroundConfig.Vector().empty())
+	if (!backgroundConfig.Vector().empty() && !customPicture)
 		backimg = std::make_shared<CPicture>(ImagePath::fromJson(*RandomGeneratorUtil::nextItem(backgroundConfig.Vector(), CRandomGenerator::getDefault())));
 
 	for (const JsonNode& node : conf["images"].Vector())
@@ -1057,6 +1061,28 @@ void CLoadingScreen::tick(uint32_t msPassed)
 
 ImagePath CLoadingScreen::getBackground()
 {
+	// DMB: the pictures the player dropped into their LoadingScreens folder join the game's own in the pool; general.loadingScreen is
+	// "random" (one of them each time a game loads), "default" (the game's own) or one picture's id ("file:<name>"); an id no longer in
+	// the folder is "random" again
+	customLoadingPicture.clear();
+	const auto & pictures = MenuBackgrounds::loadingScreens();
+	if(!pictures.empty())
+	{
+		std::vector<std::string> pool = {"default"};
+		for(const auto & picture : pictures)
+			pool.push_back(picture.id);
+		std::string chosen = settings["general"]["loadingScreen"].String();
+		if(!vstd::contains(pool, chosen))
+			chosen = *RandomGeneratorUtil::nextItem(pool, CRandomGenerator::getDefault());
+		for(const auto & picture : pictures)
+			if(picture.id == chosen)
+			{
+				customLoadingPicture = "DMBLoad-" + picture.slug;
+				logGlobal->info("Loading screen: %s", chosen);
+				return ImagePath::builtin(customLoadingPicture);
+			}
+	}
+
 	ImagePath fname = ImagePath::builtin("loadbar");
 	const auto & conf = CMainMenuConfig::get().getConfig()["loading"];
 

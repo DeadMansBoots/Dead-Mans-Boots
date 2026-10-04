@@ -149,6 +149,27 @@ void scanMods(const boost::filesystem::path & folder, const std::string & parent
 	}
 }
 
+/// The Main Menu Themes Pack carries a theme for every release and mod of the game, but a player's list is the menus of what they have
+/// (K, October 4th: "why do we have wake of gods? that's not in my mods list"): the four releases whose files the game itself holds
+/// (Restoration of Erathia, Armageddon's Blade, Shadow of Death, Complete) always, any other theme only where the mod it is the menu of is
+/// installed (Horn of the Abyss, Tides of War); a theme this does not know is left out.
+bool packThemeWanted(const std::string & id)
+{
+	static const std::string pack = "h3-themes.";
+	if(!boost::starts_with(id, pack))
+		return true;
+	std::string theme = id.substr(pack.size());
+	const auto dot = theme.find('.');
+	const std::string main = theme.substr(0, dot);
+	if(main == "roe" || main == "ab" || main == "sod" || main == "complete")
+		return true;
+	const std::pair<const char *, const char *> needs[] = {{"hota-", "hota"}, {"tow", "tides-of-war"}, {"wog", "wake-of-gods"}, {"hc-", "heroes-chronicles"}};
+	for(const auto & [prefix, mod] : needs)
+		if(boost::starts_with(main, prefix))
+			return !MenuBackgrounds::modFolder(mod).empty();
+	return false;
+}
+
 std::vector<MenuMod> discoverMods()
 {
 	std::vector<boost::filesystem::path> folders;
@@ -158,6 +179,21 @@ std::vector<MenuMod> discoverMods()
 	std::vector<MenuMod> found;
 	for(const auto & folder : folders)
 		scanMods(folder, "", "", found);
+	// a pack theme of a mod that adds a menu of its own is left out too: the mod's own entry is that menu
+	const std::vector<MenuMod> all = found;
+	found.erase(std::remove_if(found.begin(), found.end(), [&all](const MenuMod & entry)
+	{
+		if(!packThemeWanted(entry.id))
+			return true;
+		if(!boost::starts_with(entry.id, "h3-themes."))
+			return false;
+		const std::string theme = entry.id.substr(10);
+		const std::pair<const char *, const char *> owners[] = {{"hota-", "hota."}, {"tow", "tides-of-war."}, {"wog", "wake-of-gods."}, {"hc-", "heroes-chronicles."}};
+		for(const auto & [prefix, mod] : owners)
+			if(boost::starts_with(theme, prefix))
+				return std::any_of(all.begin(), all.end(), [mod = std::string(mod)](const MenuMod & other) { return boost::starts_with(other.id, mod); });
+		return false;
+	}), found.end());
 	// two entries with one title (two sub-mods of one mod, a themes pack's) are told apart by what each mod says it is ("Heroes 3 Theme:
 	// Armageddon's Blade" is "Armageddon's Blade menu"), and where that is the same too, by the mod's own id
 	const std::vector<MenuMod> before = found;
@@ -187,21 +223,24 @@ std::vector<boost::filesystem::path> modBaseFolders()
 	return folders;
 }
 
-std::vector<MenuFile> discoverDropIns()
+std::vector<MenuFile> discoverPictures(const boost::filesystem::path & folder)
 {
 	std::vector<MenuFile> found;
 	boost::system::error_code ec;
-	const auto folder = MenuBackgrounds::dropInFolder();
 	if(folder.empty())
 		return found;
 	for(boost::filesystem::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec))
 	{
 		std::string extension = boost::to_lower_copy(it->path().extension().string());
-		if((extension != ".png" && extension != ".jpg" && extension != ".jpeg" && extension != ".bmp") || !boost::filesystem::is_regular_file(it->path(), ec))
+		if((extension != ".png" && extension != ".bmp") || !boost::filesystem::is_regular_file(it->path(), ec))
 			continue;
 		MenuFile file;
 		file.path = it->path();
 		file.id = "file:" + boost::to_lower_copy(it->path().filename().string());
+		file.slug = boost::to_lower_copy(it->path().stem().string());
+		for(char & c : file.slug)
+			if(!std::isalnum(static_cast<unsigned char>(c)))
+				c = '-';
 		std::string title = it->path().stem().string();
 		std::replace(title.begin(), title.end(), '_', ' ');
 		boost::trim(title);
@@ -212,6 +251,16 @@ std::vector<MenuFile> discoverDropIns()
 	}
 	std::sort(found.begin(), found.end(), [](const MenuFile & a, const MenuFile & b) { return a.id < b.id; });
 	return found;
+}
+
+std::vector<MenuFile> discoverDropIns()
+{
+	return discoverPictures(MenuBackgrounds::dropInFolder());
+}
+
+std::vector<MenuFile> discoverLoadingScreens()
+{
+	return discoverPictures(MenuBackgrounds::loadingFolder());
 }
 
 std::vector<MenuEra> discover()
@@ -356,6 +405,24 @@ boost::filesystem::path MenuBackgrounds::dropInFolder()
 const std::vector<MenuFile> & MenuBackgrounds::dropIns()
 {
 	static const std::vector<MenuFile> found = discoverDropIns();
+	return found;
+}
+
+boost::filesystem::path MenuBackgrounds::loadingFolder()
+{
+	static const boost::filesystem::path folder = []()
+	{
+		boost::system::error_code ec;
+		const auto path = VCMIDirs::get().userDataPath() / "LoadingScreens";
+		boost::filesystem::create_directories(path, ec);
+		return boost::filesystem::is_directory(path, ec) ? path : boost::filesystem::path();
+	}();
+	return folder;
+}
+
+const std::vector<MenuFile> & MenuBackgrounds::loadingScreens()
+{
+	static const std::vector<MenuFile> found = discoverLoadingScreens();
 	return found;
 }
 

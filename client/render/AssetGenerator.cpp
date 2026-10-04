@@ -52,6 +52,14 @@ void AssetGenerator::initialize()
 			CResourceHandler::addFilesystem("data", "dmb-menu-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 2));
 	}
 
+	// DMB: the same for the loading screens (LoadingScreens\Upscaled\DATA2X, DATA3X, DATA4X, each picture named DMBLoad-<file name>.png)
+	{
+		boost::system::error_code ec;
+		const auto upscaled = MenuBackgrounds::loadingFolder() / "Upscaled";
+		if(!MenuBackgrounds::loadingFolder().empty() && boost::filesystem::is_directory(upscaled, ec))
+			CResourceHandler::addFilesystem("data", "dmb-loading-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 2));
+	}
+
 	imageFiles[ImagePath::builtin("AdventureOptionsBackgroundClear.png")] = [this](){ return createAdventureOptionsCleanBackground();};
 	imageFiles[ImagePath::builtin("SpellBookLarge.png")] = [this](){ return createBigSpellBook();};
 	imageFiles[ImagePath::builtin("MuPopUpCustom.png")] = [this](){ return createMuPopUpCustom();};
@@ -59,6 +67,10 @@ void AssetGenerator::initialize()
 	// DMB: a picture the player dropped into their MenuBackgrounds folder, named by its place in the folder's list
 	for(size_t n = 0; n < MenuBackgrounds::dropIns().size(); ++n)
 		imageFiles[ImagePath::builtin("DMBMenuFile-" + std::to_string(n) + ".png")] = [this, n](){ return createMenuFile(MenuBackgrounds::dropIns()[n]); };
+
+	// DMB: a picture the player dropped into their LoadingScreens folder, named by its file name
+	for(const auto & file : MenuBackgrounds::loadingScreens())
+		imageFiles[ImagePath::builtin("DMBLoad-" + file.slug + ".png")] = [this, file](){ return createMenuFile(file); };
 
 	// DMB: each release's own main menu picture, from the player's archives (MenuBackgrounds), made when the menu asks for it
 	for(const auto & era : MenuBackgrounds::eras())
@@ -409,7 +421,7 @@ AssetGenerator::CanvasPtr AssetGenerator::createMenuEra(const MenuEra & era) con
 	return image;
 }
 
-/// A picture file (.png, .jpg, .bmp) as the menu's 800x600 background: it fills the window, cut from the middle when it is another shape,
+/// A picture file (.png, .bmp) as the menu's 800x600 background: it fills the window, cut from the middle when it is another shape,
 /// and is averaged down from a larger picture. Null when it cannot be read.
 static std::shared_ptr<CanvasImage> menuPictureFromFile(const boost::filesystem::path & path)
 {

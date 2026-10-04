@@ -286,14 +286,31 @@ MapGenPage::MapGenPage(const JsonNode & layout, const std::function<void(MapGenP
 		setup(*this);
 	build(layout);
 	// a setting's help area covered only its label, 138 pixels of a 312 pixel row: hover or right-click on the slider,
-	// its arrows or its value found nothing (K, October 1st: "the mapgen tooltips"). The whole row is the area now;
-	// the controls drawn over it keep their own help
-	for(const auto & [name, object] : namedWidgets())
-		if(const auto area = std::dynamic_pointer_cast<LRClickableAreaWText>(object); area && area->pos.w < 312 && boost::algorithm::starts_with(name, "help_"))
-		{
-			area->clickWidth = area->pos.w; // a left click is still only the label's: the controls over the row keep theirs
-			area->pos.w = 312;
-		}
+	// its arrows or its value found nothing (K, October 1st: "the mapgen tooltips"). The whole row is the area now, up to the next help
+	// area on the same row (two settings share a row on the Map page: K, October 4th: "mod content tooltip ... shows the team setup
+	// tooltip instead"); the controls drawn over it keep their own help
+	std::vector<std::shared_ptr<LRClickableAreaWText>> helpAreas;
+	const auto widgets = namedWidgets();
+	for(const auto & [name, object] : widgets)
+		if(const auto area = std::dynamic_pointer_cast<LRClickableAreaWText>(object); area && boost::algorithm::starts_with(name, "help_"))
+			helpAreas.push_back(area);
+	for(const auto & [name, object] : widgets)
+	{
+		const auto area = std::dynamic_pointer_cast<LRClickableAreaWText>(object);
+		if(!area || area->pos.w >= 312 || !boost::algorithm::starts_with(name, "help_"))
+			continue;
+		const int originalWidth = area->pos.w;
+		int right = area->pos.x + 312;
+		for(const auto & other : helpAreas)
+			if(other != area && other->pos.x > area->pos.x && other->pos.y < area->pos.y + area->pos.h && other->pos.y + other->pos.h > area->pos.y)
+				right = std::min(right, other->pos.x);
+		area->clickWidth = originalWidth; // a left click is still only the label's: the controls over the row keep theirs
+		area->pos.w = std::max(originalWidth, right - area->pos.x);
+		// a setting that is a check box below its heading ("help_x" over "check_x"): its text beside the box is part of the same help
+		for(const auto & [otherName, other] : widgets)
+			if(otherName == "check_" + name.substr(5) && other->pos.y > area->pos.y)
+				area->pos.h = std::max(area->pos.h, other->pos.y + other->pos.h - area->pos.y);
+	}
 	if(after)
 		after(*this);
 }

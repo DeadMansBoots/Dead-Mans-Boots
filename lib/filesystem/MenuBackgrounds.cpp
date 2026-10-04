@@ -402,7 +402,7 @@ bool isGlow(const ui8 * palette, ui8 index)
 	const int b = palette[index * 3 + 2];
 	const int top = std::max({r, g, b});
 	const int low = std::min({r, g, b});
-	return top >= 100 && r >= g + 12 && g * 100 <= 80 * r && (top - low) * 100 <= 68 * top;
+	return top >= 70 && r >= g + 12 && g * 100 <= 80 * r && (top - low) * 100 <= 68 * top;
 }
 
 /// one frame's pixels (palette indexes, 0 outside) as a w by h block; false for a format this does not read
@@ -563,6 +563,44 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, int w, int h)
 		for(int x = 0; x < w; ++x)
 			if(ring[at(x, y)])
 				pix[at(x, y)] = (dist[at(x, y)] == 1 && outline != 0) ? outline : 0;
+
+	// what the glow was holding up is left floating: a few pixels apart from the icon (a dark fragment at the edge of one frame, the smudge
+	// of a candle flame, single specks) are taken away; a bright small piece (a gold finial) stays
+	std::vector<ui8> seen(pix.size(), 0);
+	for(int y0 = 0; y0 < h; ++y0)
+		for(int x0 = 0; x0 < w; ++x0)
+		{
+			if(pix[at(x0, y0)] <= 7 || seen[at(x0, y0)])
+				continue;
+			std::vector<size_t> piece;
+			std::deque<std::pair<int, int>> open;
+			open.emplace_back(x0, y0);
+			seen[at(x0, y0)] = 1;
+			long brightness = 0;
+			while(!open.empty())
+			{
+				const auto [x, y] = open.front();
+				open.pop_front();
+				piece.push_back(at(x, y));
+				const ui8 v = pix[at(x, y)];
+				brightness += (palette[v * 3] + palette[v * 3 + 1] + palette[v * 3 + 2]) / 3;
+				for(int dx = -1; dx <= 1; ++dx)
+					for(int dy = -1; dy <= 1; ++dy)
+					{
+						const int nx = x + dx;
+						const int ny = y + dy;
+						if(nx >= 0 && ny >= 0 && nx < w && ny < h && pix[at(nx, ny)] > 7 && !seen[at(nx, ny)])
+						{
+							seen[at(nx, ny)] = 1;
+							open.emplace_back(nx, ny);
+						}
+					}
+			}
+			const long mean = brightness / static_cast<long>(piece.size());
+			if(piece.size() <= 3 || (piece.size() <= 80 && mean < 120))
+				for(const size_t i : piece)
+					pix[i] = 0;
+		}
 }
 }
 

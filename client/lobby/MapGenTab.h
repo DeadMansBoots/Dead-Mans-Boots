@@ -60,9 +60,12 @@ class MapGenTab : public InterfaceObjectConfigurable
 	std::shared_ptr<bool> alive = std::make_shared<bool>(true);
 	/// the hover box (HoverTip, MapGenTab.cpp): the engine's status bar while the tab is shown
 	std::shared_ptr<IStatusBar> hoverTip;
-	/// a control's name, as it is written to the status bar, to what the control does
+	/// a control's name, as it is written to the status bar, to what the control does: the tab's own layout (its page buttons),
+	/// and each page's own, since a page's control can carry the name of its page button (K, October 4th: the Underground
+	/// check showed the page button's help)
 	std::map<std::string, std::string> helpBodies;
-	void collectHelp(const JsonNode & items);
+	std::vector<std::map<std::string, std::string>> pageHelpBodies;
+	void collectHelp(const JsonNode & items, std::map<std::string, std::string> & into);
 	bool refreshQueued = false;
 
 	std::shared_ptr<CIntObject> createPage(size_t index);

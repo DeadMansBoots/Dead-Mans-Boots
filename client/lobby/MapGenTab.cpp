@@ -425,11 +425,12 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	build(config);
 
 	// what each control's name goes with, for the hover box: the tab's own layout and every page's
-	collectHelp(config["items"]);
-	for(const auto & file : pageFiles)
+	collectHelp(config["items"], helpBodies);
+	pageHelpBodies.resize(pageFiles.size());
+	for(size_t i = 0; i < pageFiles.size(); ++i)
 	{
-		if(CResourceHandler::get(generator.modID)->existsResource(JsonPath::builtin(file)))
-			collectHelp(JsonNode(JsonPath::builtin(file), generator.modID)["items"]);
+		if(CResourceHandler::get(generator.modID)->existsResource(JsonPath::builtin(pageFiles[i])))
+			collectHelp(JsonNode(JsonPath::builtin(pageFiles[i]), generator.modID)["items"], pageHelpBodies[i]);
 	}
 	// the last thing the tab builds, so that it is drawn over everything: the older layouts' pages are built into a
 	// tabbed object created below
@@ -437,8 +438,31 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	{
 		hoverTip = std::make_shared<HoverTip>(pos, [this](const std::string & hover)
 		{
-			const auto found = helpBodies.find(hover);
-			return found == helpBodies.end() ? std::string() : found->second;
+			const auto find = [&hover](const std::map<std::string, std::string> & from)
+			{
+				const auto found = from.find(hover);
+				return found == from.end() ? std::string() : found->second;
+			};
+			// the page's own control first, unless the pointer is on the row of page buttons, whose names a control may share
+			bool onPageButtons = false;
+			const Point cursor = ENGINE->getCursorPosition();
+			if(auto group = widget<CToggleGroup>("pageButtons"))
+				for(const auto & entry : group->buttons)
+					if(const auto * button = dynamic_cast<const CIntObject *>(entry.second.get()))
+						onPageButtons = onPageButtons || button->pos.isInside(cursor);
+			std::string body;
+			if(!onPageButtons)
+			{
+				const JsonNode & stored = persistentStorage["mapGen"]["lastPage"];
+				const size_t page = stored.isNumber() && stored.Integer() >= 0 ? static_cast<size_t>(stored.Integer()) : 0;
+				if(page < pageHelpBodies.size())
+					body = find(pageHelpBodies[page]);
+			}
+			if(body.empty())
+				body = find(helpBodies);
+			for(size_t i = 0; body.empty() && i < pageHelpBodies.size(); ++i)
+				body = find(pageHelpBodies[i]);
+			return body;
 		});
 	};
 
@@ -529,7 +553,7 @@ void MapGenTab::resetToDefaults()
 	updateMapInfoByHost();
 }
 
-void MapGenTab::collectHelp(const JsonNode & items)
+void MapGenTab::collectHelp(const JsonNode & items, std::map<std::string, std::string> & into)
 {
 	for(const auto & item : items.Vector())
 	{
@@ -544,11 +568,11 @@ void MapGenTab::collectHelp(const JsonNode & items)
 				if(close != std::string::npos)
 					body = boost::algorithm::trim_copy(body.substr(close + 1));
 			}
-			if(!hover.empty() && !body.empty() && !helpBodies.count(hover))
-				helpBodies[hover] = body;
+			if(!hover.empty() && !body.empty() && !into.count(hover))
+				into[hover] = body;
 		}
 		if(item["items"].isVector())
-			collectHelp(item["items"]);
+			collectHelp(item["items"], into);
 	}
 }
 

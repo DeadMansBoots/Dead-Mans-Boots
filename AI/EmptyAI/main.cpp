@@ -10,11 +10,15 @@
 #include "StdInc.h"
 
 #include "CEmptyAI.h"
+#include "../../lib/modding/AIAbi.h"
 
 extern "C" DLL_EXPORT int GetGlobalAiVersion()
 {
 	return AI_INTERFACE_VER;
 }
+
+// DMB: the library's ABI number, which the loader checks (lib/modding/AIAbi.h)
+DMB_AI_ABI_EXPORTS
 
 extern "C" DLL_EXPORT void GetAiName(char* name)
 {

@@ -29,6 +29,10 @@ public:
 
 	/// DMB: the library an AI name stands for: VCMI's own AI/<name> first, else an AI plugin of that
 	/// name and kind among the active mods (modding/AIPlugins.h). Empty if neither can load.
+	/// DMB: why an AI library's ABI number (lib/modding/AIAbi.h) is not the engine's, or nothing when it is.
+	/// hasAbi: the library exports GetAiAbiVersion; abi: what it returned; builtFor: GetAiBuiltFor's text, if any
+	static std::string abiProblem(bool hasAbi, int abi, const char * builtFor);
+
 	static boost::filesystem::path findAILibrary(const std::string & aiName, bool battle);
 #if SCRIPTING_ENABLED
 	static std::shared_ptr<scripting::Module> getNewScriptingModule(const boost::filesystem::path & dllname);

@@ -10,6 +10,7 @@
 #include "StdInc.h"
 
 #include "StupidAI.h"
+#include "../../lib/modding/AIAbi.h"
 
 #ifdef __GNUC__
 #define strcpy_s(a, b, c) strncpy(a, c, b)
@@ -21,6 +22,9 @@ extern "C" DLL_EXPORT int GetGlobalAiVersion()
 {
 	return AI_INTERFACE_VER;
 }
+
+// DMB: the library's ABI number, which the loader checks (lib/modding/AIAbi.h)
+DMB_AI_ABI_EXPORTS
 
 extern "C" DLL_EXPORT void GetAiName(char* name)
 {

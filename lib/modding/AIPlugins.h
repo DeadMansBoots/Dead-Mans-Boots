@@ -29,6 +29,8 @@ struct DLL_LINKAGE AIPluginInfo
 	bool adventure = false;
 	bool battle = false;
 	std::string builtFor;
+	/// the AI ABI number the plugin declares (lib/modding/AIAbi.h); -1 when it declares none, and then builtFor must be this DMB's version
+	int abi = -1;
 	/// the library, absolute; set when the mod's folder was found
 	boost::filesystem::path path;
 	/// empty when the plugin can load, else why it cannot

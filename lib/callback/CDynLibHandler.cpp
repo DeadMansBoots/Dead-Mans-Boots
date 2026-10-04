@@ -14,6 +14,7 @@
 
 #include "../VCMIDirs.h"
 #include "../modding/AIPlugins.h"
+#include "../modding/AIAbi.h"
 
 #ifdef STATIC_AI
 #  ifdef ENABLE_NULLKILLER_AI
@@ -42,6 +43,24 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
+/// DMB: a library the game will not run because its ABI number is not the engine's (lib/modding/AIAbi.h)
+class AIAbiMismatch : public std::runtime_error
+{
+public:
+	using std::runtime_error::runtime_error;
+};
+
+std::string CDynLibHandler::abiProblem(bool hasAbi, int abi, const char * builtFor)
+{
+	if(hasAbi && abi == AIAbi::VERSION)
+		return {};
+	if(!hasAbi)
+		return "it carries no AI ABI number (it was built before DMB checked them, or without DMB's AI SDK); rebuild it against the SDK "
+			"of this DMB (AI ABI " + std::to_string(AIAbi::VERSION) + ", DMB " DMB_VERSION_STRING ")";
+	return "it was built for AI ABI " + std::to_string(abi) + (builtFor && *builtFor ? std::string(" (DMB ") + builtFor + ")" : std::string())
+		+ ", and this game is AI ABI " + std::to_string(AIAbi::VERSION) + " (DMB " DMB_VERSION_STRING "); rebuild it against the SDK of this DMB";
+}
+
 template<typename rett>
 std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
 {
@@ -57,6 +76,10 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 
 	TGetAIFun getAI = nullptr;
 	TGetNameFun getName = nullptr;
+	using TGetAbiFun = int (*)();
+	using TGetBuiltForFun = const char * (*)();
+	TGetAbiFun getAbi = nullptr;
+	TGetBuiltForFun getBuiltFor = nullptr;
 
 #ifdef VCMI_WINDOWS
 #ifdef __MINGW32__
@@ -68,6 +91,8 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 	{
 		getName = reinterpret_cast<TGetNameFun>(GetProcAddress(dll, "GetAiName"));
 		getAI = reinterpret_cast<TGetAIFun>(GetProcAddress(dll, methodName.c_str()));
+		getAbi = reinterpret_cast<TGetAbiFun>(GetProcAddress(dll, "GetAiAbiVersion"));
+		getBuiltFor = reinterpret_cast<TGetBuiltForFun>(GetProcAddress(dll, "GetAiBuiltFor"));
 	}
 #ifdef __MINGW32__
 #pragma GCC diagnostic pop
@@ -78,6 +103,8 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 	{
 		getName = reinterpret_cast<TGetNameFun>(dlsym(dll, "GetAiName"));
 		getAI = reinterpret_cast<TGetAIFun>(dlsym(dll, methodName.c_str()));
+		getAbi = reinterpret_cast<TGetAbiFun>(dlsym(dll, "GetAiAbiVersion"));
+		getBuiltFor = reinterpret_cast<TGetBuiltForFun>(dlsym(dll, "GetAiBuiltFor"));
 	}
 	else
 	{
@@ -99,6 +126,18 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 		dlclose(dll);
 #endif
 		throw std::runtime_error("Cannot find method " + methodName);
+	}
+
+	// DMB: the library's ABI number is read from the library itself, before anything of it runs
+	if(const std::string problem = CDynLibHandler::abiProblem(getAbi != nullptr, getAbi ? getAbi() : 0, getBuiltFor ? getBuiltFor() : nullptr); !problem.empty())
+	{
+		logGlobal->error("%s cannot be used: %s", libpath.string(), problem);
+#ifdef VCMI_WINDOWS
+		FreeLibrary(dll);
+#else
+		dlclose(dll);
+#endif
+		throw AIAbiMismatch(problem);
 	}
 
 	getName(temp);
@@ -205,7 +244,38 @@ std::shared_ptr<rett> createAnyAI(const std::string & dllname, const std::string
 	}
 
 	logGlobal->info("Opening %s from %s", name, filePath.string());
-	auto ret = createAny<rett>(filePath, methodName);
+	std::shared_ptr<rett> ret;
+	try
+	{
+		ret = createAny<rett>(filePath, methodName);
+	}
+	catch(const AIAbiMismatch & mismatch)
+	{
+		// DMB: a library built for another AI ABI is not run; VCMI's own AI plays, as when the plugin is missing, and the log says why
+		logGlobal->warn("AI %s is refused: %s", name, mismatch.what());
+		const std::vector<std::string> fallbacks = battle
+			? std::vector<std::string>{"BattleAI", "StupidAI"}
+			: std::vector<std::string>{"Nullkiller2", "Nullkiller", "EmptyAI"};
+		for(const auto & fallback : fallbacks)
+		{
+			const auto path = CDynLibHandler::findAILibrary(fallback, battle);
+			if(path.empty() || fallback == name)
+				continue;
+			try
+			{
+				logGlobal->info("Opening %s from %s", fallback, path.string());
+				ret = createAny<rett>(path, methodName);
+				name = fallback;
+				break;
+			}
+			catch(const std::exception & e)
+			{
+				logGlobal->warn("AI %s cannot be used either: %s", fallback, e.what());
+			}
+		}
+		if(!ret)
+			throw;
+	}
 	ret->dllName = name;
 	return ret;
 }

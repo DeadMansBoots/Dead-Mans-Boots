@@ -11,6 +11,7 @@
 #include "AIPlugins.h"
 
 #include "AddonCode.h"
+#include "AIAbi.h"
 #include "CModHandler.h"
 #include "ModDescription.h"
 
@@ -31,6 +32,8 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 	info.name = section["name"].String();
 	info.library = section["library"].String();
 	info.builtFor = section["builtFor"].String();
+	if(section["abi"].isNumber())
+		info.abi = static_cast<int>(section["abi"].Integer());
 	for(const auto & kind : section["kinds"].Vector())
 	{
 		info.adventure = info.adventure || kind.String() == "adventure";
@@ -49,8 +52,12 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 		info.problem = "its mod.json gives no name or no library";
 	else if(!info.adventure && !info.battle)
 		info.problem = "its mod.json names no kind (adventure or battle)";
-	else if(info.builtFor != DMB_VERSION_STRING)
-		info.problem = "it was built for DMB " + (info.builtFor.empty() ? std::string("(none named)") : info.builtFor) + ", and this is DMB " DMB_VERSION_STRING;
+	else if(info.abi >= 0 && info.abi != AIAbi::VERSION)
+		info.problem = "it was built for AI ABI " + std::to_string(info.abi) + (info.builtFor.empty() ? std::string() : " (DMB " + info.builtFor + ")")
+			+ ", and this game is AI ABI " + std::to_string(AIAbi::VERSION) + " (DMB " DMB_VERSION_STRING "); rebuild it against the SDK of this DMB";
+	else if(info.abi < 0 && info.builtFor != DMB_VERSION_STRING)
+		info.problem = "it was built for DMB " + (info.builtFor.empty() ? std::string("(none named)") : info.builtFor) + ", and this is DMB " DMB_VERSION_STRING
+			+ "; a plugin built against DMB's AI SDK names its \"abi\" and then loads in every DMB with the same AI ABI";
 	else if(!folder)
 		info.problem = "its folder was not found";
 	else if(!boost::filesystem::exists(info.path))

@@ -14,16 +14,26 @@ The mod carries the AI's library in a folder named `ai`, and its `mod.json` decl
     "library" : "MyAI",           // ai/MyAI.dll (Windows), ai/libMyAI.so, ai/libMyAI.dylib
     "name" : "My AI",             // what the launcher's AI menus show and the settings store
     "kinds" : [ "adventure" ],    // "adventure", "battle", or both
-    "builtFor" : "0.1.1"          // the exact DMB version the library was built against
+    "abi" : 1,                    // the AI ABI number the library was built for (DMB's AI SDK)
+    "builtFor" : "0.5.0"          // the DMB version it was built against (for messages)
 }
 ```
 
-The library exports VCMI's usual `GetAiName`, plus `GetNewAI` (adventure) and/or
-`GetNewBattleAI` (battle), so an existing VCMI AI needs no code change. A C++ AI shares classes with
-the engine and has no stable binary interface, so DMB loads a plugin only in the version it names in
-`builtFor`. Once the mod is enabled, the launcher lists the AI by name in its AI menus. A plugin
-that cannot load is shown greyed out, with the reason. A game that asks for an AI that is missing or
-refused gets VCMI's own AI instead, and the log says why.
+The library exports VCMI's usual `GetAiName`, plus `GetNewAI` (adventure) and/or `GetNewBattleAI` (battle), so an existing
+VCMI AI needs little change. A C++ AI shares classes with the engine and has no stable binary interface, so DMB numbers the
+interface: the AI ABI number (`lib/modding/AIAbi.h`), raised in any change to a class an AI shares with the engine and in
+nothing else. Third parties build their plugins themselves, against the AI SDK that DMB publishes with each release
+(`make_ai_sdk.py`: the engine's headers, the import library, the compiler and the exact library versions, and an example). An
+author puts `DMB_AI_ABI_EXPORTS` once in the library's main.cpp, which writes two exports, `GetAiAbiVersion` and `GetAiBuiltFor`, and
+names the same number as `abi` in the manifest.
+
+The loader reads the number from the library itself before anything of it runs, so a manifest cannot claim another one. A library
+whose number is not the game's, or that carries none, is refused with a message saying which number it was built for and which the
+game has, and a game that asks for it gets VCMI's own AI instead, with the reason in the log. A manifest with an `abi` that is not the
+game's is refused earlier, in the launcher's menus, with the same words. A manifest with no `abi` keeps the older rule: it loads only in
+the DMB version named in `builtFor`. Once the mod is enabled, the launcher lists the AI by name in its AI menus. A plugin that cannot
+load is shown greyed out, with the reason. DMB's mod catalog pins the SHA-256 of the `ai` folder; a mod not in the catalog loads only
+where the player has switched on `mods.allowUnlistedCode`.
 
 ## A map generator
 

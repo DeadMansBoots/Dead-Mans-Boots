@@ -143,7 +143,7 @@
 		"aiPlugin" : {
 			"type" : "object",
 			"additionalProperties" : false,
-			"required" : [ "library", "name", "kinds", "builtFor" ],
+			"required" : [ "library", "name", "kinds" ],
 			"description" : "DMB: this mod is an AI plugin; its library sits in the mod's own ai folder (lib/modding/AIPlugins.h)",
 			"properties" : {
 				"library" : {
@@ -161,7 +161,11 @@
 				},
 				"builtFor" : {
 					"type" : "string",
-					"description" : "The DMB version the library was built against; any other version refuses it"
+					"description" : "The DMB version the library was built against; without an abi, any other version refuses it"
+				},
+				"abi" : {
+					"type" : "number",
+					"description" : "The AI ABI number the library was built for (DMB's AI SDK, lib/modding/AIAbi.h); a DMB with another number refuses it, saying why"
 				}
 			}
 		},

@@ -319,6 +319,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 {
 	OBJECT_CONSTRUCTION;
 	recActions = 0; // hidden until its lobby button opens it, like the other tabs
+	dropUnapprovedTemplate();
 
 	// the mod's own filesystem, so a file of the same name in another mod never stands in
 	const JsonNode config(JsonPath::builtin(generator.tab), generator.modID);
@@ -581,6 +582,7 @@ void MapGenTab::updateMapInfoByHost()
 
 std::shared_ptr<CMapGenOptions> MapGenTab::lobbyOptions() const
 {
+	dropUnapprovedTemplate(); // a preset loaded since, or a file changed since, never reaches the generator
 	const JsonNode & stored = persistentStorage["mapGen"];
 	// read through a const reference, so a key the layout lacks is not added to it as null
 	const JsonNode & layoutDefaults = defaults;
@@ -829,6 +831,38 @@ int MapGenTab::mapSetting(const std::string & key) const
 	return static_cast<int>(defaults["map"][key].Integer());
 }
 
+std::set<std::string> MapGenTab::approvedTemplates() const
+{
+	// K, October 3rd: "ONLY THOSE THAT HAVE BEEN APPROVED GO IN". The generator's module names them in
+	// approved-templates.json beside its mod.json, {"approved": {"Template name": "date K approved it"}}; names are
+	// compared without regard to case, and a module without the file approves none.
+	std::set<std::string> approved;
+	const auto folder = AddonCode::modFolder(generator.modID);
+	if(!folder)
+		return approved;
+	std::ifstream in((*folder / "approved-templates.json").c_str(), std::ios::binary);
+	if(!in)
+		return approved;
+	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	const JsonNode file(text.data(), text.size(), "approved-templates.json");
+	if(file["approved"].isStruct())
+		for(const auto & entry : file["approved"].Struct())
+			approved.insert(boost::to_lower_copy(entry.first));
+	return approved;
+}
+
+void MapGenTab::dropUnapprovedTemplate() const
+{
+	const JsonNode & stored = persistentStorage["mapGen"]["map"]["template"];
+	if(!stored.isString() || stored.String().empty() || stored.String() == RANDOM_TEMPLATE)
+		return;
+	if(approvedTemplates().count(boost::to_lower_copy(stored.String())) != 0)
+		return;
+	logGlobal->info("Map generator: the stored template '%s' is not approved, so none is chosen", stored.String());
+	Settings entry = persistentStorage.write["mapGen"]["map"]["template"];
+	entry->String() = "";
+}
+
 std::string MapGenTab::templateName() const
 {
 	const JsonNode & stored = persistentStorage["mapGen"]["map"]["template"];
@@ -856,9 +890,11 @@ void MapGenTab::chooseTemplate()
 	// every template of the install, whatever the map's size, levels and players: the generator fits
 	// the template to the map instead of refusing it (MapGen, September 27th, for K's "never refuse").
 	// The first entry is the generator's own layout.
+	// only the approved ones (K, October 3rd), whatever the install offers
+	const auto approved = approvedTemplates();
 	std::vector<std::string> fits;
 	for(const auto * tpl : LIBRARY->tplh->getTemplates())
-		if(tpl)
+		if(tpl && approved.count(boost::to_lower_copy(tpl->getName())) != 0)
 			fits.push_back(tpl->getName());
 	std::sort(fits.begin(), fits.end());
 	fits.erase(std::unique(fits.begin(), fits.end()), fits.end());
@@ -892,6 +928,7 @@ void MapGenTab::chooseTemplate()
 
 void MapGenTab::generate()
 {
+	dropUnapprovedTemplate();
 	if(generating && *generating)
 	{
 		// a generator child is already running; restate its status so the

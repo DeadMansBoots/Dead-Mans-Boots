@@ -831,42 +831,67 @@ int MapGenTab::mapSetting(const std::string & key) const
 	return static_cast<int>(defaults["map"][key].Integer());
 }
 
-std::set<std::string> MapGenTab::approvedTemplates() const
+std::vector<std::string> MapGenTab::approvedNames() const
 {
 	// K, October 3rd: "ONLY THOSE THAT HAVE BEEN APPROVED GO IN". The generator's module names them in
 	// approved-templates.json beside its mod.json, {"approved": {"Template name": "date K approved it"}}; names are
-	// compared without regard to case, and a module without the file approves none.
+	// compared without regard to case (the install's own spelling is the one returned), and a module without the file
+	// approves none.
 	std::set<std::string> approved;
 	const auto folder = AddonCode::modFolder(generator.modID);
-	if(!folder)
-		return approved;
-	std::ifstream in((*folder / "approved-templates.json").c_str(), std::ios::binary);
-	if(!in)
-		return approved;
-	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-	const JsonNode file(text.data(), text.size(), "approved-templates.json");
-	if(file["approved"].isStruct())
-		for(const auto & entry : file["approved"].Struct())
-			approved.insert(boost::to_lower_copy(entry.first));
-	return approved;
+	if(folder)
+	{
+		std::ifstream in((*folder / "approved-templates.json").c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			const JsonNode file(text.data(), text.size(), "approved-templates.json");
+			if(file["approved"].isStruct())
+				for(const auto & entry : file["approved"].Struct())
+					approved.insert(boost::to_lower_copy(entry.first));
+		}
+	}
+	std::vector<std::string> names;
+	for(const auto * tpl : LIBRARY->tplh->getTemplates())
+		if(tpl && approved.count(boost::to_lower_copy(tpl->getName())) != 0)
+			names.push_back(tpl->getName());
+	std::sort(names.begin(), names.end());
+	names.erase(std::unique(names.begin(), names.end()), names.end());
+	return names;
 }
 
 void MapGenTab::dropUnapprovedTemplate() const
 {
+	// the template the tab stands on is written back where it differs from what is stored: an unapproved choice cleared, and,
+	// with one template approved, that one for an empty store (K's stored "" kept the free layout and four maps reached the
+	// generator with no template option, October 3rd)
 	const JsonNode & stored = persistentStorage["mapGen"]["map"]["template"];
-	if(!stored.isString() || stored.String().empty() || stored.String() == RANDOM_TEMPLATE)
+	const std::string current = stored.isString() ? stored.String() : std::string();
+	const std::string wanted = templateName();
+	if(current == wanted)
 		return;
-	if(approvedTemplates().count(boost::to_lower_copy(stored.String())) != 0)
-		return;
-	logGlobal->info("Map generator: the stored template '%s' is not approved, so none is chosen", stored.String());
+	logGlobal->info("Map generator: the stored template '%s' becomes '%s' (only approved templates are offered)", current, wanted);
 	Settings entry = persistentStorage.write["mapGen"]["map"]["template"];
-	entry->String() = "";
+	entry->String() = wanted;
 }
 
 std::string MapGenTab::templateName() const
 {
 	const JsonNode & stored = persistentStorage["mapGen"]["map"]["template"];
-	return stored.isString() ? stored.String() : std::string();
+	std::string chosen = stored.isString() ? stored.String() : std::string();
+	const auto approved = approvedNames();
+	if(!chosen.empty() && chosen != RANDOM_TEMPLATE)
+	{
+		const auto found = std::find_if(approved.begin(), approved.end(), [&chosen](const std::string & name)
+		{
+			return boost::iequals(name, chosen);
+		});
+		chosen = found == approved.end() ? std::string() : *found;
+	}
+	// with one template approved there is nothing to choose between: an empty store, or Random, is that one
+	if(approved.size() == 1 && (chosen.empty() || chosen == RANDOM_TEMPLATE))
+		chosen = approved.front();
+	return chosen;
 }
 
 std::string MapGenTab::templateLabel() const
@@ -887,39 +912,36 @@ std::string MapGenTab::preset() const
 
 void MapGenTab::chooseTemplate()
 {
-	// every template of the install, whatever the map's size, levels and players: the generator fits
-	// the template to the map instead of refusing it (MapGen, September 27th, for K's "never refuse").
-	// The first entry is the generator's own layout.
-	// only the approved ones (K, October 3rd), whatever the install offers
-	const auto approved = approvedTemplates();
-	std::vector<std::string> fits;
-	for(const auto * tpl : LIBRARY->tplh->getTemplates())
-		if(tpl && approved.count(boost::to_lower_copy(tpl->getName())) != 0)
-			fits.push_back(tpl->getName());
-	std::sort(fits.begin(), fits.end());
-	fits.erase(std::unique(fits.begin(), fits.end()), fits.end());
-
-	// then Random, which the generator rolls from the templates that fit (MapGen's "random"), then each
-	std::vector<std::string> names { tabText("template.none"), tabText("template.random") };
-	const std::string chosen = templateName();
-	size_t current = chosen == RANDOM_TEMPLATE ? 1 : 0;
-	for(size_t i = 0; i < fits.size(); ++i)
+	// only the templates K approved (approved-templates.json), whatever the install offers; the generator fits the template
+	// to the map instead of refusing it (MapGen, September 27th, for K's "never refuse"). With one approved there is nothing
+	// to choose between: it is the only entry. With none or several: None (the generator's own layout), Random (which it
+	// rolls from the templates that fit) and then each.
+	const auto approved = approvedNames();
+	std::vector<std::string> names;
+	std::vector<std::string> values; // what each entry stores
+	if(approved.size() != 1)
 	{
-		names.push_back(fits[i]);
-		if(fits[i] == chosen)
-			current = i + 2;
+		names = { tabText("template.none"), tabText("template.random") };
+		values = { "", RANDOM_TEMPLATE };
 	}
+	for(const auto & name : approved)
+	{
+		names.push_back(name);
+		values.push_back(name);
+	}
+	const std::string chosen = templateName();
+	size_t current = 0;
+	for(size_t i = 0; i < values.size(); ++i)
+		if(values[i] == chosen)
+			current = i;
 	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr,
 		tabText("template.hover"),
 		tabText("template.choose"),
-		[this, fits](int index)
+		[this, values](int index)
 		{
 			{
 				Settings entry = persistentStorage.write["mapGen"]["map"]["template"];
-				if(index == 1)
-					entry->String() = RANDOM_TEMPLATE;
-				else
-					entry->String() = index <= 1 || index > static_cast<int>(fits.size()) + 1 ? "" : fits[index - 2];
+				entry->String() = index >= 0 && index < static_cast<int>(values.size()) ? values[index] : std::string();
 			}
 			refreshPages();
 			updateMapInfoByHost();

@@ -167,13 +167,13 @@ void AssetGenerator::initialize()
 	// ON THE SAME PROCEDURE". The first cuts kept the game's own S, M and L frames (stripes and corner marks
 	// behind the letter) and gave the real letter shadow passes, which doubled it; all eight are now the one
 	// procedure.
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeS")] = createSizeButton("DmbSizeS", "RANSIZX", "S");
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeM")] = createSizeButton("DmbSizeM", "RANSIZX", "M");
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeL")] = createSizeButton("DmbSizeL", "RANSIZX", "L");
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeXL")] = createSizeButton("DmbSizeXL", "RANSIZX", "XL");
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeH")] = createSizeButton("DmbSizeH", "RANSIZX", "H");
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeXH")] = createSizeButton("DmbSizeXH", "RANSIZX", "XH");
-	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeG")] = createSizeButton("DmbSizeG", "RANSIZX", "G");
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeS")] = createSizeButton("DmbSizeS", "RANSIZX", "S", 0, false, 0);
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeM")] = createSizeButton("DmbSizeM", "RANSIZX", "M", 0, false, 1);
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeL")] = createSizeButton("DmbSizeL", "RANSIZX", "L", 0, false, 2);
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeXL")] = createSizeButton("DmbSizeXL", "RANSIZX", "XL", 0, false, 3);
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeH")] = createSizeButton("DmbSizeH", "RANSIZX", "H", 0, false, 4);
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeXH")] = createSizeButton("DmbSizeXH", "RANSIZX", "XH", 0, false, 5);
+	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeG")] = createSizeButton("DmbSizeG", "RANSIZX", "G", 0, false, 6);
 	animationFiles[AnimationPath::builtin("SPRITES/DmbSizeC")] = createSizeButton("DmbSizeC", "RANSIZX", "C");
 	// the same eight, 33 wide instead of 44, for a row of all of them and the game's two-level button
 	// (RANUNDR, 44 wide) in 312 pixels (MapGen's Map page); every size lettered, S to XL included, as the
@@ -1457,16 +1457,23 @@ void letterSizeButton(Canvas & canvas, const std::string & text, bool pressed, i
 }
 }
 
-AssetGenerator::AnimationLayoutMap AssetGenerator::createSizeButton(const std::string & name, const std::string & source, const std::string & text, int width, bool enhanceOnly)
+AssetGenerator::AnimationLayoutMap AssetGenerator::createSizeButton(const std::string & name, const std::string & source, const std::string & text, int width, bool enhanceOnly, int iconFrame)
 {
 	auto baseImg = ENGINE->renderHandler().loadAnimation(AnimationPath::builtin(source), EImageBlitMode::OPAQUE);
+	// DMB: K, October 3rd, on the map size icons: "B. idk why we didn't do this to begin with. it's the best icon set": the game's own
+	// map size icon of the scenario panel (SCNRMPSZ, one frame a size) on the button's face, drawn once. Where the game has no such
+	// frame (H, XH and G come with VCMI Extras) the lettering stays.
+	decltype(baseImg) icons;
+	if(iconFrame >= 0)
+		icons = ENGINE->renderHandler().loadAnimation(AnimationPath::builtin("SCNRMPSZ"), EImageBlitMode::OPAQUE);
+	const bool stockIcon = icons && static_cast<size_t>(iconFrame) < icons->size(0) && width <= 0;
 
 	AnimationLayoutMap layout;
 	for(size_t i = 0; i < baseImg->size(0); i++)
 	{
 		ImagePath spriteName = ImagePath::builtin(name + "_" + std::to_string(i) + ".png");
 
-		imageFiles[spriteName] = [baseImg, i, text, width, enhanceOnly]()
+		imageFiles[spriteName] = [baseImg, i, text, width, enhanceOnly, icons, iconFrame, stockIcon]()
 		{
 			auto frame = baseImg->getImage(i);
 			const Point size = frame->dimensions();
@@ -1479,7 +1486,17 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createSizeButton(const std::s
 			canvas.draw(frame, Point(0, 0), Rect(0, 0, narrower ? cut : size.x, size.y));
 			if(narrower)
 				canvas.draw(frame, Point(cut, 0), Rect(cut + narrower, 0, size.x - cut - narrower, size.y));
-			if(!text.empty())
+			if(stockIcon)
+			{
+				// the face cleared (the letters are drawn from the game's own gold face), then the game's icon in its middle; the
+				// pressed frame moves the face by a pixel, as the lettering does
+				letterSizeButton(canvas, std::string(), i == 1, narrower, false);
+				const auto icon = icons->getImage(static_cast<size_t>(iconFrame));
+				const Point at(SIZE_LEFT + (SIZE_RIGHT - SIZE_LEFT - icon->dimensions().x) / 2 + (i == 1 ? 1 : 0),
+					SIZE_TOP + (SIZE_BOTTOM - SIZE_TOP - icon->dimensions().y) / 2 + (i == 1 ? 1 : 0));
+				canvas.draw(icon, at);
+			}
+			else if(!text.empty())
 				letterSizeButton(canvas, text, i == 1, narrower, enhanceOnly);
 			return newImg;
 		};

@@ -93,7 +93,7 @@ private:
 	/// `width` other than 0 narrows the button to it, columns taken out of the middle of its gold face.
 	/// `enhanceOnly`: `source` already carries `text` as its own real letter; add the same shadow and
 	/// highlight passes without erasing and redrawing the face (nothing asks for it now).
-	AnimationLayoutMap createSizeButton(const std::string & name, const std::string & source, const std::string & text, int width = 0, bool enhanceOnly = false);
+	AnimationLayoutMap createSizeButton(const std::string & name, const std::string & source, const std::string & text, int width = 0, bool enhanceOnly = false, int iconFrame = -1);
 	CanvasPtr createGateListColored(PlayerColor color, PlayerColor backColor) const;
 	CanvasPtr createHeroSlotsColored(PlayerColor backColor) const;
 	CanvasPtr createStackArtifactIndicator(const Point & size) const;

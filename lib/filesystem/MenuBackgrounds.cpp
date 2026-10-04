@@ -69,7 +69,8 @@ boost::filesystem::path child(const boost::filesystem::path & folder, const std:
 	return {};
 }
 
-std::string modNameOf(const boost::filesystem::path & folder)
+/// a text field of a mod's mod.json ("name", "description"), empty when there is none
+std::string modTextOf(const boost::filesystem::path & folder, const char * key)
 {
 	try
 	{
@@ -78,12 +79,17 @@ std::string modNameOf(const boost::filesystem::path & folder)
 		if(text.empty())
 			return {};
 		const JsonNode node(reinterpret_cast<const std::byte *>(text.data()), text.size(), "mod.json");
-		return node["name"].isString() ? node["name"].String() : std::string();
+		return node[key].isString() ? node[key].String() : std::string();
 	}
 	catch(const std::exception &)
 	{
 		return {};
 	}
+}
+
+std::string modNameOf(const boost::filesystem::path & folder)
+{
+	return modTextOf(folder, "name");
 }
 
 bool holdsMenu(const boost::filesystem::path & folder)
@@ -152,11 +158,33 @@ std::vector<MenuMod> discoverMods()
 	std::vector<MenuMod> found;
 	for(const auto & folder : folders)
 		scanMods(folder, "", "", found);
-	// two entries with one title (two sub-mods of one mod) are told apart by the mod's own id
+	// two entries with one title (two sub-mods of one mod, a themes pack's) are told apart by what each mod says it is ("Heroes 3 Theme:
+	// Armageddon's Blade" is "Armageddon's Blade menu"), and where that is the same too, by the mod's own id
+	const std::vector<MenuMod> before = found;
+	for(auto & entry : found)
+		if(std::count_if(before.begin(), before.end(), [&entry](const MenuMod & other) { return other.title == entry.title; }) > 1)
+		{
+			std::string described = modTextOf(entry.folder, "description");
+			const auto at = described.find("Theme: ");
+			if(at != std::string::npos)
+				described = described.substr(at + 7);
+			boost::trim(described);
+			if(!described.empty())
+				entry.title = boost::iends_with(described, "menu") ? described : described + " menu";
+		}
 	for(auto & entry : found)
 		if(std::count_if(found.begin(), found.end(), [&entry](const MenuMod & other) { return other.title == entry.title; }) > 1)
 			entry.title += " [" + entry.id + "]";
 	return found;
+}
+
+std::vector<boost::filesystem::path> modBaseFolders()
+{
+	std::vector<boost::filesystem::path> folders;
+	for(const auto & base : VCMIDirs::get().dataPaths())
+		folders.push_back(base / "Mods");
+	folders.push_back(VCMIDirs::get().userDataPath() / "Mods");
+	return folders;
 }
 
 std::vector<MenuFile> discoverDropIns()
@@ -721,6 +749,48 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 			}
 	}
 }
+}
+
+boost::filesystem::path MenuBackgrounds::modFolder(const std::string & id)
+{
+	std::vector<std::string> parts;
+	boost::split(parts, id, boost::is_any_of("."));
+	for(const auto & base : modBaseFolders())
+	{
+		boost::filesystem::path current = base;
+		for(size_t i = 0; i < parts.size() && !current.empty(); ++i)
+		{
+			current = child(current, boost::to_lower_copy(parts[i]));
+			if(!current.empty() && i + 1 < parts.size())
+				current = child(current, "mods");
+		}
+		boost::system::error_code ec;
+		if(!current.empty() && boost::filesystem::exists(current / "mod.json", ec))
+			return current;
+	}
+	return {};
+}
+
+std::vector<std::string> MenuBackgrounds::modDepends(const boost::filesystem::path & folder)
+{
+	std::vector<std::string> ids;
+	if(folder.empty())
+		return ids;
+	try
+	{
+		std::ifstream file((folder / "mod.json").c_str(), std::ios::binary);
+		std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+		if(text.empty())
+			return ids;
+		const JsonNode node(reinterpret_cast<const std::byte *>(text.data()), text.size(), "mod.json");
+		for(const auto & entry : node["depends"].Vector())
+			if(entry.isString())
+				ids.push_back(boost::to_lower_copy(entry.String()));
+	}
+	catch(const std::exception &)
+	{
+	}
+	return ids;
 }
 
 std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::string & name)

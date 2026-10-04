@@ -350,34 +350,59 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 /// pool (a mod switched off, an archive gone) is "random" again.
 /// An installed menu mod's window, as the mod lays it out. A menu mod that is not active (two of them conflict, so only one is) has its
 /// files added to the game's data for the session first; the main menu is the first thing built, so nothing else has used its names.
+static bool addInactiveMod(const std::string & id)
+{
+	static std::set<std::string> added;
+	if(vstd::contains(LIBRARY->modh->getActiveMods(), id) || added.count(id) != 0)
+		return true;
+	added.insert(id);
+	// a mod this one depends on, and that is not active either, has its files added first (a themes pack keeps the buttons of all its
+	// themes in a mod of its own)
+	for(const auto & dependency : MenuBackgrounds::modDepends(MenuBackgrounds::modFolder(id)))
+		addInactiveMod(dependency);
+	static JsonNode filesystem;
+	if(filesystem.isNull())
+	{
+		filesystem[""].Vector().resize(2);
+		filesystem[""].Vector()[0]["type"].String() = "zip";
+		filesystem[""].Vector()[0]["path"].String() = "/Content.zip";
+		filesystem[""].Vector()[1]["type"].String() = "dir";
+		filesystem[""].Vector()[1]["path"].String() = "/Content";
+	}
+	std::string directory = id;
+	boost::to_upper(directory);
+	boost::algorithm::replace_all(directory, ".", "/MODS/");
+	try
+	{
+		CResourceHandler::addFilesystem("data", id, CResourceHandler::createFileSystem("MODS/" + directory, filesystem));
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Main menu: the files of mod %s cannot be read: %s", id, e.what());
+		return false;
+	}
+	return true;
+}
+
 static JsonNode menuModWindow(const MenuMod & mod)
 {
-	if(!vstd::contains(LIBRARY->modh->getActiveMods(), mod.id))
-	{
-		static JsonNode filesystem;
-		if(filesystem.isNull())
-		{
-			filesystem[""].Vector().resize(2);
-			filesystem[""].Vector()[0]["type"].String() = "zip";
-			filesystem[""].Vector()[0]["path"].String() = "/Content.zip";
-			filesystem[""].Vector()[1]["type"].String() = "dir";
-			filesystem[""].Vector()[1]["path"].String() = "/Content";
-		}
-		std::string directory = mod.id;
-		boost::to_upper(directory);
-		boost::algorithm::replace_all(directory, ".", "/MODS/");
-		try
-		{
-			CResourceHandler::addFilesystem("data", mod.id, CResourceHandler::createFileSystem("MODS/" + directory, filesystem));
-		}
-		catch(const std::exception & e)
-		{
-			logGlobal->warn("Main menu: the menu of mod %s cannot be read: %s", mod.id, e.what());
-			return {};
-		}
-	}
+	const bool previewed = !vstd::contains(LIBRARY->modh->getActiveMods(), mod.id);
+	if(!addInactiveMod(mod.id))
+		return {};
 	JsonNode own(JsonPath::builtin("config/mainmenu.json"), mod.id);
-	return own["window"].isStruct() ? own["window"] : JsonNode();
+	if(!own["window"].isStruct())
+		return JsonNode();
+	JsonNode window = own["window"];
+	// a menu mod that is only previewed, while another menu mod is active, has its floating video dropped: both name theirs "CREDITS", and
+	// the one on screen was the active mod's (the Armageddon's Blade theme drew Horn of the Abyss's whole credits picture over itself)
+	if(previewed && window["video"].isStruct())
+		for(const auto & other : MenuBackgrounds::menuMods())
+			if(other.id != mod.id && vstd::contains(LIBRARY->modh->getActiveMods(), other.id))
+			{
+				window.Struct().erase("video");
+				break;
+			}
+	return window;
 }
 
 static JsonNode mainMenuWindow()

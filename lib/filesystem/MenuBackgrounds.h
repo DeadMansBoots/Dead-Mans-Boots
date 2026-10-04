@@ -59,6 +59,12 @@ public:
 	/// Mods folders of the game and of the player, sub-mods included; one that conflicts with the active ones is still listed
 	static const std::vector<MenuMod> & menuMods();
 
+	/// an installed mod's folder by its id ("h3-themes._support.originalbuttons": each part a mod inside the one before), empty when none
+	static boost::filesystem::path modFolder(const std::string & id);
+
+	/// the ids a mod's mod.json says it depends on, in lower case
+	static std::vector<std::string> modDepends(const boost::filesystem::path & folder);
+
 	/// the folder the player drops pictures into (their DMB folder's MenuBackgrounds), made when it is first asked for
 	static boost::filesystem::path dropInFolder();
 

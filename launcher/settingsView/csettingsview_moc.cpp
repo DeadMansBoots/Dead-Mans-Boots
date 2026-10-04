@@ -704,7 +704,9 @@ void CSettingsView::buildCategoryPages()
 	if(widestCarved > 0)
 	{
 		const QMargins barMargins = barLayout->contentsMargins();
-		bar->setMinimumWidth(widestCarved + barMargins.left() + barMargins.right());
+		categoryBar = bar;
+		categoryBarWidth = widestCarved + barMargins.left() + barMargins.right();
+		fitCategoryBar();
 	}
 	barLayout->addStretch(1);
 	// the grid held nothing above its first header; a cell there would stay out of sight
@@ -950,6 +952,20 @@ void CSettingsView::changeEvent(QEvent *event)
 		updateCategoryButtons(); // DMB: the categories named in the new language
 	}
 	QWidget::changeEvent(event);
+}
+
+void CSettingsView::fitCategoryBar()
+{
+	if(categoryBar == nullptr || categoryBarWidth <= 0)
+		return;
+	// the whole carved width where the window has room for it (about a third of the window), else a third, never under 215
+	categoryBar->setMinimumWidth(std::min(categoryBarWidth, std::max(215, width() * 34 / 100)));
+}
+
+void CSettingsView::resizeEvent(QResizeEvent * event)
+{
+	QWidget::resizeEvent(event);
+	fitCategoryBar();
 }
 
 void CSettingsView::showEvent(QShowEvent * event)

@@ -32,6 +32,7 @@ public:
 	void setDisplayList();
 	void changeEvent(QEvent *event) override;
 	void showEvent(QShowEvent * event) override;
+	void resizeEvent(QResizeEvent * event) override;
 
 	void setCheckbuttonState(QToolButton * button, bool checked);
 	void updateCheckbuttonText(QToolButton * button);
@@ -124,6 +125,12 @@ private:
 	};
 	std::vector<SettingsCategory> categories;
 	QStackedWidget * categoryPages = nullptr;
+	/// DMB: the category bar and the width its widest carved word asks for; on a narrow window the bar gives way (the carved
+	/// words are drawn smaller to fit) so the settings beside it keep room (bug hunt, October 3rd: at 800x600 the bar took
+	/// 345 of 800 pixels and every value beside it was cut off)
+	QWidget * categoryBar = nullptr;
+	int categoryBarWidth = 0;
+	void fitCategoryBar();
 
 	/// DMB: the look's four colour slots (launcher/theme.h), a dropdown each below Launcher Look
 	/// (K, October 1st: "max configurability"), made with the pages

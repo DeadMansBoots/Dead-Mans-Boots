@@ -1109,6 +1109,18 @@ AppliedLook buildLook(const LookSlots & look_, const QPixmap & leather)
 	if(frameInk != accent)
 		sheet += QString("#dmbSettingsPanel { border-color: %1; } CSettingsView QComboBox { border-color: %1; }"
 			" CSettingsView QComboBox QAbstractItemView { border-color: %1; }").arg(frameInk.name());
+	// the sliders of the Settings pages draw their handle and the empty part of the groove from the palette's button colour, which a
+	// black background makes black: both vanished on K's own look (October 3rd bug hunt, Audio page). Where the button colour does
+	// not stand out of the ground, the handle and the groove are the nearest tone that does, and the filled part keeps the accent.
+	if(contrastOf(ground(button), windowGround) < 1.6)
+	{
+		const QColor grooveInk = legible(ground(button), windowGround, 1.7);
+		const QColor handleInk = legible(ground(button), windowGround, 3.0);
+		sheet += QString("QSlider::groove:horizontal { height: 4px; background: %1; border-radius: 2px; }"
+			" QSlider::sub-page:horizontal { height: 4px; background: %2; border-radius: 2px; }"
+			" QSlider::handle:horizontal { width: 10px; margin: -5px 0; background: %3; border: 1px solid %2; border-radius: 2px; }")
+			.arg(grooveInk.name(), frameInk.name(), handleInk.name());
+	}
 	AppliedLook look;
 	look.sheet = sheet;
 	look.palette = themedPalette(window, ground(base), ground(alternate), ground(button), accent, QColor(text), highlighted);

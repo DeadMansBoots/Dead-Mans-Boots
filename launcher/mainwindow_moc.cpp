@@ -94,6 +94,9 @@ MainWindow::MainWindow(QWidget * parent)
 	updateTranslation(); // load translation
 
 	ui->setupUi(this);
+	// DMB: under about 1180 pixels the Game page's three columns and the Settings pages' values are cut off by the window (bug hunt,
+	// October 3rd, at 800x600); the window does not go smaller than where they fit
+	setMinimumSize(std::max(minimumWidth(), 1180), std::max(minimumHeight(), 600));
 
 	setAcceptDrops(true);
 

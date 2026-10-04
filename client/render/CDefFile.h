@@ -48,6 +48,8 @@ private:
 
 public:
 	CDefFile(const AnimationPath & Name);
+	/// DMB: a def whose bytes are given (the main menu's buttons of a release, read out of that release's own archive)
+	CDefFile(const AnimationPath & Name, std::unique_ptr<ui8[]> bytes);
 	~CDefFile();
 
 	//load frame as SDL_Surface

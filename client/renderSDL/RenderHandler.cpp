@@ -17,6 +17,7 @@
 #include "../GameEngine.h"
 
 #include "../render/AssetGenerator.h"
+#include "../../lib/filesystem/MenuBackgrounds.h"
 #include "../render/CAnimation.h"
 #include "../render/CanvasImage.h"
 #include "../render/CDefFile.h"
@@ -70,10 +71,36 @@ std::shared_ptr<CDefFile> RenderHandler::getAnimationFile(const AnimationPath & 
 		}
 	}
 
-	if (!CResourceHandler::get()->existsResource(actualPath))
-		return nullptr;
-
-	auto result = std::make_shared<CDefFile>(actualPath);
+	// DMB: "SPRITES/DMBM-<release>-<name>", a main menu button out of that release's own sprite archive (MenuBackgrounds), so a release's
+	// picture is drawn with the buttons made for it
+	std::shared_ptr<CDefFile> result;
+	if(boost::istarts_with(actualPath.getName(), "SPRITES/DMBM-"))
+	{
+		const std::string rest = actualPath.getName().substr(std::string("SPRITES/DMBM-").size());
+		const auto dash = rest.find('-');
+		if(dash == std::string::npos)
+			return nullptr;
+		const std::string releaseId = boost::to_lower_copy(rest.substr(0, dash));
+		for(const auto & era : MenuBackgrounds::eras())
+		{
+			if(era.id != releaseId)
+				continue;
+			const auto bytes = MenuBackgrounds::sprite(era, rest.substr(dash + 1));
+			if(bytes.empty())
+				return nullptr;
+			auto copy = std::make_unique<ui8[]>(bytes.size());
+			std::copy(bytes.begin(), bytes.end(), copy.get());
+			result = std::make_shared<CDefFile>(actualPath, std::move(copy));
+		}
+		if(!result)
+			return nullptr;
+	}
+	else
+	{
+		if (!CResourceHandler::get()->existsResource(actualPath))
+			return nullptr;
+		result = std::make_shared<CDefFile>(actualPath);
+	}
 
 	auto entries = result->getEntries();
 	

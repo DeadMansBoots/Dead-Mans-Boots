@@ -83,6 +83,36 @@ std::vector<MenuEra> discover()
 				continue; // an archive that cannot be read is not an era
 			}
 			era.title = titleOf(era.id);
+			// the sprite archive that goes with it: the same name with "bitmap" or "_bmp" turned to "sprite" or "_spr"
+			std::vector<std::string> companions;
+			companions.push_back(boost::replace_first_copy(era.id, "bitmap", "sprite"));
+			companions.push_back(boost::replace_first_copy(era.id, "_bmp", "_spr"));
+			for(const auto & stem : companions)
+			{
+				if(stem == era.id)
+					continue;
+				for(const char * ext : {".lod", ".LOD"})
+				{
+					const auto path = it->path().parent_path() / (stem + ext);
+					boost::system::error_code exists;
+					if(!boost::filesystem::exists(path, exists))
+						continue;
+					try
+					{
+						CArchiveLoader loader("DATA/", path);
+						if(loader.existsResource(ResourcePath("DATA/MMENUNG.DEF")))
+						{
+							era.sprites = path;
+							break;
+						}
+					}
+					catch(const std::exception &)
+					{
+					}
+				}
+				if(!era.sprites.empty())
+					break;
+			}
 			found.push_back(std::move(era));
 		}
 	}
@@ -130,6 +160,29 @@ std::vector<ui8> MenuBackgrounds::pcx(const MenuEra & era)
 	{
 		return {};
 	}
+}
+
+std::vector<ui8> MenuBackgrounds::sprite(const MenuEra & era, const std::string & name)
+{
+	std::vector<ui8> bytes;
+	if(era.sprites.empty())
+		return bytes;
+	try
+	{
+		CArchiveLoader loader("DATA/", era.sprites);
+		const ResourcePath wanted("DATA/" + name + ".DEF");
+		if(!loader.existsResource(wanted))
+			return bytes;
+		auto stream = loader.load(wanted);
+		bytes.resize(static_cast<size_t>(stream->getSize()));
+		if(!bytes.empty() && stream->read(bytes.data(), bytes.size()) != static_cast<si64>(bytes.size()))
+			bytes.clear();
+	}
+	catch(const std::exception &)
+	{
+		bytes.clear();
+	}
+	return bytes;
 }
 
 bool MenuBackgrounds::decode(const std::vector<ui8> & pcx, int & width, int & height, std::vector<ui8> & rgb)

@@ -18,6 +18,11 @@ struct DLL_LINKAGE MenuEra
 	std::string id; // the archive's file name in lower case, without its extension: "h3bitmap", "hota"
 	std::string title; // what the player is shown
 	boost::filesystem::path archive;
+	/// the same release's archive of sprites, when it holds the menu's own buttons (H3sprite.lod beside H3bitmap.lod, H3ab_spr.lod
+	/// beside H3ab_bmp.lod): each release draws its buttons to go with its picture, and the pink glow of the one set that the game
+	/// resolves shows as a halo on any other release's picture. Empty when there is none (Horn of the Abyss keeps its buttons in
+	/// its own menu mod).
+	boost::filesystem::path sprites;
 };
 
 /// DMB: the main menu's backgrounds, found in the installed game's files when the game starts (nothing is shipped, K,
@@ -33,6 +38,9 @@ public:
 
 	/// the picture's own bytes (a Heroes III .pcx), empty when the archive cannot be read
 	static std::vector<ui8> pcx(const MenuEra & era);
+
+	/// a button's .def (name without extension, "MMENUNG") out of the release's sprite archive; empty when it holds none
+	static std::vector<ui8> sprite(const MenuEra & era, const std::string & name);
 
 	/// A Heroes III .pcx as 8 bit RGB triples, row by row, from the top. False for anything but the two layouts the game's
 	/// pictures have (a palette at the end of the picture, or plain blue-green-red).

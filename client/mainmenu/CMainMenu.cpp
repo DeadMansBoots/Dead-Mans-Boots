@@ -346,13 +346,37 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 ///    {"backgrounds" : [{"id" : "mymod.dusk", "title" : "Dusk", "image" : "MYMODDUSK"}]}, the image a name the mod provides.
 /// settings general.mainMenuBackground is "random" (any of the pool, each start) or one entry's id; an id no longer in the
 /// pool (a mod switched off, an archive gone) is "random" again.
+/// the main menu mod of a release, when one is active: a mod "<release>.<anything>" that has a config/mainmenu.json of its own
+/// (Horn of the Abyss keeps its picture and its buttons in "hota.mainmenu")
+static std::string menuModOf(const std::string & releaseId)
+{
+	if(!LIBRARY || !LIBRARY->modh)
+		return {};
+	for(const auto & modID : LIBRARY->modh->getActiveMods())
+	{
+		if(!boost::starts_with(modID, releaseId + "."))
+			continue;
+		try
+		{
+			if(CResourceHandler::get(modID)->existsResource(JsonPath::builtin("config/mainmenu.json")))
+				return modID;
+		}
+		catch(const std::exception &)
+		{
+		}
+	}
+	return {};
+}
+
 static JsonNode mainMenuWindow()
 {
 	const JsonNode & configured = CMainMenuConfig::get().getConfig()["window"];
 
+	// a release is in the pool only with buttons that go with its picture: the sprite archive of the same release, or its menu mod
 	std::vector<std::pair<std::string, std::string>> pictures; // id, the image's name
 	for(const auto & era : MenuBackgrounds::eras())
-		pictures.emplace_back(era.id, "DMBMenuEra-" + era.id);
+		if(!era.sprites.empty() || !menuModOf(era.id).empty())
+			pictures.emplace_back(era.id, "DMBMenuEra-" + era.id);
 	const JsonNode extra = JsonUtils::assembleFromFiles("config/mainMenuBackgrounds.json");
 	for(const auto & entry : extra["backgrounds"].Vector())
 		if(entry["id"].isString() && entry["image"].isString())
@@ -371,17 +395,52 @@ static JsonNode mainMenuWindow()
 	if(chosen == "default")
 		return configured;
 
+	// a release with a menu mod of its own is that mod's menu, as the mod lays it out (its own picture and buttons)
+	for(const auto & era : MenuBackgrounds::eras())
+	{
+		if(era.id != chosen || !era.sprites.empty())
+			continue;
+		const std::string modID = menuModOf(era.id);
+		if(!modID.empty())
+		{
+			JsonNode own(JsonPath::builtin("config/mainmenu.json"), modID);
+			if(own["window"].isStruct())
+				return own["window"];
+		}
+	}
+
 	JsonNode vanilla(JsonPath::builtin("config/mainmenu.json"), ModScope::scopeBuiltin());
 	if(!vanilla["window"].isStruct())
 		return configured;
 	JsonNode window = vanilla["window"];
 	for(const auto & [id, image] : pictures)
 	{
-		if(id == chosen)
+		if(id != chosen)
+			continue;
+		JsonNode picture;
+		picture.String() = image;
+		window["background"] = std::move(picture);
+	}
+	// the release's own buttons, from its own sprite archive, where it has them (the buttons of the one set the game resolves carry a
+	// pink glow made for the Shadow of Death picture, which shows as a halo on any other picture: K, October 3rd)
+	for(const auto & era : MenuBackgrounds::eras())
+	{
+		if(era.id != chosen || era.sprites.empty())
+			continue;
+		const auto own = [&era](JsonNode & node)
 		{
-			JsonNode picture;
-			picture.String() = image;
-			window["background"] = std::move(picture);
+			if(!node["name"].isString())
+				return;
+			const std::string name = node["name"].String();
+			if(!MenuBackgrounds::sprite(era, name).empty())
+				node["name"].String() = "DMBM-" + era.id + "-" + name;
+		};
+		for(auto & item : window["items"].Vector())
+		{
+			for(auto & button : item["buttons"].Vector())
+				own(button);
+			for(auto & imageNode : item["images"].Vector())
+				own(imageNode);
 		}
 	}
 	return window;

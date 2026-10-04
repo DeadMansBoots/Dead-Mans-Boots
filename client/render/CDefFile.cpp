@@ -37,10 +37,14 @@ enum class DefType : uint32_t
  *************************************************************************/
 
 CDefFile::CDefFile(const AnimationPath & Name):
-	data(nullptr),
+	CDefFile(Name, CResourceHandler::get()->load(Name)->readAll().first)
+{
+}
+
+CDefFile::CDefFile(const AnimationPath & Name, std::unique_ptr<ui8[]> bytes):
+	data(std::move(bytes)),
 	palette(nullptr)
 {
-	data = CResourceHandler::get()->load(Name)->readAll().first;
 
 	palette = std::unique_ptr<SDL_Color[]>(new SDL_Color[256]);
 	int it = 0;

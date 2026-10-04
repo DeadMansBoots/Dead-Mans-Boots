@@ -497,8 +497,31 @@ static JsonNode mainMenuWindow()
 			if(!node["name"].isString())
 				return;
 			const std::string name = node["name"].String();
-			if(!MenuBackgrounds::sprite(era, name).empty())
-				node["name"].String() = buttonsPrefix + era.id + "-" + name;
+			if(MenuBackgrounds::sprite(era, name).empty())
+				return;
+			// a button of this release that has its background picture drawn round it (Armageddon's Blade's sub menu buttons) is no use on
+			// another picture: the first release whose button is a cut-out gives it
+			// and the glow of Armageddon's Blade's buttons is dark, made for its dark pictures, and leaves a dark halo on any other: the
+			// Complete release's buttons (Shadow of Death's art) are the ones made neutral, wherever the player's archives have them
+			std::string source = era.id;
+			if(buttonsPrefix == "DMBN-")
+			{
+				const auto & eras = MenuBackgrounds::eras();
+				const auto complete = std::find_if(eras.begin(), eras.end(), [&name](const MenuEra & other)
+				{
+					return other.id == "h3bitmap" && !other.sprites.empty() && MenuBackgrounds::isCutout(other, name);
+				});
+				if(complete != eras.end())
+					source = complete->id;
+				else if(!MenuBackgrounds::isCutout(era, name))
+					for(const auto & other : eras)
+						if(!other.sprites.empty() && MenuBackgrounds::isCutout(other, name))
+						{
+							source = other.id;
+							break;
+						}
+			}
+			node["name"].String() = buttonsPrefix + source + "-" + name;
 		};
 		for(auto & item : window["items"].Vector())
 		{

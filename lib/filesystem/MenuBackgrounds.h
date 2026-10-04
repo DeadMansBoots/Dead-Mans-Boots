@@ -89,6 +89,10 @@ public:
 	/// it sits on any other picture; the button as a .def, empty when the file is not one this reads
 	static std::vector<ui8> neutralSprite(const MenuEra & era, const std::string & name);
 
+	/// whether the button's first frame is a cut-out (a good part of it transparent) and not a piece of the release's background picture
+	/// drawn round the button, as Armageddon's Blade's sub menu buttons are: only a cut-out can sit on another picture
+	static bool isCutout(const MenuEra & era, const std::string & name);
+
 	/// A Heroes III .pcx as 8 bit RGB triples, row by row, from the top. False for anything but the two layouts the game's
 	/// pictures have (a palette at the end of the picture, or plain blue-green-red).
 	static bool decode(const std::vector<ui8> & pcx, int & width, int & height, std::vector<ui8> & rgb);

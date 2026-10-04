@@ -794,26 +794,50 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 			if(notIcon[at(x, y)])
 				pix[at(x, y)] = (dist[at(x, y)] >= 1 && dist[at(x, y)] <= reach && outline != 0) ? outline : 0;
 
-	// the icon's drop shadow, tinted by the glow, within two pixels of what is now transparent takes the outline colour
+	// the icon's drop shadow, tinted by the glow, that reaches the cleared glow (at most eight pixels in) goes too, and a one pixel edge
+	// of the outline colour is put where it met the icon; the first version turned it into an outline and left a fat black halo round
+	// the buttons of Armageddon's Blade (K, October 4th)
 	if(outline != 0)
 	{
-		const std::vector<ui8> cleared(pix);
+		std::vector<int> depth(pix.size(), -1);
+		std::deque<std::pair<int, int>> flood;
 		for(int y = 0; y < h; ++y)
 			for(int x = 0; x < w; ++x)
-			{
-				if(!tintedDark(palette, cleared[at(x, y)]))
-					continue;
-				bool beside = false;
-				for(int dy = -2; dy <= 2 && !beside; ++dy)
-					for(int dx = -2; dx <= 2 && !beside; ++dx)
-					{
-						const int nx = x + dx;
-						const int ny = y + dy;
-						beside = nx >= 0 && ny >= 0 && nx < w && ny < h && cleared[at(nx, ny)] == 0;
-					}
-				if(beside)
-					pix[at(x, y)] = outline;
-			}
+				if(pix[at(x, y)] == 0)
+				{
+					depth[at(x, y)] = 0;
+					flood.emplace_back(x, y);
+				}
+		std::vector<size_t> gone;
+		while(!flood.empty())
+		{
+			const auto [x, y] = flood.front();
+			flood.pop_front();
+			if(depth[at(x, y)] >= 8)
+				continue;
+			const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
+			for(const auto & [nx, ny] : around)
+				if(nx >= 0 && ny >= 0 && nx < w && ny < h && depth[at(nx, ny)] < 0 && pix[at(nx, ny)] != outline && tintedDark(palette, pix[at(nx, ny)]))
+				{
+					depth[at(nx, ny)] = depth[at(x, y)] + 1;
+					gone.push_back(at(nx, ny));
+					flood.emplace_back(nx, ny);
+				}
+		}
+		for(const size_t i : gone)
+			pix[i] = 0;
+		for(const size_t i : gone)
+		{
+			const int x = static_cast<int>(i % w);
+			const int y = static_cast<int>(i / w);
+			const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
+			for(const auto & [nx, ny] : around)
+				if(nx >= 0 && ny >= 0 && nx < w && ny < h && pix[at(nx, ny)] > 7)
+				{
+					pix[i] = outline;
+					break;
+				}
+		}
 	}
 }
 }
@@ -858,6 +882,27 @@ std::vector<std::string> MenuBackgrounds::modDepends(const boost::filesystem::pa
 	{
 	}
 	return ids;
+}
+
+bool MenuBackgrounds::isCutout(const MenuEra & era, const std::string & name)
+{
+	const std::vector<ui8> d = sprite(era, name);
+	if(d.size() < 16 + 768 + 16 || le32(d, 12) == 0)
+		return false;
+	size_t pos = 16 + 768;
+	const ui32 n = le32(d, pos + 4);
+	pos += 16 + 13 * static_cast<size_t>(n);
+	if(n == 0 || n > 1000 || pos + 4 > d.size())
+		return false;
+	const size_t at = le32(d, pos);
+	if(at + 32 > d.size())
+		return false;
+	const int w = static_cast<int>(le32(d, at + 16));
+	const int h = static_cast<int>(le32(d, at + 20));
+	std::vector<ui8> pix;
+	if(w <= 0 || h <= 0 || w > 4096 || h > 4096 || !decodeFrame(d, at, w, h, le32(d, at + 4), pix))
+		return false;
+	return std::count(pix.begin(), pix.end(), static_cast<ui8>(0)) * 100 >= static_cast<long>(pix.size()) * 15;
 }
 
 std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::string & name)

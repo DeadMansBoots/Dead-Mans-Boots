@@ -391,8 +391,8 @@ void put32(std::vector<ui8> & b, ui32 v)
 		b.push_back(static_cast<ui8>((v >> (8 * i)) & 0xFF));
 }
 
-/// The glow baked into the game's menu buttons is a dull pink that matches the picture each release made it for (saturation about
-/// 0.5 to 0.63, not dark); the icons' own reds are saturated or dark.
+/// The glow baked into the game's menu buttons is a dull pink that matches the picture each release made it for (saturation up to 0.68,
+/// pink or orange: red over green, blue not above red); the icons' own reds are saturated and their silvers have no tint.
 bool isGlow(const ui8 * palette, ui8 index)
 {
 	if(index <= 7)
@@ -402,7 +402,16 @@ bool isGlow(const ui8 * palette, ui8 index)
 	const int b = palette[index * 3 + 2];
 	const int top = std::max({r, g, b});
 	const int low = std::min({r, g, b});
-	return top >= 70 && r >= g + 12 && g * 100 <= 80 * r && (top - low) * 100 <= 68 * top;
+	return top >= 70 && r >= g + 8 && r >= b - 4 && (top - low) * 100 <= 68 * top;
+}
+
+/// the glow is a smooth gradient; where one pixel steps to the next by more than this in a colour channel, the icon's edge begins
+int colourStep(const ui8 * palette, ui8 a, ui8 b)
+{
+	int step = 0;
+	for(int c = 0; c < 3; ++c)
+		step = std::max(step, std::abs(static_cast<int>(palette[a * 3 + c]) - static_cast<int>(palette[b * 3 + c])));
+	return step;
 }
 
 /// one frame's pixels (palette indexes, 0 outside) as a w by h block; false for a format this does not read
@@ -486,91 +495,74 @@ bool decodeFrame(const std::vector<ui8> & d, size_t at, int w, int h, ui32 forma
 	return true;
 }
 
-/// the glow taken away: what is reached from outside through glow-coloured pixels becomes transparent, except one pixel against the icon,
-/// which takes the darkest colour the icon itself uses (the game's shadow indexes cannot be used: the scaled-up copy of an image ignores them)
-void removeGlow(const ui8 * palette, std::vector<ui8> & pix, int w, int h)
+/// what is reached from outside through glow-coloured pixels, each close in colour to the one before it (the icon's own edge is a step)
+std::vector<ui8> findGlow(const ui8 * palette, const std::vector<ui8> & pix, int w, int h)
 {
 	const auto at = [w](int x, int y) { return static_cast<size_t>(y) * w + x; };
 	std::vector<ui8> ring(pix.size(), 0);
 	std::deque<std::pair<int, int>> queue;
-	const auto visit = [&](int x, int y)
+	const auto visit = [&](int x, int y, int from)
 	{
 		if(x < 0 || y < 0 || x >= w || y >= h || ring[at(x, y)] || pix[at(x, y)] == 0 || !isGlow(palette, pix[at(x, y)]))
+			return;
+		if(from >= 0 && colourStep(palette, static_cast<ui8>(from), pix[at(x, y)]) > 20)
 			return;
 		ring[at(x, y)] = 1;
 		queue.emplace_back(x, y);
 	};
-	// the outside is the picture's edge and every transparent pixel
 	for(int y = 0; y < h; ++y)
 		for(int x = 0; x < w; ++x)
 		{
 			if(pix[at(x, y)] == 0)
 			{
-				visit(x - 1, y);
-				visit(x + 1, y);
-				visit(x, y - 1);
-				visit(x, y + 1);
+				visit(x - 1, y, -1);
+				visit(x + 1, y, -1);
+				visit(x, y - 1, -1);
+				visit(x, y + 1, -1);
 			}
 			else if(x == 0 || y == 0 || x == w - 1 || y == h - 1)
-				visit(x, y);
+				visit(x, y, -1);
 		}
 	while(!queue.empty())
 	{
 		const auto [x, y] = queue.front();
 		queue.pop_front();
-		visit(x - 1, y);
-		visit(x + 1, y);
-		visit(x, y - 1);
-		visit(x, y + 1);
+		const int here = pix[at(x, y)];
+		visit(x - 1, y, here);
+		visit(x + 1, y, here);
+		visit(x, y - 1, here);
+		visit(x, y + 1, here);
 	}
-	// how far each glow pixel is from the icon
-	std::vector<int> dist(pix.size(), -1);
-	for(int y = 0; y < h; ++y)
-		for(int x = 0; x < w; ++x)
-			if(pix[at(x, y)] != 0 && !ring[at(x, y)])
-			{
-				dist[at(x, y)] = 0;
-				queue.emplace_back(x, y);
-			}
-	while(!queue.empty())
-	{
-		const auto [x, y] = queue.front();
-		queue.pop_front();
-		const int next = dist[at(x, y)] + 1;
-		const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
-		for(const auto & [nx, ny] : around)
-			if(nx >= 0 && ny >= 0 && nx < w && ny < h && dist[at(nx, ny)] < 0 && (ring[at(nx, ny)] || pix[at(nx, ny)] == 0))
-			{
-				dist[at(nx, ny)] = next;
-				queue.emplace_back(nx, ny);
-			}
-	}
-	ui8 outline = 0;
-	int darkest = 100000;
-	for(size_t i = 0; i < pix.size(); ++i)
-	{
-		const ui8 v = pix[i];
-		if(v <= 7 || ring[i] || isGlow(palette, v))
-			continue;
-		const int sum = palette[v * 3] + palette[v * 3 + 1] + palette[v * 3 + 2];
-		if(sum < darkest)
-		{
-			darkest = sum;
-			outline = v;
-		}
-	}
-	for(int y = 0; y < h; ++y)
-		for(int x = 0; x < w; ++x)
-			if(ring[at(x, y)])
-				pix[at(x, y)] = (dist[at(x, y)] == 1 && outline != 0) ? outline : 0;
+	return ring;
+}
 
-	// what the glow was holding up is left floating: a few pixels apart from the icon (a dark fragment at the edge of one frame, the smudge
-	// of a candle flame, single specks) are taken away; a bright small piece (a gold finial) stays
+int glowBrightness(const ui8 * palette, const std::vector<ui8> & pix, const std::vector<ui8> & ring)
+{
+	long total = 0;
+	long count = 0;
+	for(size_t i = 0; i < pix.size(); ++i)
+		if(ring[i])
+		{
+			total += (palette[pix[i] * 3] + palette[pix[i] * 3 + 1] + palette[pix[i] * 3 + 2]) / 3;
+			++count;
+		}
+	return count ? static_cast<int>(total / count) : 0;
+}
+
+/// the glow taken away: the ring becomes transparent, except against the icon: one pixel of the darkest colour the icon itself uses, or,
+/// in a highlight frame (its glow is paler than the button's normal one), two pixels of the brightest. The game's shadow indexes cannot
+/// be used: the scaled-up copy of an image ignores them. What the glow was holding up is left floating: a few pixels apart from the icon
+/// (a dark fragment at the edge of a frame, the smudge of a candle flame, single specks) are taken away first, so nothing is drawn round
+/// them; a bright small piece joined to the icon (a gold finial) stays.
+void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<ui8> & ring, int w, int h, bool highlight)
+{
+	const auto at = [w](int x, int y) { return static_cast<size_t>(y) * w + x; };
+	std::vector<ui8> notIcon(ring);
 	std::vector<ui8> seen(pix.size(), 0);
 	for(int y0 = 0; y0 < h; ++y0)
 		for(int x0 = 0; x0 < w; ++x0)
 		{
-			if(pix[at(x0, y0)] <= 7 || seen[at(x0, y0)])
+			if(pix[at(x0, y0)] <= 7 || ring[at(x0, y0)] || seen[at(x0, y0)])
 				continue;
 			std::vector<size_t> piece;
 			std::deque<std::pair<int, int>> open;
@@ -589,7 +581,7 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, int w, int h)
 					{
 						const int nx = x + dx;
 						const int ny = y + dy;
-						if(nx >= 0 && ny >= 0 && nx < w && ny < h && pix[at(nx, ny)] > 7 && !seen[at(nx, ny)])
+						if(nx >= 0 && ny >= 0 && nx < w && ny < h && pix[at(nx, ny)] > 7 && !ring[at(nx, ny)] && !seen[at(nx, ny)])
 						{
 							seen[at(nx, ny)] = 1;
 							open.emplace_back(nx, ny);
@@ -599,8 +591,51 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, int w, int h)
 			const long mean = brightness / static_cast<long>(piece.size());
 			if(piece.size() <= 3 || (piece.size() <= 80 && mean < 120))
 				for(const size_t i : piece)
-					pix[i] = 0;
+					notIcon[i] = 1;
 		}
+
+	// how far each pixel that is not the icon is from the icon
+	std::deque<std::pair<int, int>> queue;
+	std::vector<int> dist(pix.size(), -1);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			if(pix[at(x, y)] != 0 && !notIcon[at(x, y)])
+			{
+				dist[at(x, y)] = 0;
+				queue.emplace_back(x, y);
+			}
+	while(!queue.empty())
+	{
+		const auto [x, y] = queue.front();
+		queue.pop_front();
+		const int next = dist[at(x, y)] + 1;
+		const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
+		for(const auto & [nx, ny] : around)
+			if(nx >= 0 && ny >= 0 && nx < w && ny < h && dist[at(nx, ny)] < 0 && (notIcon[at(nx, ny)] || pix[at(nx, ny)] == 0))
+			{
+				dist[at(nx, ny)] = next;
+				queue.emplace_back(nx, ny);
+			}
+	}
+	ui8 outline = 0;
+	int best = highlight ? -1 : 100000;
+	for(size_t i = 0; i < pix.size(); ++i)
+	{
+		const ui8 v = pix[i];
+		if(v <= 7 || notIcon[i] || isGlow(palette, v))
+			continue;
+		const int sum = palette[v * 3] + palette[v * 3 + 1] + palette[v * 3 + 2];
+		if(highlight ? sum > best : sum < best)
+		{
+			best = sum;
+			outline = v;
+		}
+	}
+	const int reach = highlight ? 2 : 1;
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			if(notIcon[at(x, y)])
+				pix[at(x, y)] = (dist[at(x, y)] >= 1 && dist[at(x, y)] <= reach && outline != 0) ? outline : 0;
 }
 }
 
@@ -648,35 +683,58 @@ std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::
 	}
 	const ui8 * palette = d.data() + 16;
 	for(size_t b = 0; b < parsed.size(); ++b)
+	{
+		struct Frame
+		{
+			ui32 format, fullW, fullH, left, top;
+			int w, h;
+			std::vector<ui8> pix, ring;
+			int brightness;
+		};
+		std::vector<Frame> frames;
 		for(size_t i = 0; i < parsed[b].offsets.size(); ++i)
 		{
 			const size_t at = parsed[b].offsets[i];
 			if(at + 32 > d.size())
 				return {};
-			const ui32 format = le32(d, at + 4);
-			const ui32 fullW = le32(d, at + 8);
-			const ui32 fullH = le32(d, at + 12);
-			const int w = static_cast<int>(le32(d, at + 16));
-			const int h = static_cast<int>(le32(d, at + 20));
-			if(w <= 0 || h <= 0 || w > 4096 || h > 4096 || (format == 1 && w > static_cast<int>(fullW) && h > static_cast<int>(fullH)))
+			Frame f;
+			f.format = le32(d, at + 4);
+			f.fullW = le32(d, at + 8);
+			f.fullH = le32(d, at + 12);
+			f.w = static_cast<int>(le32(d, at + 16));
+			f.h = static_cast<int>(le32(d, at + 20));
+			f.left = le32(d, at + 24);
+			f.top = le32(d, at + 28);
+			if(f.w <= 0 || f.h <= 0 || f.w > 4096 || f.h > 4096 || (f.format == 1 && f.w > static_cast<int>(f.fullW) && f.h > static_cast<int>(f.fullH)))
 				return {};
-			std::vector<ui8> pix;
-			if(!decodeFrame(d, at, w, h, format, pix))
+			if(!decodeFrame(d, at, f.w, f.h, f.format, f.pix))
 				return {};
-			removeGlow(palette, pix, w, h);
+			f.ring = findGlow(palette, f.pix, f.w, f.h);
+			f.brightness = glowBrightness(palette, f.pix, f.ring);
+			frames.push_back(std::move(f));
+		}
+		int palest = 1000;
+		for(const auto & f : frames)
+			palest = std::min(palest, f.brightness);
+		for(size_t i = 0; i < frames.size(); ++i)
+		{
+			Frame & f = frames[i];
+			// a frame whose glow is much brighter than the button's other frames is its highlight
+			removeGlow(palette, f.pix, f.ring, f.w, f.h, f.brightness > palest + 25);
 			const ui32 here = static_cast<ui32>(out.size());
 			for(int k = 0; k < 4; ++k)
 				out[offsetAt[b] + i * 4 + k] = static_cast<ui8>((here >> (8 * k)) & 0xFF);
-			put32(out, static_cast<ui32>(pix.size()));
+			put32(out, static_cast<ui32>(f.pix.size()));
 			put32(out, 0);
-			put32(out, fullW);
-			put32(out, fullH);
-			put32(out, static_cast<ui32>(w));
-			put32(out, static_cast<ui32>(h));
-			put32(out, le32(d, at + 24));
-			put32(out, le32(d, at + 28));
-			out.insert(out.end(), pix.begin(), pix.end());
+			put32(out, f.fullW);
+			put32(out, f.fullH);
+			put32(out, static_cast<ui32>(f.w));
+			put32(out, static_cast<ui32>(f.h));
+			put32(out, f.left);
+			put32(out, f.top);
+			out.insert(out.end(), f.pix.begin(), f.pix.end());
 		}
+	}
 	return out;
 }
 

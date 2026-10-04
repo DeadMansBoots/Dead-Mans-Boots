@@ -628,6 +628,7 @@ std::shared_ptr<CToggleGroup> InterfaceObjectConfigurable::buildToggleGroup(cons
 		group->addCallback([this, path, spec, valueOf](int index)
 		{
 			writeSetting(path, valueOf(index));
+			refreshSettingLabels();
 			if(onSettingChanged)
 				onSettingChanged(spec);
 		});
@@ -675,6 +676,7 @@ std::shared_ptr<CToggleButton> InterfaceObjectConfigurable::buildToggleButton(co
 		button->addCallback([this, path, spec](bool on)
 		{
 			writeSetting(path, JsonNode(static_cast<int32_t>(on ? 1 : 0)));
+			refreshSettingLabels();
 			if(onSettingChanged)
 				onSettingChanged(spec);
 		});

@@ -71,6 +71,10 @@ public:
 	/// a button's .def (name without extension, "MMENUNG") out of the release's sprite archive; empty when it holds none
 	static std::vector<ui8> sprite(const MenuEra & era, const std::string & name);
 
+	/// the same button with the pink glow baked into it (made to match the one picture of its release) taken away (a thin dark edge stays against the icon), so
+	/// it sits on any other picture; the button as a .def, empty when the file is not one this reads
+	static std::vector<ui8> neutralSprite(const MenuEra & era, const std::string & name);
+
 	/// A Heroes III .pcx as 8 bit RGB triples, row by row, from the top. False for anything but the two layouts the game's
 	/// pictures have (a palette at the end of the picture, or plain blue-green-red).
 	static bool decode(const std::vector<ui8> & pcx, int & width, int & height, std::vector<ui8> & rgb);

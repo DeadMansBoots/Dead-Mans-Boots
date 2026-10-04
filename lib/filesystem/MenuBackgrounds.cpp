@@ -10,6 +10,7 @@
 #include "StdInc.h"
 #include "MenuBackgrounds.h"
 
+#include <deque>
 #include <fstream>
 
 #include "CArchiveLoader.h"
@@ -375,6 +376,270 @@ std::vector<ui8> MenuBackgrounds::sprite(const MenuEra & era, const std::string 
 		bytes.clear();
 	}
 	return bytes;
+}
+
+namespace
+{
+ui32 le32(const std::vector<ui8> & b, size_t at)
+{
+	return static_cast<ui32>(b[at]) | (static_cast<ui32>(b[at + 1]) << 8) | (static_cast<ui32>(b[at + 2]) << 16) | (static_cast<ui32>(b[at + 3]) << 24);
+}
+
+void put32(std::vector<ui8> & b, ui32 v)
+{
+	for(int i = 0; i < 4; ++i)
+		b.push_back(static_cast<ui8>((v >> (8 * i)) & 0xFF));
+}
+
+/// The glow baked into the game's menu buttons is a dull pink that matches the picture each release made it for (saturation about
+/// 0.5 to 0.63, not dark); the icons' own reds are saturated or dark.
+bool isGlow(const ui8 * palette, ui8 index)
+{
+	if(index <= 7)
+		return false;
+	const int r = palette[index * 3];
+	const int g = palette[index * 3 + 1];
+	const int b = palette[index * 3 + 2];
+	const int top = std::max({r, g, b});
+	const int low = std::min({r, g, b});
+	return top >= 100 && r >= g + 12 && g * 100 <= 80 * r && (top - low) * 100 <= 68 * top;
+}
+
+/// one frame's pixels (palette indexes, 0 outside) as a w by h block; false for a format this does not read
+bool decodeFrame(const std::vector<ui8> & d, size_t at, int w, int h, ui32 format, std::vector<ui8> & pix)
+{
+	pix.assign(static_cast<size_t>(w) * h, 0);
+	const size_t body = at + 32;
+	const auto need = [&d](size_t n) { return n <= d.size(); };
+	for(int row = 0; row < h; ++row)
+	{
+		ui8 * line = pix.data() + static_cast<size_t>(row) * w;
+		if(format == 0)
+		{
+			if(!need(body + static_cast<size_t>(row + 1) * w))
+				return false;
+			std::copy(d.begin() + body + static_cast<size_t>(row) * w, d.begin() + body + static_cast<size_t>(row + 1) * w, line);
+		}
+		else if(format == 1 || format == 2)
+		{
+			size_t p;
+			if(format == 1)
+			{
+				if(!need(body + static_cast<size_t>(row + 1) * 4))
+					return false;
+				p = body + le32(d, body + static_cast<size_t>(row) * 4);
+			}
+			else
+			{
+				if(!need(body + static_cast<size_t>(row + 1) * 2))
+					return false;
+				p = body + (d[body + row * 2] | (d[body + row * 2 + 1] << 8));
+			}
+			int col = 0;
+			while(col < w)
+			{
+				if(format == 1)
+				{
+					if(!need(p + 2))
+						return false;
+					const ui8 code = d[p];
+					const int length = d[p + 1] + 1;
+					p += 2;
+					if(col + length > w)
+						return false;
+					if(code == 0xFF)
+					{
+						if(!need(p + length))
+							return false;
+						std::copy(d.begin() + p, d.begin() + p + length, line + col);
+						p += length;
+					}
+					else
+						std::fill(line + col, line + col + length, code);
+					col += length;
+				}
+				else
+				{
+					if(!need(p + 1))
+						return false;
+					const int code = d[p] >> 5;
+					const int length = (d[p] & 31) + 1;
+					p += 1;
+					if(col + length > w)
+						return false;
+					if(code == 7)
+					{
+						if(!need(p + length))
+							return false;
+						std::copy(d.begin() + p, d.begin() + p + length, line + col);
+						p += length;
+					}
+					else
+						std::fill(line + col, line + col + length, static_cast<ui8>(code));
+					col += length;
+				}
+			}
+		}
+		else
+			return false;
+	}
+	return true;
+}
+
+/// the glow taken away: what is reached from outside through glow-coloured pixels becomes transparent, except one pixel against the icon,
+/// which takes the darkest colour the icon itself uses (the game's shadow indexes cannot be used: the scaled-up copy of an image ignores them)
+void removeGlow(const ui8 * palette, std::vector<ui8> & pix, int w, int h)
+{
+	const auto at = [w](int x, int y) { return static_cast<size_t>(y) * w + x; };
+	std::vector<ui8> ring(pix.size(), 0);
+	std::deque<std::pair<int, int>> queue;
+	const auto visit = [&](int x, int y)
+	{
+		if(x < 0 || y < 0 || x >= w || y >= h || ring[at(x, y)] || pix[at(x, y)] == 0 || !isGlow(palette, pix[at(x, y)]))
+			return;
+		ring[at(x, y)] = 1;
+		queue.emplace_back(x, y);
+	};
+	// the outside is the picture's edge and every transparent pixel
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			if(pix[at(x, y)] == 0)
+			{
+				visit(x - 1, y);
+				visit(x + 1, y);
+				visit(x, y - 1);
+				visit(x, y + 1);
+			}
+			else if(x == 0 || y == 0 || x == w - 1 || y == h - 1)
+				visit(x, y);
+		}
+	while(!queue.empty())
+	{
+		const auto [x, y] = queue.front();
+		queue.pop_front();
+		visit(x - 1, y);
+		visit(x + 1, y);
+		visit(x, y - 1);
+		visit(x, y + 1);
+	}
+	// how far each glow pixel is from the icon
+	std::vector<int> dist(pix.size(), -1);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			if(pix[at(x, y)] != 0 && !ring[at(x, y)])
+			{
+				dist[at(x, y)] = 0;
+				queue.emplace_back(x, y);
+			}
+	while(!queue.empty())
+	{
+		const auto [x, y] = queue.front();
+		queue.pop_front();
+		const int next = dist[at(x, y)] + 1;
+		const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
+		for(const auto & [nx, ny] : around)
+			if(nx >= 0 && ny >= 0 && nx < w && ny < h && dist[at(nx, ny)] < 0 && (ring[at(nx, ny)] || pix[at(nx, ny)] == 0))
+			{
+				dist[at(nx, ny)] = next;
+				queue.emplace_back(nx, ny);
+			}
+	}
+	ui8 outline = 0;
+	int darkest = 100000;
+	for(size_t i = 0; i < pix.size(); ++i)
+	{
+		const ui8 v = pix[i];
+		if(v <= 7 || ring[i] || isGlow(palette, v))
+			continue;
+		const int sum = palette[v * 3] + palette[v * 3 + 1] + palette[v * 3 + 2];
+		if(sum < darkest)
+		{
+			darkest = sum;
+			outline = v;
+		}
+	}
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			if(ring[at(x, y)])
+				pix[at(x, y)] = (dist[at(x, y)] == 1 && outline != 0) ? outline : 0;
+}
+}
+
+std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::string & name)
+{
+	const std::vector<ui8> d = sprite(era, name);
+	if(d.size() < 16 + 768)
+		return {};
+	const ui32 blocks = le32(d, 12);
+	std::vector<ui8> out(d.begin(), d.begin() + 16 + 768);
+	struct Block
+	{
+		std::vector<ui8> header; // 16 bytes
+		std::vector<ui8> names;
+		std::vector<ui32> offsets;
+	};
+	std::vector<Block> parsed;
+	size_t pos = 16 + 768;
+	for(ui32 b = 0; b < blocks; ++b)
+	{
+		if(pos + 16 > d.size())
+			return {};
+		Block block;
+		block.header.assign(d.begin() + pos, d.begin() + pos + 16);
+		const ui32 n = le32(d, pos + 4);
+		pos += 16;
+		if(n > 1000 || pos + 13 * n + 4 * n > d.size())
+			return {};
+		block.names.assign(d.begin() + pos, d.begin() + pos + 13 * n);
+		pos += 13 * n;
+		for(ui32 i = 0; i < n; ++i)
+			block.offsets.push_back(le32(d, pos + 4 * i));
+		pos += 4 * n;
+		parsed.push_back(std::move(block));
+	}
+	// the new file: the same header and tables, every frame stored plain (format 0) with the glow turned to shadow
+	std::vector<size_t> offsetAt;
+	for(const auto & block : parsed)
+	{
+		out.insert(out.end(), block.header.begin(), block.header.end());
+		out.insert(out.end(), block.names.begin(), block.names.end());
+		offsetAt.push_back(out.size());
+		for(size_t i = 0; i < block.offsets.size(); ++i)
+			put32(out, 0);
+	}
+	const ui8 * palette = d.data() + 16;
+	for(size_t b = 0; b < parsed.size(); ++b)
+		for(size_t i = 0; i < parsed[b].offsets.size(); ++i)
+		{
+			const size_t at = parsed[b].offsets[i];
+			if(at + 32 > d.size())
+				return {};
+			const ui32 format = le32(d, at + 4);
+			const ui32 fullW = le32(d, at + 8);
+			const ui32 fullH = le32(d, at + 12);
+			const int w = static_cast<int>(le32(d, at + 16));
+			const int h = static_cast<int>(le32(d, at + 20));
+			if(w <= 0 || h <= 0 || w > 4096 || h > 4096 || (format == 1 && w > static_cast<int>(fullW) && h > static_cast<int>(fullH)))
+				return {};
+			std::vector<ui8> pix;
+			if(!decodeFrame(d, at, w, h, format, pix))
+				return {};
+			removeGlow(palette, pix, w, h);
+			const ui32 here = static_cast<ui32>(out.size());
+			for(int k = 0; k < 4; ++k)
+				out[offsetAt[b] + i * 4 + k] = static_cast<ui8>((here >> (8 * k)) & 0xFF);
+			put32(out, static_cast<ui32>(pix.size()));
+			put32(out, 0);
+			put32(out, fullW);
+			put32(out, fullH);
+			put32(out, static_cast<ui32>(w));
+			put32(out, static_cast<ui32>(h));
+			put32(out, le32(d, at + 24));
+			put32(out, le32(d, at + 28));
+			out.insert(out.end(), pix.begin(), pix.end());
+		}
+	return out;
 }
 
 bool MenuBackgrounds::decode(const std::vector<ui8> & pcx, int & width, int & height, std::vector<ui8> & rgb)

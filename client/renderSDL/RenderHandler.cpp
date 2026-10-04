@@ -74,7 +74,9 @@ std::shared_ptr<CDefFile> RenderHandler::getAnimationFile(const AnimationPath & 
 	// DMB: "SPRITES/DMBM-<release>-<name>", a main menu button out of that release's own sprite archive (MenuBackgrounds), so a release's
 	// picture is drawn with the buttons made for it
 	std::shared_ptr<CDefFile> result;
-	if(boost::istarts_with(actualPath.getName(), "SPRITES/DMBM-"))
+	// "SPRITES/DMBN-<release>-<name>" is the same button with its baked-in glow turned to a soft shadow, for a picture it was not made for
+	const bool neutral = boost::istarts_with(actualPath.getName(), "SPRITES/DMBN-");
+	if(neutral || boost::istarts_with(actualPath.getName(), "SPRITES/DMBM-"))
 	{
 		const std::string rest = actualPath.getName().substr(std::string("SPRITES/DMBM-").size());
 		const auto dash = rest.find('-');
@@ -85,7 +87,7 @@ std::shared_ptr<CDefFile> RenderHandler::getAnimationFile(const AnimationPath & 
 		{
 			if(era.id != releaseId)
 				continue;
-			const auto bytes = MenuBackgrounds::sprite(era, rest.substr(dash + 1));
+			const auto bytes = neutral ? MenuBackgrounds::neutralSprite(era, rest.substr(dash + 1)) : MenuBackgrounds::sprite(era, rest.substr(dash + 1));
 			if(bytes.empty())
 				return nullptr;
 			auto copy = std::make_unique<ui8[]>(bytes.size());

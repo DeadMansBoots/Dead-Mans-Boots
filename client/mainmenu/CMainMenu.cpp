@@ -449,7 +449,13 @@ static JsonNode mainMenuWindow()
 	// the release's own buttons, from its own sprite archive, where it has them (the buttons of the one set the game resolves carry a
 	// pink glow made for the Shadow of Death picture, which shows as a halo on any other picture: K, October 3rd)
 	// (a dropped or mod-listed picture has no release of its own: it takes the first release's buttons)
+	// a release's own main picture is drawn with the buttons made for it; any other picture (the release's other two, a dropped one, a
+	// mod's) has the buttons with their glow, which was made to match that one picture, turned into a soft shadow
 	std::string buttonsOf = chosen;
+	std::string buttonsPrefix = "DMBN-";
+	for(const auto & era : MenuBackgrounds::eras())
+		if(era.id == chosen && era.entry == "GAMSELBK.PCX")
+			buttonsPrefix = "DMBM-";
 	if(!std::any_of(MenuBackgrounds::eras().begin(), MenuBackgrounds::eras().end(), [&chosen](const MenuEra & era) { return era.id == chosen && !era.sprites.empty(); }))
 		for(const auto & era : MenuBackgrounds::eras())
 			if(!era.sprites.empty())
@@ -461,13 +467,13 @@ static JsonNode mainMenuWindow()
 	{
 		if(era.id != buttonsOf || era.sprites.empty())
 			continue;
-		const auto own = [&era](JsonNode & node)
+		const auto own = [&era, &buttonsPrefix](JsonNode & node)
 		{
 			if(!node["name"].isString())
 				return;
 			const std::string name = node["name"].String();
 			if(!MenuBackgrounds::sprite(era, name).empty())
-				node["name"].String() = "DMBM-" + era.id + "-" + name;
+				node["name"].String() = buttonsPrefix + era.id + "-" + name;
 		};
 		for(auto & item : window["items"].Vector())
 		{

@@ -931,13 +931,36 @@ std::shared_ptr<ComboBox> InterfaceObjectConfigurable::buildComboBox(const JsonN
 	return result;
 }
 
+namespace
+{
+/// DMB: a text box that answers hover and right-click with help text over its whole area ("help", as a button has it); a left click
+/// goes to the box alone (the help area answers a left click only at its first pixel)
+class HelpTextInput : public CTextInput
+{
+	std::shared_ptr<LRClickableAreaWText> helpArea;
+
+public:
+	HelpTextInput(const Rect & rect, const Point & offset, const ImagePath & background, const std::pair<std::string, std::string> & hint)
+		: CTextInput(rect, offset, background)
+	{
+		OBJECT_CONSTRUCTION;
+		helpArea = std::make_shared<LRClickableAreaWText>(Rect(0, 0, rect.w, rect.h), hint.first, hint.second);
+		helpArea->clickWidth = 1;
+	}
+};
+}
+
 std::shared_ptr<CTextInput> InterfaceObjectConfigurable::buildTextInput(const JsonNode & config) const
 {
 	logGlobal->debug("Building widget CTextInput");
 	auto rect = readRect(config["rect"]);
 	auto offset = readPosition(config["backgroundOffset"]);
 	auto bgName = ImagePath::fromJson(config["background"]);
-	auto result = std::make_shared<CTextInput>(rect, offset, bgName);
+	std::shared_ptr<CTextInput> result;
+	if(config["help"].isNull())
+		result = std::make_shared<CTextInput>(rect, offset, bgName);
+	else
+		result = std::make_shared<HelpTextInput>(rect, offset, bgName, readHintText(config["help"]));
 	// DMB: this constructor always grabs keyboard focus on creation (CTextInput::createLabel); a page
 	// with more than one, or any single-key lobby shortcut (Begin, Advanced Options), stops working the
 	// moment the page opens, silently, since a digit-only field just swallows a non-digit key and does

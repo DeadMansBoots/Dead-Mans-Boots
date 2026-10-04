@@ -136,6 +136,11 @@ private:
 	/// the dropdowns showing what each slot holds now, in the current look
 	void fillLookSlots();
 
+	/// DMB: the main menu's background (general.mainMenuBackground, K, October 1st): random, as the mods set it, or one
+	/// release's own picture from the player's game files; the dropdown below the look's slots
+	QComboBox * menuBackgroundCombo = nullptr;
+	void fillMenuBackgrounds();
+
 	void fillValidRenderers();
 	void fillValidResolutionsForScreen(int screenIndex);
 	void fillValidScalingRange();

@@ -23,6 +23,7 @@
 #include "../render/GameLettering.h"
 
 #include "../lib/filesystem/Filesystem.h"
+#include "../lib/filesystem/MenuBackgrounds.h"
 #include "../lib/GameSettings.h"
 #include "../lib/IGameSettings.h"
 #include "../lib/json/JsonNode.h"
@@ -41,6 +42,10 @@ void AssetGenerator::initialize()
 	imageFiles[ImagePath::builtin("AdventureOptionsBackgroundClear.png")] = [this](){ return createAdventureOptionsCleanBackground();};
 	imageFiles[ImagePath::builtin("SpellBookLarge.png")] = [this](){ return createBigSpellBook();};
 	imageFiles[ImagePath::builtin("MuPopUpCustom.png")] = [this](){ return createMuPopUpCustom();};
+
+	// DMB: each release's own main menu picture, from the player's archives (MenuBackgrounds), made when the menu asks for it
+	for(const auto & era : MenuBackgrounds::eras())
+		imageFiles[ImagePath::builtin("DMBMenuEra-" + era.id + ".png")] = [this, era](){ return createMenuEra(era); };
 
 	imageFiles[ImagePath::builtin("combatUnitNumberWindowDefault.png")]  = [this](){ return createCombatUnitNumberWindow(0.6f, 0.2f, 1.0f);};
 	imageFiles[ImagePath::builtin("combatUnitNumberWindowNeutral.png")]  = [this](){ return createCombatUnitNumberWindow(1.0f, 1.0f, 2.0f);};
@@ -363,6 +368,27 @@ AssetGenerator::CanvasPtr AssetGenerator::createMuPopUpCustom() const
 	canvas.draw(img, Point(0, 0), Rect(0, 0, 454, 449));
 	canvas.draw(img, Point(0, 420), Rect(0, img->dimensions().y - 29, 454, 29));
 
+	return image;
+}
+
+AssetGenerator::CanvasPtr AssetGenerator::createMenuEra(const MenuEra & era) const
+{
+	int width = 0, height = 0;
+	std::vector<ui8> rgb;
+	if(!MenuBackgrounds::decode(MenuBackgrounds::pcx(era), width, height, rgb))
+	{
+		logGlobal->warn("Main menu picture of '%s' could not be read", era.id);
+		width = height = 1;
+		rgb.assign(3, 0);
+	}
+	auto image = ENGINE->renderHandler().createImage(Point(width, height), CanvasScalingPolicy::IGNORE);
+	Canvas canvas = image->getCanvas();
+	for(int y = 0; y < height; ++y)
+		for(int x = 0; x < width; ++x)
+		{
+			const size_t at = (static_cast<size_t>(y) * width + x) * 3;
+			canvas.drawPoint(Point(x, y), ColorRGBA(rgb[at], rgb[at + 1], rgb[at + 2]));
+		}
 	return image;
 }
 

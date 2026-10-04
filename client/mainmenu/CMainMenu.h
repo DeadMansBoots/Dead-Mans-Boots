@@ -173,6 +173,10 @@ class CMainMenu final : public CIntObject, public std::enable_shared_from_this<C
 
 	std::vector<VideoPath> videoPlayList;
 
+	/// DMB: the window configuration the menu was built from, with the picture chosen for this start; the menu screen keeps
+	/// a reference to its configuration, so this has to outlive it (it is declared first, so it is destroyed last)
+	JsonNode windowConfig;
+
 public:
 	CMainMenu();
 

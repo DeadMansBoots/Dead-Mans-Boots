@@ -24,6 +24,7 @@
 				"sound",
 				"saveRandomMaps",
 				"lastMap",
+				"mainMenuBackground",
 				"language",
 				"gameDataLanguage",
 				"lastSave",
@@ -76,6 +77,10 @@
 				"lastMap" : {
 					"type" : "string",
 					"default" : "Maps/Arrogance"
+				},
+				"mainMenuBackground" : {
+					"type" : "string",
+					"default" : "random"
 				},
 				"language" : {
 					"type" : "string",

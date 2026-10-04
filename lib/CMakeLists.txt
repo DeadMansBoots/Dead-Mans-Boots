@@ -8,6 +8,7 @@ set(lib_SRCS
 	filesystem/CFileInputStream.cpp
 	filesystem/CFilesystemLoader.cpp
 	filesystem/CMemoryBuffer.cpp
+	filesystem/MenuBackgrounds.cpp
 	filesystem/CMemoryStream.cpp
 	filesystem/CZipLoader.cpp
 	filesystem/CZipSaver.cpp
@@ -371,6 +372,7 @@ set(lib_HEADERS
 	filesystem/CInputOutputStream.h
 	filesystem/CInputStream.h
 	filesystem/CMemoryBuffer.h
+	filesystem/MenuBackgrounds.h
 	filesystem/CMemoryStream.h
 	filesystem/COutputStream.h
 	filesystem/CStream.h

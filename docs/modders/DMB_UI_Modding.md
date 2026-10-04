@@ -29,6 +29,7 @@ not be offered to them.
 | 2 | the `pages` widget, `tabPages`, settings-bound labels, this check |
 | 3 | map generators that make the game's map at Begin ([DMB_Addons.md](DMB_Addons.md)), `valueTexts` |
 | 4 | chooser buttons, `valueTexts` for numbers |
+| 5 | main menu backgrounds a mod adds to the pool (below) |
 
 ## Rules every UI mod follows
 
@@ -180,6 +181,31 @@ thirteen. Some widths, in pixels: Begin 106, Reset 107, Create 133, Defaults 178
 Words that do not fit, or need a letter it lacks, or a game in another language, are carved in the
 font instead: black letters with a brown edge on their left and a light on their right and underneath.
 Any other font is carved that way too.
+
+## Main menu backgrounds
+
+The main menu picks its picture from a pool, each start (`random`, the default) or the one the player chose in the
+launcher's Settings, General, Main menu background. The pool holds the menu as the active mods configure it (a mod's own
+`config/mainmenu.json`, buttons and all), one picture for each release of the game whose archive holds one (found in the
+player's own game files when the game starts: Heroes III Complete, Armageddon's Blade, Horn of the Abyss, any other `.lod`
+with a `GamSelBk`), and every picture a mod lists. A picture from a release or a mod is drawn behind the base game's own
+menu window, so its buttons stand where the game's do: the art has to leave them room (800x600, the buttons down the right
+side, as in the game's own).
+
+A mod adds pictures with a file `config/mainMenuBackgrounds.json` (every active mod's file is merged; level 5):
+
+```json
+{
+	"backgrounds" : [
+		{ "id" : "mymod.dusk", "title" : "Dusk", "image" : "MYMODDUSK" }
+	]
+}
+```
+
+`id` is what the setting stores (put the mod's name in it so two mods never share one), `image` the name of a picture the
+mod provides (an `Images` file, 800x600). A mod switched off drops out of the pool; a player whose setting names an entry
+that is gone gets `random` again. A mod that wants its own buttons as well sets `config/mainmenu.json` as before, and
+that menu is the pool's "As the active mods set it".
 
 ## Asking for a hook
 

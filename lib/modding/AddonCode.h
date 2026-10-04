@@ -25,7 +25,8 @@ namespace AddonCode
 	/// 2: the "pages" layout widget, mod.json "tabPages", settings-bound labels, and this check.
 	/// 3: a map generator that makes the game's map at Begin (mapGenerator "atBegin", --factions).
 	/// 4: chooser buttons (a "setting" with "options") and number-keyed "valueTexts" in layouts.
-	constexpr int API_LEVEL = 4;
+	/// 5: main menu backgrounds a mod adds to the pool (config/mainMenuBackgrounds.json).
+	constexpr int API_LEVEL = 5;
 
 	/// A mod's own folder on disk, absolute, found in any Mods folder; a submod's is inside its parent's
 	DLL_LINKAGE std::optional<boost::filesystem::path> modFolder(const std::string & modID);

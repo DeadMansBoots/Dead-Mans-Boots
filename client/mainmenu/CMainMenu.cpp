@@ -51,6 +51,8 @@
 #include "../../lib/campaign/CampaignHandler.h"
 #include "../../lib/filesystem/Filesystem.h"
 #include "../../lib/filesystem/CCompressedStream.h"
+#include "../../lib/filesystem/MenuBackgrounds.h"
+#include "../../lib/modding/ModScope.h"
 #include "../../lib/mapping/CMapInfo.h"
 #include "../../lib/modding/CModHandler.h"
 #include "../../lib/VCMIDirs.h"
@@ -334,12 +336,64 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 	return campaignSets;
 }
 
+/// DMB: the main menu window, with the picture behind it chosen from a pool (K, September 26th and October 1st: the real
+/// splash screens of the game's release eras, a mod's own menu art included, "cycling randomly on each startup by default
+/// or set manually"). The pool is
+///  - "default": the window as the active mods configure it (the base game's, or a mod's own main menu, buttons and all);
+///  - one entry per release whose archive holds a menu picture (MenuBackgrounds: found in the player's files, never shipped),
+///    drawn behind the base game's own window (its buttons), which every release's picture fits;
+///  - every entry a mod lists in its own config/mainMenuBackgrounds.json (all the active mods' files are merged), in the same way:
+///    {"backgrounds" : [{"id" : "mymod.dusk", "title" : "Dusk", "image" : "MYMODDUSK"}]}, the image a name the mod provides.
+/// settings general.mainMenuBackground is "random" (any of the pool, each start) or one entry's id; an id no longer in the
+/// pool (a mod switched off, an archive gone) is "random" again.
+static JsonNode mainMenuWindow()
+{
+	const JsonNode & configured = CMainMenuConfig::get().getConfig()["window"];
+
+	std::vector<std::pair<std::string, std::string>> pictures; // id, the image's name
+	for(const auto & era : MenuBackgrounds::eras())
+		pictures.emplace_back(era.id, "DMBMenuEra-" + era.id);
+	const JsonNode extra = JsonUtils::assembleFromFiles("config/mainMenuBackgrounds.json");
+	for(const auto & entry : extra["backgrounds"].Vector())
+		if(entry["id"].isString() && entry["image"].isString())
+			pictures.emplace_back(entry["id"].String(), entry["image"].String());
+	if(pictures.empty())
+		return configured;
+
+	const std::string wanted = settings["general"]["mainMenuBackground"].String();
+	std::vector<std::string> pool = {"default"};
+	for(const auto & [id, image] : pictures)
+		pool.push_back(id);
+	std::string chosen = wanted;
+	if(!vstd::contains(pool, chosen))
+		chosen = *RandomGeneratorUtil::nextItem(pool, CRandomGenerator::getDefault());
+	logGlobal->info("Main menu picture: %s (setting '%s', %d to choose from)", chosen, wanted, pool.size());
+	if(chosen == "default")
+		return configured;
+
+	JsonNode vanilla(JsonPath::builtin("config/mainmenu.json"), ModScope::scopeBuiltin());
+	if(!vanilla["window"].isStruct())
+		return configured;
+	JsonNode window = vanilla["window"];
+	for(const auto & [id, image] : pictures)
+	{
+		if(id == chosen)
+		{
+			JsonNode picture;
+			picture.String() = image;
+			window["background"] = std::move(picture);
+		}
+	}
+	return window;
+}
+
 CMainMenu::CMainMenu()
 {
 	pos.w = ENGINE->screenDimensions().x;
 	pos.h = ENGINE->screenDimensions().y;
 
-	menu = std::make_shared<CMenuScreen>(CMainMenuConfig::get().getConfig()["window"]);
+	windowConfig = mainMenuWindow();
+	menu = std::make_shared<CMenuScreen>(windowConfig);
 	OBJECT_CONSTRUCTION;
 
 	const auto& bgConfig = CMainMenuConfig::get().getConfig()["backgroundAround"];

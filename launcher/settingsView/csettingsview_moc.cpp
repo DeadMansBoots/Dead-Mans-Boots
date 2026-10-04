@@ -25,6 +25,7 @@
 #include <QStandardItemModel>
 
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/filesystem/MenuBackgrounds.h"
 
 #ifndef VCMI_MOBILE
 #include <SDL2/SDL.h>
@@ -581,7 +582,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 4;
+		constexpr int added = 5; // the four slots and the main menu background
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -610,6 +611,18 @@ void CSettingsView::buildCategoryPages()
 			++row;
 		}
 		fillLookSlots();
+
+		auto * menuLabel = new QLabel(tr("Main menu background"), this);
+		menuBackgroundCombo = new QComboBox(this);
+		menuBackgroundCombo->setObjectName("comboBoxMainMenuBackground");
+		cells.push_back({new QWidgetItem(menuLabel), row, 0, 1, 1});
+		cells.push_back({new QWidgetItem(menuBackgroundCombo), row, 1, 1, 5});
+		connect(menuBackgroundCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index)
+		{
+			Settings node = settings.write["general"]["mainMenuBackground"];
+			node->String() = menuBackgroundCombo->itemData(index).toString().toStdString();
+		});
+		fillMenuBackgrounds();
 	}
 
 	auto * bar = new QWidget(this);
@@ -894,6 +907,27 @@ void CSettingsView::fillLookSlots()
 		row.combo->setCurrentIndex(std::max(0, row.combo->findData(QString::fromStdString(LauncherTheme::slotColour(row.slot)))));
 		row.combo->setEnabled(themed); // the platform's own look has no slots
 	}
+}
+
+void CSettingsView::fillMenuBackgrounds()
+{
+	if(menuBackgroundCombo == nullptr)
+		return;
+	const QSignalBlocker quiet(menuBackgroundCombo);
+	menuBackgroundCombo->clear();
+	menuBackgroundCombo->addItem(tr("Random"), QString("random"));
+	menuBackgroundCombo->addItem(tr("As the active mods set it"), QString("default"));
+	for(const auto & era : MenuBackgrounds::eras())
+		menuBackgroundCombo->addItem(tr(era.title.c_str()), QString::fromStdString(era.id));
+	// a mod's own entry, or a release whose archive is gone, stays as the setting says until it is changed
+	const QString stored = QString::fromStdString(settings["general"]["mainMenuBackground"].String());
+	int index = menuBackgroundCombo->findData(stored);
+	if(index < 0 && !stored.isEmpty())
+	{
+		menuBackgroundCombo->addItem(stored, stored);
+		index = menuBackgroundCombo->count() - 1;
+	}
+	menuBackgroundCombo->setCurrentIndex(std::max(0, index));
 }
 
 void CSettingsView::on_comboBoxLanguage_currentIndexChanged(int index)

@@ -405,6 +405,19 @@ bool isGlow(const ui8 * palette, ui8 index)
 	return top >= 70 && r >= g + 8 && r >= b - 4 && (top - low) * 100 <= 68 * top;
 }
 
+/// the glow tints the icon's drop shadow too: a dark red-brown, with the glow's limits on saturation
+bool tintedDark(const ui8 * palette, ui8 index)
+{
+	if(index <= 7)
+		return false;
+	const int r = palette[index * 3];
+	const int g = palette[index * 3 + 1];
+	const int b = palette[index * 3 + 2];
+	const int top = std::max({r, g, b});
+	const int low = std::min({r, g, b});
+	return top >= 30 && top < 110 && r >= g + 8 && r >= b - 4 && (top - low) * 100 <= 68 * top;
+}
+
 /// the glow is a smooth gradient; where one pixel steps to the next by more than this in a colour channel, the icon's edge begins
 int colourStep(const ui8 * palette, ui8 a, ui8 b)
 {
@@ -549,6 +562,55 @@ int glowBrightness(const ui8 * palette, const std::vector<ui8> & pix, const std:
 	return count ? static_cast<int>(total / count) : 0;
 }
 
+/// The glow also fills pockets the flood from outside cannot reach (between and inside the letters, walled in by their dark edge). Those
+/// have the colours the glow outside uses most, shaded dark by the letters; so a patch of at least 12 touching pixels in such a colour,
+/// in a frame, whose colour is dark on average (the top of a silver banner or the gem of a sword is pale), is glow too.
+void addEnclosedGlow(const ui8 * palette, const std::vector<ui8> & pix, std::vector<ui8> & ring, int w, int h,
+	const std::vector<long> & inGlow, const std::vector<long> & used)
+{
+	const auto at = [w](int x, int y) { return static_cast<size_t>(y) * w + x; };
+	std::vector<ui8> candidate(pix.size(), 0);
+	for(size_t i = 0; i < pix.size(); ++i)
+	{
+		const ui8 v = pix[i];
+		candidate[i] = v > 7 && !ring[i] && isGlow(palette, v) && inGlow[v] > 0 && inGlow[v] * 2 >= used[v];
+	}
+	std::vector<ui8> seen(pix.size(), 0);
+	for(int y0 = 0; y0 < h; ++y0)
+		for(int x0 = 0; x0 < w; ++x0)
+		{
+			if(!candidate[at(x0, y0)] || seen[at(x0, y0)])
+				continue;
+			std::vector<size_t> patch;
+			std::deque<std::pair<int, int>> open;
+			open.emplace_back(x0, y0);
+			seen[at(x0, y0)] = 1;
+			long tops = 0;
+			while(!open.empty())
+			{
+				const auto [x, y] = open.front();
+				open.pop_front();
+				patch.push_back(at(x, y));
+				const ui8 v = pix[at(x, y)];
+				tops += std::max({palette[v * 3], palette[v * 3 + 1], palette[v * 3 + 2]});
+				for(int dx = -1; dx <= 1; ++dx)
+					for(int dy = -1; dy <= 1; ++dy)
+					{
+						const int nx = x + dx;
+						const int ny = y + dy;
+						if(nx >= 0 && ny >= 0 && nx < w && ny < h && candidate[at(nx, ny)] && !seen[at(nx, ny)])
+						{
+							seen[at(nx, ny)] = 1;
+							open.emplace_back(nx, ny);
+						}
+					}
+			}
+			if(patch.size() >= 12 && tops <= 155 * static_cast<long>(patch.size()))
+				for(const size_t i : patch)
+					ring[i] = 1;
+		}
+}
+
 /// the glow taken away: the ring becomes transparent, except against the icon: one pixel of the darkest colour the icon itself uses, or,
 /// in a highlight frame (its glow is paler than the button's normal one), two pixels of the brightest. The game's shadow indexes cannot
 /// be used: the scaled-up copy of an image ignores them. What the glow was holding up is left floating: a few pixels apart from the icon
@@ -636,6 +698,28 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 		for(int x = 0; x < w; ++x)
 			if(notIcon[at(x, y)])
 				pix[at(x, y)] = (dist[at(x, y)] >= 1 && dist[at(x, y)] <= reach && outline != 0) ? outline : 0;
+
+	// the icon's drop shadow, tinted by the glow, within two pixels of what is now transparent takes the outline colour
+	if(outline != 0)
+	{
+		const std::vector<ui8> cleared(pix);
+		for(int y = 0; y < h; ++y)
+			for(int x = 0; x < w; ++x)
+			{
+				if(!tintedDark(palette, cleared[at(x, y)]))
+					continue;
+				bool beside = false;
+				for(int dy = -2; dy <= 2 && !beside; ++dy)
+					for(int dx = -2; dx <= 2 && !beside; ++dx)
+					{
+						const int nx = x + dx;
+						const int ny = y + dy;
+						beside = nx >= 0 && ny >= 0 && nx < w && ny < h && cleared[at(nx, ny)] == 0;
+					}
+				if(beside)
+					pix[at(x, y)] = outline;
+			}
+	}
 }
 }
 
@@ -713,6 +797,17 @@ std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::
 			f.brightness = glowBrightness(palette, f.pix, f.ring);
 			frames.push_back(std::move(f));
 		}
+		std::vector<long> inGlow(256, 0);
+		std::vector<long> used(256, 0);
+		for(const auto & f : frames)
+			for(size_t k = 0; k < f.pix.size(); ++k)
+				if(f.pix[k] > 7)
+				{
+					++used[f.pix[k]];
+					inGlow[f.pix[k]] += f.ring[k] ? 1 : 0;
+				}
+		for(auto & f : frames)
+			addEnclosedGlow(palette, f.pix, f.ring, f.w, f.h, inGlow, used);
 		int palest = 1000;
 		for(const auto & f : frames)
 			palest = std::min(palest, f.brightness);

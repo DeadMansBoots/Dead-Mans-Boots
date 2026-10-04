@@ -17,6 +17,7 @@ VCMI_LIB_NAMESPACE_END
 
 class ISharedImage;
 struct MenuEra;
+struct MenuFile;
 class CanvasImage;
 
 class AssetGenerator
@@ -99,6 +100,7 @@ private:
 	CanvasPtr createStackArtifactIndicator(const Point & size) const;
 	CanvasPtr createMuPopUpCustom() const;
 	CanvasPtr createMenuEra(const MenuEra & era) const;
+	CanvasPtr createMenuFile(const MenuFile & file) const;
 	CanvasPtr createStackExperienceIcon(const std::string & iconId) const;
 	CanvasPtr createStackExperienceInactiveOverlay() const;
 	CanvasPtr createAdventureOptionsBackground(PlayerColor color) const;

@@ -10,6 +10,9 @@
 #include "StdInc.h"
 #include "AssetGenerator.h"
 
+#include <fstream>
+#include <SDL_image.h>
+
 #include "../GameEngine.h"
 #include "../render/IImage.h"
 #include "../render/IImageLoader.h"
@@ -23,6 +26,7 @@
 #include "../render/GameLettering.h"
 
 #include "../lib/filesystem/Filesystem.h"
+#include "../lib/filesystem/CFilesystemLoader.h"
 #include "../lib/filesystem/MenuBackgrounds.h"
 #include "../lib/GameSettings.h"
 #include "../lib/IGameSettings.h"
@@ -39,9 +43,22 @@ void AssetGenerator::initialize()
 	if(boost::filesystem::is_directory(VCMIDirs::get().userDataPath() / "Generated"))
 		boost::filesystem::remove_all(VCMIDirs::get().userDataPath() / "Generated");
 
+	// DMB: larger versions of the menu pictures that the player made (MenuBackgrounds\Upscaled\DATA2X, DATA3X, DATA4X, each picture
+	// named DMBMenuEra-<release>.png), found by the engine's own larger-texture lookup when the screen needs them
+	{
+		boost::system::error_code ec;
+		const auto upscaled = MenuBackgrounds::dropInFolder() / "Upscaled";
+		if(!MenuBackgrounds::dropInFolder().empty() && boost::filesystem::is_directory(upscaled, ec))
+			CResourceHandler::addFilesystem("data", "dmb-menu-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 2));
+	}
+
 	imageFiles[ImagePath::builtin("AdventureOptionsBackgroundClear.png")] = [this](){ return createAdventureOptionsCleanBackground();};
 	imageFiles[ImagePath::builtin("SpellBookLarge.png")] = [this](){ return createBigSpellBook();};
 	imageFiles[ImagePath::builtin("MuPopUpCustom.png")] = [this](){ return createMuPopUpCustom();};
+
+	// DMB: a picture the player dropped into their MenuBackgrounds folder, named by its place in the folder's list
+	for(size_t n = 0; n < MenuBackgrounds::dropIns().size(); ++n)
+		imageFiles[ImagePath::builtin("DMBMenuFile-" + std::to_string(n) + ".png")] = [this, n](){ return createMenuFile(MenuBackgrounds::dropIns()[n]); };
 
 	// DMB: each release's own main menu picture, from the player's archives (MenuBackgrounds), made when the menu asks for it
 	for(const auto & era : MenuBackgrounds::eras())
@@ -390,6 +407,94 @@ AssetGenerator::CanvasPtr AssetGenerator::createMenuEra(const MenuEra & era) con
 			canvas.drawPoint(Point(x, y), ColorRGBA(rgb[at], rgb[at + 1], rgb[at + 2]));
 		}
 	return image;
+}
+
+/// A picture file (.png, .jpg, .bmp) as the menu's 800x600 background: it fills the window, cut from the middle when it is another shape,
+/// and is averaged down from a larger picture. Null when it cannot be read.
+static std::shared_ptr<CanvasImage> menuPictureFromFile(const boost::filesystem::path & path)
+{
+	SDL_Surface * loaded = nullptr;
+	{
+		std::ifstream stream(path.c_str(), std::ios::binary);
+		const std::vector<char> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+		if(!bytes.empty())
+			loaded = IMG_Load_RW(SDL_RWFromConstMem(bytes.data(), static_cast<int>(bytes.size())), 1);
+	}
+	SDL_Surface * rgb = loaded ? SDL_ConvertSurfaceFormat(loaded, SDL_PIXELFORMAT_RGB24, 0) : nullptr;
+	if(loaded)
+		SDL_FreeSurface(loaded);
+	if(rgb == nullptr || rgb->w < 1 || rgb->h < 1)
+	{
+		if(rgb)
+			SDL_FreeSurface(rgb);
+		return nullptr;
+	}
+
+	const int width = 800;
+	const int height = 600;
+	const auto pixel = [rgb](int x, int y, int channel)
+	{
+		x = std::clamp(x, 0, rgb->w - 1);
+		y = std::clamp(y, 0, rgb->h - 1);
+		return static_cast<double>(static_cast<const ui8 *>(rgb->pixels)[static_cast<size_t>(y) * rgb->pitch + x * 3 + channel]);
+	};
+	const double scale = std::max(width / static_cast<double>(rgb->w), height / static_cast<double>(rgb->h));
+	const double cropW = width / scale;
+	const double cropH = height / scale;
+	const double left = (rgb->w - cropW) / 2;
+	const double top = (rgb->h - cropH) / 2;
+	auto image = ENGINE->renderHandler().createImage(Point(width, height), CanvasScalingPolicy::IGNORE);
+	Canvas fitted = image->getCanvas();
+	for(int y = 0; y < height; ++y)
+	{
+		const double y0 = top + y * cropH / height;
+		const double y1 = top + (y + 1) * cropH / height;
+		for(int x = 0; x < width; ++x)
+		{
+			const double x0 = left + x * cropW / width;
+			const double x1 = left + (x + 1) * cropW / width;
+			double value[3] = {0, 0, 0};
+			if(x1 - x0 > 1.0 || y1 - y0 > 1.0)
+			{
+				// a larger picture: the mean of the pixels this one covers
+				const int fromX = static_cast<int>(std::floor(x0));
+				const int toX = std::max(fromX + 1, static_cast<int>(std::ceil(x1)));
+				const int fromY = static_cast<int>(std::floor(y0));
+				const int toY = std::max(fromY + 1, static_cast<int>(std::ceil(y1)));
+				for(int sy = fromY; sy < toY; ++sy)
+					for(int sx = fromX; sx < toX; ++sx)
+						for(int c = 0; c < 3; ++c)
+							value[c] += pixel(sx, sy, c);
+				for(double & v : value)
+					v /= (toX - fromX) * (toY - fromY);
+			}
+			else
+			{
+				// a smaller picture: the four pixels around the point, weighted
+				const double cx = (x0 + x1) / 2 - 0.5;
+				const double cy = (y0 + y1) / 2 - 0.5;
+				const int ix = static_cast<int>(std::floor(cx));
+				const int iy = static_cast<int>(std::floor(cy));
+				const double fx = cx - ix;
+				const double fy = cy - iy;
+				for(int c = 0; c < 3; ++c)
+					value[c] = pixel(ix, iy, c) * (1 - fx) * (1 - fy) + pixel(ix + 1, iy, c) * fx * (1 - fy)
+						+ pixel(ix, iy + 1, c) * (1 - fx) * fy + pixel(ix + 1, iy + 1, c) * fx * fy;
+			}
+			fitted.drawPoint(Point(x, y), ColorRGBA(static_cast<ui8>(value[0] + 0.5), static_cast<ui8>(value[1] + 0.5), static_cast<ui8>(value[2] + 0.5)));
+		}
+	}
+	SDL_FreeSurface(rgb);
+
+	return image;
+}
+
+AssetGenerator::CanvasPtr AssetGenerator::createMenuFile(const MenuFile & file) const
+{
+	if(auto image = menuPictureFromFile(file.path))
+		return image;
+	logGlobal->warn("Main menu picture '%s' could not be read", file.path.string());
+	return ENGINE->renderHandler().createImage(Point(1, 1), CanvasScalingPolicy::IGNORE);
 }
 
 AssetGenerator::CanvasPtr AssetGenerator::createPlayerColoredBackground(const PlayerColor & player) const

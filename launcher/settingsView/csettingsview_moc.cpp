@@ -920,7 +920,12 @@ void CSettingsView::fillMenuBackgrounds()
 	menuBackgroundCombo->addItem(tr("Random"), QString("random"));
 	menuBackgroundCombo->addItem(tr("As the active mods set it"), QString("default"));
 	for(const auto & era : MenuBackgrounds::eras())
-		menuBackgroundCombo->addItem(tr(era.title.c_str()), QString::fromStdString(era.id));
+		if(!era.sprites.empty()) // a release is a choice with buttons that go with its picture, as the game's pool has it
+			menuBackgroundCombo->addItem(tr(era.title.c_str()), QString::fromStdString(era.id));
+	for(const auto & file : MenuBackgrounds::dropIns()) // a picture dropped into the MenuBackgrounds folder
+		menuBackgroundCombo->addItem(QString::fromStdString(file.title), QString::fromStdString(file.id));
+	for(const auto & mod : MenuBackgrounds::menuMods()) // each installed mod that adds a menu, active or not
+		menuBackgroundCombo->addItem(QString::fromStdString(mod.title), QString::fromStdString("mod:" + mod.id));
 	// a mod's own entry, or a release whose archive is gone, stays as the setting says until it is changed
 	const QString stored = QString::fromStdString(settings["general"]["mainMenuBackground"].String());
 	int index = menuBackgroundCombo->findData(stored);

@@ -341,72 +341,97 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 /// or set manually"). The pool is
 ///  - "default": the window as the active mods configure it (the base game's, or a mod's own main menu, buttons and all);
 ///  - one entry per release whose archive holds a menu picture (MenuBackgrounds: found in the player's files, never shipped),
-///    drawn behind the base game's own window (its buttons), which every release's picture fits;
+///    drawn behind that release's own buttons;
+///  - one entry per installed mod that adds a menu of its own ("mod:<id>": Horn of the Abyss menu, Tides of War menu), the
+///    window as that mod lays it out, whether or not the mod is active;
 ///  - every entry a mod lists in its own config/mainMenuBackgrounds.json (all the active mods' files are merged), in the same way:
 ///    {"backgrounds" : [{"id" : "mymod.dusk", "title" : "Dusk", "image" : "MYMODDUSK"}]}, the image a name the mod provides.
 /// settings general.mainMenuBackground is "random" (any of the pool, each start) or one entry's id; an id no longer in the
 /// pool (a mod switched off, an archive gone) is "random" again.
-/// the main menu mod of a release, when one is active: a mod "<release>.<anything>" that has a config/mainmenu.json of its own
-/// (Horn of the Abyss keeps its picture and its buttons in "hota.mainmenu")
-static std::string menuModOf(const std::string & releaseId)
+/// An installed menu mod's window, as the mod lays it out. A menu mod that is not active (two of them conflict, so only one is) has its
+/// files added to the game's data for the session first; the main menu is the first thing built, so nothing else has used its names.
+static JsonNode menuModWindow(const MenuMod & mod)
 {
-	if(!LIBRARY || !LIBRARY->modh)
-		return {};
-	for(const auto & modID : LIBRARY->modh->getActiveMods())
+	if(!vstd::contains(LIBRARY->modh->getActiveMods(), mod.id))
 	{
-		if(!boost::starts_with(modID, releaseId + "."))
-			continue;
+		static JsonNode filesystem;
+		if(filesystem.isNull())
+		{
+			filesystem[""].Vector().resize(2);
+			filesystem[""].Vector()[0]["type"].String() = "zip";
+			filesystem[""].Vector()[0]["path"].String() = "/Content.zip";
+			filesystem[""].Vector()[1]["type"].String() = "dir";
+			filesystem[""].Vector()[1]["path"].String() = "/Content";
+		}
+		std::string directory = mod.id;
+		boost::to_upper(directory);
+		boost::algorithm::replace_all(directory, ".", "/MODS/");
 		try
 		{
-			if(CResourceHandler::get(modID)->existsResource(JsonPath::builtin("config/mainmenu.json")))
-				return modID;
+			CResourceHandler::addFilesystem("data", mod.id, CResourceHandler::createFileSystem("MODS/" + directory, filesystem));
 		}
-		catch(const std::exception &)
+		catch(const std::exception & e)
 		{
+			logGlobal->warn("Main menu: the menu of mod %s cannot be read: %s", mod.id, e.what());
+			return {};
 		}
 	}
-	return {};
+	JsonNode own(JsonPath::builtin("config/mainmenu.json"), mod.id);
+	return own["window"].isStruct() ? own["window"] : JsonNode();
 }
 
 static JsonNode mainMenuWindow()
 {
 	const JsonNode & configured = CMainMenuConfig::get().getConfig()["window"];
 
-	// a release is in the pool only with buttons that go with its picture: the sprite archive of the same release, or its menu mod
+	// a release is in the pool only with buttons that go with its picture: the sprite archive of the same release (a release that
+	// is a mod, Horn of the Abyss, is a menu mod entry below)
 	std::vector<std::pair<std::string, std::string>> pictures; // id, the image's name
 	for(const auto & era : MenuBackgrounds::eras())
-		if(!era.sprites.empty() || !menuModOf(era.id).empty())
+		if(!era.sprites.empty())
 			pictures.emplace_back(era.id, "DMBMenuEra-" + era.id);
 	const JsonNode extra = JsonUtils::assembleFromFiles("config/mainMenuBackgrounds.json");
 	for(const auto & entry : extra["backgrounds"].Vector())
 		if(entry["id"].isString() && entry["image"].isString())
 			pictures.emplace_back(entry["id"].String(), entry["image"].String());
-	if(pictures.empty())
+	// every picture the player dropped into their MenuBackgrounds folder ("file:<name>")
+	const auto & dropIns = MenuBackgrounds::dropIns();
+	for(size_t n = 0; n < dropIns.size(); ++n)
+		pictures.emplace_back(dropIns[n].id, "DMBMenuFile-" + std::to_string(n));
+
+	// every installed mod that adds a menu of its own, active or not, is an entry ("mod:<id>")
+	const auto & menuMods = MenuBackgrounds::menuMods();
+	if(pictures.empty() && menuMods.empty())
 		return configured;
 
 	const std::string wanted = settings["general"]["mainMenuBackground"].String();
 	std::vector<std::string> pool = {"default"};
 	for(const auto & [id, image] : pictures)
 		pool.push_back(id);
+	for(const auto & mod : menuMods)
+		pool.push_back("mod:" + mod.id);
+	// "random" is drawn once per start of the game, so a menu mod's files are added once and the picture does not change under the player
+	static std::string drawn;
 	std::string chosen = wanted;
 	if(!vstd::contains(pool, chosen))
-		chosen = *RandomGeneratorUtil::nextItem(pool, CRandomGenerator::getDefault());
+	{
+		if(drawn.empty() || !vstd::contains(pool, drawn))
+			drawn = *RandomGeneratorUtil::nextItem(pool, CRandomGenerator::getDefault());
+		chosen = drawn;
+	}
 	logGlobal->info("Main menu picture: %s (setting '%s', %d to choose from)", chosen, wanted, pool.size());
 	if(chosen == "default")
 		return configured;
-
-	// a release with a menu mod of its own is that mod's menu, as the mod lays it out (its own picture and buttons)
-	for(const auto & era : MenuBackgrounds::eras())
+	if(boost::starts_with(chosen, "mod:"))
 	{
-		if(era.id != chosen || !era.sprites.empty())
-			continue;
-		const std::string modID = menuModOf(era.id);
-		if(!modID.empty())
-		{
-			JsonNode own(JsonPath::builtin("config/mainmenu.json"), modID);
-			if(own["window"].isStruct())
-				return own["window"];
-		}
+		for(const auto & mod : menuMods)
+			if("mod:" + mod.id == chosen)
+			{
+				JsonNode window = menuModWindow(mod);
+				if(window.isStruct())
+					return window;
+			}
+		return configured;
 	}
 
 	JsonNode vanilla(JsonPath::builtin("config/mainmenu.json"), ModScope::scopeBuiltin());
@@ -423,9 +448,18 @@ static JsonNode mainMenuWindow()
 	}
 	// the release's own buttons, from its own sprite archive, where it has them (the buttons of the one set the game resolves carry a
 	// pink glow made for the Shadow of Death picture, which shows as a halo on any other picture: K, October 3rd)
+	// (a dropped or mod-listed picture has no release of its own: it takes the first release's buttons)
+	std::string buttonsOf = chosen;
+	if(!std::any_of(MenuBackgrounds::eras().begin(), MenuBackgrounds::eras().end(), [&chosen](const MenuEra & era) { return era.id == chosen && !era.sprites.empty(); }))
+		for(const auto & era : MenuBackgrounds::eras())
+			if(!era.sprites.empty())
+			{
+				buttonsOf = era.id;
+				break;
+			}
 	for(const auto & era : MenuBackgrounds::eras())
 	{
-		if(era.id != chosen || era.sprites.empty())
+		if(era.id != buttonsOf || era.sprites.empty())
 			continue;
 		const auto own = [&era](JsonNode & node)
 		{

@@ -17,12 +17,31 @@ struct DLL_LINKAGE MenuEra
 {
 	std::string id; // the archive's file name in lower case, without its extension: "h3bitmap", "hota"
 	std::string title; // what the player is shown
+	/// the picture's name in the archive: GamSelBk is the menu, GamSelB0 and GamSelB1 are the game's other two full-screen title pictures
+	std::string entry = "GAMSELBK.PCX";
 	boost::filesystem::path archive;
 	/// the same release's archive of sprites, when it holds the menu's own buttons (H3sprite.lod beside H3bitmap.lod, H3ab_spr.lod
 	/// beside H3ab_bmp.lod): each release draws its buttons to go with its picture, and the pink glow of the one set that the game
 	/// resolves shows as a halo on any other release's picture. Empty when there is none (Horn of the Abyss keeps its buttons in
 	/// its own menu mod).
 	boost::filesystem::path sprites;
+};
+
+/// A mod (or sub-mod) that adds a main menu of its own: its config/mainmenu.json lays out the whole window, picture and buttons.
+struct DLL_LINKAGE MenuMod
+{
+	std::string id; // the mod's id as the game knows it, in lower case: "hota.mainmenu", "tides-of-war.tow-main-menu"
+	std::string title; // what the player is shown: "Horn of the Abyss menu"
+	boost::filesystem::path folder; // the mod's own folder (its mod.json, Content.zip or Content)
+};
+
+/// A picture the player dropped into the MenuBackgrounds folder of their own DMB folder (a .png, .jpg or .bmp of any size): it joins the
+/// rotation and the Settings choice under its file name.
+struct DLL_LINKAGE MenuFile
+{
+	std::string id; // "file:" and the file's name in lower case
+	std::string title; // the file's name without its extension, words apart: "Dusk over the Abyss"
+	boost::filesystem::path path;
 };
 
 /// DMB: the main menu's backgrounds, found in the installed game's files when the game starts (nothing is shipped, K,
@@ -35,6 +54,16 @@ class DLL_LINKAGE MenuBackgrounds
 public:
 	/// every distinct main menu picture the installed archives hold, in a fixed order (older releases first)
 	static const std::vector<MenuEra> & eras();
+
+	/// every installed mod that adds a main menu (active or not: two menu mods conflict, so only one is ever active), found in the
+	/// Mods folders of the game and of the player, sub-mods included; one that conflicts with the active ones is still listed
+	static const std::vector<MenuMod> & menuMods();
+
+	/// the folder the player drops pictures into (their DMB folder's MenuBackgrounds), made when it is first asked for
+	static boost::filesystem::path dropInFolder();
+
+	/// every picture in that folder, by file name
+	static const std::vector<MenuFile> & dropIns();
 
 	/// the picture's own bytes (a Heroes III .pcx), empty when the archive cannot be read
 	static std::vector<ui8> pcx(const MenuEra & era);

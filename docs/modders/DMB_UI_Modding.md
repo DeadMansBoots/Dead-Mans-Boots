@@ -192,6 +192,18 @@ with a `GamSelBk`), and every picture a mod lists. A picture from a release or a
 menu window, so its buttons stand where the game's do: the art has to leave them room (800x600, the buttons down the right
 side, as in the game's own).
 
+Every installed mod that adds a whole menu of its own (a `config/mainmenu.json`: Horn of the Abyss's, Tides of War's, in a
+mod or in a sub-mod) is an entry of its own in the pool, named after its top mod ("Horn of the Abyss menu"), whether or not
+that mod is active. Menu mods conflict with one another, so only one can be active; choosing another's entry adds its files
+to the game for that session and shows its picture and buttons as that mod lays them out. The setting stores `mod:<mod id>`.
+"Random" is drawn once each time the game starts.
+
+A player adds any picture of their own by putting a `.png`, `.jpg` or `.bmp` into the `MenuBackgrounds` folder of their
+DMB folder (Documents\My Games\Dead Man's Boots\MenuBackgrounds, made by the game the first time it starts). Each file is an
+entry named after the file (`dusk_over_the_abyss.png` is "Dusk over the abyss"), joins the random draw, and is drawn behind the
+first release's buttons; the setting stores `file:<file name>`. Art for the menu leaves the right side free, as the game's own
+does (800x600 proportions, any larger size of the same shape).
+
 A mod adds pictures with a file `config/mainMenuBackgrounds.json` (every active mod's file is merged; level 5):
 
 ```json

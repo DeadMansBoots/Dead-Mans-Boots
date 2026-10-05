@@ -104,8 +104,10 @@ MainWindow::MainWindow(QWidget * parent)
 
 	setWindowIcon(QIcon{":/icons/menu-game.png"});
 	ui->modslistButton->setIcon(QIcon{":/icons/menu-mods.png"});
-	ui->settingsButton->setIcon(QIcon{":/icons/menu-settings.png"});
-	ui->aboutButton->setIcon(QIcon{":/icons/about-project.png"});
+	// K, October 4th: "the quill in help makes no sense, but the crystal ball with the scroll and book makes more sense for help
+	// (checking multiple things)": the two icons swapped
+	ui->settingsButton->setIcon(QIcon{":/icons/about-project.png"});
+	ui->aboutButton->setIcon(QIcon{":/icons/menu-settings.png"});
 	ui->startGameButton->setIcon(QIcon{":/icons/menu-game.png"});
 	// DMB: real game art in place of the stock icons above, where there is a game to read one from
 	// (Gemini's launcher feedback via K, September 28th: the stock icons clash with the fantasy

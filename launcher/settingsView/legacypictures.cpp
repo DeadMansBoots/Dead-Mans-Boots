@@ -35,7 +35,8 @@ const char * AGENT = "DeadMansBoots-Launcher/1.0 (legacy menu pictures and loadi
 const char * SHARPENER_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip";
 const char * SHARPENER_SHA256 = "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d";
 const char * SHARPENER_MODEL = "realesrgan-x4plus";
-const QColor FLAT_GREY(118, 104, 92);
+// the backdrop the sharpener sees: as dark as the buttons' own outline, so what it blurs into the edge is outline and not a pale haze
+const QColor FLAT_GREY(22, 18, 20);
 const int MARGIN = 8; // pixels round a button for the sharpener
 
 const QStringList BUTTONS = {"MMENUNG", "MMENULG", "MMENUHS", "MMENUCR", "MMENUQT", "GTSINGL", "GTMULTI", "GTCAMPN", "GTTUTOR", "GTBACK"};
@@ -143,7 +144,33 @@ bool LegacyPicturesWorker::cancelled() const
 	return isInterruptionRequested();
 }
 
-QByteArray LegacyPicturesWorker::fetch(const QUrl & url, bool wiki, int timeoutMs)
+namespace
+{
+// the steps of a run, with what share of the whole bar each one has (the sharpener fetch only where it is needed)
+struct Stage
+{
+	const char * title;
+	int weight;
+};
+const Stage STAGES[] = {{"Asking the wiki", 3}, {"Downloading the pictures", 17}, {"Fetching the sharpener (once)", 20}, {"Sharpening the pictures 4x", 25}, {"Sharpening the menu buttons 4x", 30}, {"Finishing", 5}};
+const int STAGE_COUNT = 6;
+}
+
+void LegacyPicturesWorker::report(int stage, double fraction, const QString & detail)
+{
+	int before = 0, total = 0;
+	for(int i = 0; i < STAGE_COUNT; ++i)
+	{
+		total += STAGES[i].weight;
+		if(i < stage)
+			before += STAGES[i].weight;
+	}
+	fraction = std::clamp(fraction, 0.0, 1.0);
+	const int permille = static_cast<int>(1000.0 * (before + STAGES[stage].weight * fraction) / total);
+	emit overall(permille, stage + 1, STAGE_COUNT, tr(STAGES[stage].title), detail);
+}
+
+QByteArray LegacyPicturesWorker::fetch(const QUrl & url, bool wiki, int timeoutMs, std::function<void(qint64, qint64)> bytes)
 {
 	if(wiki)
 		msleep(700); // one request at a time with a pause: polite to the wiki
@@ -151,6 +178,8 @@ QByteArray LegacyPicturesWorker::fetch(const QUrl & url, bool wiki, int timeoutM
 	request.setHeader(QNetworkRequest::UserAgentHeader, QString::fromLatin1(AGENT));
 	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 	QNetworkReply * reply = network->get(request);
+	if(bytes)
+		QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [bytes](qint64 got, qint64 all) { bytes(got, all); });
 	QEventLoop loop;
 	QTimer timer;
 	timer.setSingleShot(true);
@@ -233,7 +262,7 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 			failure = "stopped";
 			return false;
 		}
-		emit progress("Downloading", done, pictures.size());
+		report(1, static_cast<double>(done) / pictures.size(), tr("Picture %1 of %2: %3").arg(done + 1).arg(pictures.size()).arg(p.title));
 		p.originalPath = folder + "/" + p.wikiName;
 		if(!(QFile::exists(p.originalPath) && fileSha(p.originalPath, QCryptographicHash::Sha1) == p.sha1))
 		{
@@ -263,7 +292,7 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 		}
 		++done;
 	}
-	emit progress("Downloading", done, pictures.size());
+	report(1, 1.0, tr("%1 pictures downloaded and checked").arg(pictures.size()));
 	return true;
 }
 
@@ -274,9 +303,13 @@ bool LegacyPicturesWorker::ensureSharpener(QString & exe)
 	exe = tools + "/realesrgan-ncnn-vulkan.exe";
 	if(QFile::exists(exe) && QFile::exists(tools + "/models/" + SHARPENER_MODEL + ".bin"))
 		return true;
-	emit progress("Fetching the sharpener", 0, 1);
+	report(2, 0.0, tr("Starting the download (about 45 MB)"));
 	QDir().mkpath(tools);
-	const QByteArray zip = fetch(QUrl(QString::fromLatin1(SHARPENER_URL)), false, 20 * 60 * 1000);
+	const QByteArray zip = fetch(QUrl(QString::fromLatin1(SHARPENER_URL)), false, 20 * 60 * 1000, [this](qint64 got, qint64 all)
+	{
+		const double total = all > 0 ? static_cast<double>(all) : 45474481.0;
+		report(2, got / total * 0.9, tr("Downloading the sharpener: %1 of %2 MB").arg(got / 1048576.0, 0, 'f', 1).arg(total / 1048576.0, 0, 'f', 1));
+	});
 	if(zip.isEmpty() || sha(zip, QCryptographicHash::Sha256) != QString::fromLatin1(SHARPENER_SHA256))
 	{
 		failure = zip.isEmpty() ? failure : QString("the sharpener download is not the file expected (its hash differs)");
@@ -287,6 +320,7 @@ bool LegacyPicturesWorker::ensureSharpener(QString & exe)
 	if(!file.open(QIODevice::WriteOnly) || file.write(zip) != zip.size())
 		return false;
 	file.close();
+	report(2, 0.92, tr("Unpacking the sharpener"));
 	QProcess tar;
 	hideWindow(tar);
 	tar.start("tar", {"-xf", QDir::toNativeSeparators(zipPath), "-C", QDir::toNativeSeparators(tools)});
@@ -296,7 +330,7 @@ bool LegacyPicturesWorker::ensureSharpener(QString & exe)
 		return false;
 	}
 	QFile::remove(zipPath);
-	emit progress("Fetching the sharpener", 1, 1);
+	report(2, 1.0, tr("The sharpener is ready"));
 	return QFile::exists(exe);
 #else
 	Q_UNUSED(exe);
@@ -304,7 +338,7 @@ bool LegacyPicturesWorker::ensureSharpener(QString & exe)
 #endif
 }
 
-bool LegacyPicturesWorker::sharpen(const QString & exe, const QString & inFolder, const QString & outFolder, int expected, const QString & stage, bool & usedProgram)
+bool LegacyPicturesWorker::sharpen(const QString & exe, const QString & inFolder, const QString & outFolder, int expected, int stage, const QString & what, bool & usedProgram)
 {
 	QDir().mkpath(outFolder);
 	// the program on a whole folder, which loads its model once; where it cannot run (no Vulkan card), the pictures are enlarged smoothly
@@ -320,7 +354,10 @@ bool LegacyPicturesWorker::sharpen(const QString & exe, const QString & inFolder
 		while(process.state() != QProcess::NotRunning)
 		{
 			process.waitForFinished(700);
-			emit progress(stage, QDir(outFolder).entryList({"*.png"}).size(), expected);
+			{
+				const int made = QDir(outFolder).entryList({"*.png"}).size();
+				report(stage, static_cast<double>(made) / std::max(1, expected), tr("%1: %2 of %3 done").arg(what).arg(made).arg(expected));
+			}
 			if(cancelled() || clock.elapsed() > 45 * 60 * 1000)
 			{
 				process.kill();
@@ -347,7 +384,8 @@ bool LegacyPicturesWorker::sharpen(const QString & exe, const QString & inFolder
 				const QImage small(inFolder + "/" + name);
 				small.scaled(small.size() * 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).save(outFolder + "/" + name);
 			}
-			emit progress(stage, ++done, expected);
+			++done;
+			report(stage, static_cast<double>(done) / std::max(1, expected), tr("%1 (smooth enlarging): %2 of %3 done").arg(what).arg(done).arg(expected));
 		}
 	}
 	return true;
@@ -367,7 +405,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 			return false;
 		}
 	}
-	if(!sharpen(exe, work + "/in", work + "/out", pictures.size(), "Sharpening pictures", usedProgram))
+	if(!sharpen(exe, work + "/in", work + "/out", pictures.size(), 3, tr("Pictures"), usedProgram))
 		return false;
 	for(const auto & p : pictures)
 	{
@@ -441,7 +479,7 @@ bool LegacyPicturesWorker::sharpenButtons(const QString & exe, bool & usedProgra
 	}
 	if(bases.isEmpty())
 		return true;
-	if(!sharpen(exe, work + "/in", work + "/out", bases.size(), "Sharpening buttons", usedProgram))
+	if(!sharpen(exe, work + "/in", work + "/out", bases.size(), 4, tr("Button frames"), usedProgram))
 		return false;
 	const QString root = userFolder("MenuBackgrounds") + "/Upscaled";
 	for(auto it = bases.begin(); it != bases.end(); ++it)
@@ -518,11 +556,39 @@ void LegacyPicturesWorker::run()
 	failure.clear();
 	QDir().mkpath(baseFolder());
 	QVector<Picture> pictures = selection();
-	emit progress("Asking the wiki", 0, 1);
+	report(0, 0.0, tr("Asking the Heroes III wiki which pictures there are"));
 	if(!queryWiki(pictures) || !downloadOriginals(pictures))
 	{
 		emit finishedWith(false, failure.isEmpty() ? QString("the download did not finish") : failure);
 		return;
+	}
+	// a second press with nothing new: the same pipeline made all of it, with the sharpener, and every file is in place
+	{
+		bool complete = false;
+		QFile indexFile(baseFolder() + "/index.json");
+		if(indexFile.open(QIODevice::ReadOnly))
+		{
+			const QJsonObject index = QJsonDocument::fromJson(indexFile.readAll()).object();
+			complete = index["pipeline"].toInt() == PIPELINE_VERSION && index["sharpened"].toString() == "realesrgan-x4plus"
+				&& index["files"].toArray().size() == pictures.size();
+		}
+		for(const auto & p : pictures)
+		{
+			const QString place = userFolder(p.loading ? "LoadingScreens" : "MenuBackgrounds");
+			const QString prefix = p.loading ? "DMBLoad-" : "DMBMenuFile-";
+			if(!QFile::exists(place + "/" + p.title + ".png") || !QFile::exists(place + "/Upscaled/DATA4X/" + prefix + slugOf(p.title) + ".png"))
+				complete = false;
+		}
+		for(const QString & name : BUTTONS)
+			if(!QFile::exists(QString("%1/Upscaled/SPRITES4X/DMBN-%2-%3.json").arg(userFolder("MenuBackgrounds"), BUTTON_RELEASE, name)))
+				complete = false;
+		if(complete)
+		{
+			MenuBackgrounds::rescan();
+			report(5, 1.0, tr("Everything is already in place"));
+			emit finishedWith(true, QString("Nothing new: the %1 loading screens and menu pictures and the sharpened menu buttons are already in place.").arg(pictures.size()));
+			return;
+		}
 	}
 	QString exe;
 	const bool haveProgram = ensureSharpener(exe);
@@ -534,8 +600,11 @@ void LegacyPicturesWorker::run()
 		emit finishedWith(false, failure.isEmpty() ? QString("the sharpening did not finish") : failure);
 		return;
 	}
+	report(5, 0.2, tr("Writing the list of files"));
 	writeIndex(pictures, usedProgram);
+	report(5, 0.7, tr("Adding the pictures to the lists"));
 	MenuBackgrounds::rescan();
+	report(5, 1.0, tr("Done"));
 	int loading = 0, menus = 0;
 	for(const auto & p : pictures)
 		(p.loading ? loading : menus) += 1;
@@ -558,12 +627,21 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 	plan->setWordWrap(true);
 	layout->addWidget(plan);
 	bar = new QProgressBar(this);
-	bar->setRange(0, 1);
+	bar->setRange(0, 1000);
 	bar->setValue(0);
-	bar->setTextVisible(false);
+	bar->setTextVisible(true);
+	bar->setFormat("%p%");
+	bar->setMinimumHeight(26);
 	layout->addWidget(bar);
-	status = new QLabel(tr("Ready."), this);
+	step = new QLabel(tr("Ready. Press Start."), this);
+	step->setWordWrap(true);
+	QFont stepFont = step->font();
+	stepFont.setBold(true);
+	step->setFont(stepFont);
+	layout->addWidget(step);
+	status = new QLabel(QString(), this);
 	status->setWordWrap(true);
+	status->setMinimumHeight(40);
 	layout->addWidget(status);
 	auto * row = new QHBoxLayout();
 	row->addStretch(1);
@@ -575,6 +653,8 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 	setObjectName("legacyPicturesDialog");
 	bar->setObjectName("legacyPicturesBar");
 	status->setObjectName("legacyPicturesStatus");
+	step->setObjectName("legacyPicturesStep");
+	plan->setMinimumHeight(190);
 	start->setObjectName("legacyPicturesStart");
 	cancel->setObjectName("legacyPicturesCancel");
 
@@ -621,24 +701,31 @@ void LegacyPicturesDialog::begin()
 	start->setEnabled(false);
 	cancel->setText(tr("Stop"));
 	worker = new LegacyPicturesWorker(this);
-	connect(worker, &LegacyPicturesWorker::progress, this, [this](const QString & stage, int done, int total)
+	connect(worker, &LegacyPicturesWorker::overall, this, [this](int permille, int stepNo, int steps, const QString & title, const QString & detail)
 	{
-		bar->setRange(0, std::max(1, total));
-		bar->setValue(done);
-		status->setText(QString("%1 (%2 of %3)").arg(stage).arg(done).arg(total));
-		snapshot(stage);
+		bar->setRange(0, 1000);
+		bar->setValue(permille);
+		step->setText(tr("Step %1 of %2: %3").arg(stepNo).arg(steps).arg(title));
+		status->setText(detail);
+		snapshot(QString("%1-%2").arg(title).arg(permille / 100));
 	});
 	connect(worker, &LegacyPicturesWorker::finishedWith, this, [this](bool ok, const QString & message)
 	{
-		status->setText(ok ? message : tr("Stopped: %1. Press Start to try again; what is done is kept.").arg(message));
 		cancel->setText(tr("Close"));
-		snapshot(ok ? "finished" : "stopped");
 		start->setEnabled(!ok);
 		if(ok)
 		{
-			bar->setRange(0, 1);
-			bar->setValue(1);
+			bar->setRange(0, 1000);
+			bar->setValue(1000);
+			step->setText(tr("DONE. You can close this window."));
+			status->setText(message);
 		}
+		else
+		{
+			step->setText(tr("STOPPED. Nothing is broken; what is done is kept."));
+			status->setText(tr("%1\nPress Start to try again; it continues where it ended.").arg(message));
+		}
+		snapshot(ok ? "finished" : "stopped");
 		emit picturesReady(ok);
 	});
 	worker->start();

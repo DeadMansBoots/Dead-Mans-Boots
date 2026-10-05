@@ -330,6 +330,11 @@ std::shared_ptr<CLabel> MapGenPage::label(const std::string & name) const
 	return widget<CLabel>(name);
 }
 
+std::shared_ptr<CToggleGroup> MapGenPage::toggleGroup(const std::string & name) const
+{
+	return widget<CToggleGroup>(name);
+}
+
 MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	: InterfaceObjectConfigurable()
 	, generator(info)
@@ -343,6 +348,9 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	for(const auto & page : config["pages"].Vector())
 		pageFiles.push_back(page.String());
 	defaults = config["defaults"];
+	// K, October 4th: "reset should default all settings to the open template, with the most widest and varying settings we offer":
+	// the module's "reset" block, beside its "defaults"; a module without one resets to its defaults
+	resetValues = config["reset"].isStruct() ? config["reset"] : config["defaults"];
 
 	addCallback("activateMapGenPage", [this](int index) { openPage(index); });
 	addCallback("resetMapGenDefaults", [this](int) { resetToDefaults(); });
@@ -370,6 +378,20 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 			// replaces any standard size picked, the same as the popup this replaces used to
 			Settings size = persistentStorage.write["mapGen"]["map"]["size"];
 			size->Integer() = 0;
+			// and the size row shows no size picked (Random included), so a click on the one that was picked counts again
+			std::shared_ptr<CToggleGroup> sizeRow;
+			if(layoutPages)
+			{
+				if(auto page = layoutPages->shownPage())
+					sizeRow = page->find<CToggleGroup>("group_map.size");
+			}
+			else if(pages)
+			{
+				if(auto page = std::dynamic_pointer_cast<MapGenPage>(pages->getItem()))
+					sizeRow = page->toggleGroup("group_map.size");
+			}
+			if(sizeRow)
+				sizeRow->clearSelection();
 		}
 		if(setting == "persistent:mapGen/params/waterContent")
 		{
@@ -531,22 +553,28 @@ void MapGenTab::resetToDefaults()
 {
 	// every setting back to the generator's own default, from the mod's tab layout, then the
 	// open page is rebuilt so it shows them
-	for(const auto & entry : defaults["params"].Struct())
+	for(const auto & entry : resetValues["params"].Struct())
 	{
 		Settings value = persistentStorage.write["mapGen"]["params"][entry.first];
 		*value.operator->() = entry.second;
 	}
-	for(const auto & entry : defaults["map"].Struct())
+	for(const auto & entry : resetValues["map"].Struct())
 	{
 		Settings value = persistentStorage.write["mapGen"]["map"][entry.first];
 		*value.operator->() = entry.second;
 	}
 	{
-		Settings chosenPreset = persistentStorage.write["mapGen"]["preset"];
-		chosenPreset->String() = defaults["preset"].isString() ? defaults["preset"].String() : std::string();
+		// a reset to no template is the open layout, and stays so (an empty template is otherwise read as the one approved template)
+		const bool noTemplate = resetValues["map"]["template"].isString() && resetValues["map"]["template"].String().empty();
+		Settings openLayout = persistentStorage.write["mapGen"]["map"]["openLayout"];
+		openLayout->Integer() = noTemplate ? 1 : 0;
 	}
-	// a custom size the layout's defaults do not name goes too
-	const JsonNode & layoutDefaults = defaults;
+	{
+		Settings chosenPreset = persistentStorage.write["mapGen"]["preset"];
+		chosenPreset->String() = resetValues["preset"].isString() ? resetValues["preset"].String() : (defaults["preset"].isString() ? defaults["preset"].String() : std::string());
+	}
+	// a custom size the reset names no number for goes too
+	const JsonNode & layoutDefaults = resetValues;
 	if(!layoutDefaults["map"]["width"].isNumber() || !layoutDefaults["map"]["height"].isNumber())
 		clearCustomSize();
 	refreshPages();
@@ -634,7 +662,9 @@ std::shared_ptr<CMapGenOptions> MapGenTab::lobbyOptions() const
 	};
 
 	auto options = std::make_shared<CMapGenOptions>();
-	const int size = std::clamp(number("map", "size", 108), 36, 252);
+	// a size left on Random (-1) is rolled by the generator when the game begins (--w random); the lobby shows the middle of what it may roll
+	const int rawSize = number("map", "size", 108);
+	const int size = rawSize < 0 ? 108 : std::clamp(rawSize, 36, 252);
 	const int width = number("map", "width", 0);
 	const int height = number("map", "height", 0);
 	const bool custom = width > 0 && height > 0;
@@ -735,7 +765,7 @@ void MapGenTab::chooseCustomSize()
 	// VCMI's own custom size window, with no template's limits: the generator fits any template to any size
 	const int width = mapSetting("width");
 	const int height = mapSetting("height");
-	const int size = std::clamp(mapSetting("size"), 36, 252);
+	const int size = mapSetting("size") < 0 ? 108 : std::clamp(mapSetting("size"), 36, 252);
 	const bool custom = width > 0 && height > 0;
 	const int3 current(custom ? width : size, custom ? height : size, mapSetting("underground") ? 2 : 1);
 	ENGINE->windows().createAndPushWindow<SetSizeWindow>(current, nullptr, [this](int3 chosen)
@@ -930,7 +960,7 @@ std::string MapGenTab::templateName() const
 		chosen = found == approved.end() ? std::string() : *found;
 	}
 	// with one template approved there is nothing to choose between: an empty store, or Random, is that one
-	if(approved.size() == 1 && (chosen.empty() || chosen == RANDOM_TEMPLATE))
+	if(approved.size() == 1 && (chosen.empty() || chosen == RANDOM_TEMPLATE) && !(persistentStorage["mapGen"]["map"]["openLayout"].isNumber() && persistentStorage["mapGen"]["map"]["openLayout"].Integer() != 0))
 		chosen = approved.front();
 	return chosen;
 }
@@ -983,6 +1013,8 @@ void MapGenTab::chooseTemplate()
 			{
 				Settings entry = persistentStorage.write["mapGen"]["map"]["template"];
 				entry->String() = index >= 0 && index < static_cast<int>(values.size()) ? values[index] : std::string();
+				Settings openLayout = persistentStorage.write["mapGen"]["map"]["openLayout"];
+				openLayout->Integer() = 0;
 			}
 			refreshPages();
 			updateMapInfoByHost();
@@ -1002,7 +1034,9 @@ void MapGenTab::generate()
 
 	std::mt19937 rng(std::random_device{}());
 	const int seed = static_cast<int>(rng() & 0x7fffffff);
-	const int size = std::clamp(mapSetting("size"), 36, 252);
+	// Random size (-1): the generator rolls the size from the seed
+	const bool randomSize = mapSetting("size") < 0;
+	const int size = randomSize ? 0 : std::clamp(mapSetting("size"), 36, 252);
 	int players = std::clamp(mapSetting("players"), 1, 8);
 	int humans = std::clamp(mapSetting("humans"), 1, players);
 	// DMB: a map with fewer human slots than the players in the lobby cannot be played there, and a
@@ -1024,12 +1058,12 @@ void MapGenTab::generate()
 
 	const boost::filesystem::path outDir = VCMIDirs::get().userDataPath() / "Maps" / "RandomMaps";
 	const boost::filesystem::path outPath = outDir /
-		("mapgen_" + std::to_string(size) + "x" + std::to_string(size)
+		("mapgen_" + (randomSize ? std::string("random") : std::to_string(size) + "x" + std::to_string(size))
 			+ "_p" + std::to_string(players) + "_s" + std::to_string(seed) + ".vmap");
 
 	std::vector<std::string> args {
-		"--w", std::to_string(size),
-		"--h", std::to_string(size),
+		"--w", randomSize ? std::string("random") : std::to_string(size),
+		"--h", randomSize ? std::string("random") : std::to_string(size),
 		"--players", std::to_string(players),
 		"--humans", std::to_string(humans),
 		"--seed", std::to_string(seed),

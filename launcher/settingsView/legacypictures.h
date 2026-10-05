@@ -25,7 +25,7 @@ class LegacyPicturesWorker : public QThread
 
 public:
 	/// the steps change what the files hold: a run with another number sharpens everything again
-	static constexpr int PIPELINE_VERSION = 1;
+	static constexpr int PIPELINE_VERSION = 2;
 
 	explicit LegacyPicturesWorker(QObject * parent = nullptr);
 
@@ -36,7 +36,8 @@ public:
 	static QString baseFolder();
 
 signals:
-	void progress(const QString & stage, int done, int total);
+	/// permille 0 to 1000 over the whole run, the step (1 based) of the steps, the step's name and a line of detail
+	void overall(int permille, int step, int steps, const QString & title, const QString & detail);
 	void finishedWith(bool ok, const QString & message);
 
 protected:
@@ -58,12 +59,13 @@ private:
 	QString failure;
 
 	static QVector<Picture> selection();
-	QByteArray fetch(const QUrl & url, bool wiki, int timeoutMs = 120000);
+	QByteArray fetch(const QUrl & url, bool wiki, int timeoutMs = 120000, std::function<void(qint64, qint64)> bytes = {});
+	void report(int stage, double fraction, const QString & detail);
 	bool cancelled() const;
 	bool queryWiki(QVector<Picture> & pictures);
 	bool downloadOriginals(QVector<Picture> & pictures);
 	bool ensureSharpener(QString & exe);
-	bool sharpen(const QString & exe, const QString & inFolder, const QString & outFolder, int expected, const QString & stage, bool & usedProgram);
+	bool sharpen(const QString & exe, const QString & inFolder, const QString & outFolder, int expected, int stage, const QString & what, bool & usedProgram);
 	bool sharpenPictures(const QVector<Picture> & pictures, const QString & exe, bool & usedProgram);
 	bool sharpenButtons(const QString & exe, bool & usedProgram);
 	void writeIndex(const QVector<Picture> & pictures, bool usedProgram);
@@ -77,6 +79,7 @@ class LegacyPicturesDialog : public QDialog
 	QLabel * plan = nullptr;
 	QProgressBar * bar = nullptr;
 	QLabel * status = nullptr;
+	QLabel * step = nullptr;
 	QPushButton * start = nullptr;
 	QPushButton * cancel = nullptr;
 	LegacyPicturesWorker * worker = nullptr;

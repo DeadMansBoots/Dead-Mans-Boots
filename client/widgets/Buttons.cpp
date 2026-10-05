@@ -577,6 +577,14 @@ void CToggleGroup::setSelected(int id)
 	selectionChanged(id);
 }
 
+void CToggleGroup::clearSelection()
+{
+	if(buttons.count(selectedID))
+		buttons[selectedID]->setSelected(false);
+	selectedID = -1;
+	redraw();
+}
+
 void CToggleGroup::setSelectedOnly(int id)
 {
 	for(const auto & button : buttons)

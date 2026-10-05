@@ -516,7 +516,8 @@ bool isGlow(const ui8 * palette, ui8 index)
 	const int b = palette[index * 3 + 2];
 	const int top = std::max({r, g, b});
 	const int low = std::min({r, g, b});
-	return top >= 70 && r >= g + 8 && r >= b - 4 && (top - low) * 100 <= 68 * top;
+	// blue level with green or above it: the glow is pink or maroon, and the wood, rust and gold of the icons (blue well under green) are not
+	return top >= 70 && r >= g + 8 && r >= b - 4 && b >= g - 14 && (top - low) * 100 <= 68 * top;
 }
 
 /// the glow tints the icon's drop shadow too: a dark red-brown, with the glow's limits on saturation
@@ -529,7 +530,8 @@ bool tintedDark(const ui8 * palette, ui8 index)
 	const int b = palette[index * 3 + 2];
 	const int top = std::max({r, g, b});
 	const int low = std::min({r, g, b});
-	return top >= 30 && top < 110 && r >= g + 8 && r >= b - 4 && (top - low) * 100 <= 68 * top;
+	// the glow's shadow is pink or maroon (blue about level with green or above it); wood, rust and gold are brown (blue well under green)
+	return top >= 30 && top < 110 && r >= g + 8 && r >= b - 4 && b >= g - 12 && (top - low) * 100 <= 68 * top;
 }
 
 /// the glow is a smooth gradient; where one pixel steps to the next by more than this in a colour channel, the icon's edge begins
@@ -857,6 +859,42 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 					break;
 				}
 		}
+
+		// what is left of a removed shadow can be a speck made of nothing but the outline colour: pieces of 24 pixels or fewer that are
+		// all outline colour are taken away (K, October 4th: "pristine")
+		std::vector<ui8> checked(pix.size(), 0);
+		for(int y0 = 0; y0 < h; ++y0)
+			for(int x0 = 0; x0 < w; ++x0)
+			{
+				if(pix[at(x0, y0)] <= 7 || checked[at(x0, y0)])
+					continue;
+				std::vector<size_t> piece;
+				std::deque<std::pair<int, int>> open;
+				open.emplace_back(x0, y0);
+				checked[at(x0, y0)] = 1;
+				bool onlyOutline = true;
+				while(!open.empty())
+				{
+					const auto [x, y] = open.front();
+					open.pop_front();
+					piece.push_back(at(x, y));
+					onlyOutline = onlyOutline && pix[at(x, y)] == outline;
+					for(int dx = -1; dx <= 1; ++dx)
+						for(int dy = -1; dy <= 1; ++dy)
+						{
+							const int nx = x + dx;
+							const int ny = y + dy;
+							if(nx >= 0 && ny >= 0 && nx < w && ny < h && pix[at(nx, ny)] > 7 && !checked[at(nx, ny)])
+							{
+								checked[at(nx, ny)] = 1;
+								open.emplace_back(nx, ny);
+							}
+						}
+				}
+				if(onlyOutline && piece.size() <= 24)
+					for(const size_t i : piece)
+						pix[i] = 0;
+			}
 	}
 }
 }

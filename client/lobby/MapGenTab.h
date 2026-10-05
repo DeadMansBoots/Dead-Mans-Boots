@@ -41,6 +41,7 @@ public:
 	/// told of each change to a setting its widgets are bound to, as the tab is
 	void setOnSettingChanged(std::function<void(const std::string &)> callback);
 	std::shared_ptr<CLabel> label(const std::string & name) const;
+	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
 };
 
 class MapGenTab : public InterfaceObjectConfigurable
@@ -66,6 +67,8 @@ class MapGenTab : public InterfaceObjectConfigurable
 	std::map<std::string, std::string> helpBodies;
 	std::vector<std::map<std::string, std::string>> pageHelpBodies;
 	void collectHelp(const JsonNode & items, std::map<std::string, std::string> & into);
+	/// the module's "reset" block (or its defaults): what the Reset button puts every setting to
+	JsonNode resetValues;
 	bool refreshQueued = false;
 
 	std::shared_ptr<CIntObject> createPage(size_t index);

@@ -243,12 +243,15 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 
 	const auto outDir = VCMIDirs::get().userDataPath() / "Maps" / "RandomMaps";
 	boost::filesystem::create_directories(outDir);
-	const auto outPath = outDir / ("mapgen_" + std::to_string(options.getWidth()) + "x" + std::to_string(options.getHeight())
+	// a size left on Random (-1) with no custom size is rolled by the generator from the seed (the lobby shows a middle size meanwhile)
+	const bool randomSize = mapSetting("size").isNumber() && mapSetting("size").Integer() < 0
+		&& !(mapSetting("width").isNumber() && mapSetting("width").Integer() > 0 && mapSetting("height").isNumber() && mapSetting("height").Integer() > 0);
+	const auto outPath = outDir / ("mapgen_" + (randomSize ? std::string("random") : std::to_string(options.getWidth()) + "x" + std::to_string(options.getHeight()))
 		+ "_p" + (playersGiven < 0 ? std::string("R") : std::to_string(playersGiven)) + "_s" + std::to_string(seed) + ".vmap");
 
 	std::vector<std::string> args {
-		"--w", std::to_string(options.getWidth()),
-		"--h", std::to_string(options.getHeight()),
+		"--w", randomSize ? std::string("random") : std::to_string(options.getWidth()),
+		"--h", randomSize ? std::string("random") : std::to_string(options.getHeight()),
 		"--players", std::to_string(playersGiven),
 		"--humans", std::to_string(humansGiven),
 		"--seed", std::to_string(seed),

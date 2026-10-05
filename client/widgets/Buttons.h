@@ -204,6 +204,9 @@ public:
 	void addToggle(int index, const std::shared_ptr<CToggleBase> & button);
 	/// Changes selection to specific value. Will select toggle with this ID, if present
 	void setSelected(int id);
+	/// DMB: no button selected, and no callback run: a setting changed elsewhere (a size typed) took the choice away, and a click on the
+	/// button that was selected must count again
+	void clearSelection();
 	/// in some cases, e.g. LoadGame difficulty selection, after refreshing the UI, the ToggleGroup should 
 	/// reset all of it's child buttons to BLOCK state, then make selection again
 	void setSelectedOnly(int id);

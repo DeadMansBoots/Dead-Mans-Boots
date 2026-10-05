@@ -8,11 +8,13 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 #include "csettingsview_moc.h"
 #include "ui_csettingsview_moc.h"
 
 #include "mainwindow_moc.h"
 #include "configeditordialog_moc.h"
+#include "legacypictures.h"
 
 #include "../modManager/cmodlistview_moc.h"
 #include "../helper.h"
@@ -538,6 +540,7 @@ CSettingsView::CSettingsView(QWidget * parent)
 	: QWidget(parent), ui(new Ui::CSettingsView)
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "csettingsview_moc.ui");
 	Helper::enableScrollBySwiping(ui->settingsScrollArea);
 
 	loadSettings();
@@ -582,7 +585,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 6; // the four slots, the main menu background and the loading screen
+		constexpr int added = 7; // the four slots, the main menu background, the loading screen and the legacy pictures button
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -635,6 +638,23 @@ void CSettingsView::buildCategoryPages()
 			node->String() = loadingScreenCombo->itemData(index).toString().toStdString();
 		});
 		fillLoadingScreens();
+
+		// DMB: one button for the original menu pictures and loading screens (LegacyPicturesWorker)
+		auto * legacyLabel = new QLabel(tr("Legacy menu themes and load screens"), this);
+		auto * legacyButton = new QPushButton(tr("Get legacy menu themes and load screens"), this);
+		legacyButton->setObjectName("buttonGetLegacyPictures");
+		cells.push_back({new QWidgetItem(legacyLabel), row + 2, 0, 1, 1});
+		cells.push_back({new QWidgetItem(legacyButton), row + 2, 1, 1, 5});
+		connect(legacyButton, &QPushButton::clicked, this, [this]()
+		{
+			LegacyPicturesDialog dialog(this);
+			connect(&dialog, &LegacyPicturesDialog::picturesReady, this, [this](bool)
+			{
+				fillMenuBackgrounds();
+				fillLoadingScreens();
+			});
+			dialog.exec();
+		});
 	}
 
 	auto * bar = new QWidget(this);

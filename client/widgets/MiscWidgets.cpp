@@ -75,10 +75,11 @@ void LRClickableAreaWText::clickPressed(const Point & cursorPosition)
 	// GAME->interface() is null; showInfoDialog needs one. K, September 27th, reproduced: hover then
 	// click on a Biomes tab setting crashed the game. showPopupWindow already handles this without one
 	// (CRClickPopup, on right-click), so a left click without an interface shows the text the same way.
+	// A left click without an interface does nothing: a popup made by a left press waits for the right button's release, and the
+	// screen stayed frozen with the help box up (K, October 4th: "if i click to enable mod content on mapgen, it freezes with the
+	// tooltip popped up"); the right-click popup (showPopupWindow) answers there.
 	if(GAME->interface())
 		GAME->interface()->showInfoDialog(text);
-	else
-		CRClickPopup::createAndPush(text);
 }
 void LRClickableAreaWText::showPopupWindow(const Point & cursorPosition)
 {

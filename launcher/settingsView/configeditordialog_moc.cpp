@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 #include "configeditordialog_moc.h"
 #include "ui_configeditordialog_moc.h"
 
@@ -23,6 +24,7 @@ ConfigEditorDialog::ConfigEditorDialog(QWidget *parent):
 	ui(new Ui::ConfigEditorDialog)
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "configeditordialog_moc.ui");
 
 	setWindowTitle(tr("Config editor"));
 	

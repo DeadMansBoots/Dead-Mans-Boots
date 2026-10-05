@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 #include "firstlaunch_moc.h"
 #include "ui_firstlaunch_moc.h"
 
@@ -43,6 +44,7 @@ FirstLaunchView::FirstLaunchView(QWidget * parent)
 	, ui(std::make_unique<Ui::FirstLaunchView>())
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "firstlaunch_moc.ui");
 
 	enterSetup();
 	activateTabLanguage();

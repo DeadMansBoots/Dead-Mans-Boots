@@ -14,5 +14,6 @@
         <file>icons/mod-update.png</file>
         <file>icons/origin-vcmi.png</file>
         <file>icons/star.png</file>
+        <file>tooltips.json</file>
     </qresource>
 </RCC>

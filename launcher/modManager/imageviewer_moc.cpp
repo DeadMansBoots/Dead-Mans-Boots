@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 
 #include <QGuiApplication>
 #include <QGestureEvent>
@@ -74,6 +75,7 @@ ImageViewer::ImageViewer(QWidget * parent)
 	: QDialog(parent), ui(new Ui::ImageViewer)
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "imageviewer_moc.ui");
 
 	setWindowFlags(Qt::Dialog | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
 

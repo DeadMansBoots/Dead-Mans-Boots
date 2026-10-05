@@ -76,6 +76,21 @@ public:
 	/// as MenuBackgrounds has), made when it is first asked for
 	static boost::filesystem::path loadingFolder();
 
+	/// looks in the two drop-in folders again (the launcher's legacy pictures step has just put new pictures there)
+	static void rescan();
+
+	/// one frame of a cut-out button, on its full canvas, as 8 bit palette indexes (0 is transparent; the palette is the sprite's own)
+	struct NeutralFrame
+	{
+		int fullWidth = 0, fullHeight = 0;
+		std::vector<ui8> pixels; // fullWidth x fullHeight
+		std::vector<ui8> palette; // 256 RGB triples
+	};
+
+	/// the frames of a button (name without extension, "MMENUNG") of a release, with its baked-in glow taken away as neutralSprite does;
+	/// empty when the release has no such button or it is not a cut-out
+	static std::vector<NeutralFrame> neutralFrames(const MenuEra & era, const std::string & name);
+
 	/// every loading screen in that folder, by file name (the same picture files as the menu's: any size, cut to 800x600 from the middle)
 	static const std::vector<MenuFile> & loadingScreens();
 

@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 #include "aboutproject_moc.h"
 #include "ui_aboutproject_moc.h"
 
@@ -47,6 +48,7 @@ AboutProjectView::AboutProjectView(QWidget * parent)
 	, ui(std::make_unique<Ui::AboutProjectView>())
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "aboutproject_moc.ui");
 
 	ui->lineEditUserDataDir->setText(pathToQString(VCMIDirs::get().userDataPath()));
 	ui->lineEditGameDir->setText(pathToQString(VCMIDirs::get().binaryPath()));

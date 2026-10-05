@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 #include "cmodlistview_moc.h"
 #include "ui_cmodlistview_moc.h"
 #include "imageviewer_moc.h"
@@ -164,6 +165,7 @@ CModListView::CModListView(QWidget * parent)
 	, ui(new Ui::CModListView)
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "cmodlistview_moc.ui");
 
 	ui->uninstallButton->setIcon(QIcon{":/icons/mod-delete.png"});
 	ui->enableButton->setIcon(QIcon{":/icons/mod-enabled.png"});

@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "launchertooltips.h"
 #include "updatedialog_moc.h"
 #include "ui_updatedialog_moc.h"
 
@@ -23,6 +24,7 @@ UpdateDialog::UpdateDialog(bool calledManually, QWidget *parent):
 	calledManually(calledManually)
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "updatedialog_moc.ui");
 	
 	if(calledManually)
 	{

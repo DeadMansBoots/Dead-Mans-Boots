@@ -402,10 +402,30 @@ boost::filesystem::path MenuBackgrounds::dropInFolder()
 	return folder;
 }
 
+namespace
+{
+std::vector<MenuFile> & dropInCache()
+{
+	static std::vector<MenuFile> found = discoverDropIns();
+	return found;
+}
+
+std::vector<MenuFile> & loadingCache()
+{
+	static std::vector<MenuFile> found = discoverLoadingScreens();
+	return found;
+}
+}
+
 const std::vector<MenuFile> & MenuBackgrounds::dropIns()
 {
-	static const std::vector<MenuFile> found = discoverDropIns();
-	return found;
+	return dropInCache();
+}
+
+void MenuBackgrounds::rescan()
+{
+	dropInCache() = discoverDropIns();
+	loadingCache() = discoverLoadingScreens();
 }
 
 boost::filesystem::path MenuBackgrounds::loadingFolder()
@@ -422,8 +442,7 @@ boost::filesystem::path MenuBackgrounds::loadingFolder()
 
 const std::vector<MenuFile> & MenuBackgrounds::loadingScreens()
 {
-	static const std::vector<MenuFile> found = discoverLoadingScreens();
-	return found;
+	return loadingCache();
 }
 
 const std::vector<MenuMod> & MenuBackgrounds::menuMods()
@@ -884,6 +903,50 @@ std::vector<std::string> MenuBackgrounds::modDepends(const boost::filesystem::pa
 	return ids;
 }
 
+std::vector<MenuBackgrounds::NeutralFrame> MenuBackgrounds::neutralFrames(const MenuEra & era, const std::string & name)
+{
+	std::vector<NeutralFrame> frames;
+	if(!isCutout(era, name))
+		return frames;
+	const std::vector<ui8> d = neutralSprite(era, name);
+	if(d.size() < 16 + 768 + 16 || le32(d, 12) == 0)
+		return frames;
+	std::vector<ui8> palette(d.begin() + 16, d.begin() + 16 + 768);
+	size_t pos = 16 + 768;
+	const ui32 n = le32(d, pos + 4);
+	pos += 16 + 13 * static_cast<size_t>(n);
+	if(n == 0 || n > 1000 || pos + 4 * static_cast<size_t>(n) > d.size())
+		return frames;
+	for(ui32 i = 0; i < n; ++i)
+	{
+		const size_t at = le32(d, pos + 4 * i);
+		if(at + 32 > d.size())
+			return {};
+		NeutralFrame frame;
+		frame.fullWidth = static_cast<int>(le32(d, at + 8));
+		frame.fullHeight = static_cast<int>(le32(d, at + 12));
+		const int w = static_cast<int>(le32(d, at + 16));
+		const int h = static_cast<int>(le32(d, at + 20));
+		const int left = static_cast<int>(le32(d, at + 24));
+		const int top = static_cast<int>(le32(d, at + 28));
+		if(w <= 0 || h <= 0 || frame.fullWidth <= 0 || frame.fullHeight <= 0 || frame.fullWidth > 4096 || frame.fullHeight > 4096
+			|| at + 32 + static_cast<size_t>(w) * h > d.size())
+			return {};
+		frame.pixels.assign(static_cast<size_t>(frame.fullWidth) * frame.fullHeight, 0);
+		for(int y = 0; y < h; ++y)
+			for(int x = 0; x < w; ++x)
+			{
+				const int fx = left + x;
+				const int fy = top + y;
+				if(fx >= 0 && fy >= 0 && fx < frame.fullWidth && fy < frame.fullHeight)
+					frame.pixels[static_cast<size_t>(fy) * frame.fullWidth + fx] = d[at + 32 + static_cast<size_t>(y) * w + x];
+			}
+		frame.palette = palette;
+		frames.push_back(std::move(frame));
+	}
+	return frames;
+}
+
 bool MenuBackgrounds::isCutout(const MenuEra & era, const std::string & name)
 {
 	const std::vector<ui8> d = sprite(era, name);
@@ -899,10 +962,13 @@ bool MenuBackgrounds::isCutout(const MenuEra & era, const std::string & name)
 		return false;
 	const int w = static_cast<int>(le32(d, at + 16));
 	const int h = static_cast<int>(le32(d, at + 20));
+	const long full = static_cast<long>(le32(d, at + 8)) * static_cast<long>(le32(d, at + 12));
 	std::vector<ui8> pix;
-	if(w <= 0 || h <= 0 || w > 4096 || h > 4096 || !decodeFrame(d, at, w, h, le32(d, at + 4), pix))
+	if(w <= 0 || h <= 0 || w > 4096 || h > 4096 || full <= 0 || !decodeFrame(d, at, w, h, le32(d, at + 4), pix))
 		return false;
-	return std::count(pix.begin(), pix.end(), static_cast<ui8>(0)) * 100 >= static_cast<long>(pix.size()) * 15;
+	// what the frame's box does not draw on the button's canvas is transparent too (a tightly cut button has little left inside its box)
+	const long clear = std::count(pix.begin(), pix.end(), static_cast<ui8>(0)) + std::max(0L, full - static_cast<long>(pix.size()));
+	return clear * 100 >= full * 15;
 }
 
 std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::string & name)

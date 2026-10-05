@@ -17,6 +17,8 @@ set(launcher_SRCS
 		modManager/chroniclesextractor.cpp
 		modManager/hdextractor.cpp
 		settingsView/csettingsview_moc.cpp
+		settingsView/legacypictures.cpp
+		launchertooltips.cpp
 		settingsView/configeditordialog_moc.cpp
 		startGame/StartGameTab.cpp
 		firstLaunch/firstlaunch_moc.cpp
@@ -60,6 +62,8 @@ set(launcher_HEADERS
 		modManager/hdextractor.h
 		settingsView/configeditordialog_moc.h
 		settingsView/csettingsview_moc.h
+		settingsView/legacypictures.h
+		launchertooltips.h
 		startGame/StartGameTab.h
 		firstLaunch/firstlaunch_moc.h
 		firstLaunch/progressoverlay.h

@@ -49,7 +49,7 @@ void AssetGenerator::initialize()
 		boost::system::error_code ec;
 		const auto upscaled = MenuBackgrounds::dropInFolder() / "Upscaled";
 		if(!MenuBackgrounds::dropInFolder().empty() && boost::filesystem::is_directory(upscaled, ec))
-			CResourceHandler::addFilesystem("data", "dmb-menu-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 2));
+			CResourceHandler::addFilesystem("data", "dmb-menu-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 3));
 	}
 
 	// DMB: the same for the loading screens (LoadingScreens\Upscaled\DATA2X, DATA3X, DATA4X, each picture named DMBLoad-<file name>.png)
@@ -57,7 +57,7 @@ void AssetGenerator::initialize()
 		boost::system::error_code ec;
 		const auto upscaled = MenuBackgrounds::loadingFolder() / "Upscaled";
 		if(!MenuBackgrounds::loadingFolder().empty() && boost::filesystem::is_directory(upscaled, ec))
-			CResourceHandler::addFilesystem("data", "dmb-loading-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 2));
+			CResourceHandler::addFilesystem("data", "dmb-loading-upscaled", std::make_unique<CFilesystemLoader>("", upscaled, 3));
 	}
 
 	imageFiles[ImagePath::builtin("AdventureOptionsBackgroundClear.png")] = [this](){ return createAdventureOptionsCleanBackground();};
@@ -65,8 +65,8 @@ void AssetGenerator::initialize()
 	imageFiles[ImagePath::builtin("MuPopUpCustom.png")] = [this](){ return createMuPopUpCustom();};
 
 	// DMB: a picture the player dropped into their MenuBackgrounds folder, named by its place in the folder's list
-	for(size_t n = 0; n < MenuBackgrounds::dropIns().size(); ++n)
-		imageFiles[ImagePath::builtin("DMBMenuFile-" + std::to_string(n) + ".png")] = [this, n](){ return createMenuFile(MenuBackgrounds::dropIns()[n]); };
+	for(const auto & file : MenuBackgrounds::dropIns())
+		imageFiles[ImagePath::builtin("DMBMenuFile-" + file.slug + ".png")] = [this, file](){ return createMenuFile(file); };
 
 	// DMB: a picture the player dropped into their LoadingScreens folder, named by its file name
 	for(const auto & file : MenuBackgrounds::loadingScreens())

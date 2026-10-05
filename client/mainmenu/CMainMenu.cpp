@@ -422,7 +422,7 @@ static JsonNode mainMenuWindow()
 	// every picture the player dropped into their MenuBackgrounds folder ("file:<name>")
 	const auto & dropIns = MenuBackgrounds::dropIns();
 	for(size_t n = 0; n < dropIns.size(); ++n)
-		pictures.emplace_back(dropIns[n].id, "DMBMenuFile-" + std::to_string(n));
+		pictures.emplace_back(dropIns[n].id, "DMBMenuFile-" + dropIns[n].slug);
 
 	// every installed mod that adds a menu of its own, active or not, is an entry ("mod:<id>")
 	const auto & menuMods = MenuBackgrounds::menuMods();
@@ -499,12 +499,15 @@ static JsonNode mainMenuWindow()
 			const std::string name = node["name"].String();
 			if(MenuBackgrounds::sprite(era, name).empty())
 				return;
-			// a button of this release that has its background picture drawn round it (Armageddon's Blade's sub menu buttons) is no use on
-			// another picture: the first release whose button is a cut-out gives it
-			// and the glow of Armageddon's Blade's buttons is dark, made for its dark pictures, and leaves a dark halo on any other: the
-			// Complete release's buttons (Shadow of Death's art) are the ones made neutral, wherever the player's archives have them
+			// a release's own button is used on its own picture only where it is a cut-out: Armageddon's Blade's buttons (main and sub
+			// menu) have a piece of its 800x600 picture drawn round them, which shows as a box on any other size or sharpening of that
+			// picture (K, October 4th: "hella fucked up"). The Complete release's buttons, cut out and made neutral, are drawn instead;
+			// that release's glow is dark on dark pictures and made neutral on every other
+			std::string prefix = buttonsPrefix;
 			std::string source = era.id;
-			if(buttonsPrefix == "DMBN-")
+			if(prefix == "DMBM-" && !MenuBackgrounds::isCutout(era, name))
+				prefix = "DMBN-";
+			if(prefix == "DMBN-")
 			{
 				const auto & eras = MenuBackgrounds::eras();
 				const auto complete = std::find_if(eras.begin(), eras.end(), [&name](const MenuEra & other)
@@ -521,7 +524,7 @@ static JsonNode mainMenuWindow()
 							break;
 						}
 			}
-			node["name"].String() = buttonsPrefix + source + "-" + name;
+			node["name"].String() = prefix + source + "-" + name;
 		};
 		for(auto & item : window["items"].Vector())
 		{

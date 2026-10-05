@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../launchertooltips.h"
 #include "StartGameTab.h"
 #include "ui_StartGameTab.h"
 
@@ -40,6 +41,7 @@ StartGameTab::StartGameTab(QWidget * parent)
 	, ui(new Ui::StartGameTab)
 {
 	ui->setupUi(this);
+	LauncherTooltips::apply(this, "StartGameTab.ui");
 
 	ui->buttonGameResume->setIcon(QIcon{":/icons/menu-game.png"}); //TODO: different icon?
 	ui->buttonGameStart->setIcon(QIcon{":/icons/menu-game.png"});

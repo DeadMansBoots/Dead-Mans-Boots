@@ -344,10 +344,14 @@ void MapGenTab::greyCustomSize()
 {
 	const bool random = mapSetting("size") < 0;
 	const ColorRGBA shown = random ? ColorRGBA(120, 120, 120) : Colors::WHITE;
-	const auto apply = [&shown](const std::shared_ptr<CTextInput> & box)
+	const auto apply = [&shown, random](const std::shared_ptr<CTextInput> & box)
 	{
-		if(box)
-			box->setColor(shown);
+		if(!box)
+			return;
+		box->setColor(shown);
+		// a box typed in a moment ago keeps its typing caret otherwise, in a box that now reads as off
+		if(random && box->hasFocus())
+			box->removeFocus();
 	};
 	if(layoutPages)
 	{

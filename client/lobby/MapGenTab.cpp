@@ -335,6 +335,38 @@ std::shared_ptr<CToggleGroup> MapGenPage::toggleGroup(const std::string & name) 
 	return widget<CToggleGroup>(name);
 }
 
+std::shared_ptr<CTextInput> MapGenPage::textInput(const std::string & name) const
+{
+	return widget<CTextInput>(name);
+}
+
+void MapGenTab::greyCustomSize()
+{
+	const bool random = mapSetting("size") < 0;
+	const ColorRGBA shown = random ? ColorRGBA(120, 120, 120) : Colors::WHITE;
+	const auto apply = [&shown](const std::shared_ptr<CTextInput> & box)
+	{
+		if(box)
+			box->setColor(shown);
+	};
+	if(layoutPages)
+	{
+		if(auto page = layoutPages->shownPage())
+		{
+			apply(page->find<CTextInput>("input_map.width"));
+			apply(page->find<CTextInput>("input_map.height"));
+		}
+	}
+	else if(pages)
+	{
+		if(auto page = std::dynamic_pointer_cast<MapGenPage>(pages->getItem()))
+		{
+			apply(page->textInput("input_map.width"));
+			apply(page->textInput("input_map.height"));
+		}
+	}
+}
+
 MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	: InterfaceObjectConfigurable()
 	, generator(info)
@@ -433,6 +465,8 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 				refreshPagesAfterClick();
 			}
 		}
+		if(setting == "persistent:mapGen/map/size" || setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
+			greyCustomSize();
 		if(boost::algorithm::starts_with(setting, "persistent:mapGen/"))
 			updateMapInfoByHost();
 	};
@@ -443,6 +477,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	{
 		if(auto name = page.find<CLabel>("labelTemplateName"))
 			name->setText(templateLabel());
+		greyCustomSize();
 	};
 	build(config);
 
@@ -530,6 +565,12 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 		{
 			if(auto name = page.label("labelTemplateName"))
 				name->setText(templateLabel());
+			// the page is not the tab's current one yet while it is built: grey its own boxes
+			const bool random = mapSetting("size") < 0;
+			const ColorRGBA shown = random ? ColorRGBA(120, 120, 120) : Colors::WHITE;
+			for(const char * boxName : {"input_map.width", "input_map.height"})
+				if(auto box = page.textInput(boxName))
+					box->setColor(shown);
 		});
 }
 

@@ -815,7 +815,7 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 			if(notIcon[at(x, y)])
 				pix[at(x, y)] = (dist[at(x, y)] >= 1 && dist[at(x, y)] <= reach && outline != 0) ? outline : 0;
 
-	// the icon's drop shadow, tinted by the glow, that reaches the cleared glow (at most eight pixels in) goes too, and a one pixel edge
+	// the icon's drop shadow, tinted by the glow, that reaches the cleared glow (at most fourteen pixels in) goes too, and a one pixel edge
 	// of the outline colour is put where it met the icon; the first version turned it into an outline and left a fat black halo round
 	// the buttons of Armageddon's Blade (K, October 4th)
 	if(outline != 0)
@@ -834,7 +834,7 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 		{
 			const auto [x, y] = flood.front();
 			flood.pop_front();
-			if(depth[at(x, y)] >= 8)
+			if(depth[at(x, y)] >= 14)
 				continue;
 			const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
 			for(const auto & [nx, ny] : around)

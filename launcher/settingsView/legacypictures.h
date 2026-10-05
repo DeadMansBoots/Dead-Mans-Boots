@@ -25,7 +25,7 @@ class LegacyPicturesWorker : public QThread
 
 public:
 	/// the steps change what the files hold: a run with another number sharpens everything again
-	static constexpr int PIPELINE_VERSION = 2;
+	static constexpr int PIPELINE_VERSION = 3;
 
 	explicit LegacyPicturesWorker(QObject * parent = nullptr);
 

@@ -42,6 +42,7 @@ public:
 	void setOnSettingChanged(std::function<void(const std::string &)> callback);
 	std::shared_ptr<CLabel> label(const std::string & name) const;
 	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
+	std::shared_ptr<CTextInput> textInput(const std::string & name) const;
 };
 
 class MapGenTab : public InterfaceObjectConfigurable
@@ -67,6 +68,8 @@ class MapGenTab : public InterfaceObjectConfigurable
 	std::map<std::string, std::string> helpBodies;
 	std::vector<std::map<std::string, std::string>> pageHelpBodies;
 	void collectHelp(const JsonNode & items, std::map<std::string, std::string> & into);
+	/// the custom size boxes are drawn grey while the size is Random (they stay there: typing in one picks a custom size)
+	void greyCustomSize();
 	/// the module's "reset" block (or its defaults): what the Reset button puts every setting to
 	JsonNode resetValues;
 	bool refreshQueued = false;

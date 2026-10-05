@@ -47,6 +47,7 @@
 #include "../../lib/filesystem/Filesystem.h"
 #include "../../lib/mapping/CMapHeader.h"
 #include "../../lib/mapping/CMapInfo.h"
+#include "../../lib/rmg/CMapGenOptions.h"
 #include "../../lib/networkPacks/PacksForLobby.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/entities/faction/CFaction.h"
@@ -267,6 +268,18 @@ void InfoCard::changeSelection()
 	std::string mapSizeText = std::to_string(header->width) + "x" + std::to_string(header->height);
 	if(header->levels() > 1)
 		mapSizeText += "x" + std::to_string(header->levels());
+	// a map generator's size left on Random is rolled when the game begins: the card says so (K, October 4th)
+	if(mapInfo->isRandomMap && GAME->server().si && GAME->server().si->mapGenOptions && !GAME->server().si->mapGenOptions->getExternalGenerator().empty())
+	{
+		const JsonNode & chosen = GAME->server().si->mapGenOptions->getExternalSettings()["map"];
+		const bool customSize = chosen["width"].isNumber() && chosen["width"].Integer() > 0 && chosen["height"].isNumber() && chosen["height"].Integer() > 0;
+		if(chosen["size"].isNumber() && chosen["size"].Integer() < 0 && !customSize)
+		{
+			mapSizeText = LIBRARY->generaltexth->translate("vcmi.mapGen.map.size.random.hover");
+			if(mapSizeText == "vcmi.mapGen.map.size.random.hover")
+				mapSizeText = "Random size";
+		}
+	}
 	labelMapSize->setText(mapSizeText);
 	size_t mapSizeIconFrame = mapInfo->getMapSizeIconId();
 	if(const auto * selectionScreen = dynamic_cast<const CSelectionBase *>(SEL);

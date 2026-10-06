@@ -215,6 +215,9 @@ class CObjectListWindow : public CWindowObject
 	void deletePressed(); // DMB: "remove" button pressed, closes the window like exitPressed does
 public:
 	size_t selected;//index of currently selected item
+	/// DMB: the id (the index in the list the window was made from) of the item at a position of the list as shown, which a search narrows; -1 for none
+	std::function<void()> onSelectionChanged;//DMB: optional, called when the selected item or the list as shown changes (a click, the arrow keys, a search)
+	int idAt(size_t shownPosition) const { return shownPosition < itemsVisible.size() ? itemsVisible[shownPosition].first : -1; }
 
 	std::function<void()> onExit;//optional exit callback
 	std::function<void(int)> onPopup;//optional popup callback

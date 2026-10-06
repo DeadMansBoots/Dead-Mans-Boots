@@ -1075,9 +1075,21 @@ public:
 		body = std::make_shared<CTextBox>("", Rect(14, 44, area.w - 28, area.h - 58), 1);
 	}
 
-	void show(size_t index)
+	int shown = -2;
+
+	/// the entry with this id (an index of the list the window was made from; -1 for none, when a search matches nothing); a repeat is ignored
+	void show(int id)
 	{
-		const std::string value = index < values.size() ? values[index] : std::string();
+		if(id == shown)
+			return;
+		shown = id;
+		if(id < 0 || id >= static_cast<int>(values.size()))
+		{
+			title->setText("");
+			body->setText("");
+			return;
+		}
+		const std::string value = values[id];
 		if(value.empty())
 		{
 			title->setText(tabText("template.none"));
@@ -1147,17 +1159,12 @@ public:
 			return; // a module without template-info.json has no panel
 		const int gap = 6, width = 310, height = 500;
 		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values);
-		panel->show(current);
-		onClicked = [this](int index) { panel->show(static_cast<size_t>(index)); };
+		panel->show(static_cast<int>(current));
+		// the panel follows the selection however it moved (a click, the arrow keys, a search narrowing the list)
+		onSelectionChanged = [this]() { panel->show(idAt(selected)); panel->redraw(); };
 		moveBy(Point(-(width + gap) / 2, 0)); // the list and the panel together stay centred
 	}
 
-	void keyPressed(EShortcut key) override
-	{
-		CObjectListWindow::keyPressed(key);
-		if(panel)
-			panel->show(selected);
-	}
 };
 }
 

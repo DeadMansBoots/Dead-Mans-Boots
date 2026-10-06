@@ -1899,6 +1899,8 @@ void CObjectListWindow::itemsSearchCallback(const std::string & text)
 	ok->block(!itemsVisible.size());
 
 	redraw();
+	if(onSelectionChanged)
+		onSelectionChanged();
 }
 
 std::shared_ptr<CIntObject> CObjectListWindow::genItem(size_t index)
@@ -1954,6 +1956,8 @@ void CObjectListWindow::changeSelection(size_t which)
 		}
 	}
 	selected = which;
+	if(onSelectionChanged)
+		onSelectionChanged();
 }
 
 void CObjectListWindow::keyPressed(EShortcut key)

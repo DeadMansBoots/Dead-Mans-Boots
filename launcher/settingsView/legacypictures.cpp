@@ -656,14 +656,23 @@ static float smoothStep01(float v)
 	return k * k * (3 - 2 * k);
 }
 
+/// the size of each button: 85% of the original art, then fitted so its solid body is as wide as the same button's in HotA (the widths were measured
+/// on HotA's frames at 1x: NEW 149, LOAD 167, HIGH SCORE 170, CREDITS 117, QUIT 77, SINGLE 140, MULTI 107, CAMPAIGN 147, TUTORIAL 141, BACK 78 px)
+static double hotaScale(const QString & name)
+{
+	static const QMap<QString, double> scales{{"MMENUNG", 0.801}, {"MMENULG", 0.820}, {"MMENUHS", 0.790}, {"MMENUCR", 0.773}, {"MMENUQT", 0.831},
+		{"GTSINGL", 0.788}, {"GTMULTI", 0.784}, {"GTCAMPN", 0.805}, {"GTTUTOR", 0.794}, {"GTBACK", 0.762}};
+	return scales.value(name, 0.85);
+}
+
 /// K, October 5th and 6th: "we want to iterate until we get icons that look as good as HOTA's". The method of HotA's own button art
 /// (Research/2026-10-05-HotA-Main-Menu-Buttons.md), applied to a button cut out at 4x: the floating bits are dropped, the button is
-/// drawn at 85% (its centre kept) so its edge is a soft ramp of alpha, the baked reddish ring inside the outline is painted over with the
+/// drawn smaller (its centre kept) so its edge is a soft ramp of alpha, the baked reddish ring inside the outline is painted over with the
 /// colours next to it, a soft near-black shadow sits in the alpha channel under it, and the hover frame adds a soft white glow.
-/// `cut` is the 4x frame with the colour defined everywhere and the alpha of the cut
-static void hotaButton(const QImage & cut, QImage & normal, QImage & hover)
+/// `cut` is the 4x frame with the colour defined everywhere and the alpha of the cut; `scale` is the button's size against the original art; holes of
+/// a few pixels are closed, the art's own tears stay open
+static void hotaButton(const QImage & cut, double scale, QImage & normal, QImage & hover)
 {
-	const double scale = 0.85;
 	const float ramp = 10.0f, shadowWidth = 22.0f, shadowAlpha = 0.7f, glowRadius = 14.0f;
 	const int shadowDx = 4, shadowDy = 6;
 	const float ringOuter = 22.0f, outline = 4.5f;
@@ -734,9 +743,30 @@ static void hotaButton(const QImage & cut, QImage & normal, QImage & hover)
 					stack.push_back(n);
 				}
 		}
-		for(size_t i = 0; i < count; ++i)
-			if(!mask[i] && !reached[i])
-				mask[i] = 1;
+		// only pinholes are closed: the art's own tears and gaps (the sail of CAMPAIGN) stay open
+		const size_t pinhole = 40;
+		std::vector<unsigned char> seen(count, 0);
+		for(size_t start = 0; start < count; ++start)
+		{
+			if(mask[start] || reached[start] || seen[start])
+				continue;
+			std::vector<int> region{static_cast<int>(start)};
+			seen[start] = 1;
+			for(size_t at = 0; at < region.size(); ++at)
+			{
+				const int x = region[at] % w, y = region[at] / w;
+				const int next[4] = {x > 0 ? region[at] - 1 : -1, x < w - 1 ? region[at] + 1 : -1, y > 0 ? region[at] - w : -1, y < h - 1 ? region[at] + w : -1};
+				for(const int n : next)
+					if(n >= 0 && !mask[n] && !reached[n] && !seen[n])
+					{
+						seen[n] = 1;
+						region.push_back(n);
+					}
+			}
+			if(region.size() <= pinhole)
+				for(const int i : region)
+					mask[i] = 1;
+		}
 	}
 	int minX = w, maxX = -1, minY = h, maxY = -1;
 	for(int y = 0; y < h; ++y)
@@ -933,7 +963,7 @@ bool LegacyPicturesWorker::sharpenButtons(const QString & exe, bool & usedProgra
 		if(it.key().section('_', 1, 1).toInt() != 0)
 			continue; // one button, drawn from its first frame: normal and down alike, the glowing frame for the highlight
 		QImage normal, hover;
-		hotaButton(cut, normal, hover);
+		hotaButton(cut, hotaScale(name), normal, hover);
 		for(int frameNumber = 0; bases.contains(QString("%1_%2").arg(name).arg(frameNumber)); ++frameNumber)
 			for(int factor = 2; factor <= 4; ++factor)
 			{

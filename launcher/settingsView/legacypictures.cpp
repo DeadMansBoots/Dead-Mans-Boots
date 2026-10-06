@@ -311,12 +311,12 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 		{
 			QString text = tr("Picture %1 of %2: %3, %4").arg(done + 1).arg(pictures.size()).arg(p.title, transferText(got, all, rate));
 			if(allBytes > 0)
-				text += tr(". All pictures: %1.").arg(transferText(doneBytes + got, allBytes, 0));
+				text += tr(".\nAll pictures: %1.").arg(transferText(doneBytes + got, allBytes, 0));
 			const double fraction = allBytes > 0 ? static_cast<double>(doneBytes + got) / allBytes : (done + (all > 0 ? static_cast<double>(got) / all : 0.0)) / pictures.size();
 			report(1, fraction, text);
 		};
 		if(allBytes > 0)
-			report(1, static_cast<double>(doneBytes) / allBytes, tr("Picture %1 of %2: %3. All pictures: %4.").arg(done + 1).arg(pictures.size()).arg(p.title, transferText(doneBytes, allBytes, 0)));
+			report(1, static_cast<double>(doneBytes) / allBytes, tr("Picture %1 of %2: %3.\nAll pictures: %4.").arg(done + 1).arg(pictures.size()).arg(p.title, transferText(doneBytes, allBytes, 0)));
 		else
 			report(1, static_cast<double>(done) / pictures.size(), tr("Picture %1 of %2: %3").arg(done + 1).arg(pictures.size()).arg(p.title));
 		p.originalPath = folder + "/" + p.wikiName;
@@ -542,6 +542,328 @@ static void smoothContour(QImage & image, double sigma)
 	}
 }
 
+/// For every pixel the distance to the nearest `feature` pixel (Felzenszwalb and Huttenlocher's exact transform) and that pixel's index
+static void distanceFrom(const std::vector<unsigned char> & feature, int w, int h, std::vector<float> & dist, std::vector<int> & nearest)
+{
+	const double inf = 1e18;
+	std::vector<double> d1(static_cast<size_t>(w) * h, inf);
+	std::vector<int> row(d1.size(), -1);
+	for(int x = 0; x < w; ++x)
+	{
+		int last = -1;
+		for(int y = 0; y < h; ++y) // nearest feature above (or on) each pixel
+		{
+			if(feature[static_cast<size_t>(y) * w + x])
+				last = y;
+			if(last >= 0)
+			{
+				d1[static_cast<size_t>(y) * w + x] = static_cast<double>(y - last) * (y - last);
+				row[static_cast<size_t>(y) * w + x] = last;
+			}
+		}
+		last = -1;
+		for(int y = h - 1; y >= 0; --y) // and below
+		{
+			if(feature[static_cast<size_t>(y) * w + x])
+				last = y;
+			if(last >= 0 && static_cast<double>(last - y) * (last - y) < d1[static_cast<size_t>(y) * w + x])
+			{
+				d1[static_cast<size_t>(y) * w + x] = static_cast<double>(last - y) * (last - y);
+				row[static_cast<size_t>(y) * w + x] = last;
+			}
+		}
+	}
+	dist.assign(d1.size(), 1e9f);
+	nearest.assign(d1.size(), -1);
+	std::vector<int> v(w);
+	std::vector<double> z(w + 1);
+	for(int y = 0; y < h; ++y)
+	{
+		const double * f = &d1[static_cast<size_t>(y) * w];
+		int k = -1;
+		for(int q = 0; q < w; ++q)
+		{
+			if(f[q] >= inf)
+				continue;
+			double s = -inf;
+			while(k >= 0)
+			{
+				s = ((f[q] + static_cast<double>(q) * q) - (f[v[k]] + static_cast<double>(v[k]) * v[k])) / (2.0 * q - 2.0 * v[k]);
+				if(s <= z[k])
+					--k;
+				else
+					break;
+			}
+			if(k < 0)
+				s = -inf;
+			++k;
+			v[k] = q;
+			z[k] = s;
+			z[k + 1] = inf;
+		}
+		if(k < 0)
+			continue; // no feature in this picture at all
+		int j = 0;
+		for(int x = 0; x < w; ++x)
+		{
+			while(z[j + 1] < x)
+				++j;
+			const size_t at = static_cast<size_t>(y) * w + x;
+			const double dx = x - v[j];
+			dist[at] = static_cast<float>(std::sqrt(dx * dx + f[v[j]]));
+			nearest[at] = row[static_cast<size_t>(y) * w + v[j]] * w + v[j];
+		}
+	}
+}
+
+static void blurPlane(std::vector<float> & plane, int w, int h, double sigma)
+{
+	const int radius = static_cast<int>(std::ceil(sigma * 3));
+	std::vector<float> kernel(2 * radius + 1);
+	float sum = 0;
+	for(int i = -radius; i <= radius; ++i)
+		sum += kernel[i + radius] = std::exp(-(i * i) / (2.0f * static_cast<float>(sigma * sigma)));
+	for(auto & k : kernel)
+		k /= sum;
+	std::vector<float> t(plane.size());
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			float v = 0, weight = 0;
+			for(int i = std::max(-radius, -x); i <= std::min(radius, w - 1 - x); ++i)
+			{
+				v += plane[static_cast<size_t>(y) * w + x + i] * kernel[i + radius];
+				weight += kernel[i + radius];
+			}
+			t[static_cast<size_t>(y) * w + x] = v / weight;
+		}
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			float v = 0, weight = 0;
+			for(int i = std::max(-radius, -y); i <= std::min(radius, h - 1 - y); ++i)
+			{
+				v += t[static_cast<size_t>(y + i) * w + x] * kernel[i + radius];
+				weight += kernel[i + radius];
+			}
+			plane[static_cast<size_t>(y) * w + x] = v / weight;
+		}
+}
+
+static float smoothStep01(float v)
+{
+	const float k = std::clamp(v, 0.0f, 1.0f);
+	return k * k * (3 - 2 * k);
+}
+
+/// K, October 5th and 6th: "we want to iterate until we get icons that look as good as HOTA's". The method of HotA's own button art
+/// (Research/2026-10-05-HotA-Main-Menu-Buttons.md), applied to a button cut out at 4x: the floating bits are dropped, the button is
+/// drawn at 85% (its centre kept) so its edge is a soft ramp of alpha, the baked reddish ring inside the outline is painted over with the
+/// colours next to it, a soft near-black shadow sits in the alpha channel under it, and the hover frame adds a soft white glow.
+/// `cut` is the 4x frame with the colour defined everywhere and the alpha of the cut
+static void hotaButton(const QImage & cut, QImage & normal, QImage & hover)
+{
+	const double scale = 0.85;
+	const float ramp = 10.0f, shadowWidth = 22.0f, shadowAlpha = 0.7f, glowRadius = 14.0f;
+	const int shadowDx = 4, shadowDy = 6;
+	const float ringOuter = 22.0f, outline = 4.5f;
+	const int w = cut.width(), h = cut.height();
+	const size_t count = static_cast<size_t>(w) * h;
+	// the cut's mask without floating bits and holes
+	std::vector<unsigned char> mask(count, 0);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			mask[static_cast<size_t>(y) * w + x] = qAlpha(cut.pixel(x, y)) > 127;
+	{
+		std::vector<int> label(count, 0), stack;
+		std::vector<size_t> sizes{0};
+		for(size_t start = 0; start < count; ++start)
+		{
+			if(!mask[start] || label[start])
+				continue;
+			const int id = static_cast<int>(sizes.size());
+			sizes.push_back(0);
+			stack.assign(1, static_cast<int>(start));
+			label[start] = id;
+			while(!stack.empty())
+			{
+				const int at = stack.back();
+				stack.pop_back();
+				++sizes[id];
+				const int x = at % w, y = at / w;
+				const int next[4] = {x > 0 ? at - 1 : -1, x < w - 1 ? at + 1 : -1, y > 0 ? at - w : -1, y < h - 1 ? at + w : -1};
+				for(const int n : next)
+					if(n >= 0 && mask[n] && !label[n])
+					{
+						label[n] = id;
+						stack.push_back(n);
+					}
+			}
+		}
+		const size_t biggest = *std::max_element(sizes.begin(), sizes.end());
+		for(size_t i = 0; i < count; ++i)
+			if(mask[i] && sizes[label[i]] < biggest * 0.02)
+				mask[i] = 0;
+		// holes: outside pixels the border cannot reach
+		std::vector<unsigned char> reached(count, 0);
+		stack.clear();
+		for(int x = 0; x < w; ++x)
+			for(const int y : {0, h - 1})
+				if(!mask[static_cast<size_t>(y) * w + x] && !reached[static_cast<size_t>(y) * w + x])
+				{
+					reached[static_cast<size_t>(y) * w + x] = 1;
+					stack.push_back(y * w + x);
+				}
+		for(int y = 0; y < h; ++y)
+			for(const int x : {0, w - 1})
+				if(!mask[static_cast<size_t>(y) * w + x] && !reached[static_cast<size_t>(y) * w + x])
+				{
+					reached[static_cast<size_t>(y) * w + x] = 1;
+					stack.push_back(y * w + x);
+				}
+		while(!stack.empty())
+		{
+			const int at = stack.back();
+			stack.pop_back();
+			const int x = at % w, y = at / w;
+			const int next[4] = {x > 0 ? at - 1 : -1, x < w - 1 ? at + 1 : -1, y > 0 ? at - w : -1, y < h - 1 ? at + w : -1};
+			for(const int n : next)
+				if(n >= 0 && !mask[n] && !reached[n])
+				{
+					reached[n] = 1;
+					stack.push_back(n);
+				}
+		}
+		for(size_t i = 0; i < count; ++i)
+			if(!mask[i] && !reached[i])
+				mask[i] = 1;
+	}
+	int minX = w, maxX = -1, minY = h, maxY = -1;
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			if(mask[static_cast<size_t>(y) * w + x])
+			{
+				minX = std::min(minX, x);
+				maxX = std::max(maxX, x);
+				minY = std::min(minY, y);
+				maxY = std::max(maxY, y);
+			}
+	normal = QImage(w, h, QImage::Format_ARGB32);
+	normal.fill(Qt::transparent);
+	hover = normal;
+	if(maxX < 0)
+		return;
+	// the colour and the mask at 85%, the centre of the shape where it was
+	const double cx = (minX + maxX) / 2.0, cy = (minY + maxY) / 2.0;
+	QImage colour(w, h, QImage::Format_RGB32);
+	QImage solid(w, h, QImage::Format_Grayscale8);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			colour.setPixel(x, y, qRgb(qRed(cut.pixel(x, y)), qGreen(cut.pixel(x, y)), qBlue(cut.pixel(x, y))));
+			solid.setPixel(x, y, mask[static_cast<size_t>(y) * w + x] ? qRgb(255, 255, 255) : qRgb(0, 0, 0));
+		}
+	const int sw = static_cast<int>(std::lround(w * scale)), sh = static_cast<int>(std::lround(h * scale));
+	const QImage smallColour = colour.scaled(sw, sh, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	const QImage smallSolid = solid.scaled(sw, sh, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	const int ox = static_cast<int>(std::lround(cx * (1 - scale))), oy = static_cast<int>(std::lround(cy * (1 - scale)));
+	std::vector<float> rgb(count * 3, 0.0f);
+	std::fill(mask.begin(), mask.end(), 0);
+	for(int y = 0; y < sh; ++y)
+		for(int x = 0; x < sw; ++x)
+		{
+			const int px = x + ox, py = y + oy;
+			if(px < 0 || py < 0 || px >= w || py >= h)
+				continue;
+			const QRgb c = smallColour.pixel(x, y);
+			const size_t at = static_cast<size_t>(py) * w + px;
+			rgb[at * 3] = static_cast<float>(qRed(c));
+			rgb[at * 3 + 1] = static_cast<float>(qGreen(c));
+			rgb[at * 3 + 2] = static_cast<float>(qBlue(c));
+			mask[at] = qGray(smallSolid.pixel(x, y)) > 127;
+		}
+	// distances: inside the shape to its edge, outside to the shape
+	std::vector<unsigned char> inverse(count), shape(mask);
+	for(size_t i = 0; i < count; ++i)
+		inverse[i] = !mask[i];
+	std::vector<float> din, dout, edgeSigned(count);
+	std::vector<int> unused;
+	distanceFrom(inverse, w, h, din, unused);
+	distanceFrom(shape, w, h, dout, unused);
+	for(size_t i = 0; i < count; ++i)
+		edgeSigned[i] = mask[i] ? din[i] - 0.5f : -(dout[i] - 0.5f);
+	// the baked reddish-brown ring inside the near-black outline: replaced by the nearest colour that is not part of it, eased by a blur
+	std::vector<unsigned char> ring(count, 0), good(count, 0);
+	for(size_t i = 0; i < count; ++i)
+	{
+		const float r = rgb[i * 3], g = rgb[i * 3 + 1], b = rgb[i * 3 + 2];
+		const bool reddish = r > 1.5f * g + 6 && r > 1.2f * b + 6 && r < 175 && g < 75;
+		ring[i] = mask[i] && din[i] > outline && din[i] <= ringOuter && reddish;
+		good[i] = mask[i] && din[i] > outline && !ring[i];
+	}
+	std::vector<float> nearestDist;
+	std::vector<int> nearest;
+	distanceFrom(good, w, h, nearestDist, nearest);
+	std::vector<float> bled(count * 3), soft(count);
+	for(size_t i = 0; i < count; ++i)
+	{
+		const int from = nearest[i] >= 0 ? nearest[i] : static_cast<int>(i);
+		for(int k = 0; k < 3; ++k)
+			bled[i * 3 + k] = rgb[static_cast<size_t>(from) * 3 + k];
+		soft[i] = ring[i] ? 1.0f : 0.0f;
+	}
+	std::vector<float> plane(count);
+	for(int k = 0; k < 3; ++k)
+	{
+		for(size_t i = 0; i < count; ++i)
+			plane[i] = bled[i * 3 + k];
+		blurPlane(plane, w, h, 2.0);
+		for(size_t i = 0; i < count; ++i)
+			bled[i * 3 + k] = plane[i];
+	}
+	blurPlane(soft, w, h, 1.5);
+	// the shadow: the shape moved down and right, near-black, a soft alpha ramp
+	std::vector<unsigned char> moved(count, 0);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			const int sx = x - shadowDx, sy = y - shadowDy;
+			if(sx >= 0 && sy >= 0 && sx < w && sy < h && mask[static_cast<size_t>(sy) * w + sx])
+				moved[static_cast<size_t>(y) * w + x] = 1;
+		}
+	std::vector<float> shadowDist;
+	distanceFrom(moved, w, h, shadowDist, unused);
+	// the glow: the shape grown by the radius and blurred
+	std::vector<float> glow(count);
+	for(size_t i = 0; i < count; ++i)
+		glow[i] = dout[i] <= glowRadius || mask[i] ? 1.0f : 0.0f;
+	blurPlane(glow, w, h, glowRadius * 0.7);
+	for(size_t i = 0; i < count; ++i)
+	{
+		const int x = static_cast<int>(i % w), y = static_cast<int>(i / w);
+		float r = rgb[i * 3], g = rgb[i * 3 + 1], b = rgb[i * 3 + 2];
+		if(mask[i])
+		{
+			const float s = soft[i];
+			r = r * (1 - s) + bled[i * 3] * s;
+			g = g * (1 - s) + bled[i * 3 + 1] * s;
+			b = b * (1 - s) + bled[i * 3 + 2] * s;
+		}
+		const float edge = smoothStep01((edgeSigned[i] + ramp / 2) / ramp);
+		const float under = moved[i] ? shadowAlpha : shadowAlpha * std::pow(1 - smoothStep01(shadowDist[i] / shadowWidth), 1.5f);
+		const float total = edge + under * (1 - edge);
+		const float cr = r * edge + 8 * (1 - edge), cg = g * edge + 6 * (1 - edge), cb = b * edge + 6 * (1 - edge);
+		normal.setPixel(x, y, qRgba(std::clamp(static_cast<int>(cr + 0.5f), 0, 255), std::clamp(static_cast<int>(cg + 0.5f), 0, 255),
+			std::clamp(static_cast<int>(cb + 0.5f), 0, 255), std::clamp(static_cast<int>(total * 255 + 0.5f), 0, 255)));
+		const float lit = std::clamp(glow[i] * 1.8f, 0.0f, 1.0f) * (1 - edge);
+		const float both = std::max(lit * 0.95f, total);
+		const float keep = both > 0.001f ? total / both : 1.0f;
+		hover.setPixel(x, y, qRgba(std::clamp(static_cast<int>(cr * keep + 255 * (1 - keep) + 0.5f), 0, 255),
+			std::clamp(static_cast<int>(cg * keep + 255 * (1 - keep) + 0.5f), 0, 255), std::clamp(static_cast<int>(cb * keep + 255 * (1 - keep) + 0.5f), 0, 255),
+			std::clamp(static_cast<int>(both * 255 + 0.5f), 0, 255)));
+	}
+}
+
 bool LegacyPicturesWorker::sharpenButtons(const QString & exe, bool & usedProgram)
 {
 	// the buttons of the Complete release, cut out of the player's own sprite archive with the glow taken away (MenuBackgrounds), each
@@ -608,15 +930,20 @@ bool LegacyPicturesWorker::sharpenButtons(const QString & exe, bool & usedProgra
 			}
 		smoothContour(cut, 5.0);
 		const QString name = it.key().section('_', 0, 0);
-		const int frameNumber = it.key().section('_', 1, 1).toInt();
-		for(int factor = 2; factor <= 4; ++factor)
-		{
-			const QString sub = QString("DMBN-%1-%2").arg(BUTTON_RELEASE, name);
-			const QString folder = QString("%1/SPRITES%2X").arg(root).arg(factor);
-			QDir().mkpath(folder + "/" + sub);
-			const QImage out = factor == 4 ? cut : cut.scaled(cut.width() * factor / 4, cut.height() * factor / 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-			out.save(QString("%1/%2/%3.png").arg(folder, sub).arg(frameNumber));
-		}
+		if(it.key().section('_', 1, 1).toInt() != 0)
+			continue; // one button, drawn from its first frame: normal and down alike, the glowing frame for the highlight
+		QImage normal, hover;
+		hotaButton(cut, normal, hover);
+		for(int frameNumber = 0; bases.contains(QString("%1_%2").arg(name).arg(frameNumber)); ++frameNumber)
+			for(int factor = 2; factor <= 4; ++factor)
+			{
+				const QImage & frame = frameNumber < 2 ? normal : hover;
+				const QString sub = QString("DMBN-%1-%2").arg(BUTTON_RELEASE, name);
+				const QString folder = QString("%1/SPRITES%2X").arg(root).arg(factor);
+				QDir().mkpath(folder + "/" + sub);
+				const QImage out = factor == 4 ? frame : frame.scaled(frame.width() * factor / 4, frame.height() * factor / 4, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+				out.save(QString("%1/%2/%3.png").arg(folder, sub).arg(frameNumber));
+			}
 	}
 	for(const QString & name : BUTTONS)
 	{

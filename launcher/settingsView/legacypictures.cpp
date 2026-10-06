@@ -156,6 +156,22 @@ const Stage STAGES[] = {{"Asking the wiki", 3}, {"Downloading the pictures", 17}
 const int STAGE_COUNT = 6;
 }
 
+/// "33.0 of 43.4 MB at 2.4 MB/s": what has come down of how much, and how fast (the wording of every download step); a size the server
+/// did not give is said so
+static QString transferText(qint64 got, qint64 all, double bytesPerSecond)
+{
+	const bool inMegabytes = std::max<qint64>(got, all) >= 1048576;
+	const auto number = [inMegabytes](qint64 bytes)
+	{
+		return inMegabytes ? QString::number(bytes / 1048576.0, 'f', 1) : QString::number(bytes / 1024.0, 'f', 0);
+	};
+	const QString unit = inMegabytes ? "MB" : "KB";
+	QString text = all > 0 ? QString("%1 of %2 %3").arg(number(got), number(all), unit) : QString("%1 %2 received (total size unknown)").arg(number(got), unit);
+	if(bytesPerSecond > 0)
+		text += bytesPerSecond >= 1048576.0 ? QString(" at %1 MB/s").arg(bytesPerSecond / 1048576.0, 0, 'f', 1) : QString(" at %1 KB/s").arg(bytesPerSecond / 1024.0, 0, 'f', 0);
+	return text;
+}
+
 void LegacyPicturesWorker::report(int stage, double fraction, const QString & detail)
 {
 	int before = 0, total = 0;
@@ -170,7 +186,7 @@ void LegacyPicturesWorker::report(int stage, double fraction, const QString & de
 	emit overall(permille, stage + 1, STAGE_COUNT, tr(STAGES[stage].title), detail);
 }
 
-QByteArray LegacyPicturesWorker::fetch(const QUrl & url, bool wiki, int timeoutMs, std::function<void(qint64, qint64)> bytes)
+QByteArray LegacyPicturesWorker::fetch(const QUrl & url, bool wiki, int timeoutMs, std::function<void(qint64, qint64, double)> bytes)
 {
 	if(wiki)
 		msleep(700); // one request at a time with a pause: polite to the wiki
@@ -179,7 +195,31 @@ QByteArray LegacyPicturesWorker::fetch(const QUrl & url, bool wiki, int timeoutM
 	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 	QNetworkReply * reply = network->get(request);
 	if(bytes)
-		QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [bytes](qint64 got, qint64 all) { bytes(got, all); });
+	{
+		// the rate is the last second or so of the transfer (a sample every 400 ms or more, blended with the one before), not the
+		// average since the start, so a stall shows
+		struct Rate
+		{
+			QElapsedTimer clock;
+			qint64 lastMs = 0;
+			qint64 lastGot = 0;
+			double perSecond = 0;
+		};
+		auto rate = std::make_shared<Rate>();
+		rate->clock.start();
+		QObject::connect(reply, &QNetworkReply::downloadProgress, reply, [bytes, rate](qint64 got, qint64 all)
+		{
+			const qint64 now = rate->clock.elapsed();
+			if(now - rate->lastMs >= 400)
+			{
+				const double sample = (got - rate->lastGot) * 1000.0 / std::max<qint64>(1, now - rate->lastMs);
+				rate->perSecond = rate->perSecond > 0 ? (rate->perSecond + sample) / 2.0 : sample;
+				rate->lastMs = now;
+				rate->lastGot = got;
+			}
+			bytes(got, all, rate->perSecond);
+		});
+	}
 	QEventLoop loop;
 	QTimer timer;
 	timer.setSingleShot(true);
@@ -238,6 +278,7 @@ bool LegacyPicturesWorker::queryWiki(QVector<Picture> & pictures)
 				{
 					pictures[i].url = info[0].toObject()["url"].toString();
 					pictures[i].sha1 = info[0].toObject()["sha1"].toString();
+					pictures[i].bytes = static_cast<qint64>(info[0].toObject()["size"].toDouble());
 				}
 		}
 	}
@@ -255,6 +296,9 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 	const QString folder = baseFolder() + "/Original";
 	QDir().mkpath(folder);
 	int done = 0;
+	qint64 allBytes = 0, doneBytes = 0;
+	for(const auto & p : pictures)
+		allBytes += p.bytes;
 	for(auto & p : pictures)
 	{
 		if(cancelled())
@@ -262,14 +306,26 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 			failure = "stopped";
 			return false;
 		}
-		report(1, static_cast<double>(done) / pictures.size(), tr("Picture %1 of %2: %3").arg(done + 1).arg(pictures.size()).arg(p.title));
+		// the line of this picture: its own bytes and rate, and the pictures so far of all of them
+		const auto line = [&](qint64 got, qint64 all, double rate)
+		{
+			QString text = tr("Picture %1 of %2: %3, %4").arg(done + 1).arg(pictures.size()).arg(p.title, transferText(got, all, rate));
+			if(allBytes > 0)
+				text += tr(". All pictures: %1.").arg(transferText(doneBytes + got, allBytes, 0));
+			const double fraction = allBytes > 0 ? static_cast<double>(doneBytes + got) / allBytes : (done + (all > 0 ? static_cast<double>(got) / all : 0.0)) / pictures.size();
+			report(1, fraction, text);
+		};
+		if(allBytes > 0)
+			report(1, static_cast<double>(doneBytes) / allBytes, tr("Picture %1 of %2: %3. All pictures: %4.").arg(done + 1).arg(pictures.size()).arg(p.title, transferText(doneBytes, allBytes, 0)));
+		else
+			report(1, static_cast<double>(done) / pictures.size(), tr("Picture %1 of %2: %3").arg(done + 1).arg(pictures.size()).arg(p.title));
 		p.originalPath = folder + "/" + p.wikiName;
 		if(!(QFile::exists(p.originalPath) && fileSha(p.originalPath, QCryptographicHash::Sha1) == p.sha1))
 		{
 			bool good = false;
 			for(int attempt = 0; attempt < 3 && !good && !cancelled(); ++attempt)
 			{
-				const QByteArray data = fetch(QUrl(p.url), true);
+				const QByteArray data = fetch(QUrl(p.url), true, 120000, line);
 				if(!data.isEmpty() && sha(data, QCryptographicHash::Sha1) == p.sha1)
 				{
 					QFile file(p.originalPath + ".part");
@@ -291,6 +347,7 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 			}
 		}
 		++done;
+		doneBytes += p.bytes;
 	}
 	report(1, 1.0, tr("%1 pictures downloaded and checked").arg(pictures.size()));
 	return true;
@@ -305,10 +362,11 @@ bool LegacyPicturesWorker::ensureSharpener(QString & exe)
 		return true;
 	report(2, 0.0, tr("Starting the download (about 45 MB)"));
 	QDir().mkpath(tools);
-	const QByteArray zip = fetch(QUrl(QString::fromLatin1(SHARPENER_URL)), false, 20 * 60 * 1000, [this](qint64 got, qint64 all)
+	const QByteArray zip = fetch(QUrl(QString::fromLatin1(SHARPENER_URL)), false, 20 * 60 * 1000, [this](qint64 got, qint64 all, double rate)
 	{
-		const double total = all > 0 ? static_cast<double>(all) : 45474481.0;
-		report(2, got / total * 0.9, tr("Downloading the sharpener: %1 of %2 MB").arg(got / 1048576.0, 0, 'f', 1).arg(total / 1048576.0, 0, 'f', 1));
+		// a pinned file of a known size: where the server gives none, that size stands
+		const qint64 total = all > 0 ? all : 45474481;
+		report(2, static_cast<double>(got) / total * 0.9, tr("Downloading the sharpener: %1").arg(transferText(got, total, rate)));
 	});
 	if(zip.isEmpty() || sha(zip, QCryptographicHash::Sha256) != QString::fromLatin1(SHARPENER_SHA256))
 	{
@@ -438,6 +496,52 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 	return true;
 }
 
+/// K, October 5th: "these cutouts still have some really nasty jagged edges". The cut-out's alpha comes from the 1x sprite's hard mask, so each
+/// 1x pixel of its outline shows as a 4 px stair. The alpha is blurred (a gaussian of `sigma` pixels) and made sharp again with a smooth step:
+/// the contour is a smooth line with a feather of about 2 px; the colours, the artist's dark outline among them, are left as they are
+static void smoothContour(QImage & image, double sigma)
+{
+	const int w = image.width(), h = image.height();
+	const int radius = static_cast<int>(std::ceil(sigma * 3));
+	std::vector<float> kernel(2 * radius + 1);
+	float sum = 0;
+	for(int i = -radius; i <= radius; ++i)
+		sum += kernel[i + radius] = std::exp(-(i * i) / (2.0f * static_cast<float>(sigma * sigma)));
+	for(auto & k : kernel)
+		k /= sum;
+	std::vector<float> a(static_cast<size_t>(w) * h), t(a.size());
+	for(int y = 0; y < h; ++y)
+	{
+		const QRgb * line = reinterpret_cast<const QRgb *>(image.constScanLine(y));
+		for(int x = 0; x < w; ++x)
+			a[static_cast<size_t>(y) * w + x] = qAlpha(line[x]) / 255.0f;
+	}
+	for(int y = 0; y < h; ++y) // across (nothing outside the picture)
+		for(int x = 0; x < w; ++x)
+		{
+			float v = 0;
+			for(int i = std::max(-radius, -x); i <= std::min(radius, w - 1 - x); ++i)
+				v += a[static_cast<size_t>(y) * w + x + i] * kernel[i + radius];
+			t[static_cast<size_t>(y) * w + x] = v;
+		}
+	const auto step = [](float low, float high, float v)
+	{
+		const float k = std::clamp((v - low) / (high - low), 0.0f, 1.0f);
+		return k * k * (3 - 2 * k);
+	};
+	for(int y = 0; y < h; ++y) // down, and back into the picture
+	{
+		QRgb * line = reinterpret_cast<QRgb *>(image.scanLine(y));
+		for(int x = 0; x < w; ++x)
+		{
+			float v = 0;
+			for(int i = std::max(-radius, -y); i <= std::min(radius, h - 1 - y); ++i)
+				v += t[static_cast<size_t>(y + i) * w + x] * kernel[i + radius];
+			line[x] = qRgba(qRed(line[x]), qGreen(line[x]), qBlue(line[x]), static_cast<int>(std::lround(step(0.28f, 0.62f, v) * 255.0f)));
+		}
+	}
+}
+
 bool LegacyPicturesWorker::sharpenButtons(const QString & exe, bool & usedProgram)
 {
 	// the buttons of the Complete release, cut out of the player's own sprite archive with the glow taken away (MenuBackgrounds), each
@@ -502,6 +606,7 @@ bool LegacyPicturesWorker::sharpenButtons(const QString & exe, bool & usedProgra
 				const int sharp = a > 170 ? 255 : (a < 70 ? 0 : (a - 70) * 255 / 100);
 				cut.setPixel(x, y, qRgba(qRed(cut.pixel(x, y)), qGreen(cut.pixel(x, y)), qBlue(cut.pixel(x, y)), sharp));
 			}
+		smoothContour(cut, 5.0);
 		const QString name = it.key().section('_', 0, 0);
 		const int frameNumber = it.key().section('_', 1, 1).toInt();
 		for(int factor = 2; factor <= 4; ++factor)

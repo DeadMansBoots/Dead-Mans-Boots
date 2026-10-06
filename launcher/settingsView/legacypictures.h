@@ -25,7 +25,7 @@ class LegacyPicturesWorker : public QThread
 
 public:
 	/// the steps change what the files hold: a run with another number sharpens everything again
-	static constexpr int PIPELINE_VERSION = 3;
+	static constexpr int PIPELINE_VERSION = 4;
 
 	explicit LegacyPicturesWorker(QObject * parent = nullptr);
 
@@ -52,6 +52,7 @@ private:
 		QString needsMod; // only with this mod installed; empty for the game's own releases
 		QString url;
 		QString sha1;
+		qint64 bytes = 0; // the file's size, from the wiki's own answer (0 where it gave none)
 		QString originalPath;
 	};
 
@@ -59,7 +60,7 @@ private:
 	QString failure;
 
 	static QVector<Picture> selection();
-	QByteArray fetch(const QUrl & url, bool wiki, int timeoutMs = 120000, std::function<void(qint64, qint64)> bytes = {});
+	QByteArray fetch(const QUrl & url, bool wiki, int timeoutMs = 120000, std::function<void(qint64, qint64, double)> bytes = {});
 	void report(int stage, double fraction, const QString & detail);
 	bool cancelled() const;
 	bool queryWiki(QVector<Picture> & pictures);

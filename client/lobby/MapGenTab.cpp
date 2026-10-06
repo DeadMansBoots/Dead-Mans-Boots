@@ -1042,6 +1042,125 @@ std::string MapGenTab::preset() const
 	return defaults["preset"].isString() ? defaults["preset"].String() : std::string();
 }
 
+namespace
+{
+/// K, October 5th: "we should expand the template selection window with a side window that gives some details on the template: original game
+/// size, player counts, underground on/off, etc and also give a description of what makes it unique as a template". The panel stands to the right
+/// of the template list and shows the entry that is selected; its facts and description are the module's own template-info.json
+class TemplateInfoPanel : public CIntObject
+{
+	std::shared_ptr<FilledTexturePlayerColored> background;
+	std::shared_ptr<TransparentFilledRectangle> frame;
+	std::shared_ptr<CLabel> title;
+	std::shared_ptr<CTextBox> body;
+	JsonNode info;
+	std::vector<std::string> values;
+
+	static std::string whole(const JsonNode & node)
+	{
+		return node.isNumber() ? std::to_string(static_cast<int>(node.Float())) : std::string();
+	}
+
+public:
+	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues)
+		: CIntObject(0, area.topLeft()), info(infoFile), values(std::move(entryValues))
+	{
+		OBJECT_CONSTRUCTION;
+		pos.w = area.w;
+		pos.h = area.h;
+		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, area.w, area.h));
+		background->setPlayerColor(PlayerColor(1));
+		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, area.w, area.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2);
+		title = std::make_shared<CLabel>(area.w / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
+		body = std::make_shared<CTextBox>("", Rect(14, 44, area.w - 28, area.h - 58), 1);
+	}
+
+	void show(size_t index)
+	{
+		const std::string value = index < values.size() ? values[index] : std::string();
+		if(value.empty())
+		{
+			title->setText(tabText("template.none"));
+			body->setText(tabText("template.details.none"));
+			return;
+		}
+		if(value == RANDOM_TEMPLATE)
+		{
+			title->setText(tabText("template.random"));
+			body->setText(tabText("template.details.random"));
+			return;
+		}
+		title->setText(value);
+		const JsonNode & entry = info["templates"][value];
+		if(!entry.isStruct())
+		{
+			body->setText(tabText("template.details.missing"));
+			return;
+		}
+		std::string text;
+		const auto line = [&text](const std::string & label, const std::string & content)
+		{
+			if(!content.empty())
+				text += "{" + label + "} " + content + "\n";
+		};
+		std::string size = whole(entry["originalSizeMin"]);
+		if(!whole(entry["originalSizeMax"]).empty() && whole(entry["originalSizeMax"]) != size)
+			size += (size.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["originalSizeMax"]);
+		if(!size.empty())
+			size += " " + tabText("template.details.tiles");
+		if(entry["originalSizeNames"].isString() && !size.empty())
+			size += " (" + entry["originalSizeNames"].String() + ")";
+		line(tabText("template.details.size"), size);
+		std::string players = whole(entry["playersMin"]);
+		if(!whole(entry["playersMax"]).empty() && whole(entry["playersMax"]) != players)
+			players += (players.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["playersMax"]);
+		line(tabText("template.details.players"), players);
+		line(tabText("template.details.humans"), whole(entry["humansMax"]));
+		line(tabText("template.details.underground"), entry["underground"].isString() ? entry["underground"].String() : std::string());
+		std::string zones = whole(entry["zones"]);
+		if(!zones.empty() && entry["zonesByKind"].isStruct())
+		{
+			std::string kinds;
+			for(const auto & kind : entry["zonesByKind"].Struct())
+				kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
+			zones += " (" + kinds + ")";
+		}
+		line(tabText("template.details.zones"), zones);
+		if(entry["description"].isString())
+			text += "\n" + entry["description"].String();
+		body->setText(text);
+	}
+};
+
+/// the template list, with the panel beside it
+class TemplateListWindow : public CObjectListWindow
+{
+	std::shared_ptr<TemplateInfoPanel> panel;
+
+public:
+	TemplateListWindow(const std::vector<std::string> & names, const std::vector<std::string> & values, const JsonNode & infoFile,
+		std::string heading, std::string description, std::function<void(int)> callback, size_t current)
+		: CObjectListWindow(names, nullptr, heading, description, callback, current, std::vector<std::shared_ptr<IImage>>(), true)
+	{
+		OBJECT_CONSTRUCTION;
+		if(!infoFile["templates"].isStruct())
+			return; // a module without template-info.json has no panel
+		const int gap = 6, width = 310, height = 500;
+		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values);
+		panel->show(current);
+		onClicked = [this](int index) { panel->show(static_cast<size_t>(index)); };
+		moveBy(Point(-(width + gap) / 2, 0)); // the list and the panel together stay centred
+	}
+
+	void keyPressed(EShortcut key) override
+	{
+		CObjectListWindow::keyPressed(key);
+		if(panel)
+			panel->show(selected);
+	}
+};
+}
+
 void MapGenTab::chooseTemplate()
 {
 	// only the templates K approved (approved-templates.json), whatever the install offers; the generator fits the template
@@ -1066,7 +1185,18 @@ void MapGenTab::chooseTemplate()
 	for(size_t i = 0; i < values.size(); ++i)
 		if(values[i] == chosen)
 			current = i;
-	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr,
+	// the module's template-info.json beside its mod.json: what the panel beside the list shows
+	JsonNode details;
+	if(const auto folder = AddonCode::modFolder(generator.modID))
+	{
+		std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			details = JsonNode(text.data(), text.size(), "template-info.json");
+		}
+	}
+	ENGINE->windows().createAndPushWindow<TemplateListWindow>(names, values, details,
 		tabText("template.hover"),
 		tabText("template.choose"),
 		[this, values](int index)
@@ -1079,7 +1209,7 @@ void MapGenTab::chooseTemplate()
 			}
 			refreshPages();
 			updateMapInfoByHost();
-		}, current, std::vector<std::shared_ptr<IImage>>(), true);
+		}, current);
 }
 
 void MapGenTab::generate()

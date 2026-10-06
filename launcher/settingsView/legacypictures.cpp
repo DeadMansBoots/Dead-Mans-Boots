@@ -11,7 +11,11 @@
 #include "legacypictures.h"
 
 #include <QCryptographicHash>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QEventLoop>
+#include <QFileDialog>
+#include <QMimeData>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -38,6 +42,9 @@ const char * SHARPENER_MODEL = "realesrgan-x4plus";
 // the backdrop the sharpener sees: as dark as the buttons' own outline, so what it blurs into the edge is outline and not a pale haze
 const QColor FLAT_GREY(22, 18, 20);
 const int MARGIN = 8; // pixels round a button for the sharpener
+// every original of the wiki is 800x600 (checked on all thirteen); an own copy of another size is refused
+const int OWN_WIDTH = 800;
+const int OWN_HEIGHT = 600;
 
 const QStringList BUTTONS = {"MMENUNG", "MMENULG", "MMENUHS", "MMENUCR", "MMENUQT", "GTSINGL", "GTMULTI", "GTCAMPN", "GTTUTOR", "GTBACK"};
 const char * BUTTON_RELEASE = "h3bitmap";
@@ -125,10 +132,77 @@ QVector<LegacyPicturesWorker::Picture> LegacyPicturesWorker::selection()
 	add("SoD Lich.png", "Shadow of Death", false);
 
 	QVector<Picture> chosen;
-	for(const auto & p : all)
+	for(auto p : all)
 		if(p.needsMod.isEmpty() || !MenuBackgrounds::modFolder(p.needsMod.toStdString()).empty())
+		{
+			// the player's own copy, where one is kept and still reads as a picture of the right size
+			const QString own = ownFolder() + "/" + p.wikiName;
+			if(QFile::exists(own))
+			{
+				const QImage image(own);
+				if(!image.isNull() && image.size() == QSize(OWN_WIDTH, OWN_HEIGHT))
+					p.ownPath = own;
+			}
 			chosen.push_back(p);
+		}
 	return chosen;
+}
+
+QString LegacyPicturesWorker::ownFolder()
+{
+	return baseFolder() + "/Own";
+}
+
+/// "Shadow of Death.png" and "shadow_of_death" are the same name
+static QString nameKey(QString name)
+{
+	name = QFileInfo(name).completeBaseName().toLower();
+	QString key;
+	for(const QChar ch : name)
+		if(ch.isLetterOrNumber())
+			key += ch;
+	return key;
+}
+
+QStringList LegacyPicturesWorker::importOwnCopies(const QStringList & files)
+{
+	QStringList lines;
+	QDir().mkpath(ownFolder());
+	const auto known = selection();
+	for(const QString & file : files)
+	{
+		const QString shown = QFileInfo(file).fileName();
+		const QString key = nameKey(file);
+		const Picture * match = nullptr;
+		for(const auto & p : known)
+			if(key == nameKey(p.title) || key == nameKey(p.wikiName))
+				match = &p;
+		if(match == nullptr)
+		{
+			lines << tr("%1: not used, no picture is named like it (for example Shadow of Death.png).").arg(shown);
+			continue;
+		}
+		const QImage image(file);
+		if(image.isNull())
+		{
+			lines << tr("%1: not used, it is not a picture the launcher can read.").arg(shown);
+			continue;
+		}
+		if(image.size() != QSize(OWN_WIDTH, OWN_HEIGHT))
+		{
+			lines << tr("%1: not used, it is %2x%3 and the originals are %4x%5.").arg(shown).arg(image.width()).arg(image.height()).arg(OWN_WIDTH).arg(OWN_HEIGHT);
+			continue;
+		}
+		const QString target = ownFolder() + "/" + match->wikiName;
+		QFile::remove(target);
+		if(!image.save(target, "PNG"))
+		{
+			lines << tr("%1: could not be kept in %2.").arg(shown, ownFolder());
+			continue;
+		}
+		lines << tr("%1: kept as your own copy of %2.").arg(shown, match->title);
+	}
+	return lines;
 }
 
 QPair<int, int> LegacyPicturesWorker::plannedCounts()
@@ -253,7 +327,7 @@ bool LegacyPicturesWorker::queryWiki(QVector<Picture> & pictures)
 		const int to = std::min<int>(pictures.size(), from + 40);
 		for(int i = from; i < to; ++i)
 			titles << ("File:" + pictures[i].wikiName);
-		QUrl url(WIKI_API);
+		QUrl url(qEnvironmentVariable("DMB_LEGACY_WIKI", WIKI_API)); // the variable is a test hook: where the wiki cannot be reached
 		QUrlQuery query;
 		query.addQueryItem("action", "query");
 		query.addQueryItem("format", "json");
@@ -283,7 +357,7 @@ bool LegacyPicturesWorker::queryWiki(QVector<Picture> & pictures)
 		}
 	}
 	for(const auto & p : pictures)
-		if(p.url.isEmpty())
+		if(p.url.isEmpty() && p.ownPath.isEmpty())
 		{
 			failure = QString("the wiki has no picture named %1 any more").arg(p.wikiName);
 			return false;
@@ -305,6 +379,27 @@ bool LegacyPicturesWorker::downloadOriginals(QVector<Picture> & pictures)
 		{
 			failure = "stopped";
 			return false;
+		}
+		if(!p.ownPath.isEmpty())
+		{
+			// the player's own copy stands in for the wiki's file: checked when it was taken and again when it was read for this run
+			report(1, static_cast<double>(done) / pictures.size(), tr("Picture %1 of %2: %3, from your own copy").arg(done + 1).arg(pictures.size()).arg(p.title));
+			p.originalPath = folder + "/" + p.wikiName;
+			const QString ownSha = fileSha(p.ownPath, QCryptographicHash::Sha1);
+			if(!(QFile::exists(p.originalPath) && fileSha(p.originalPath, QCryptographicHash::Sha1) == ownSha))
+			{
+				QFile::remove(p.originalPath);
+				if(!QFile::copy(p.ownPath, p.originalPath))
+				{
+					failure = QString("your own copy of %1 could not be copied").arg(p.title);
+					return false;
+				}
+			}
+			p.sha1 = ownSha;
+			p.bytes = QFileInfo(p.ownPath).size();
+			++done;
+			doneBytes += p.bytes;
+			continue;
 		}
 		// the line of this picture: its own bytes and rate, and the pictures so far of all of them
 		const auto line = [&](qint64 got, qint64 all, double rate)
@@ -1003,7 +1098,7 @@ void LegacyPicturesWorker::writeIndex(const QVector<Picture> & pictures, bool us
 	QJsonArray files;
 	for(const auto & p : pictures)
 		files.append(QJsonObject{{"file", p.wikiName}, {"title", p.title}, {"kind", p.loading ? "loading screen" : "menu picture"},
-			{"bytes", QFileInfo(p.originalPath).size()}, {"sha1", p.sha1}, {"wiki", "https://heroes.thelazy.net/index.php/File:" + QString(p.wikiName).replace(' ', '_')}});
+			{"bytes", QFileInfo(p.originalPath).size()}, {"sha1", p.sha1}, {"source", p.ownPath.isEmpty() ? "wiki" : "own copy"}, {"wiki", "https://heroes.thelazy.net/index.php/File:" + QString(p.wikiName).replace(' ', '_')}});
 	QJsonObject index{{"pipeline", PIPELINE_VERSION}, {"finished", QDateTime::currentDateTime().toString(Qt::ISODate)},
 		{"sharpened", usedProgram ? "realesrgan-x4plus" : "smooth resize (the sharpener could not run)"}, {"files", files}};
 	QFile file(baseFolder() + "/index.json");
@@ -1019,7 +1114,24 @@ void LegacyPicturesWorker::run()
 	QDir().mkpath(baseFolder());
 	QVector<Picture> pictures = selection();
 	report(0, 0.0, tr("Asking the Heroes III wiki which pictures there are"));
-	if(!queryWiki(pictures) || !downloadOriginals(pictures))
+	int leftOut = 0;
+	if(!queryWiki(pictures) && !cancelled())
+	{
+		// the wiki did not answer (or lacks a picture): the pictures with an own copy, or already answered, go on; the rest are left out
+		QVector<Picture> usable;
+		for(const auto & p : pictures)
+			if(!p.ownPath.isEmpty() || !p.url.isEmpty())
+				usable.push_back(p);
+		if(usable.isEmpty() || std::none_of(usable.begin(), usable.end(), [](const Picture & p) { return !p.ownPath.isEmpty(); }))
+		{
+			emit finishedWith(false, failure.isEmpty() ? QString("the wiki could not be asked") : failure);
+			return;
+		}
+		leftOut = pictures.size() - usable.size();
+		pictures = usable;
+		failure.clear();
+	}
+	if(cancelled() || !downloadOriginals(pictures))
 	{
 		emit finishedWith(false, failure.isEmpty() ? QString("the download did not finish") : failure);
 		return;
@@ -1067,11 +1179,19 @@ void LegacyPicturesWorker::run()
 	report(5, 0.7, tr("Adding the pictures to the lists"));
 	MenuBackgrounds::rescan();
 	report(5, 1.0, tr("Done"));
-	int loading = 0, menus = 0;
+	int loading = 0, menus = 0, own = 0;
 	for(const auto & p : pictures)
+	{
 		(p.loading ? loading : menus) += 1;
-	emit finishedWith(true, QString("%1 loading screens and %2 menu pictures added, with the menu buttons, %3. Pick them in the Main menu background and Loading screen lists.")
-		.arg(loading).arg(menus).arg(usedProgram ? "all sharpened 4x" : "enlarged smoothly (the sharpener could not run on this computer)"));
+		own += p.ownPath.isEmpty() ? 0 : 1;
+	}
+	QString message = QString("%1 loading screens and %2 menu pictures added, with the menu buttons, %3. Pick them in the Main menu background and Loading screen lists.")
+		.arg(loading).arg(menus).arg(usedProgram ? "all sharpened 4x" : "enlarged smoothly (the sharpener could not run on this computer)");
+	if(own > 0)
+		message += QString(" %1 of the pictures are your own copies.").arg(own);
+	if(leftOut > 0)
+		message += QString(" The wiki could not be reached, so %1 pictures that you have no own copy of were left out; press Start again when it can be.").arg(leftOut);
+	emit finishedWith(true, message);
 }
 
 LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
@@ -1085,7 +1205,8 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 		"(about 10 MB, one picture at a time), cuts the menu buttons out of your own game files, and sharpens everything 4 times larger with "
 		"Real-ESRGAN (a small program of about 45 MB, fetched once, which needs a graphics card; without one the pictures are only "
 		"enlarged smoothly). Everything goes in your own Dead Man's Boots folder (%3). Nothing is installed apart from that, and it runs "
-		"only while this window is open.").arg(counts.first).arg(counts.second).arg(LegacyPicturesWorker::baseFolder()), this);
+		"only while this window is open. Your own copies of the pictures (800x600, named like the originals, for example Shadow of Death.png) "
+		"are used in place of the wiki's: press My own copies, or drop the files on this window.").arg(counts.first).arg(counts.second).arg(LegacyPicturesWorker::baseFolder()), this);
 	plan->setWordWrap(true);
 	layout->addWidget(plan);
 	bar = new QProgressBar(this);
@@ -1103,12 +1224,14 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 	layout->addWidget(step);
 	status = new QLabel(QString(), this);
 	status->setWordWrap(true);
-	status->setMinimumHeight(40);
+	status->setMinimumHeight(100); // room for the line of each own copy that was taken or refused
 	layout->addWidget(status);
 	auto * row = new QHBoxLayout();
 	row->addStretch(1);
+	own = new QPushButton(tr("My own copies..."), this);
 	start = new QPushButton(tr("Start"), this);
 	cancel = new QPushButton(tr("Cancel"), this);
+	row->addWidget(own);
 	row->addWidget(start);
 	row->addWidget(cancel);
 	layout->addLayout(row);
@@ -1116,11 +1239,23 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 	bar->setObjectName("legacyPicturesBar");
 	status->setObjectName("legacyPicturesStatus");
 	step->setObjectName("legacyPicturesStep");
-	plan->setMinimumHeight(190);
+	plan->setMinimumHeight(235);
 	start->setObjectName("legacyPicturesStart");
+	own->setObjectName("legacyPicturesOwn");
+	own->setAutoDefault(false);
+	start->setDefault(true); // Return starts the run, as before the own copies button was there
+	setAcceptDrops(true);
 	cancel->setObjectName("legacyPicturesCancel");
 
 	connect(start, &QPushButton::clicked, this, &LegacyPicturesDialog::begin);
+	connect(own, &QPushButton::clicked, this, [this]()
+	{
+		takeFiles(QFileDialog::getOpenFileNames(this, tr("Your own copies of the pictures"), QString(), tr("Pictures (*.png *.jpg *.jpeg *.bmp *.gif);;All files (*)")));
+	});
+	// a test hook: DMB_LEGACY_IMPORT is a list of picture files (separated by semicolons) taken as if chosen in the file dialog
+	const QString hook = qEnvironmentVariable("DMB_LEGACY_IMPORT");
+	if(!hook.isEmpty())
+		QTimer::singleShot(0, this, [this, hook]() { takeFiles(hook.split(';', Qt::SkipEmptyParts)); });
 	connect(cancel, &QPushButton::clicked, this, [this]()
 	{
 		if(worker && worker->isRunning())
@@ -1140,6 +1275,34 @@ LegacyPicturesDialog::~LegacyPicturesDialog()
 		worker->requestInterruption();
 		worker->wait(15000);
 	}
+}
+
+void LegacyPicturesDialog::takeFiles(const QStringList & files)
+{
+	if(files.isEmpty() || (worker && worker->isRunning()))
+		return;
+	step->setText(tr("Your own copies"));
+	QStringList lines = LegacyPicturesWorker::importOwnCopies(files);
+	const int shown = 5;
+	if(lines.size() > shown)
+		lines = lines.mid(0, shown) << tr("... and %1 more.").arg(lines.size() - shown);
+	status->setText(lines.join("\n"));
+	snapshot("own-copies");
+}
+
+void LegacyPicturesDialog::dragEnterEvent(QDragEnterEvent * event)
+{
+	if(event->mimeData()->hasUrls())
+		event->acceptProposedAction();
+}
+
+void LegacyPicturesDialog::dropEvent(QDropEvent * event)
+{
+	QStringList files;
+	for(const QUrl & url : event->mimeData()->urls())
+		if(url.isLocalFile())
+			files << url.toLocalFile();
+	takeFiles(files);
 }
 
 void LegacyPicturesDialog::snapshot(const QString & name)

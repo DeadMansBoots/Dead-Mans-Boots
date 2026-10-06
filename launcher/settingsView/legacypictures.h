@@ -11,6 +11,9 @@
 
 #include "../StdInc.h"
 
+class QDragEnterEvent;
+class QDropEvent;
+
 class QNetworkAccessManager;
 
 /// DMB: "Get legacy menu themes and load screens" (K, October 4th: one button, the launcher does the rest). Downloads the original main
@@ -35,6 +38,15 @@ public:
 	/// the folder everything of this step is kept in (the player's DMB folder, LegacyPictures)
 	static QString baseFolder();
 
+	/// K, October 6th: "allow the user to provide their own copies of the ROE and SOD copies to the launcher (should the wiki sources ever go down,
+	/// this is where my offline backups would come in)". The player's own copies of the pictures are kept in LegacyPictures/Own, under the wiki's name
+	/// of each picture, and a run uses them in place of the wiki's file (and without the wiki, where it cannot be reached).
+	static QString ownFolder();
+
+	/// takes picture files the player chose or dropped: each is matched to a picture of the list by its name ("Shadow of Death.png"), checked
+	/// (a picture the launcher can read, 800x600 like every original) and kept as PNG in the own folder. One line of the result for each file.
+	static QStringList importOwnCopies(const QStringList & files);
+
 signals:
 	/// permille 0 to 1000 over the whole run, the step (1 based) of the steps, the step's name and a line of detail
 	void overall(int permille, int step, int steps, const QString & title, const QString & detail);
@@ -54,6 +66,7 @@ private:
 		QString sha1;
 		qint64 bytes = 0; // the file's size, from the wiki's own answer (0 where it gave none)
 		QString originalPath;
+		QString ownPath; // the player's own copy, where there is one that passed the check
 	};
 
 	QNetworkAccessManager * network = nullptr;
@@ -81,12 +94,18 @@ class LegacyPicturesDialog : public QDialog
 	QProgressBar * bar = nullptr;
 	QLabel * status = nullptr;
 	QLabel * step = nullptr;
+	QPushButton * own = nullptr;
 	QPushButton * start = nullptr;
 	QPushButton * cancel = nullptr;
 	LegacyPicturesWorker * worker = nullptr;
 
 	void begin();
 	void snapshot(const QString & name);
+	void takeFiles(const QStringList & files);
+
+protected:
+	void dragEnterEvent(QDragEnterEvent * event) override;
+	void dropEvent(QDropEvent * event) override;
 
 public:
 	explicit LegacyPicturesDialog(QWidget * parent = nullptr);

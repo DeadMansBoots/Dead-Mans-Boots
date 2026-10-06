@@ -1020,6 +1020,7 @@
 	"vcmi.dmb.mapGenerator.template.choose" : "Every template installed: the generator fits the one you pick to the map. With none, it lays out the zones itself.",
 	"vcmi.dmb.mapGenerator.template.none" : "No template: the generator's own layout",
 	"vcmi.dmb.mapGenerator.template.random" : "(Random)",
+	"vcmi.dmb.mapGenerator.template.details.noneTitle" : "No template",
 	"vcmi.dmb.mapGenerator.template.details.none" : "The generator lays the zones out itself, from the settings on the tab.",
 	"vcmi.dmb.mapGenerator.template.details.random" : "The generator picks one of the templates that fit the map.",
 	"vcmi.dmb.mapGenerator.template.details.missing" : "The template has no details written yet.",

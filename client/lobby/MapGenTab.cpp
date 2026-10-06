@@ -1092,8 +1092,9 @@ public:
 		const std::string value = values[id];
 		if(value.empty())
 		{
-			title->setText(tabText("template.none"));
-			body->setText(tabText("template.details.none"));
+			// the entry in the list is cut to the list's width: the whole line is the first line here
+			title->setText(tabText("template.details.noneTitle"));
+			body->setText("{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
 			return;
 		}
 		if(value == RANDOM_TEMPLATE)

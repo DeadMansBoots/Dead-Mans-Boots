@@ -469,6 +469,22 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 				refreshPagesAfterClick();
 			}
 		}
+		if(setting == "persistent:mapGen/params/waterShape")
+		{
+			// K, October 5th: "setting the water content to islands and then setting the water layout to anything but islands should take
+			// water content back to normal" (the generator holds Islands content and Islands layout as one state). Any layout but Islands
+			// (Mediterranean, Random, Template, the rest) while the content is Islands puts the content back to Normal; the amount stays as
+			// the player set it. The page is shown again so the content buttons follow at once, after this call (see above).
+			const JsonNode & params = persistentStorage["mapGen"]["params"];
+			const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;
+			const int shape = params["waterShape"].isNumber() ? static_cast<int>(params["waterShape"].Float()) : 0;
+			if(content == WATER_ISLANDS && shape != WATER_SHAPE_ISLANDS)
+			{
+				Settings contentSetting = persistentStorage.write["mapGen"]["params"]["waterContent"];
+				contentSetting->Integer() = WATER_NORMAL;
+				refreshPagesAfterClick();
+			}
+		}
 		if(setting == "persistent:mapGen/map/size" || setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
 			greyCustomSize();
 		if(boost::algorithm::starts_with(setting, "persistent:mapGen/"))

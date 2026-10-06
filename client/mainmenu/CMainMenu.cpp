@@ -474,13 +474,11 @@ static JsonNode mainMenuWindow()
 	// the release's own buttons, from its own sprite archive, where it has them (the buttons of the one set the game resolves carry a
 	// pink glow made for the Shadow of Death picture, which shows as a halo on any other picture: K, October 3rd)
 	// (a dropped or mod-listed picture has no release of its own: it takes the first release's buttons)
-	// a release's own main picture is drawn with the buttons made for it; any other picture (the release's other two, a dropped one, a
-	// mod's) has the buttons with their glow, which was made to match that one picture, turned into a soft shadow
+	// every picture, a release's own main picture included, has the buttons with their glow, which was made to match one picture only,
+	// turned into a soft shadow (and the sharpened, HotA-sized set the launcher makes where it has run): the release's own sprites were
+	// drawn at the original size, so the two main pictures showed buttons a fifth larger than every other picture (lead, October 6th)
 	std::string buttonsOf = chosen;
-	std::string buttonsPrefix = "DMBN-";
-	for(const auto & era : MenuBackgrounds::eras())
-		if(era.id == chosen && era.entry == "GAMSELBK.PCX")
-			buttonsPrefix = "DMBM-";
+	const std::string buttonsPrefix = "DMBN-";
 	if(!std::any_of(MenuBackgrounds::eras().begin(), MenuBackgrounds::eras().end(), [&chosen](const MenuEra & era) { return era.id == chosen && !era.sprites.empty(); }))
 		for(const auto & era : MenuBackgrounds::eras())
 			if(!era.sprites.empty())

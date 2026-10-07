@@ -784,6 +784,14 @@ void GameStatePackVisitor::visitRebalanceStacks(RebalanceStacks & pack)
 	const CCreature * dstType = dstObj->getCreature(dst.slot);
 	TQuantity srcCount = srcObj->getStackCount(src.slot);
 
+	if(pack.count <= 0 || pack.count > srcCount)
+	{
+		// nothing sensible to move; the server no longer sends such a pack, and applying one used to split a stack
+		// of a negative size (both sides apply a pack alike, so doing nothing keeps them in step)
+		logGlobal->warn("RebalanceStacks: cannot move %d creatures out of a stack of %d, ignored", pack.count, srcCount);
+		return;
+	}
+
 	if(srcCount == pack.count) //moving whole stack
 	{
 		if(dstType) //stack at dest -> merge

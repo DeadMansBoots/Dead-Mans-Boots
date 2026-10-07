@@ -146,7 +146,7 @@ void CStackInstance::setCount(TQuantity newCount)
 {
 	assert(newCount >= 0);
 
-	if(newCount < getCount())
+	if(newCount < getCount() && getCount() > 0) //a stack of no creatures has no average to keep (this divided by zero, October 6th 2026)
 	{
 		TExpType averageExperience = totalExperience / getCount();
 		totalExperience = averageExperience * newCount;

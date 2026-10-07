@@ -63,6 +63,28 @@ namespace po_style = boost::program_options::command_line_style;
 static std::atomic<bool> headlessQuit = false;
 static std::optional<std::string> criticalInitializationError;
 
+/// The client's log is written fresh at every launch, so a crash was lost the moment the player started the game
+/// again (October 6th 2026, the log of a crash survived only as a copy made by hand). The last three runs' logs are
+/// kept beside it as VCMI_Client_log.1.txt (the previous run), .2.txt and .3.txt. Never throws: a log that cannot be
+/// moved (another client has it open) is left as it is.
+static void keepPreviousLogs(const boost::filesystem::path & logPath, int keep)
+{
+	boost::system::error_code ec;
+	if(!boost::filesystem::is_regular_file(logPath, ec))
+		return;
+
+	auto numbered = [&](int n)
+	{
+		return logPath.parent_path() / (logPath.stem().string() + "." + std::to_string(n) + logPath.extension().string());
+	};
+
+	boost::filesystem::remove(numbered(keep), ec);
+	for(int n = keep - 1; n >= 1; --n)
+		if(boost::filesystem::exists(numbered(n), ec))
+			boost::filesystem::rename(numbered(n), numbered(n + 1), ec);
+	boost::filesystem::rename(logPath, numbered(1), ec);
+}
+
 static void init()
 {
 	try
@@ -202,6 +224,7 @@ int main(int argc, char * argv[])
 	boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "VCMI_Client_log.txt";
 	if(vm.count("logLocation"))
 		logPath = vm["logLocation"].as<std::string>() + "/VCMI_Client_log.txt";
+	keepPreviousLogs(logPath, 3);
 
 #ifndef VCMI_IOS
 

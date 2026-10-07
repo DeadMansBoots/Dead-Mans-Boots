@@ -12,7 +12,9 @@
 #include "CConfigHandler.h"
 
 #include "CThreadHelper.h"
+#include "VCMIDirs.h"
 
+#include <boost/filesystem.hpp>
 #include <boost/stacktrace.hpp>
 
 #if defined(NDEBUG) && !defined(VCMI_ANDROID)
@@ -54,22 +56,51 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 #ifdef CREATE_MEMORY_DUMP
 
+/// Keeps the newest few crash dumps of this program in the logs folder, so crashes over weeks do not fill the disk
+static void pruneOldDumps(const boost::filesystem::path & folder, const std::string & prefix, size_t keep)
+{
+	boost::system::error_code ec;
+	std::vector<std::pair<std::time_t, boost::filesystem::path>> dumps;
+	for(boost::filesystem::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec))
+	{
+		const auto name = it->path().filename().string();
+		if(name.rfind(prefix, 0) == 0 && it->path().extension() == ".dmp")
+			dumps.emplace_back(boost::filesystem::last_write_time(it->path(), ec), it->path());
+	}
+	std::sort(dumps.begin(), dumps.end());
+	for(size_t i = 0; i + keep < dumps.size(); ++i)
+		boost::filesystem::remove(dumps[i].second, ec);
+}
+
 static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 {
-	//create file where dump will be placed
-	char *mname = nullptr;
-	char buffer[MAX_PATH + 1];
-	HMODULE hModule = nullptr;
-	GetModuleFileNameA(hModule, buffer, MAX_PATH);
-	mname = strrchr(buffer, '\\');
-	if (mname != nullptr)
-		mname++;
-	else
-		mname = buffer;
+	// The dump goes into the logs folder beside the game's log (Documents\My Games\Dead Man's Boots\logs), named by
+	// program, time and thread: the program's own folder is often not writable for the player (an installer puts it
+	// under an administrator-owned folder), so the old place, next to the program, got no dump at all (October 6th 2026)
+	char buffer[MAX_PATH + 1] = {};
+	GetModuleFileNameA(nullptr, buffer, MAX_PATH);
+	const char * program = strrchr(buffer, '\\');
+	program = program ? program + 1 : buffer;
 
-	strcat(mname, "_crashinfo.dmp");
-	HANDLE dfile = CreateFileA(mname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_WRITE|FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
-	logGlobal->error("Crash info will be put in %s", mname);
+	SYSTEMTIME now;
+	GetLocalTime(&now);
+	char stamp[64];
+	snprintf(stamp, sizeof(stamp), "%04d-%02d-%02d_%02d-%02d-%02d_thread%lu", now.wYear, now.wMonth, now.wDay,
+		now.wHour, now.wMinute, now.wSecond, static_cast<unsigned long>(GetCurrentThreadId()));
+
+	boost::system::error_code ec;
+	boost::filesystem::path folder = VCMIDirs::get().userLogsPath();
+	boost::filesystem::create_directories(folder, ec);
+	const std::string prefix = std::string(program) + "_crash_";
+	const boost::filesystem::path dumpPath = folder / (prefix + stamp + ".dmp");
+
+	HANDLE dfile = CreateFileW(dumpPath.c_str(), GENERIC_READ|GENERIC_WRITE, FILE_SHARE_WRITE|FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
+	if(dfile == INVALID_HANDLE_VALUE)
+	{
+		logGlobal->error("Crash info could not be written to %s (error %lu)", dumpPath.string(), static_cast<unsigned long>(GetLastError()));
+		return;
+	}
+	logGlobal->error("Crash info will be put in %s", dumpPath.string());
 
 	auto dumpType = MiniDumpWithDataSegs;
 
@@ -84,6 +115,8 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	}
 
 	MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dfile, dumpType, meinfo, nullptr, nullptr);
+	CloseHandle(dfile);
+	pruneOldDumps(folder, prefix, 5);
 	MessageBoxA(0, "VCMI has crashed. We are sorry. File with information about encountered problem has been created.", "VCMI Crashhandler", MB_OK | MB_ICONERROR);
 }
 
@@ -117,10 +150,36 @@ const char* exceptionName(DWORD exc)
 		EXC_CASE(INVALID_DISPOSITION);
 		EXC_CASE(GUARD_PAGE);
 		EXC_CASE(INVALID_HANDLE);
+	case 0xE06D7363: return "C++ EXCEPTION";
 	default:
 		return "UNKNOWN EXCEPTION";
 	}
 #undef EXC_CASE
+}
+
+/// "VCMI_lib.dll+0x1a2b3c" plus the function name when a matching .pdb sits beside the program
+static std::string describeAddress(HANDLE process, const void * address)
+{
+	std::string text = "?";
+	HMODULE module = nullptr;
+	char file[MAX_PATH + 1] = {};
+	if(GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, static_cast<LPCSTR>(address), &module)
+		&& GetModuleFileNameA(module, file, MAX_PATH))
+	{
+		const char * name = strrchr(file, '\\');
+		char offset[40];
+		snprintf(offset, sizeof(offset), "+0x%llx", static_cast<unsigned long long>(reinterpret_cast<const char *>(address) - reinterpret_cast<const char *>(module)));
+		text = std::string(name ? name + 1 : file) + offset;
+	}
+
+	alignas(SYMBOL_INFO) char symbolBuffer[sizeof(SYMBOL_INFO) + 256] = {};
+	auto * symbol = reinterpret_cast<SYMBOL_INFO *>(symbolBuffer);
+	symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+	symbol->MaxNameLen = 255;
+	DWORD64 displacement = 0;
+	if(SymFromAddr(process, reinterpret_cast<DWORD64>(address), &displacement, symbol))
+		text += std::string(" ") + symbol->Name + "+0x" + std::to_string(displacement);
+	return text;
 }
 
 LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* exception)
@@ -129,10 +188,24 @@ LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* exception)
 
 	PEXCEPTION_RECORD einfo = exception->ExceptionRecord;
 
+	// which exception, and where: before October 7th 2026 only an access violation was named, so a crash by any other
+	// kind (a division by zero, say) left nothing to go on in the log
+	const HANDLE process = GetCurrentProcess();
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_FAIL_CRITICAL_ERRORS);
+	SymInitialize(process, nullptr, TRUE);
+	logGlobal->error("Exception %s (0x%08lx) at %s", exceptionName(einfo->ExceptionCode), static_cast<unsigned long>(einfo->ExceptionCode),
+		describeAddress(process, einfo->ExceptionAddress));
+
 	if (einfo->ExceptionCode == EXCEPTION_ACCESS_VIOLATION)
 	{
 		logGlobal->error("Attempt to %s 0x%8x", (einfo->ExceptionInformation[0] == 1 ? "write to" : "read from"), (void*)einfo->ExceptionInformation[1]);
 	}
+
+	void * frames[48] = {};
+	const USHORT frameCount = CaptureStackBackTrace(0, 48, frames, nullptr);
+	for(USHORT i = 0; i < frameCount; ++i)
+		logGlobal->error("  frame %d: %s", static_cast<int>(i), describeAddress(process, frames[i]));
+
 	const DWORD threadId = ::GetCurrentThreadId();
 	logGlobal->error("Thread ID: %d", threadId);
 

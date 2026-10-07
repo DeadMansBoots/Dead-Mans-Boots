@@ -2072,6 +2072,22 @@ bool CGameHandler::arrangeStacks(ObjectInstanceID id1, ObjectInstanceID id2, ui8
 				return false;
 			}
 
+			if (countToMove == 0)
+				return true; //the slider was left where the destination already stands: nothing to move
+
+			if (countToMove < 0)
+			{
+				// The split window lets the destination end up with fewer creatures than it has now (the slider
+				// goes either way), which means creatures go back to the source. The pack used to be sent with the
+				// negative count, and applying it divided by zero in CStackInstance's constructor, killing the
+				// server and the client (K's Death Valley crash, October 6th 2026).
+				if (notRemovable(s2))
+					return false;
+
+				moveStack(sl2, sl1, -countToMove);
+				return true;
+			}
+
 			if (notRemovable(s1))
 			{
 				if (s1->getStackCount(p1) > countLeftOnSrc)

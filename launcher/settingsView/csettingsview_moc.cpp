@@ -585,7 +585,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 7; // the four slots, the main menu background, the loading screen and the legacy pictures button
+		constexpr int added = 8; // the four slots, the main menu background, the loading screen, the legacy pictures button and the keep-running toggle
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -682,6 +682,24 @@ void CSettingsView::buildCategoryPages()
 			});
 			dialog.exec();
 			showLegacyState();
+		});
+
+		// K, October 6th: a setting for the launcher's behaviour, an on/off toggle "Keep Dead Man's Boots Launcher running when you launch the
+		// game". Off is how it always was: the launcher closes once the game has started
+		auto * keepLabel = new QLabel(tr("Keep Dead Man's Boots Launcher running when you launch the game"), this);
+		keepLabel->setWordWrap(true);
+		auto * keepButton = new QToolButton(this);
+		keepButton->setObjectName("buttonKeepLauncherRunning");
+		keepButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+		keepButton->setCheckable(true);
+		setCheckbuttonState(keepButton, settings["launcher"]["keepRunning"].Bool());
+		cells.push_back({new QWidgetItem(keepLabel), row + 3, 0, 1, 1});
+		cells.push_back({new QWidgetItem(keepButton), row + 3, 1, 1, 5});
+		connect(keepButton, &QToolButton::toggled, this, [this, keepButton](bool value)
+		{
+			Settings node = settings.write["launcher"]["keepRunning"];
+			node->Bool() = value;
+			updateCheckbuttonText(keepButton);
 		});
 	}
 

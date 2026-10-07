@@ -13,6 +13,7 @@
 #include "prepare.h"
 
 #include "../lib/VCMIDirs.h"
+#include "../lib/CConfigHandler.h"
 
 #include <QApplication>
 #include <QNetworkProxy>
@@ -128,7 +129,9 @@ void startExecutable(QString name, const QStringList & args)
 #if defined(VCMI_MAC) || defined(VCMI_WINDOWS)
 	if(process.startDetached(name, args))
 	{
-		qApp->quit();
+		// DMB: Settings, General, "Keep Dead Man's Boots Launcher running when you launch the game"; off closes it, as it always did
+		if(!settings["launcher"]["keepRunning"].Bool())
+			qApp->quit();
 	}
 	else
 	{

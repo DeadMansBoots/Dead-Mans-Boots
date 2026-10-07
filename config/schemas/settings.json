@@ -807,6 +807,7 @@
 				"fullModExtraction",
 				"ignoreSslErrors",
 				"updateOnStartup",
+				"keepRunning",
 				"updateConfigUrl",
 				"trackClipboardState",
 				"dmbHomepage",
@@ -878,6 +879,11 @@
 				"updateOnStartup" : {
 					"type" : "boolean",
 					"default" : true
+				},
+				"keepRunning" : {
+					// DMB (K, October 6th): the launcher stays open when the game starts; off is how it always was (it closes)
+					"type" : "boolean",
+					"default" : false
 				},
 				"updateConfigUrl" : {
 					"type" : "string",

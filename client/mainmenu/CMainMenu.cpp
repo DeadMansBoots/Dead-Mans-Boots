@@ -1053,6 +1053,11 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 		phasePos = Point(conf["phase"]["x"].Integer(), conf["phase"]["y"].Integer());
 	else if(loadbarConfig.isStruct())
 		phasePos = Point(loadbarConfig["x"].Integer() + loadbarConfig["size"].Integer() * loadbarConfig["amount"].Integer() / 2, loadbarConfig["y"].Integer() - 12);
+	// the player's loading pictures: Horn of the Abyss's carry a gold frame of their own round the bar, with an ornament standing
+	// above its middle, and the stage text sat on that ornament (K, October 6th: "our map generation/loading screen text
+	// overlaps with their cool bar"); the text goes above the ornament, 12 px higher in the 800x600 layout
+	if(customPicture && !conf["phase"].isStruct())
+		phasePos.y -= 12;
 	phaseLabel = std::make_shared<CLabel>(phasePos.x, phasePos.y, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
 }
 

@@ -926,7 +926,21 @@ void CServerHandler::debugStartTest(std::string filename, bool save)
 	else
 		startLocalServerAndConnect(false);
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	// Wait for the connection itself and the server's hello (the state turns to LOBBY then). A fixed 100 ms pause was not
+	// enough on a busy PC: the lobby packs below went through a connection that did not exist yet, a null read in
+	// sendLobbyPack ("Attempt to read from 0x30", OmniAI's test lanes, October 7th 2026).
+	{
+		const auto giveUp = std::chrono::steady_clock::now() + std::chrono::seconds(180);
+		while(getState() != EClientState::LOBBY)
+		{
+			if(std::chrono::steady_clock::now() > giveUp)
+			{
+				logGlobal->error("Debug test: no connection to the server after 180 s, giving up");
+				return;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(20));
+		}
+	}
 
 	while(!settings["session"]["headless"].Bool() && !ENGINE->windows().topWindow<CLobbyScreen>())
 		std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -1095,8 +1109,16 @@ void CServerHandler::visitForClient(CPackForClient & clientPack)
 
 void CServerHandler::sendLobbyPack(const CPackForLobby & pack) const
 {
-	if(getState() != EClientState::STARTING)
-		logicConnection->sendPack(pack);
+	if(getState() == EClientState::STARTING)
+		return;
+
+	if(!logicConnection)
+	{
+		logNetwork->warn("A lobby pack was not sent: the connection to the server is not established yet");
+		return;
+	}
+
+	logicConnection->sendPack(pack);
 }
 
 bool CServerHandler::inLobbyRoom() const

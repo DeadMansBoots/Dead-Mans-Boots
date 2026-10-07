@@ -349,7 +349,7 @@ void CSlider::setAmount( int to )
 
 void CSlider::showAll(Canvas & to)
 {
-	to.drawColor(pos, Colors::BLACK);
+	to.drawColor(pos, trackColor);
 	CIntObject::showAll(to);
 }
 

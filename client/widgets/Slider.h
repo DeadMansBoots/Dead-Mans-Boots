@@ -54,6 +54,9 @@ private:
 	/// Keeps the thumb from jumping when the user clicks off-centre.
 	int dragOffset;
 
+	/// what is drawn behind the handle: black as in the game's own windows (DMB: a window of another colour can ask for its own)
+	ColorRGBA trackColor = ColorRGBA(0, 0, 0, 255);
+
 	void updateSliderPos();
 	void updateSlider();
 
@@ -74,6 +77,7 @@ public:
 
 	/// Amount modifier
 	void setAmount(int to);
+	void setTrackColor(const ColorRGBA & color) { trackColor = color; }
 	virtual void setValue(int to, bool callCallbacks = true);
 
 	/// Accessors

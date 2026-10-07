@@ -131,6 +131,7 @@ public:
 class CTextBox : public CIntObject
 {
 	int sliderStyle;
+	ColorRGBA sliderTrack = ColorRGBA(0, 0, 0, 255);
 public:
 	std::shared_ptr<CMultiLineLabel> label;
 	std::shared_ptr<CSlider> slider;
@@ -143,6 +144,8 @@ public:
 	void trimToFit();
 	void setText(const std::string & Txt);
 	void sliderMoved(int to);
+	/// the colour behind the scrollbar's handle (black unless a window asks for another)
+	void setSliderTrackColor(const ColorRGBA & color);
 };
 
 /// Status bar which is shown at the bottom of the in-game screens

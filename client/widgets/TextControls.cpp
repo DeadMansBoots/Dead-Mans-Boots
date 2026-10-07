@@ -521,6 +521,13 @@ void CTextBox::resize(Point newSize)
 	setText(label->getText()); // force refresh
 }
 
+void CTextBox::setSliderTrackColor(const ColorRGBA & color)
+{
+	sliderTrack = color;
+	if(slider)
+		slider->setTrackColor(color);
+}
+
 void CTextBox::setText(const std::string & text)
 {
 	label->pos.w = pos.w; // reset to default before textSize.y check
@@ -554,6 +561,7 @@ void CTextBox::setText(const std::string & text)
 		slider->setPanningStep(1);
 		slider->setInertiaEnabled(true);
 		slider->setScrollBounds(pos - slider->pos.topLeft());
+		slider->setTrackColor(sliderTrack);
 		// The redraw triggered by label->setText() above fired before the slider
 		// was created, so the slider would not appear until the next interaction.
 		// Force a redraw now that the slider exists.

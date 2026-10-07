@@ -1053,6 +1053,10 @@ class TemplateInfoPanel : public CIntObject
 	std::shared_ptr<TransparentFilledRectangle> frame;
 	std::shared_ptr<CLabel> title;
 	std::shared_ptr<CTextBox> body;
+	std::shared_ptr<TransparentFilledRectangle> specsFrame;
+	std::shared_ptr<CLabel> specsTitle;
+	std::shared_ptr<CMultiLineLabel> specs;
+	Rect area;
 	JsonNode info;
 	std::vector<std::string> values;
 
@@ -1063,7 +1067,7 @@ class TemplateInfoPanel : public CIntObject
 
 public:
 	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues)
-		: CIntObject(0, area.topLeft()), info(infoFile), values(std::move(entryValues))
+		: CIntObject(0, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;
@@ -1072,10 +1076,34 @@ public:
 		background->setPlayerColor(PlayerColor(1));
 		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, area.w, area.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2);
 		title = std::make_shared<CLabel>(area.w / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
-		body = std::make_shared<CTextBox>("", Rect(14, 44, area.w - 28, area.h - 58), 1);
+		setBody(44, "");
 	}
 
 	int shown = -2;
+
+	/// the scrolling text, from `top` down to the panel's foot (made again for each entry: its place depends on the box above it)
+	void setBody(int top, const std::string & text)
+	{
+		OBJECT_CONSTRUCTION;
+		body = std::make_shared<CTextBox>(text, Rect(14, top, area.w - 28, area.h - top - 14), 1);
+		// the scrollbar's track is the game's black, which beside the blue handle read as a black block over half the bar (K, October 6th); a dark blue of the panel's own
+		body->setSliderTrackColor(ColorRGBA(10, 20, 60, 255));
+	}
+
+	/// the box of the original game's facts (K, October 6th: "i think everything in this box should be original game spec"); none when `lines` is empty
+	void setSpecs(const std::string & lines)
+	{
+		specsFrame.reset();
+		specsTitle.reset();
+		specs.reset();
+		if(lines.empty())
+			return;
+		OBJECT_CONSTRUCTION;
+		specs = std::make_shared<CMultiLineLabel>(Rect(24, 76, area.w - 48, 200), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE);
+		specs->setText(lines);
+		specsFrame = std::make_shared<TransparentFilledRectangle>(Rect(12, 46, area.w - 24, 36 + specs->textSize.y + 10), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
+		specsTitle = std::make_shared<CLabel>(area.w / 2, 62, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, tabText("template.details.specs"));
+	}
 
 	/// the entry with this id (an index of the list the window was made from; -1 for none, when a search matches nothing); a repeat is ignored
 	void show(int id)
@@ -1083,10 +1111,11 @@ public:
 		if(id == shown)
 			return;
 		shown = id;
+		setSpecs("");
 		if(id < 0 || id >= static_cast<int>(values.size()))
 		{
 			title->setText("");
-			body->setText("");
+			setBody(44, "");
 			return;
 		}
 		const std::string value = values[id];
@@ -1094,27 +1123,27 @@ public:
 		{
 			// the entry in the list is cut to the list's width: the whole line is the first line here
 			title->setText(tabText("template.details.noneTitle"));
-			body->setText("{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
+			setBody(44, "{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
 			return;
 		}
 		if(value == RANDOM_TEMPLATE)
 		{
 			title->setText(tabText("template.random"));
-			body->setText(tabText("template.details.random"));
+			setBody(44, tabText("template.details.random"));
 			return;
 		}
 		title->setText(value);
 		const JsonNode & entry = info["templates"][value];
 		if(!entry.isStruct())
 		{
-			body->setText(tabText("template.details.missing"));
+			setBody(44, tabText("template.details.missing"));
 			return;
 		}
-		std::string text;
-		const auto line = [&text](const std::string & label, const std::string & content)
+		std::string lines;
+		const auto line = [&lines](const std::string & label, const std::string & content)
 		{
 			if(!content.empty())
-				text += "{" + label + "} " + content + "\n";
+				lines += "{" + label + "} " + content + "\n";
 		};
 		std::string size = whole(entry["originalSizeMin"]);
 		if(!whole(entry["originalSizeMax"]).empty() && whole(entry["originalSizeMax"]) != size)
@@ -1129,7 +1158,8 @@ public:
 			players += (players.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["playersMax"]);
 		line(tabText("template.details.players"), players);
 		line(tabText("template.details.humans"), whole(entry["humansMax"]));
-		line(tabText("template.details.underground"), entry["underground"].isString() ? entry["underground"].String() : std::string());
+		if(entry["originalLevels"].isNumber())
+			line(tabText("template.details.levels"), tabText(entry["originalLevels"].Integer() >= 2 ? "template.details.levelsTwo" : "template.details.levelsOne"));
 		std::string zones = whole(entry["zones"]);
 		if(!zones.empty() && entry["zonesByKind"].isStruct())
 		{
@@ -1139,9 +1169,26 @@ public:
 			zones += " (" + kinds + ")";
 		}
 		line(tabText("template.details.zones"), zones);
+		if(!lines.empty() && lines.back() == '\n')
+			lines.pop_back();
+		setSpecs(lines);
+
+		// outside the box: what this suite does with it. The module's underground sentence names the original's levels first and then
+		// what the suite adds, after a semicolon; the part after it stands here
+		std::string text;
+		const std::string underground = entry["underground"].isString() ? entry["underground"].String() : std::string();
+		const auto cut = underground.find("; ");
+		if(cut != std::string::npos)
+		{
+			std::string ours = underground.substr(cut + 2);
+			if(!ours.empty())
+				ours[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(ours[0])));
+			text += "{" + tabText("template.details.underground") + "} " + ours + "\n\n";
+		}
 		if(entry["description"].isString())
-			text += "\n" + entry["description"].String();
-		body->setText(text);
+			text += entry["description"].String();
+		const int top = specsFrame ? specsFrame->pos.h + 46 + 10 : 44;
+		setBody(top, text);
 	}
 };
 

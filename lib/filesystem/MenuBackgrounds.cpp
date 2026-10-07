@@ -390,6 +390,37 @@ std::vector<MenuEra> discover()
 }
 }
 
+MenuBackgrounds::PicturesRun MenuBackgrounds::lastPicturesRun()
+{
+	PicturesRun run;
+	std::ifstream in((VCMIDirs::get().userDataPath() / "LegacyPictures" / "index.json").c_str(), std::ios::binary);
+	if(!in)
+		return run;
+	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	try
+	{
+		const JsonNode index(reinterpret_cast<const std::byte *>(text.data()), text.size(), "LegacyPictures/index.json");
+		if(!index.isStruct() || !index["pipeline"].isNumber())
+			return run;
+		run.present = true;
+		run.pipeline = static_cast<int>(index["pipeline"].Integer());
+		if(index["finished"].isString())
+			run.finished = index["finished"].String();
+	}
+	catch(const std::exception &)
+	{
+		// an index.json that cannot be read is no record of a run
+		run = PicturesRun();
+	}
+	return run;
+}
+
+bool MenuBackgrounds::picturesAreCurrent()
+{
+	const auto run = lastPicturesRun();
+	return run.present && run.pipeline == PICTURES_PIPELINE_VERSION;
+}
+
 boost::filesystem::path MenuBackgrounds::dropInFolder()
 {
 	static const boost::filesystem::path folder = []()

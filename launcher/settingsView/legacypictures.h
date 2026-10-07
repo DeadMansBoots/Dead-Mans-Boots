@@ -10,6 +10,7 @@
 #pragma once
 
 #include "../StdInc.h"
+#include "../../lib/filesystem/MenuBackgrounds.h"
 
 class QDragEnterEvent;
 class QDropEvent;
@@ -27,8 +28,9 @@ class LegacyPicturesWorker : public QThread
 	Q_OBJECT
 
 public:
-	/// the steps change what the files hold: a run with another number sharpens everything again
-	static constexpr int PIPELINE_VERSION = 6;
+	/// the steps change what the files hold: a run with another number sharpens everything again; the number itself lives in the library
+	/// (MenuBackgrounds::PICTURES_PIPELINE_VERSION), where the client reads it too
+	static constexpr int PIPELINE_VERSION = MenuBackgrounds::PICTURES_PIPELINE_VERSION;
 
 	explicit LegacyPicturesWorker(QObject * parent = nullptr);
 

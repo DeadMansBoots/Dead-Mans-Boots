@@ -645,7 +645,34 @@ void CSettingsView::buildCategoryPages()
 		legacyButton->setObjectName("buttonGetLegacyPictures");
 		cells.push_back({new QWidgetItem(legacyLabel), row + 2, 0, 1, 1});
 		cells.push_back({new QWidgetItem(legacyButton), row + 2, 1, 1, 5});
-		connect(legacyButton, &QPushButton::clicked, this, [this]()
+		// K, October 6th: "we should add a system for our project to track the state of the users latest image acquisition/sharpening pipeline run,
+		// that way if we make any changes, we can mark the button as 'pending updates ready for you - rerun the acquisition' or something more
+		// intuitive and concise". The last run's pipeline version and date are in LegacyPictures\index.json (MenuBackgrounds::lastPicturesRun);
+		// when that is not the launcher's current version, or a set exists with no record, the button says an update is ready, and the game does
+		// not use the old set until it has been made again
+		auto showLegacyState = [legacyButton]()
+		{
+			const auto run = MenuBackgrounds::lastPicturesRun();
+			const bool oldSetWithoutRecord = !run.present && QDir(pathToQString(MenuBackgrounds::dropInFolder()) + "/Upscaled").exists();
+			const QString plainText = tr("Get legacy menu themes and load screens");
+			if((run.present && run.pipeline != MenuBackgrounds::PICTURES_PIPELINE_VERSION) || oldSetWithoutRecord)
+			{
+				legacyButton->setText(tr("Update ready for your menu themes and load screens"));
+				legacyButton->setToolTip(run.present
+					? tr("The pictures you made on %1 are from an older version of the pictures step (%2, now %3). The game does not show them until you press this button again.")
+						.arg(QString::fromStdString(run.finished).left(10)).arg(run.pipeline).arg(MenuBackgrounds::PICTURES_PIPELINE_VERSION)
+					: tr("The pictures you made were made before the launcher kept a record of them. The game does not show them until you press this button again."));
+			}
+			else
+			{
+				legacyButton->setText(plainText);
+				legacyButton->setToolTip(run.present
+					? tr("Up to date: your pictures were made on %1.").arg(QString::fromStdString(run.finished).left(10))
+					: QString());
+			}
+		};
+		showLegacyState();
+		connect(legacyButton, &QPushButton::clicked, this, [this, showLegacyState]()
 		{
 			LegacyPicturesDialog dialog(this);
 			connect(&dialog, &LegacyPicturesDialog::picturesReady, this, [this](bool)
@@ -654,6 +681,7 @@ void CSettingsView::buildCategoryPages()
 				fillLoadingScreens();
 			});
 			dialog.exec();
+			showLegacyState();
 		});
 	}
 

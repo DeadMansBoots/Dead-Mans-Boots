@@ -79,6 +79,24 @@ public:
 	/// looks in the two drop-in folders again (the launcher's legacy pictures step has just put new pictures there)
 	static void rescan();
 
+	/// the version of the launcher's pictures pipeline (the menu pictures and loading screens enlarged, and the sharpened menu buttons), raised
+	/// whenever its output changes; the launcher writes it into LegacyPictures\index.json when a run finishes (K, October 6th: "we should add a
+	/// system ... to track the state of the users latest image acquisition/sharpening pipeline run")
+	static constexpr int PICTURES_PIPELINE_VERSION = 6;
+
+	/// what the player's last finished pictures run left in LegacyPictures\index.json
+	struct PicturesRun
+	{
+		bool present = false;		///< there is an index.json that can be read
+		int pipeline = 0;			///< the pipeline version that run had
+		std::string finished;		///< when it finished, as the launcher wrote it (ISO date and time)
+	};
+	static PicturesRun lastPicturesRun();
+
+	/// whether the pictures the player made are from the current pipeline; the client uses the Upscaled folders only then, so an older set
+	/// (older buttons and pictures) is never shown, and the launcher offers the update
+	static bool picturesAreCurrent();
+
 	/// one frame of a cut-out button, on its full canvas, as 8 bit palette indexes (0 is transparent; the palette is the sprite's own)
 	struct NeutralFrame
 	{

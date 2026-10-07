@@ -43,8 +43,21 @@ void AssetGenerator::initialize()
 	if(boost::filesystem::is_directory(VCMIDirs::get().userDataPath() / "Generated"))
 		boost::filesystem::remove_all(VCMIDirs::get().userDataPath() / "Generated");
 
+	// DMB: the pictures the launcher's pictures step made are used only when the current pipeline made them (K, October 6th: his first look
+	// at a new build showed the buttons of his run of the day before, so he judged old art); an older set stays unused, and the launcher's
+	// pictures button says an update is ready, until the step is run again
+	const bool picturesCurrent = MenuBackgrounds::picturesAreCurrent();
+	if(!picturesCurrent)
+	{
+		const auto run = MenuBackgrounds::lastPicturesRun();
+		logGlobal->warn("The enlarged menu pictures, loading screens and buttons are not used: %s (press the pictures button in the launcher's Settings, General)",
+			run.present ? "the last run was made by pipeline " + std::to_string(run.pipeline) + ", now it is " + std::to_string(MenuBackgrounds::PICTURES_PIPELINE_VERSION)
+				: std::string("no pictures run is recorded"));
+	}
+
 	// DMB: larger versions of the menu pictures that the player made (MenuBackgrounds\Upscaled\DATA2X, DATA3X, DATA4X, each picture
 	// named DMBMenuEra-<release>.png), found by the engine's own larger-texture lookup when the screen needs them
+	if(picturesCurrent)
 	{
 		boost::system::error_code ec;
 		const auto upscaled = MenuBackgrounds::dropInFolder() / "Upscaled";
@@ -53,6 +66,7 @@ void AssetGenerator::initialize()
 	}
 
 	// DMB: the same for the loading screens (LoadingScreens\Upscaled\DATA2X, DATA3X, DATA4X, each picture named DMBLoad-<file name>.png)
+	if(picturesCurrent)
 	{
 		boost::system::error_code ec;
 		const auto upscaled = MenuBackgrounds::loadingFolder() / "Upscaled";

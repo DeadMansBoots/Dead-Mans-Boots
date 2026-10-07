@@ -1145,30 +1145,63 @@ public:
 			if(!content.empty())
 				lines += "{" + label + "} " + content + "\n";
 		};
-		std::string size = whole(entry["originalSizeMin"]);
-		if(!whole(entry["originalSizeMax"]).empty() && whole(entry["originalSizeMax"]) != size)
-			size += (size.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["originalSizeMax"]);
-		if(!size.empty())
-			size += " " + tabText("template.details.tiles");
-		if(entry["originalSizeNames"].isString() && !size.empty())
-			size += " (" + entry["originalSizeNames"].String() + ")";
-		line(tabText("template.details.size"), size);
-		std::string players = whole(entry["playersMin"]);
-		if(!whole(entry["playersMax"]).empty() && whole(entry["playersMax"]) != players)
-			players += (players.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["playersMax"]);
-		line(tabText("template.details.players"), players);
-		line(tabText("template.details.humans"), whole(entry["humansMax"]));
-		if(entry["originalLevels"].isNumber())
-			line(tabText("template.details.levels"), tabText(entry["originalLevels"].Integer() >= 2 ? "template.details.levelsTwo" : "template.details.levelsOne"));
-		std::string zones = whole(entry["zones"]);
-		if(!zones.empty() && entry["zonesByKind"].isStruct())
+		const JsonNode & original = entry["original"];
+		if(original.isStruct())
 		{
-			std::string kinds;
-			for(const auto & kind : entry["zonesByKind"].Struct())
-				kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
-			zones += " (" + kinds + ")";
+			// the module's own block of the original template's facts (and nothing else), with what was checked
+			const auto text = [&original](const char * key) { return original[key].isString() ? original[key].String() : std::string(); };
+			std::string size = whole(original["sizeMin"]);
+			if(!whole(original["sizeMax"]).empty() && whole(original["sizeMax"]) != size)
+				size += (size.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(original["sizeMax"]);
+			if(!size.empty())
+				size += " " + tabText("template.details.tiles");
+			if(!text("sizeNames").empty() && !size.empty())
+				size += " (" + text("sizeNames") + ")";
+			line(tabText("template.details.size"), size);
+			line(tabText("template.details.players"), text("players"));
+			line(tabText("template.details.humans"), text("humans"));
+			line(tabText("template.details.humanStarts"), whole(original["humanStartZones"]));
+			line(tabText("template.details.computerStarts"), whole(original["computerStartZones"]));
+			if(original["levels"].isNumber())
+				line(tabText("template.details.levels"), tabText(original["levels"].Integer() >= 2 ? "template.details.levelsTwo" : "template.details.levelsOne"));
+			std::string zones = whole(original["zones"]);
+			if(!zones.empty() && original["zonesByKind"].isStruct())
+			{
+				std::string kinds;
+				for(const auto & kind : original["zonesByKind"].Struct())
+					kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
+				zones += " (" + kinds + ")";
+			}
+			line(tabText("template.details.zones"), zones);
+			line(tabText("template.details.checked"), text("checked"));
 		}
-		line(tabText("template.details.zones"), zones);
+		else
+		{
+			std::string size = whole(entry["originalSizeMin"]);
+			if(!whole(entry["originalSizeMax"]).empty() && whole(entry["originalSizeMax"]) != size)
+				size += (size.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["originalSizeMax"]);
+			if(!size.empty())
+				size += " " + tabText("template.details.tiles");
+			if(entry["originalSizeNames"].isString() && !size.empty())
+				size += " (" + entry["originalSizeNames"].String() + ")";
+			line(tabText("template.details.size"), size);
+			std::string players = whole(entry["playersMin"]);
+			if(!whole(entry["playersMax"]).empty() && whole(entry["playersMax"]) != players)
+				players += (players.empty() ? "" : " ") + tabText("template.details.to") + " " + whole(entry["playersMax"]);
+			line(tabText("template.details.players"), players);
+			line(tabText("template.details.humans"), whole(entry["humansMax"]));
+			if(entry["originalLevels"].isNumber())
+				line(tabText("template.details.levels"), tabText(entry["originalLevels"].Integer() >= 2 ? "template.details.levelsTwo" : "template.details.levelsOne"));
+			std::string zones = whole(entry["zones"]);
+			if(!zones.empty() && entry["zonesByKind"].isStruct())
+			{
+				std::string kinds;
+				for(const auto & kind : entry["zonesByKind"].Struct())
+					kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
+				zones += " (" + kinds + ")";
+			}
+			line(tabText("template.details.zones"), zones);
+		}
 		if(!lines.empty() && lines.back() == '\n')
 			lines.pop_back();
 		setSpecs(lines);

@@ -2095,7 +2095,7 @@ bool CGameHandler::arrangeStacks(ObjectInstanceID id1, ObjectInstanceID id2, ui8
 			}
 			else if (notRemovable(s2))
 			{
-				if (s2->getStackCount(p1) < countLeftOnSrc)
+				if (s2->getStackCount(p2) < countLeftOnSrc) //p2 is the destination's slot; this read p1
 					return false;
 			}
 

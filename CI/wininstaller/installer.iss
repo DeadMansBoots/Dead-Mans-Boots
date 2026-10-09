@@ -240,6 +240,8 @@ DMBMovingText=This install moves:%n%n%1%nYour saves, settings and mods come alon
 DMBMovingUserFolder=your saves, settings and mods%n    from %1%n    to %2%n%n
 DMBMovingProgramFolder=the program%n    from %1%n    to %2%n    (the old program folder is deleted once the new one is installed)%n%n
 DMBMovedUserFolder=Your saves, settings and mods are now in %1.
+; DMB (K, October 8th): the same version is already installed
+DMBRepairQuestion=Dead Man's Boots %1 is already installed.%n%nContinue with the installation (repair)?
 DMBNotMovedUserFolder=Your saves, settings and mods are still in %1: a file in it was in use. Dead Man's Boots moves them to %2 the next time it starts.
 
 
@@ -418,6 +420,29 @@ begin
 end;
 
 
+/// DMB (K, October 8th: "I notice DMB launcher just blindly reinstalls over existing installs"): the version of the install on this PC,
+/// read from the key every Inno Setup install writes (an install for all users or for this user only), or '' when there is none
+function InstalledDisplayVersion(): String;
+var
+  Key, Value: String;
+begin
+  Result := '';
+  Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{#VCMIFolder}.{#InstallerArch}_is1';
+  if RegQueryStringValue(HKLM, Key, 'DisplayVersion', Value) then
+    Result := Value
+  else if RegQueryStringValue(HKCU, Key, 'DisplayVersion', Value) then
+    Result := Value;
+end;
+
+
+/// The question is asked only when the version installed is exactly the one this setup carries (a repair); an older, a different or no
+/// install goes on with no question, as before
+function RepairQuestionNeeded(const Installed, Carried: String): Boolean;
+begin
+  Result := (Installed <> '') and (Installed = Carried);
+end;
+
+
 #ifdef DMBSelfTest
 function BoolText(Value: Boolean): String;
 begin
@@ -457,6 +482,11 @@ begin
     Results.Add('programs-none.removed=' + BoolText(RemoveEarlierProgramFolder('', Root + '\elsewhere')));
     Results.Add('message.user=' + FmtMessage(CustomMessage('DMBMovingUserFolder'), ['A', 'B']));
     Results.Add('message.moved=' + FmtMessage(CustomMessage('DMBMovedUserFolder'), [Root + '\{#FilesFolderPas}']));
+    Results.Add('repair.same=' + BoolText(RepairQuestionNeeded('0.1.0.ed1132427', '0.1.0.ed1132427')));
+    Results.Add('repair.older=' + BoolText(RepairQuestionNeeded('0.1.0.2e03bb511', '0.1.0.ed1132427')));
+    Results.Add('repair.newer=' + BoolText(RepairQuestionNeeded('0.2.0.aaaaaaaaa', '0.1.0.ed1132427')));
+    Results.Add('repair.none=' + BoolText(RepairQuestionNeeded('', '0.1.0.ed1132427')));
+    Results.Add('repair.message=' + FmtMessage(CustomMessage('DMBRepairQuestion'), ['0.1.0.ed1132427']));
     Results.Add('name={#DMBNamePas}');
     Results.SaveToFile(Root + '\results.txt');
   finally
@@ -751,6 +781,14 @@ begin
 
   // Check if the application is already installed
   IsUpgrade := RegQueryStringValue(HKCU, 'Software\{#DMBNamePas}', 'InstallPath', InstallPath) or EarlierKeyIsDmb;
+
+  // DMB: the same version is already installed: ask before reinstalling it (a silent install, as CI makes, is not asked)
+  if IsUpgrade and not WizardSilent and RepairQuestionNeeded(InstalledDisplayVersion(), '{#AppVersion}.{#AppBuild}') then
+    if SuppressibleMsgBox(FmtMessage(CustomMessage('DMBRepairQuestion'), ['{#AppVersion}.{#AppBuild}']), mbConfirmation, MB_YESNO, IDYES) = IDNO then
+    begin
+      Result := False;
+      Exit;
+    end;
 
   // Initialize the global variable during setup
   GlobalUserName := GetCurrentSessionUserName();

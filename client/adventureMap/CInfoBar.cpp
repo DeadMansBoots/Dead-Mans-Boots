@@ -584,6 +584,10 @@ void CInfoBar::showHeroSelection(const CGHeroInstance * hero)
 		visibleInfo = std::make_shared<VisibleHeroInfo>(hero);
 	}
 	redraw();
+	// DMB: redraw() does nothing for a widget that is not active, and the adventure map is not while a window such as the hero window is on top;
+	// the rebuilt panel then stayed on screen as it was last drawn, beside the window (K's October 8th picture: the hero window said +1 morale, the panel did not)
+	if(!isActive())
+		ENGINE->windows().totalRedraw();
 }
 
 void CInfoBar::showTownSelection(const CGTownInstance * town)
@@ -599,6 +603,8 @@ void CInfoBar::showTownSelection(const CGTownInstance * town)
 		visibleInfo = std::make_shared<VisibleTownInfo>(town);
 	}
 	redraw();
+	if(!isActive())
+		ENGINE->windows().totalRedraw();
 }
 
 void CInfoBar::showGameStatus()

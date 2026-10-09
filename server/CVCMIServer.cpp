@@ -603,6 +603,13 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 		return;
 
 	auto namesIt = playerNames.cbegin();
+	// DMB (K, October 8th): a random map whose settings change keeps the players' own choices (town, hero, bonus, handicap,
+	// who sits where); only a choice the new map cannot hold is reset, with a message saying which
+	const auto previousInfos = si->playerInfos;
+	const bool keepChoices = si->mode == EStartMode::NEW_GAME && si->mapGenOptions && mi->isRandomMap && mapGenOpts && !previousInfos.empty();
+	std::vector<PlayerColor> resetTown;
+	std::vector<PlayerColor> resetHero;
+	std::vector<PlayerColor> removedSeats;
 	si->playerInfos.clear();
 	if(mi->scenarioOptionsOfSave)
 	{
@@ -660,6 +667,77 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 				pset.heroNameTextId = pinfo.mainCustomHeroNameTextId;
 				pset.heroPortrait = pinfo.mainCustomHeroPortrait;
 			}
+
+			const auto previous = previousInfos.find(pset.color);
+			if(keepChoices && previous != previousInfos.end() && !pinfo.hasCustomMainHero())
+			{
+				const PlayerSettings & before = previous->second;
+				const bool townChosen = before.castle != FactionID::RANDOM && before.castle != FactionID::NONE;
+				const bool townFits = before.castle == FactionID::RANDOM ? pinfo.isFactionRandom : pinfo.allowedFactions.count(before.castle) > 0;
+				if(townFits && before.castle != FactionID::NONE)
+					pset.castle = before.castle;
+				else if(townChosen)
+					resetTown.push_back(pset.color);
+
+				if(before.hero.hasValue())
+				{
+					if(townFits && canUseThisHero(pset.color, before.hero))
+					{
+						pset.hero = before.hero;
+						pset.heroNameTextId = before.heroNameTextId;
+						pset.heroPortrait = before.heroPortrait;
+					}
+					else
+						resetHero.push_back(pset.color);
+				}
+
+				pset.bonus = before.bonus;
+				if(pset.castle == FactionID::RANDOM && pset.bonus == PlayerStartingBonus::RESOURCE)
+					pset.bonus = PlayerStartingBonus::RANDOM;
+				if(pset.hero == HeroTypeID::NONE && pinfo.heroesNames.empty() && pset.bonus == PlayerStartingBonus::ARTIFACT)
+					pset.bonus = PlayerStartingBonus::RANDOM;
+				pset.handicap = before.handicap;
+			}
+		}
+
+		if(keepChoices)
+		{
+			for(const auto & before : previousInfos)
+				if(!vstd::contains(si->playerInfos, before.first) && (before.second.castle.hasValue() || before.second.hero.hasValue()))
+					removedSeats.push_back(before.first);
+
+			// the players keep the colours they sat in, when the new map has all of those colours open to a human
+			std::vector<std::pair<PlayerConnectionID, PlayerColor>> seats;
+			for(const auto & before : previousInfos)
+				if(before.second.isControlledByHuman())
+					for(const auto & connectionId : before.second.connectedPlayerIDs)
+						seats.emplace_back(connectionId, before.first);
+
+			bool seatsFit = !seats.empty();
+			for(const auto & seat : seats)
+			{
+				const auto found = si->playerInfos.find(seat.second);
+				seatsFit = seatsFit && found != si->playerInfos.end() && !found->second.compOnly;
+			}
+
+			if(seatsFit)
+			{
+				for(auto & ps : si->playerInfos)
+					setPlayerConnectedId(ps.second, PlayerConnectionID::PLAYER_AI);
+				for(const auto & seat : seats)
+					setPlayerConnectedId(si->playerInfos.at(seat.second), seat.first);
+				for(const auto & name : playerNames)
+				{
+					if(std::any_of(seats.begin(), seats.end(), [&](const auto & seat) { return seat.first == name.first; }))
+						continue;
+					for(auto & ps : si->playerInfos)
+						if(!ps.second.compOnly && !ps.second.isControlledByHuman())
+						{
+							setPlayerConnectedId(ps.second, name.first);
+							break;
+						}
+				}
+			}
 		}
 
 		if(mi->isRandomMap && mapGenOpts)
@@ -686,6 +764,26 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 	}
 
 	si->mapname = mi->fileURI;
+
+	if(!resetTown.empty() || !resetHero.empty() || !removedSeats.empty())
+	{
+		MetaString message;
+		message.appendTextID("vcmi.dmb.lobby.choicesReset");
+		const auto list = [&message](const std::vector<PlayerColor> & colors, const std::string & textId)
+		{
+			for(const auto & color : colors)
+			{
+				message.appendRawString("\n");
+				message.appendName(color);
+				message.appendRawString(": ");
+				message.appendTextID(textId);
+			}
+		};
+		list(resetTown, "vcmi.dmb.lobby.townReset");
+		list(resetHero, "vcmi.dmb.lobby.heroReset");
+		list(removedSeats, "vcmi.dmb.lobby.seatRemoved");
+		announceMessage(message);
+	}
 }
 
 void CVCMIServer::updateAndPropagateLobbyState()

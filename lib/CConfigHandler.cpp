@@ -176,10 +176,29 @@ Settings::Settings(SettingsStorage &_parent, const std::vector<std::string> &_pa
 {
 }
 
+static SettingsChangeObserver settingsChangeObserver;
+
+void setSettingsChangeObserver(SettingsChangeObserver observer)
+{
+	settingsChangeObserver = std::move(observer);
+}
+
 Settings::~Settings()
 {
 	if (node != copy)
+	{
+		if(settingsChangeObserver)
+		{
+			try
+			{
+				settingsChangeObserver(parent.dataFilename, path, copy, node);
+			}
+			catch(...)
+			{
+			}
+		}
 		parent.invalidateNode(path);
+	}
 }
 
 JsonNode* Settings::operator -> ()

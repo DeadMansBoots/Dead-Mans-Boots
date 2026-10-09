@@ -16,6 +16,7 @@
 #include "../lib/mapObjects/CGTownInstance.h"
 #include "../lib/pathfinder/CGPathNode.h"
 #include "CPlayerInterface.h"
+#include "PlayRecorder.h"
 #include "adventureMap/AdventureMapInterface.h"
 
 PlayerLocalState::PlayerLocalState(CPlayerInterface & owner)
@@ -170,6 +171,8 @@ void PlayerLocalState::setSelection(const CArmedInstance * selection, bool force
 		return;
 
 	currentSelection = selection;
+	if(selection)
+		PlayRecorder::get().event("select", "\"object\":\"" + selection->getObjectName() + "#" + std::to_string(selection->id.getNum()) + "\"");
 
 	if (adventureInt && selection)
 		adventureInt->onSelectionChanged(selection);

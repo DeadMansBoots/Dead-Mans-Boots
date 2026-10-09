@@ -343,6 +343,13 @@ void CHeroWindow::updateArtifacts()
 	redraw();
 }
 
+void CHeroWindow::refreshMoraleLuck()
+{
+	morale->set(curHero);
+	luck->set(curHero);
+	redraw();
+}
+
 void CHeroWindow::dismissCurrent()
 {
 	GAME->interface()->showYesNoDialog(LIBRARY->generaltexth->allTexts[22], [this]()

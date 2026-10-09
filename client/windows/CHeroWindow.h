@@ -106,6 +106,8 @@ public:
 	void updateArtifacts() override;
 	void keyPressed(EShortcut key) override;
 
+	/// the morale and luck boxes read the hero again (DMB: a bonus that comes or goes while the window is open)
+	void refreshMoraleLuck();
 	void dismissCurrent(); //dismissed currently displayed hero (curHero)
 	void commanderWindow();
 	void switchHero(); //changes displayed hero

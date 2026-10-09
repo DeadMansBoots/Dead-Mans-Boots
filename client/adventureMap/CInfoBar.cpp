@@ -53,7 +53,30 @@ CInfoBar::EmptyVisibleInfo::EmptyVisibleInfo()
 {
 }
 
+static std::array<int, 7> heroNumbersShown(const CGHeroInstance * hero)
+{
+	return {
+		hero->getPrimSkillLevel(PrimarySkill::ATTACK),
+		hero->getPrimSkillLevel(PrimarySkill::DEFENSE),
+		hero->getPrimSkillLevel(PrimarySkill::SPELL_POWER),
+		hero->getPrimSkillLevel(PrimarySkill::KNOWLEDGE),
+		static_cast<int>(hero->mana),
+		hero->moraleVal(),
+		hero->luckVal()
+	};
+}
+
+bool CInfoBar::VisibleHeroInfo::isStale() const
+{
+	if(!GAME || !GAME->interface() || !GAME->interface()->cb)
+		return false;
+	const CGHeroInstance * hero = GAME->interface()->cb->getHero(heroId);
+	return hero && heroNumbersShown(hero) != shown;
+}
+
 CInfoBar::VisibleHeroInfo::VisibleHeroInfo(const CGHeroInstance * hero)
+	: heroId(hero->id)
+	, shown(heroNumbersShown(hero))
 {
 	OBJECT_CONSTRUCTION;
 	background = std::make_shared<CPicture>(ImagePath::builtin("ADSTATHR"));
@@ -344,6 +367,35 @@ CInfoBar::CInfoBar(const Rect & position)
 
 CInfoBar::CInfoBar(const Point & position): CInfoBar(Rect(position.x, position.y, width, height))
 {
+}
+
+CInfoBar::~CInfoBar()
+{
+	*alive = false;
+}
+
+void CInfoBar::show(Canvas & to)
+{
+	// DMB (K, October 8th: the status panel's morale was out of step with the hero's): the panel is rebuilt by the game's hero events, and
+	// whatever way the numbers change that does not send one, the next frame drawn notices that they differ from the hero's own and rebuilds it
+	if(state == EState::HERO)
+	{
+		const auto info = std::dynamic_pointer_cast<VisibleHeroInfo>(visibleInfo);
+		if(info && info->isStale())
+		{
+			const std::weak_ptr<bool> stillThere = alive;
+			ENGINE->dispatchMainThread([this, stillThere]()
+			{
+				const auto token = stillThere.lock();
+				if(!token || !*token || state != EState::HERO)
+					return;
+				const auto current = std::dynamic_pointer_cast<VisibleHeroInfo>(visibleInfo);
+				if(current && current->isStale())
+					showSelection();
+			});
+		}
+	}
+	CIntObject::show(to);
 }
 
 void CInfoBar::OnInfoBarCreatureManagementChanged()

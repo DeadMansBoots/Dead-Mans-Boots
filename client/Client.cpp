@@ -12,6 +12,7 @@
 #include "Client.h"
 
 #include "CPlayerInterface.h"
+#include "PlayRecorder.h"
 #include "PlayerLocalState.h"
 #include "CServerHandler.h"
 #include "ClientNetPackVisitors.h"
@@ -405,6 +406,7 @@ void CClient::installNewBattleInterface(std::shared_ptr<CBattleGameInterface> ba
 
 void CClient::handlePack(CPackForClient & pack)
 {
+	PlayRecorder::get().clientPack(pack); // DMB play recorder: what the game answered, seen before it is applied
 	ApplyClientNetPackVisitor afterVisitor(*this, gameState());
 	ApplyFirstClientNetPackVisitor beforeVisitor(*this, gameState());
 
@@ -432,6 +434,8 @@ int CClient::sendRequest(const CPackForServer & request, PlayerColor player, boo
 	waitingRequest.pushBack(requestID);
 	request.requestID = requestID;
 	request.player = player;
+	if(vstd::contains(playerint, player) && dynamic_cast<CPlayerInterface *>(playerint[player].get()))
+		PlayRecorder::get().request(request, player); // DMB play recorder: what the human player asked for
 	GAME->server().sendGamePack(request);
 	if(vstd::contains(playerint, player))
 		playerint[player]->requestSent(&request, requestID);

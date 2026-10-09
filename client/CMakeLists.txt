@@ -212,6 +212,7 @@ set(vcmiclientcommon_SRCS
 	GameInstance.cpp
 	CPlayerInterface.cpp
 	PlayerLocalState.cpp
+	PlayRecorder.cpp
 	CServerHandler.cpp
 	Client.cpp
 	ClientCommandManager.cpp
@@ -464,6 +465,7 @@ set(vcmiclientcommon_HEADERS
 	GameEngineUser.h
 	GameInstance.h
 	PlayerLocalState.h
+	PlayRecorder.h
 	CServerHandler.h
 	Client.h
 	ClientCommandManager.h

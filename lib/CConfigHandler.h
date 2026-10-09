@@ -120,6 +120,10 @@ public:
 	friend class SettingsStorage;
 };
 
+/// DMB play recorder: told of every settings change with the old and the new value of the node written to
+using SettingsChangeObserver = std::function<void(const std::string & file, const std::vector<std::string> & path, const JsonNode & before, const JsonNode & after)>;
+DLL_LINKAGE void setSettingsChangeObserver(SettingsChangeObserver observer);
+
 extern DLL_LINKAGE SettingsStorage settings;
 extern DLL_LINKAGE SettingsStorage persistentStorage;
 extern DLL_LINKAGE SettingsStorage keyBindingsConfig;

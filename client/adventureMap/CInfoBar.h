@@ -74,8 +74,12 @@ private:
 	{
 		std::shared_ptr<CIntObject>      heroTooltip; //should have CHeroTooltip or CInteractableHeroTooltip;
 		std::shared_ptr<LRClickableArea> wikiPortrait;
+		ObjectInstanceID heroId;
+		std::array<int, 7> shown; //the numbers the tooltip was built from: stats, spell points, morale, luck
 	public:
 		VisibleHeroInfo(const CGHeroInstance * hero);
+		/// true when the hero's numbers are no longer the ones this panel shows (DMB, October 9th: the panel's morale fell out of step with the hero window)
+		bool isStale() const;
 	};
 
 	class VisibleTownInfo : public CVisibleInfo
@@ -161,6 +165,8 @@ private:
 	void reset();
 
 	void tick(uint32_t msPassed) override;
+	void show(Canvas & to) override;
+	std::shared_ptr<bool> alive = std::make_shared<bool>(true);
 
 	void clickReleased(const Point & cursorPosition, bool lastActivated) override;
 	void showPopupWindow(const Point & cursorPosition) override;
@@ -171,6 +177,7 @@ private:
 public:
 	CInfoBar(const Rect & pos);
 	CInfoBar(const Point & pos);
+	~CInfoBar() override;
 
 	/// show new day/week animation
 	void showDate();

@@ -57,6 +57,7 @@
 #include "windows/CCreatureWindow.h"
 #include "windows/CExchangeWindow.h"
 #include "windows/CHeroWindow.h"
+#include "PlayRecorder.h"
 #include "windows/CKingdomInterface.h"
 #include "windows/CMarketWindow.h"
 #include "windows/CPuzzleWindow.h"
@@ -153,6 +154,7 @@ CPlayerInterface::CPlayerInterface(PlayerColor Player):
 CPlayerInterface::~CPlayerInterface()
 {
 	logGlobal->trace("\tHuman player interface for player %s being destructed", playerID.toString());
+	PlayRecorder::get().stopGame("interface closed");
 	delete showingDialog;
 	delete cingconsole;
 	if (GAME->interface() == this)
@@ -170,6 +172,7 @@ void CPlayerInterface::initGameInterface(std::shared_ptr<Environment> ENV, std::
 
 	adventureInt.reset(new AdventureMapInterface());
 	adventureInt->onCurrentPlayerChanged(playerID);
+	PlayRecorder::get().startGame(playerID);
 }
 
 std::shared_ptr<const CPathsInfo> CPlayerInterface::getPathsInfo(const CGHeroInstance * h)
@@ -304,6 +307,7 @@ void CPlayerInterface::gamePause(bool pause)
 
 void CPlayerInterface::yourTurn(QueryID queryID)
 {
+	PlayRecorder::get().snapshot(playerID, "start of turn");
 	closeAllDialogs();
 	CTutorialWindow::openWindowFirstTime(TutorialMode::TOUCH_ADVENTUREMAP);
 
@@ -1246,6 +1250,10 @@ void CPlayerInterface::heroBonusChanged( const CGHeroInstance *hero, const Bonus
 		return;
 
 	adventureInt->onHeroChanged(hero);
+
+	for(const auto & heroWindow : ENGINE->windows().findWindows<CHeroWindow>())
+		if(heroWindow->curHero == hero && (bonus.type == BonusType::MORALE || bonus.type == BonusType::LUCK || bonus.type == BonusType::MAX_MORALE || bonus.type == BonusType::MAX_LUCK))
+			heroWindow->refreshMoraleLuck();
 
 	//recalculate paths because hero has lost or gained bonus influencing pathfinding
 	if (bonus.type == BonusType::FLYING_MOVEMENT || bonus.type == BonusType::WATER_WALKING || bonus.type == BonusType::ROUGH_TERRAIN_DISCOUNT || bonus.type == BonusType::NO_TERRAIN_PENALTY)

@@ -11,6 +11,7 @@
 #include "WindowHandler.h"
 
 #include "GameEngine.h"
+#include "../PlayRecorder.h"
 #include "CIntObject.h"
 #include "CursorHandler.h"
 
@@ -23,6 +24,7 @@ void WindowHandler::popWindow(std::shared_ptr<IShowActivatable> top)
 	if (windowsStack.back() != top)
 		throw std::runtime_error("Attempt to pop non-top window from stack!");
 
+	PlayRecorder::get().windowClosed(typeid(*top).name());
 	top->deactivate();
 	disposed.push_back(top);
 	windowsStack.pop_back();
@@ -43,6 +45,7 @@ void WindowHandler::pushWindow(std::shared_ptr<IShowActivatable> newInt)
 	if(!windowsStack.empty())
 		windowsStack.back()->deactivate();
 	windowsStack.push_back(newInt);
+	PlayRecorder::get().windowOpened(typeid(*newInt).name());
 	ENGINE->cursor().set(Cursor::Map::POINTER);
 	newInt->activate();
 	totalRedraw();
@@ -65,6 +68,7 @@ void WindowHandler::popWindows(int howMany)
 	windowsStack.back()->deactivate();
 	for(int i = 0; i < howMany; i++)
 	{
+		PlayRecorder::get().windowClosed(typeid(*windowsStack.back()).name());
 		disposed.push_back(windowsStack.back());
 		windowsStack.pop_back();
 	}

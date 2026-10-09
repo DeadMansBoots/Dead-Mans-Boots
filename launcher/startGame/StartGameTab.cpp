@@ -23,6 +23,7 @@
 
 #include "../../lib/filesystem/Filesystem.h"
 #include "../../lib/VCMIDirs.h"
+#include "../../lib/CConfigHandler.h"
 #include "../../vcmiqt/MessageBox.h"
 
 void StartGameTab::changeEvent(QEvent *event)
@@ -236,7 +237,10 @@ void StartGameTab::refreshUpdateStatus(EGameUpdateStatus status)
 
 void StartGameTab::on_buttonGameStart_clicked()
 {
-	Helper::getMainWindow()->hide();
+	// DMB: with "Keep Dead Man's Boots Launcher running when you launch the game" on, the window stays where it is (the old code hid it here, so the
+	// launcher kept running without a window and looked closed)
+	if(!settings["launcher"]["keepRunning"].Bool())
+		Helper::getMainWindow()->hide();
 	startGame({});
 }
 

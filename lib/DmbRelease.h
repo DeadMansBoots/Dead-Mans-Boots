@@ -7,7 +7,7 @@
 
 // The name this release goes by beside its number (K, October 9th: "Straker Beta"), as the window titles and the launcher show it.
 // DMB_VERSION_STRING comes from cmake_modules/VersionDefinition.cmake, which also names the release for the release job.
-#define DMB_RELEASE_LABEL_TEXT "beta.4"
+#define DMB_RELEASE_LABEL_TEXT "beta.5"
 #ifndef DMB_RELEASE_TEXT
 #define DMB_RELEASE_TEXT "Straker Beta (" DMB_VERSION_STRING "-" DMB_RELEASE_LABEL_TEXT ")"
 #endif

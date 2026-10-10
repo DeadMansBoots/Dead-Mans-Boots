@@ -18,6 +18,16 @@
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPushButton>
+#include <QFile>
+#include <QCryptographicHash>
+#include <QStandardPaths>
+#include <QApplication>
+#include <QMessageBox>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <shellapi.h>
+#endif
 
 UpdateDialog::UpdateDialog(bool calledManually, QWidget *parent):
 	QDialog(parent),
@@ -149,4 +159,79 @@ void UpdateDialog::loadFromJson(const JsonNode & node)
 		downloadLink = QString::fromStdString(node["downloadLinks"][platformParameter].String());
 	
 	ui->downloadLink->setText(QString{"<a href=\"%1\">Download page</a>"}.arg(downloadLink));
+
+	// DMB: an "Update now" button when the notice names a Windows installer (https only), with the installer's SHA-256 when it gives one
+	installerUrl.clear();
+	installerSha256.clear();
+	if(platformParameter == "windows" && node["downloadLinks"]["windows"].getType() == JsonNode::JsonType::DATA_STRING)
+	{
+		const QString url = QString::fromStdString(node["downloadLinks"]["windows"].String());
+		if(url.startsWith("https://") && url.endsWith(".exe", Qt::CaseInsensitive))
+		{
+			installerUrl = url;
+			if(node["windowsSha256"].getType() == JsonNode::JsonType::DATA_STRING)
+				installerSha256 = QString::fromStdString(node["windowsSha256"].String()).toLower();
+		}
+	}
+	if(!installerUrl.isEmpty())
+	{
+		if(!updateButton)
+		{
+			updateButton = new QPushButton(this);
+			updateButton->setObjectName("updateNow");
+			ui->gridLayout->addWidget(updateButton, ui->gridLayout->rowCount(), 0, 1, -1);
+			connect(updateButton, &QPushButton::clicked, this, &UpdateDialog::on_updateNow_clicked);
+		}
+		updateButton->setText(tr("Update now: download and install %1").arg(QString::fromStdString(newVersion)));
+		updateButton->setEnabled(true);
+	}
+}
+
+void UpdateDialog::on_updateNow_clicked()
+{
+	if(installerUrl.isEmpty() || !updateButton)
+		return;
+	updateButton->setEnabled(false);
+	updateButton->setText(tr("Downloading..."));
+
+	QNetworkRequest request{QUrl(installerUrl)};
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+	QNetworkReply * reply = networkManager.get(request);
+	connect(reply, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 total)
+	{
+		if(total > 0 && updateButton)
+			updateButton->setText(tr("Downloading... %1%").arg(static_cast<int>(100.0 * got / total)));
+	});
+	connect(reply, &QNetworkReply::finished, this, [this, reply]
+	{
+		reply->deleteLater();
+		const auto fail = [this](const QString & why)
+		{
+			updateButton->setEnabled(true);
+			updateButton->setText(tr("Update now (failed: %1; try again, or use the download page)").arg(why));
+		};
+		if(reply->error() != QNetworkReply::NoError)
+			return fail(reply->errorString());
+		const QByteArray data = reply->readAll();
+		if(data.size() < 1024 * 1024 || data.left(2) != "MZ")
+			return fail(tr("not an installer"));
+		if(!installerSha256.isEmpty() && QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex().toLower() != installerSha256.toUtf8())
+			return fail(tr("the file does not match the update notice"));
+		const QString path = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/DeadMansBoots-Update.exe";
+		QFile file(path);
+		if(!file.open(QIODevice::WriteOnly) || file.write(data) != data.size())
+			return fail(tr("could not save the installer"));
+		file.close();
+#ifdef Q_OS_WIN
+		// ShellExecute, not QProcess: the installer of an all-users install asks for administrator rights (the UAC question), which a plain
+		// CreateProcess refuses. /SILENT shows its small progress window, /CLOSEAPPLICATIONS (also in the script) closes this launcher,
+		// /LAUNCH starts the new launcher at the end
+		const auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", path.toStdWString().c_str(), L"/SILENT /NORESTART /LAUNCH", nullptr, SW_SHOWNORMAL));
+		if(result <= 32)
+			return fail(tr("the installer could not be started"));
+		QApplication::quit();
+#else
+		fail(tr("only on Windows"));
+#endif
+	});
 }

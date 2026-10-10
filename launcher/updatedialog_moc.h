@@ -11,6 +11,8 @@
 #include <QDialog>
 #include <QNetworkAccessManager>
 
+class QPushButton;
+
 VCMI_LIB_NAMESPACE_BEGIN
 
 class JsonNode;
@@ -33,6 +35,10 @@ public:
 
 private slots:
     void on_checkOnStartup_stateChanged(int state);
+	/// DMB (K, October 10th: "the launcher still doesn't automatically update from github"): downloads the installer the update notice names,
+	/// checks it against the notice's SHA-256 when it gives one, and runs it silently over this install, then the launcher ends and the
+	/// installer starts the new one
+	void on_updateNow_clicked();
 
 private:
 	Ui::UpdateDialog *ui;
@@ -44,5 +50,9 @@ private:
 	
 	bool calledManually;
 	
+	QPushButton * updateButton = nullptr;
+	QString installerUrl;
+	QString installerSha256;
+
 	void loadFromJson(const JsonNode & node);
 };

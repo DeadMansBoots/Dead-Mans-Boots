@@ -17,6 +17,7 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDirIterator>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
@@ -147,6 +148,22 @@ Report build(const QString & why, const QString & description)
 
 		if(!description.trimmed().isEmpty())
 			addToZip(saver, "description.txt", redacted(description.toUtf8()));
+		// every file of the user's Mods folder with its size (K, October 10th, on a crash that only one player had): a mod that is incomplete or different
+		// on one PC shows up against another player's listing; paths are relative to the user folder, so no Windows user name is in them
+		{
+			QString listing;
+			QTextStream out(&listing);
+			int count = 0;
+			QDirIterator files(data + "/Mods", QDir::Files, QDirIterator::Subdirectories);
+			while(files.hasNext() && count < 400000)
+			{
+				files.next();
+				out << files.filePath().mid(data.size() + 1) << '\t' << files.fileInfo().size() << '\n';
+				++count;
+			}
+			if(count > 0)
+				addToZip(saver, "mods-listing.txt", listing.toUtf8());
+		}
 		const QString crash = crashSummary(clientLog);
 		if(!crash.isEmpty())
 			addToZip(saver, "crash-summary.txt", redacted(crash.toUtf8()));

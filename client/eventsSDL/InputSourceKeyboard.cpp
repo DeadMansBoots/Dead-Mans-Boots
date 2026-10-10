@@ -19,6 +19,14 @@
 #include "../gui/Shortcut.h"
 #include "../gui/ShortcutHandler.h"
 
+#include "../../lib/VCMIDirs.h"
+
+#ifdef VCMI_WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include <SDL_clipboard.h>
 #include <SDL_events.h>
 #include <SDL_hints.h>
@@ -53,6 +61,23 @@ std::string InputSourceKeyboard::getKeyNameWithModifiers(const std::string & key
 	result += keyName;
 
 	return result;
+}
+
+/// starts the launcher's bug report ("VCMI_launcher.exe --report", which asks what went wrong and sends the logs); Windows only for now
+static void startBugReport()
+{
+#ifdef VCMI_WINDOWS
+	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+	std::string commandLine = "\"" + launcher + "\" --report";
+	STARTUPINFOA startup = {};
+	startup.cb = sizeof(startup);
+	PROCESS_INFORMATION started = {};
+	if(CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &started))
+	{
+		CloseHandle(started.hThread);
+		CloseHandle(started.hProcess);
+	}
+#endif
 }
 
 void InputSourceKeyboard::handleEventKeyDown(const SDL_KeyboardEvent & key)
@@ -103,6 +128,11 @@ void InputSourceKeyboard::handleEventKeyDown(const SDL_KeyboardEvent & key)
 
 	if (vstd::contains(shortcutsVector, EShortcut::GLOBAL_SCREENSHOT))
 		ENGINE->screenHandler().screenShot();
+
+	// DMB (K, October 10th: "is the bug reporting process as easy as it can get?"): F12 anywhere in the game starts the launcher's bug report. The key is
+	// fixed here, not a shortcut setting, so a player whose key bindings file was made before this build still has it.
+	if (keyName == "F12" && !key.repeat)
+		startBugReport();
 
 	if (vstd::contains(shortcutsVector, EShortcut::SPECTATE_TRACK_HERO))
 	{

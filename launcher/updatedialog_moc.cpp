@@ -14,6 +14,7 @@
 
 #include "../lib/CConfigHandler.h"
 #include "../lib/GameConstants.h"
+#include "../lib/DmbRelease.h"
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -38,7 +39,8 @@ UpdateDialog::UpdateDialog(bool calledManually, QWidget *parent):
 		ui->checkOnStartup->setCheckState(Qt::CheckState::Checked);
 	
 	// DMB's own number: the update feed lists DMB releases, which all run on the same VCMI version
-	currentVersion = "DMB " DMB_VERSION_STRING;
+	// the beta too (K, October 10th: "he should be able to auto update"): DMB_RELEASE_LABEL is "beta.4" and so on; the feed names the newest
+	currentVersion = "DMB " DMB_VERSION_STRING "-" DMB_RELEASE_LABEL_TEXT;
 	
 	setWindowTitle(QString::fromStdString(currentVersion));
 	

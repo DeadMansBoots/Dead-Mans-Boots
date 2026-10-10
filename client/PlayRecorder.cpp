@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include <chrono>
 #include "PlayRecorder.h"
 
 #include "CPlayerInterface.h"
@@ -586,6 +587,10 @@ struct PlayRecorder::Impl
 	bool capped = false;
 	int64_t lines = 0;
 	std::string seat;
+	/// when the file was last flushed: a hero's step is several events, and a flush each (a system call, and a virus scanner's look) made
+	/// moving a hero choppy (K, October 10th, a first suspect); the file is flushed at the player's own actions, snapshots and the end, and
+	/// at most half a second apart in between
+	std::chrono::steady_clock::time_point lastFlush = std::chrono::steady_clock::now();
 };
 
 PlayRecorder & PlayRecorder::get()
@@ -749,7 +754,12 @@ void PlayRecorder::write(const std::string & kind, const std::string & body)
 			text = "{\"ev\":\"file_full\",\"limitBytes\":" + std::to_string(FILE_LIMIT_BYTES) + "}\n";
 		}
 		impl->file << text;
-		impl->file.flush();
+		const auto now = std::chrono::steady_clock::now();
+		if(kind != "game" || now - impl->lastFlush > std::chrono::milliseconds(500))
+		{
+			impl->file.flush();
+			impl->lastFlush = now;
+		}
 		impl->bytes += text.size();
 		++impl->lines;
 	}

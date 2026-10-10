@@ -69,7 +69,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	const int dry = vcmilauncher.arguments().indexOf("--report-dry");
 	if(dry >= 0 && dry + 1 < vcmilauncher.arguments().size())
 	{
-		const BugReport::Report report = BugReport::build("test");
+		const BugReport::Report report = BugReport::build("test", "test description from " + qEnvironmentVariable("USERNAME"));
 		QFile out(vcmilauncher.arguments().at(dry + 1));
 		// with "--send" too, the upload is made and its result written after the error line
 		QString sent;

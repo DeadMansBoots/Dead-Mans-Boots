@@ -28,10 +28,12 @@ namespace BugReport
 		QString zipPath;
 		QString summary;
 		QString crash;
+		QString description;
 		QString error;
 	};
 
-	Report build(const QString & why);
+	/// `description` is the player's own words (what went wrong), kept in the zip as description.txt
+	Report build(const QString & why, const QString & description = {});
 	bool send(const Report & report, QString & message);
 	/// the whole flow, with the questions and thanks a player sees; `parent` may be null
 	void run(QWidget * parent, const QString & why);

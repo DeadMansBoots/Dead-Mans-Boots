@@ -20,6 +20,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
@@ -108,7 +109,7 @@ void addToZip(CZipSaver & saver, const std::string & name, const QByteArray & da
 
 namespace BugReport
 {
-Report build(const QString & why)
+Report build(const QString & why, const QString & description)
 {
 	Report report;
 	try
@@ -144,6 +145,8 @@ Report build(const QString & why)
 		if(!playLogs.isEmpty())
 			addToZip(saver, "playlog/" + playLogs.first().fileName().toStdString(), redacted(tailOf(playLogs.first().absoluteFilePath(), PLAY_LOG_TAIL_BYTES)));
 
+		if(!description.trimmed().isEmpty())
+			addToZip(saver, "description.txt", redacted(description.toUtf8()));
 		const QString crash = crashSummary(clientLog);
 		if(!crash.isEmpty())
 			addToZip(saver, "crash-summary.txt", redacted(crash.toUtf8()));
@@ -151,6 +154,7 @@ Report build(const QString & why)
 		addToZip(saver, "report-info.txt", redacted(info.toUtf8()));
 
 		report.summary = info;
+		report.description = description;
 		report.crash = QString::fromUtf8(redacted(crash.toUtf8()));
 	}
 	catch(const std::exception & e)
@@ -202,7 +206,14 @@ bool send(const Report & report, QString & message)
 
 void run(QWidget * parent, const QString & why)
 {
-	const Report report = build(why);
+	// the player's own words are the most useful part of a report (K, October 10th: "we want to be able to solve bugs quick"); empty is allowed, Cancel stops
+	bool asked = false;
+	const QString description = QInputDialog::getMultiLineText(parent, QObject::tr("Report a bug"),
+		QObject::tr("What went wrong? A sentence or two helps a lot (what you were doing, what you expected). You can leave this empty.\n\nThe report also holds the game's logs and settings, with your Windows user name and computer name removed."),
+		QString(), &asked);
+	if(!asked)
+		return;
+	const Report report = build(why, description);
 	if(report.zipPath.isEmpty() || !report.error.isEmpty())
 	{
 		QMessageBox::critical(parent, QObject::tr("Report"), QObject::tr("The report could not be made: %1").arg(report.error));
@@ -225,6 +236,8 @@ void run(QWidget * parent, const QString & why)
 	query.addQueryItem("os-version", QSysInfo::prettyProductName());
 	if(!report.crash.isEmpty())
 		query.addQueryItem("log-excerpt", report.crash.left(1500));
+	if(!report.description.isEmpty())
+		query.addQueryItem("summary", report.description.left(1500));
 	query.addQueryItem("extra", QObject::tr("Report file: %1 (drag it into this box)").arg(QFileInfo(report.zipPath).fileName()));
 	issue.setQuery(query);
 	QDesktopServices::openUrl(issue);

@@ -19,6 +19,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 class CMapInfo;
 
 struct CPackForLobby;
+struct LobbyGuiAction;
 
 class GameConnection;
 struct StartInfo;
@@ -77,6 +78,10 @@ public:
 
 	/// List of all active connections
 	std::vector<std::shared_ptr<GameConnection>> activeConnections;
+
+	/// DMB (K, October 9th): the host's last LobbyGuiAction, told to a client that joins after it
+	std::shared_ptr<LobbyGuiAction> lastGuiAction;
+	void replayLobbyView(GameConnectionID clientId);
 
 	uint16_t prepare(bool connectToLobby, bool listenForConnections);
 

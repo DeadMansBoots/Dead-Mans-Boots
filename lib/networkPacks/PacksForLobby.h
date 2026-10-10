@@ -90,15 +90,21 @@ struct DLL_LINKAGE LobbyChatMessage : public CLobbyPackToPropagate
 struct DLL_LINKAGE LobbyGuiAction : public CLobbyPackToPropagate
 {
 	enum EAction : ui8 {
-		NONE, NO_TAB, OPEN_OPTIONS, OPEN_SCENARIO_LIST, OPEN_RANDOM_MAP_OPTIONS, OPEN_TURN_OPTIONS, OPEN_EXTRA_OPTIONS, BATTLE_MODE
+		NONE, NO_TAB, OPEN_OPTIONS, OPEN_SCENARIO_LIST, OPEN_RANDOM_MAP_OPTIONS, OPEN_TURN_OPTIONS, OPEN_EXTRA_OPTIONS, BATTLE_MODE,
+		OPEN_GENERATOR
 	} action = NONE;
-
+	/// DMB (K, October 9th: "the people joined to the game should be able to see the same page as the host"): with OPEN_GENERATOR,
+	/// the map generator mod whose tab the host has open, and the page of it (-1 when it has none)
+	std::string generator;
+	int32_t page = -1;
 
 	void visitTyped(ICPackVisitor & visitor) override;
 
 	template <typename Handler> void serialize(Handler &h)
 	{
 		h & action;
+		h & generator;
+		h & page;
 	}
 };
 

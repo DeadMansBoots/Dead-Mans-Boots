@@ -31,6 +31,7 @@ set(launcher_SRCS
 		gamefont.cpp
 		languages.cpp
 		updatedialog_moc.cpp
+		bugreport.cpp
 		prepare.cpp
 )
 if(IOS)
@@ -72,6 +73,7 @@ set(launcher_HEADERS
 		gamefont.h
 		languages.h
 		updatedialog_moc.h
+		bugreport.h
 		main.h
 		helper.h
 		innoextract.h
@@ -253,6 +255,12 @@ if(ENABLE_STATIC_LIBS OR NOT (ENABLE_EDITOR AND ENABLE_LAUNCHER))
 endif()
 
 target_link_libraries(vcmilauncher vcmi vcmiqt Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network)
+
+# DMB: the bug reporter uploads with a fine-grained GitHub token that can write only to the private reports repository.
+# CI passes it in as the secret DMB_REPORT_TOKEN; a build without it saves the report and opens a prefilled issue page instead.
+if(DEFINED ENV{DMB_REPORT_TOKEN} AND NOT "$ENV{DMB_REPORT_TOKEN}" STREQUAL "")
+	set_source_files_properties(bugreport.cpp PROPERTIES COMPILE_DEFINITIONS "DMB_REPORT_TOKEN=\"$ENV{DMB_REPORT_TOKEN}\"")
+endif()
 target_include_directories(vcmilauncher
 	PUBLIC	${CMAKE_CURRENT_SOURCE_DIR}
 )

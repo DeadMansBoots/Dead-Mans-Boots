@@ -25,6 +25,17 @@ jobs:
       # the fork lost every build to a macOS error)
       fail-fast: false
       matrix:
+        # DMB (K, October 10th: "windows for now, linux, mac, android later; we can reevaluate ios later after some research"): only the Windows
+        # builds run until K says otherwise; the entries below stay, so switching a platform back on is deleting its line here
+        exclude:
+          - platform: mac-intel
+          - platform: mac-arm
+          - platform: ios
+          - platform: android-32
+          - platform: android-64
+          - platform: android-64-intel
+          - platform: linux-appimage-x64
+          - platform: linux-appimage-arm64
         include:
           - platform: mac-intel
             os: macos-15
@@ -354,6 +365,9 @@ jobs:
 
         cmake --preset ${{ matrix.preset }}
       shell: pwsh
+      env:
+        # DMB: the launcher's bug reporter uploads with this token (launcher/CMakeLists.txt); empty when the secret is not set
+        DMB_REPORT_TOKEN: ${{ secrets.DMB_REPORT_TOKEN }}
 
     - name: Build
       run: |
@@ -540,6 +554,8 @@ jobs:
             path: .summary/source.json
 
   test:
+    # DMB: the tests run on Linux, which is off for now (K, October 10th); they come back with it
+    if: ${{ false }}
     name: Test (${{ matrix.platform }})
     strategy:
       fail-fast: false
@@ -665,6 +681,8 @@ jobs:
         fi
 
   lobby:
+    # DMB: a Linux package, off for now (K, October 10th)
+    if: ${{ false }}
     name: Build VCMI Lobby
     # Warning: Lobby .deb must be build on the same Ubuntu version and arch as our server. Do not change to ubuntu-latest
     runs-on: ubuntu-24.04
@@ -905,7 +923,8 @@ jobs:
         release_name=$(grep -m 1 "set(DMB_RELEASE_NAME" cmake_modules/VersionDefinition.cmake | cut -d'"' -f2 || true)
         if [ -n "$release_name" ]; then
           asset="Dead-Mans-Boots-${release_name// /-}-Setup-x64.exe"
-          title_release="Dead Man's Boots $release_name (${TAG#v})"
+          # K, October 10th: the build's name in quotes, "Dead Man's Boots 'Straker' Beta (0.1.0-beta.6)"
+          title_release="Dead Man's Boots '${release_name%% *}' ${release_name#* } (${TAG#v})"
           title_candidate="$title_release"
         fi
         cp "${installers[0]}" "$asset"

@@ -90,7 +90,7 @@ public:
 	virtual void setSimturnsInfo(const SimturnsInfo &) const = 0;
 	virtual void setExtraOptionsInfo(const ExtraOptionsInfo & info) const = 0;
 	virtual void sendMessage(const std::string & txt) const = 0;
-	virtual void sendGuiAction(ui8 action) const = 0; // TODO: possibly get rid of it?
+	virtual void sendGuiAction(ui8 action, const std::string & generator = "", int page = -1) const = 0; // TODO: possibly get rid of it?
 	virtual void sendStartGame(bool allowOnlyAI = false, bool verify = true) const = 0;
 	virtual void sendRestartGame() const = 0;
 };
@@ -171,6 +171,11 @@ public:
 	void setState(EClientState newState);
 
 	bool isHost() const;
+	/// DMB (K, October 9th): the page the host's lobby shows, as the last LobbyGuiAction said (a guest's screen follows it; kept here
+	/// because the pack can arrive before the guest's lobby screen exists). 0 (LobbyGuiAction::NONE) until the host has said.
+	ui8 hostViewAction = 0;
+	std::string hostViewGenerator;
+	int hostViewPage = -1;
 	bool isGuest() const;
 	bool hasRemoteClientInLobby() const;
 	bool inLobbyRoom() const;
@@ -203,7 +208,7 @@ public:
 	void setSimturnsInfo(const SimturnsInfo &) const override;
 	void setExtraOptionsInfo(const ExtraOptionsInfo &) const override;
 	void sendMessage(const std::string & txt) const override;
-	void sendGuiAction(ui8 action) const override;
+	void sendGuiAction(ui8 action, const std::string & generator = "", int page = -1) const override;
 	void sendRestartGame() const override;
 	void sendStartGame(bool allowOnlyAI = false, bool verify = true) const override;
 

@@ -130,33 +130,16 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyChatMessage(LobbyChatMessage & 
 
 void ApplyOnLobbyScreenNetPackVisitor::visitLobbyGuiAction(LobbyGuiAction & pack)
 {
-	if(!lobby || !handler.isGuest())
+	if(!handler.isGuest())
 		return;
 
-	switch(pack.action)
-	{
-	case LobbyGuiAction::NO_TAB:
-		lobby->toggleTab(lobby->curTab);
-		break;
-	case LobbyGuiAction::OPEN_OPTIONS:
-		lobby->toggleTab(lobby->tabOpt);
-		break;
-	case LobbyGuiAction::OPEN_SCENARIO_LIST:
-		lobby->toggleTab(lobby->tabSel);
-		break;
-	case LobbyGuiAction::OPEN_RANDOM_MAP_OPTIONS:
-		lobby->toggleTab(lobby->tabRand);
-		break;
-	case LobbyGuiAction::OPEN_TURN_OPTIONS:
-		lobby->toggleTab(lobby->tabTurnOptions);
-		break;
-	case LobbyGuiAction::OPEN_EXTRA_OPTIONS:
-		lobby->toggleTab(lobby->tabExtraOptions);
-		break;
-	case LobbyGuiAction::BATTLE_MODE:
-		lobby->toggleTab(lobby->tabBattleOnlyMode);
-		break;
-	}
+	// DMB (K, October 9th): the host's page is remembered, and shown now, and again after every change of the lobby's state (a new map
+	// closed the page a guest had open) and when the lobby screen is made after the host said (a guest who joins)
+	handler.hostViewAction = pack.action;
+	handler.hostViewGenerator = pack.generator;
+	handler.hostViewPage = pack.page;
+	if(lobby)
+		lobby->showHostView();
 }
 
 void ApplyOnLobbyHandlerNetPackVisitor::visitLobbyRestartGame(LobbyRestartGame & pack)

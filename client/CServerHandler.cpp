@@ -596,10 +596,12 @@ void CServerHandler::sendMessage(const std::string & txt) const
 	}
 }
 
-void CServerHandler::sendGuiAction(ui8 action) const
+void CServerHandler::sendGuiAction(ui8 action, const std::string & generator, int page) const
 {
 	LobbyGuiAction lga;
 	lga.action = static_cast<LobbyGuiAction::EAction>(action);
+	lga.generator = generator;
+	lga.page = page;
 	sendLobbyPack(lga);
 }
 

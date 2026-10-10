@@ -131,6 +131,17 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 			tabRand->setRedrawParent(true);
 			for(const auto & tab : generatorTabs)
 				tab->setRedrawParent(true);
+			// the host's page of a generator's tab goes to the guests (K, October 9th)
+			for(const auto & tab : generatorTabs)
+			{
+				std::weak_ptr<MapGenTab> weak = tab;
+				tab->onPageShown = [this, weak](size_t page)
+				{
+					const auto shown = weak.lock();
+					if(shown && GAME->server().isHost() && curTab == shown)
+						GAME->server().sendGuiAction(LobbyGuiAction::OPEN_GENERATOR, shown->getGenerator().modID, static_cast<int>(page));
+				};
+			}
 		}
 
 		card->iconDifficulty->addCallback(std::bind(&IServerAPI::setDifficulty, &GAME->server(), _1));
@@ -376,6 +387,8 @@ void CLobbyScreen::toggleTab(std::shared_ptr<CIntObject> tab)
 		GAME->server().sendGuiAction(LobbyGuiAction::OPEN_EXTRA_OPTIONS);
 	else if(tab == tabBattleOnlyMode)
 		GAME->server().sendGuiAction(LobbyGuiAction::BATTLE_MODE);
+	else if(const auto generatorTab = std::dynamic_pointer_cast<MapGenTab>(tab); generatorTab && vstd::contains(generatorTabs, generatorTab))
+		GAME->server().sendGuiAction(LobbyGuiAction::OPEN_GENERATOR, generatorTab->getGenerator().modID, static_cast<int>(generatorTab->currentPage()));
 
 	if(tab == tabBattleOnlyMode)
 	{
@@ -498,6 +511,53 @@ void CLobbyScreen::toggleChat()
 		buttonChat->setTextOverlay(LIBRARY->generaltexth->allTexts[532], FONT_SMALL, Colors::WHITE);
 }
 
+void CLobbyScreen::showHostView()
+{
+	if(!GAME->server().isGuest())
+		return;
+	std::shared_ptr<CIntObject> tab;
+	std::shared_ptr<MapGenTab> generatorTab;
+	switch(static_cast<LobbyGuiAction::EAction>(GAME->server().hostViewAction))
+	{
+	case LobbyGuiAction::NONE:
+		return;
+	case LobbyGuiAction::NO_TAB:
+	case LobbyGuiAction::OPEN_SCENARIO_LIST:
+		break; // no tab: the lobby's own page
+	case LobbyGuiAction::OPEN_OPTIONS:
+		tab = tabOpt;
+		break;
+	case LobbyGuiAction::OPEN_RANDOM_MAP_OPTIONS:
+		tab = tabRand;
+		break;
+	case LobbyGuiAction::OPEN_TURN_OPTIONS:
+		tab = tabTurnOptions;
+		break;
+	case LobbyGuiAction::OPEN_EXTRA_OPTIONS:
+		tab = tabExtraOptions;
+		break;
+	case LobbyGuiAction::BATTLE_MODE:
+		tab = tabBattleOnlyMode;
+		break;
+	case LobbyGuiAction::OPEN_GENERATOR:
+		for(const auto & candidate : generatorTabs)
+			if(candidate->getGenerator().modID == GAME->server().hostViewGenerator)
+				generatorTab = candidate;
+		tab = generatorTab; // a guest without that generator's mod has no such tab: it stays on the lobby's own page
+		break;
+	}
+	if(!tab)
+	{
+		if(curTab)
+			toggleTab(curTab); // closes the tab it has open
+		return;
+	}
+	if(curTab != tab)
+		toggleTab(tab);
+	if(generatorTab && GAME->server().hostViewPage >= 0 && generatorTab->currentPage() != static_cast<size_t>(GAME->server().hostViewPage))
+		generatorTab->showPage(static_cast<size_t>(GAME->server().hostViewPage));
+}
+
 void CLobbyScreen::updateAfterStateChange()
 {
 	OBJECT_CONSTRUCTION;
@@ -564,6 +624,9 @@ void CLobbyScreen::updateAfterStateChange()
 	
 	if(curTab && curTab == tabRand && GAME->server().si->mapGenOptions)
 		tabRand->setMapGenOptions(GAME->server().si->mapGenOptions);
+
+	// DMB (K, October 9th): whatever the new state did to the page this screen shows, a guest's screen goes back to the host's page
+	showHostView();
 }
 
 const StartInfo * CLobbyScreen::getStartInfo()

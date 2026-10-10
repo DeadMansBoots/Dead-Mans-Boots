@@ -428,8 +428,21 @@ void CVCMIServer::handleReceivedPack(std::shared_ptr<GameConnection> connection,
 		ApplyOnServerNetPackVisitor applier(*this, connection);
 		pack.visit(applier);
 		if (applier.getResult())
+		{
+			if(const auto * gui = dynamic_cast<LobbyGuiAction *>(&pack))
+				lastGuiAction = std::make_shared<LobbyGuiAction>(*gui);
 			announcePack(pack);
+		}
 	}
+}
+
+void CVCMIServer::replayLobbyView(GameConnectionID clientId)
+{
+	if(!lastGuiAction)
+		return;
+	for(const auto & connection : activeConnections)
+		if(connection->connectionID == clientId)
+			connection->sendPack(*lastGuiAction);
 }
 
 void CVCMIServer::announcePack(CPackForLobby & pack)

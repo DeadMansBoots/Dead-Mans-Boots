@@ -120,8 +120,21 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	// DMB (K, October 9th: "dmb also reports 'VCMI has crashed' we want to update that"): the game's own name, and where the files are, since
 	// a player is asked to send them
 	const std::string crashMessage = "Dead Man's Boots has crashed. Sorry about that.\n\nA file about the problem was saved here:\n" + dumpPath.string()
-		+ "\n\nWhen you report it, please send that file and the logs folder:\n" + VCMIDirs::get().userLogsPath().string();
-	MessageBoxA(0, crashMessage.c_str(), "Dead Man's Boots crash report", MB_OK | MB_ICONERROR);
+		+ "\n\nSend a report to the developers now? It holds the game's logs and a summary of the crash, with your Windows user name and computer name removed.";
+	if(MessageBoxA(0, crashMessage.c_str(), "Dead Man's Boots crash report", MB_YESNO | MB_ICONERROR) == IDYES)
+	{
+		// the launcher builds and sends the report (K, October 10th: one-click bug reporting); it sits next to the client
+		const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+		std::string commandLine = "\"" + launcher + "\" --report";
+		STARTUPINFOA startup = {};
+		startup.cb = sizeof(startup);
+		PROCESS_INFORMATION started = {};
+		if(CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &started))
+		{
+			CloseHandle(started.hThread);
+			CloseHandle(started.hProcess);
+		}
+	}
 }
 
 #endif

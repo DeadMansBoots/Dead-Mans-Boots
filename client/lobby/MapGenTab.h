@@ -110,6 +110,11 @@ public:
 	explicit MapGenTab(const MapGeneratorInfo & generator);
 
 	const MapGeneratorInfo & getGenerator() const;
+	/// DMB (K, October 9th): the page of the tab shown now, and a way to show one (the guests' lobby follows the host's page); and who is told
+	/// when a page is shown
+	size_t currentPage() const;
+	void showPage(size_t index);
+	std::function<void(size_t)> onPageShown;
 
 	/// For a generator that makes the game's map at Begin (MapGeneratorInfo::atBegin): puts the lobby's
 	/// random-map entry together from the tab's settings, the slots everyone sees and the towns they

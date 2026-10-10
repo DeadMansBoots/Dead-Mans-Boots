@@ -544,6 +544,8 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	};
 
 	layoutPages = widget<LayoutPages>("pages");
+	if(layoutPages)
+		layoutPages->onShown = [this](size_t index) { if(onPageShown) onPageShown(index); };
 	if(layoutPages || pageFiles.empty())
 	{
 		makeHoverTip();
@@ -608,6 +610,20 @@ void MapGenTab::openPage(size_t index)
 
 	Settings lastPage = persistentStorage.write["mapGen"]["lastPage"];
 	lastPage->Integer() = static_cast<int>(index);
+	if(onPageShown)
+		onPageShown(index);
+}
+
+size_t MapGenTab::currentPage() const
+{
+	if(layoutPages)
+		return layoutPages->current();
+	return pages ? pages->getActive() : 0;
+}
+
+void MapGenTab::showPage(size_t index)
+{
+	openPage(index);
 }
 
 void MapGenTab::resetToDefaults()

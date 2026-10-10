@@ -10,6 +10,7 @@
 #pragma once
 
 
+#include <chrono>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/date_time/posix_time/time_formatters.hpp>
 
@@ -221,6 +222,9 @@ private:
 	std::fstream file;
 	CLogFormatter formatter;
 	mutable std::mutex mx;
+	/// DMB (K, October 10th, a first suspect for choppy hero movement: a hero's step logs several trace lines): the file is flushed at
+	/// a warning or worse (a crash writes errors) and at most a quarter of a second apart otherwise, not at every line
+	std::chrono::steady_clock::time_point lastFlush = std::chrono::steady_clock::now();
 };
 
 VCMI_LIB_NAMESPACE_END

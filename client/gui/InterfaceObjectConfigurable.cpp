@@ -1421,6 +1421,8 @@ void LayoutPages::showPage(size_t index)
 		writeSetting(remember, JsonNode(static_cast<int32_t>(index)));
 	logGlobal->info("Pages %s: page %d of %d, %s", id, static_cast<int>(index) + 1, static_cast<int>(pages.size()), pageTitle(index));
 	owner.redraw();
+	if(onShown)
+		onShown(index);
 }
 
 void LayoutPages::step(int direction)

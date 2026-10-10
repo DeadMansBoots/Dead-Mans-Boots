@@ -265,6 +265,8 @@ public:
 	size_t current() const;
 	/// shows page `index` (wrapping), and remembers it
 	void showPage(size_t index);
+	/// DMB: told which page was shown, after every showPage (the lobby tells the guests the host's page)
+	std::function<void(size_t)> onShown;
 	/// the next page (+1) or the previous (-1), wrapping
 	void step(int direction);
 	/// builds the shown page again, after a setting it shows changed elsewhere

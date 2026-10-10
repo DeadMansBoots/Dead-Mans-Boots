@@ -14,7 +14,7 @@ add_definitions(-DDMB_VERSION_STRING="${DMB_VERSION}")
 # The name this release goes by (K, October 9th: "Straker Beta"). The release job reads it for the installer's file name and the release's title;
 # the text the windows show is lib/DmbRelease.h. The number above stays the one the AI plugins' builtFor check, the update notice and the tag use.
 set(DMB_RELEASE_NAME "Straker Beta")
-set(DMB_RELEASE_LABEL "beta.5")
+set(DMB_RELEASE_LABEL "beta.6")
 # The program properties' file version (win/WindowsFileInfo.rc.in reads it as a CMake variable)
 set(VCMI_VERSION_STRING "${VCMI_VERSION_MAJOR}.${VCMI_VERSION_MINOR}.${VCMI_VERSION_PATCH}")
 set(APP_SHORT_VERSION "${VCMI_VERSION_MAJOR}.${VCMI_VERSION_MINOR}")

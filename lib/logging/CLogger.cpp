@@ -438,7 +438,13 @@ void CLogFileTarget::write(const LogRecord & record)
 {
 	std::string message = formatter.format(record); //formatting is slow, do it outside the lock
 	TLockGuard _(mx);
-	file << message << std::endl;
+	file << message << '\n';
+	const auto now = std::chrono::steady_clock::now();
+	if(record.level >= ELogLevel::WARN || now - lastFlush > std::chrono::milliseconds(250))
+	{
+		file.flush();
+		lastFlush = now;
+	}
 }
 
 const CLogFormatter & CLogFileTarget::getFormatter() const { return formatter; }

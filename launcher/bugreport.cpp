@@ -35,7 +35,6 @@
 
 namespace
 {
-const char * REPORTS_REPOSITORY = "DeadMansBoots/dmb-reports";
 constexpr qint64 LOG_TAIL_BYTES = 4 * 1024 * 1024;
 constexpr qint64 PLAY_LOG_TAIL_BYTES = 6 * 1024 * 1024;
 
@@ -164,6 +163,7 @@ Report build(const QString & why)
 bool send(const Report & report, QString & message)
 {
 #ifdef DMB_REPORT_TOKEN
+	const QString REPORTS_REPOSITORY = "DeadMansBoots/dmb-reports";
 	QFile file(report.zipPath);
 	if(!file.open(QIODevice::ReadOnly))
 	{

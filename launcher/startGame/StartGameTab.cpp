@@ -84,7 +84,15 @@ StartGameTab::StartGameTab(QWidget * parent)
 
 void StartGameTab::clipboardDataChanged()
 {
-	ui->buttonPresetExport->setIcon(QIcon{});// reset icon, if any
+	// reset the "copied" check mark. A carved button (the dark and leather looks) shows its word as its icon, so clearing the icon
+	// blanked the button ("Export to Clipboard" had no word when nothing valid was in the clipboard, K, October 9th): its word is carved again
+	{
+		const QVariant carvedWord = ui->buttonPresetExport->property("dmbCarvedFrom");
+		if(carvedWord.isValid())
+			LauncherTheme::setButtonText(ui->buttonPresetExport, carvedWord.toString()); // carves the word again when the icon was cleared
+		else
+			ui->buttonPresetExport->setIcon(QIcon{});
+	}
 
 	auto clipboard = QGuiApplication::clipboard();
 	QString clipboardText = clipboard->text().trimmed();
@@ -460,7 +468,9 @@ void StartGameTab::on_buttonPresetExport_clicked()
 	QString presetString = QString::fromStdString(presetJson.toCompactString());
 	QGuiApplication::clipboard()->setText(presetString);
 
-	ui->buttonPresetExport->setIcon(QIcon{":/icons/mod-enabled.png"});
+	// the check mark replaces the icon, which for a carved button is its word: only a plain button gets it
+	if(!(ui->buttonPresetExport->text().isEmpty() && !ui->buttonPresetExport->icon().isNull()))
+		ui->buttonPresetExport->setIcon(QIcon{":/icons/mod-enabled.png"});
 }
 
 void StartGameTab::on_buttonPresetImport_clicked()

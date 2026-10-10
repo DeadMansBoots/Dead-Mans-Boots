@@ -1105,6 +1105,8 @@ public:
 		specsTitle = std::make_shared<CLabel>(area.w / 2, 62, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, tabText("template.details.specs"));
 	}
 
+	using CIntObject::show; // the id overload below must not hide the drawing one (clang's -Woverloaded-virtual, -Werror)
+
 	/// the entry with this id (an index of the list the window was made from; -1 for none, when a search matches nothing); a repeat is ignored
 	void show(int id)
 	{

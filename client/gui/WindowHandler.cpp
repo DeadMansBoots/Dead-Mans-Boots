@@ -19,12 +19,18 @@
 #include "../render/IScreenHandler.h"
 #include "../render/Colors.h"
 
+/// The window's class name for the play recorder. A reference, because clang refuses typeid of an expression with side effects (-Werror).
+static const char * windowTypeName(const IShowActivatable & window)
+{
+	return typeid(window).name();
+}
+
 void WindowHandler::popWindow(std::shared_ptr<IShowActivatable> top)
 {
 	if (windowsStack.back() != top)
 		throw std::runtime_error("Attempt to pop non-top window from stack!");
 
-	PlayRecorder::get().windowClosed(typeid(*top).name());
+	PlayRecorder::get().windowClosed(windowTypeName(*top));
 	top->deactivate();
 	disposed.push_back(top);
 	windowsStack.pop_back();
@@ -45,7 +51,7 @@ void WindowHandler::pushWindow(std::shared_ptr<IShowActivatable> newInt)
 	if(!windowsStack.empty())
 		windowsStack.back()->deactivate();
 	windowsStack.push_back(newInt);
-	PlayRecorder::get().windowOpened(typeid(*newInt).name());
+	PlayRecorder::get().windowOpened(windowTypeName(*newInt));
 	ENGINE->cursor().set(Cursor::Map::POINTER);
 	newInt->activate();
 	totalRedraw();
@@ -68,7 +74,7 @@ void WindowHandler::popWindows(int howMany)
 	windowsStack.back()->deactivate();
 	for(int i = 0; i < howMany; i++)
 	{
-		PlayRecorder::get().windowClosed(typeid(*windowsStack.back()).name());
+		PlayRecorder::get().windowClosed(windowTypeName(*windowsStack.back()));
 		disposed.push_back(windowsStack.back());
 		windowsStack.pop_back();
 	}

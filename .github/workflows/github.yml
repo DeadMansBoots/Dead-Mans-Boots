@@ -899,15 +899,24 @@ jobs:
           exit 1
         fi
         asset="Dead-Mans-Boots-${TAG#v}-Setup-x64.exe"
+        title_candidate="Dead Man's Boots ${TAG#v} (test candidate)"
+        title_release="Dead Man's Boots $version"
+        # DMB (K, October 9th): a release goes by a name too ("Straker Beta"), set once in VersionDefinition.cmake; the asset and the title carry it
+        release_name=$(grep -m 1 "set(DMB_RELEASE_NAME" cmake_modules/VersionDefinition.cmake | cut -d'"' -f2 || true)
+        if [ -n "$release_name" ]; then
+          asset="Dead-Mans-Boots-${release_name// /-}-Setup-x64.exe"
+          title_release="Dead Man's Boots $release_name (${TAG#v})"
+          title_candidate="$title_release"
+        fi
         cp "${installers[0]}" "$asset"
 
         if gh release view "$TAG" > /dev/null 2>&1; then
           gh release upload "$TAG" "$asset" --clobber
         elif [ -n "$label" ]; then
-          gh release create "$TAG" "$asset" --verify-tag --prerelease --title "Dead Man's Boots ${TAG#v} (test candidate)" \
+          gh release create "$TAG" "$asset" --verify-tag --prerelease --title "$title_candidate" \
             --notes "A test candidate for Dead Man's Boots $version, to try out before the release: expect rough edges, and please report what you find with the forms on the Issues page. Windows: download $asset below and run it. The installer is new and unsigned, so Windows may say it protected your PC: choose More info, then Run anyway. The launcher asks for your own Heroes of Might and Magic III files the first time it starts."
         else
-          gh release create "$TAG" "$asset" --verify-tag --title "Dead Man's Boots $version" \
+          gh release create "$TAG" "$asset" --verify-tag --title "$title_release" \
             --notes "Windows: download $asset below and run it. The installer is new and unsigned, so Windows may say it protected your PC: choose More info, then Run anyway. The launcher asks for your own Heroes of Might and Magic III files the first time it starts."
         fi
 

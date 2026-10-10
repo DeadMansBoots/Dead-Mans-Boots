@@ -120,7 +120,7 @@
 AppId={#VCMIFolder}.{#InstallerArch}
 AppName={#DMBName}
 AppVersion={#AppVersion}.{#AppBuild}
-AppVerName={#DMBName}
+AppVerName={#DMBName} Straker Beta
 AppPublisher={#VCMITeam}
 AppPublisherURL={#VCMIHome}
 AppSupportURL={#VCMIContact}
@@ -160,6 +160,11 @@ VersionInfoProductName={#DMBName}
 VersionInfoCopyright={#VCMICopyright}
 VersionInfoVersion={#AppVersion}
 VersionInfoOriginalFileName={#InstallerName}.exe
+
+
+[Messages]
+; DMB (K, October 9th): this release goes by the name "Straker Beta"; the wizard's title says so
+SetupWindowTitle=Setup - {#DMBName} Straker Beta
 
 
 [Languages]
@@ -268,6 +273,17 @@ var
   // became of the user folder
   EarlierUserFolder, EarlierProgramFolder: String;
   EarlierKeyIsDmb, UserFolderMoved, UserFolderNotMoved: Boolean;
+
+  // DMB (K, October 9th): the first-time setup. A VCMI install found on this PC, what the player chose
+  // (0 copy, 1 copy and then remove VCMI, 2 neither: the usual install), and what became of it
+  VcmiFound, VcmiDataFound, VcmiUsesDirsJson, RemoveConfirmed: Boolean;
+  VcmiName, VcmiVersion, VcmiInstallDir, VcmiUninstallExe, VcmiUninstallParams, VcmiUserDir, VcmiConfigDir, VcmiSavesDir, VcmiKeyPath: String;
+  VcmiKeyRoot, SetupChoice, VcmiUninstallWaitSeconds: Integer;
+  SetupChoicePage, RemoveConfirmPage: TInputOptionWizardPage;
+  SetupSummary: String;
+  MigLog: TStringList;
+  MigCopied, MigExisting, MigFailed: Integer;
+  MigBytes: Int64;
 
 function RegistryQueryPath(Key, ValueName: String): String;
 begin
@@ -443,6 +459,666 @@ begin
 end;
 
 
+/// DMB (K, October 9th: "NEED TO OFFER THE USER A FIRST-TIME SETUP SPECIFIC OPTIONS"): a first install on a PC that has VCMI offers to
+/// copy VCMI's mods and settings, or to copy them and remove VCMI, or to install with neither. Everything below runs only on that
+/// choice; the third choice, a silent install and an upgrade never reach it. Nothing here deletes a folder: VCMI is removed by its
+/// own uninstaller and only after every copied file has been checked. Heroes III's files, Steam and GOG folders are never touched.
+///
+/// Where VCMI's files are (K, October 9th: "intelligently determines where all the local files are"): the install folder comes from VCMI's
+/// own entry in Windows' list of installed programs, checked against the files in it. The user folders come from the rules VCMI itself
+/// follows (lib/VCMIDirs.cpp): the keys of <install folder>\config\dirs.json when that file names them, otherwise the Documents folder
+/// Windows reports for the user (a moved or OneDrive Documents folder included), \My Games\vcmi, with config, Saves, Mods and Maps in it.
+const
+  ReparsePointAttribute = $400;
+  DmbCatalogUrl = 'https://raw.githubusercontent.com/DeadMansBoots/DMB-Mods-Repository/main/dmb-1.7.json';
+  DmbUpdateUrl = 'https://raw.githubusercontent.com/DeadMansBoots/DMB-Mods-Repository/main/dmb-updates.json';
+
+function GetTickCount: Cardinal; external 'GetTickCount@kernel32.dll stdcall';
+
+
+function YesNo(Value: Boolean): String;
+begin
+  if Value then
+    Result := 'yes'
+  else
+    Result := 'no';
+end;
+
+
+function MegabytesText(Bytes: Int64): String;
+begin
+  Result := IntToStr(Bytes div 1048576) + ' MB';
+end;
+
+
+function FilesText(Count: Integer): String;
+begin
+  if Count = 1 then
+    Result := '1 file'
+  else
+    Result := IntToStr(Count) + ' files';
+end;
+
+
+/// where Needle (ASCII) first appears in Content at or after From, or 0. Byte by byte: the settings are UTF-8, and a character set
+/// conversion of them could shift or spoil what is not ASCII
+function BytePos(const Needle: String; const Content: AnsiString; From: Integer): Integer;
+var
+  I, J, L: Integer;
+  Match: Boolean;
+begin
+  Result := 0;
+  L := Length(Needle);
+  I := From;
+  while (Result = 0) and (I + L - 1 <= Length(Content)) do
+  begin
+    Match := True;
+    J := 1;
+    while Match and (J <= L) do
+    begin
+      if Ord(Content[I + J - 1]) <> Ord(Needle[J]) then
+        Match := False;
+      J := J + 1;
+    end;
+    if Match then
+      Result := I;
+    I := I + 1;
+  end;
+end;
+
+
+/// the string a JSON key holds, when it is plain ASCII (a path with other characters is not trusted: '' then), with JSON's doubled
+/// backslashes undone and slashes turned into backslashes
+function JsonStringValue(const Content: AnsiString; const Key: String): String;
+var
+  P, Colon, OpenQuote, CloseQuote, I: Integer;
+  OnlySpace: Boolean;
+begin
+  Result := '';
+  P := BytePos('"' + Key + '"', Content, 1);
+  if P = 0 then
+    Exit;
+  Colon := BytePos(':', Content, P + Length(Key) + 2);
+  if Colon = 0 then
+    Exit;
+  OpenQuote := BytePos('"', Content, Colon + 1);
+  if OpenQuote = 0 then
+    Exit;
+  OnlySpace := True;
+  for I := Colon + 1 to OpenQuote - 1 do
+    if Ord(Content[I]) > 32 then
+      OnlySpace := False;
+  if not OnlySpace then
+    Exit;
+  CloseQuote := BytePos('"', Content, OpenQuote + 1);
+  if CloseQuote = 0 then
+    Exit;
+  for I := OpenQuote + 1 to CloseQuote - 1 do
+  begin
+    if Ord(Content[I]) > 127 then
+    begin
+      Result := '';
+      Exit;
+    end;
+    Result := Result + Chr(Ord(Content[I]));
+  end;
+  StringChangeEx(Result, '\\', '\', True);
+  StringChangeEx(Result, '/', '\', True);
+end;
+
+
+/// %NAME% in a path replaced by the environment variable, as Windows' ExpandEnvironmentStrings does for VCMI
+function ExpandPercent(const Text: String): String;
+var
+  Rest, Name: String;
+  P, Q: Integer;
+begin
+  Result := '';
+  Rest := Text;
+  while Rest <> '' do
+  begin
+    P := Pos('%', Rest);
+    if P = 0 then
+    begin
+      Result := Result + Rest;
+      Rest := '';
+    end
+    else
+    begin
+      Result := Result + Copy(Rest, 1, P - 1);
+      Delete(Rest, 1, P);
+      Q := Pos('%', Rest);
+      if Q = 0 then
+      begin
+        Result := Result + '%' + Rest;
+        Rest := '';
+      end
+      else
+      begin
+        Name := Copy(Rest, 1, Q - 1);
+        Delete(Rest, 1, Q);
+        if GetEnv(Name) <> '' then
+          Result := Result + GetEnv(Name)
+        else
+          Result := Result + '%' + Name + '%';
+      end;
+    end;
+  end;
+end;
+
+
+/// the program a Windows uninstall string runs: "C:\path\unins000.exe" /something, or the path alone
+function UninstallExeOf(const UninstallString: String): String;
+var
+  S: String;
+  P: Integer;
+begin
+  S := Trim(UninstallString);
+  Result := S;
+  if S = '' then
+    Exit;
+  if S[1] = '"' then
+  begin
+    Delete(S, 1, 1);
+    P := Pos('"', S);
+    if P > 0 then
+      Result := Copy(S, 1, P - 1)
+    else
+      Result := S;
+  end
+  else
+  begin
+    P := Pos(' /', S);
+    if P > 0 then
+      Result := Copy(S, 1, P - 1);
+  end;
+end;
+
+
+function PathInside(const Child, Parent: String): Boolean;
+begin
+  Result := (Parent <> '') and (Pos(Lowercase(AddBackslash(RemoveBackslashUnlessRoot(Parent))), Lowercase(Child)) = 1);
+end;
+
+
+/// whether a folder holds VCMI's programs and is not DMB's (DMB's share VCMI's file names)
+function VcmiProgramsIn(const Dir: String): Boolean;
+begin
+  Result := DirExists(Dir) and (FileExists(Dir + '\VCMI_client.exe') or FileExists(Dir + '\VCMI_launcher.exe')) and not DmbProgramsIn(Dir);
+end;
+
+
+/// whether one entry of Windows' list of installed programs is a VCMI install this setup may offer to remove: named VCMI, installed in a
+/// folder that holds VCMI's programs, with an Inno uninstaller inside that folder. On a yes the VcmiXxx variables describe it.
+function ReadVcmiCandidate(Root: Integer; const Base, Sub: String): Boolean;
+var
+  Key, DisplayName, Version, Location, Unins, Exe: String;
+begin
+  Result := False;
+  Key := Base + '\' + Sub;
+  if Pos('VCMI', UpperCase(Sub)) <> 1 then
+    Exit;
+  if not RegQueryStringValue(Root, Key, 'DisplayName', DisplayName) then
+    Exit;
+  if Pos('VCMI', UpperCase(DisplayName)) <> 1 then
+    Exit;
+  if not RegQueryStringValue(Root, Key, 'InstallLocation', Location) then
+    Exit;
+  if not RegQueryStringValue(Root, Key, 'UninstallString', Unins) then
+    Exit;
+  if not RegQueryStringValue(Root, Key, 'DisplayVersion', Version) then
+    Version := '';
+  Location := RemoveBackslashUnlessRoot(Trim(Location));
+  Exe := UninstallExeOf(Unins);
+  if not VcmiProgramsIn(Location) then
+    Exit;
+  if not FileExists(Exe) then
+    Exit;
+  if not PathInside(Exe, Location) then
+    Exit;
+  if Pos('UNINS', UpperCase(ExtractFileName(Exe))) <> 1 then
+    Exit;
+  VcmiName := DisplayName;
+  VcmiVersion := Version;
+  VcmiInstallDir := Location;
+  VcmiUninstallExe := Exe;
+  VcmiKeyRoot := Root;
+  VcmiKeyPath := Key;
+  Result := True;
+end;
+
+
+function FindVcmiIn(Root: Integer; const Base: String): Boolean;
+var
+  Names: TArrayOfString;
+  I: Integer;
+begin
+  Result := False;
+  if RegGetSubkeyNames(Root, Base, Names) then
+    for I := 0 to GetArrayLength(Names) - 1 do
+      if not Result then
+        Result := ReadVcmiCandidate(Root, Base, Names[I]);
+end;
+
+
+function CountFilesIn(const Dir: String; var Bytes: Int64): Integer;
+var
+  FindRec: TFindRec;
+begin
+  Result := 0;
+  if FindFirst(Dir + '\*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        begin
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          begin
+            if (FindRec.Attributes and ReparsePointAttribute) = 0 then
+              Result := Result + CountFilesIn(Dir + '\' + FindRec.Name, Bytes);
+          end
+          else
+          begin
+            Result := Result + 1;
+            Bytes := Bytes + Int64(FindRec.SizeHigh) * 4294967296 + Int64(FindRec.SizeLow);
+          end;
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+
+/// the four things that move over, by the name they have in both user folders (config holds the settings and the presets) ...
+function MigratedFolderName(Index: Integer): String;
+begin
+  case Index of
+    0: Result := 'config';
+    1: Result := 'Mods';
+    2: Result := 'Saves';
+  else
+    Result := 'Maps';
+  end;
+end;
+
+
+function MigratedFolderWords(Index: Integer): String;
+begin
+  case Index of
+    0: Result := 'settings and presets';
+    1: Result := 'mods';
+    2: Result := 'saves';
+  else
+    Result := 'maps';
+  end;
+end;
+
+
+/// ... and where each one is in VCMI's: the folders VCMI itself would use
+function VcmiSourceFolder(Index: Integer): String;
+begin
+  case Index of
+    0: Result := VcmiConfigDir;
+    1: Result := VcmiUserDir + '\Mods';
+    2: Result := VcmiSavesDir;
+  else
+    Result := VcmiUserDir + '\Maps';
+  end;
+end;
+
+
+/// VCMI's user folders by VCMI's own rules (lib/VCMIDirs.cpp): the keys config\dirs.json in its install folder names, and for the rest
+/// Documents (as Windows reports it for this user) + \My Games\vcmi, with config and Saves inside
+procedure ResolveVcmiFolders(const Docs: String);
+var
+  Content: AnsiString;
+  Value: String;
+begin
+  VcmiUserDir := Docs + '\My Games\vcmi';
+  VcmiConfigDir := '';
+  VcmiSavesDir := '';
+  VcmiUsesDirsJson := False;
+  if (VcmiInstallDir <> '') and FileExists(VcmiInstallDir + '\config\dirs.json') and LoadStringFromFile(VcmiInstallDir + '\config\dirs.json', Content) then
+  begin
+    Value := ExpandPercent(JsonStringValue(Content, 'userDataPath'));
+    if Value <> '' then
+    begin
+      VcmiUserDir := RemoveBackslashUnlessRoot(Value);
+      VcmiUsesDirsJson := True;
+    end;
+    Value := ExpandPercent(JsonStringValue(Content, 'userConfigPath'));
+    if Value <> '' then
+    begin
+      VcmiConfigDir := RemoveBackslashUnlessRoot(Value);
+      VcmiUsesDirsJson := True;
+    end;
+    Value := ExpandPercent(JsonStringValue(Content, 'userSavePath'));
+    if Value <> '' then
+    begin
+      VcmiSavesDir := RemoveBackslashUnlessRoot(Value);
+      VcmiUsesDirsJson := True;
+    end;
+  end;
+  if VcmiConfigDir = '' then
+    VcmiConfigDir := VcmiUserDir + '\config';
+  if VcmiSavesDir = '' then
+    VcmiSavesDir := VcmiUserDir + '\Saves';
+end;
+
+
+/// whether any of VCMI's four folders holds a file
+function VcmiHasUserData(): Boolean;
+var
+  I: Integer;
+  Bytes: Int64;
+begin
+  Result := False;
+  for I := 0 to 3 do
+  begin
+    Bytes := 0;
+    if not Result then
+      Result := CountFilesIn(VcmiSourceFolder(I), Bytes) > 0;
+  end;
+end;
+
+
+/// looks for VCMI: its entry in Windows' list of installed programs (all users, 32-bit view, this user), then its user folders by VCMI's
+/// own rules. VcmiFound: an install that can be removed; VcmiDataFound: VCMI files that can be copied (a portable VCMI or one that was
+/// already uninstalled leaves only these)
+procedure FindVcmiInstall(const Docs: String);
+var
+  Base: String;
+begin
+  Base := 'Software\Microsoft\Windows\CurrentVersion\Uninstall';
+  VcmiFound := False;
+  VcmiInstallDir := '';
+#ifdef DMBFakeVcmi
+  VcmiFound := FindVcmiIn(HKCU, ExpandConstant('{%DMB_FAKE_VCMI_KEY|}'));
+#else
+  VcmiFound := FindVcmiIn(HKLM64, Base);
+  if not VcmiFound then
+    VcmiFound := FindVcmiIn(HKLM32, Base);
+  if not VcmiFound then
+    VcmiFound := FindVcmiIn(HKCU, Base);
+#endif
+  ResolveVcmiFolders(Docs);
+  VcmiDataFound := VcmiHasUserData();
+end;
+
+
+function IsHashedFile(const Name: String): Boolean;
+begin
+  Result := (CompareText(Name, 'settings.json') = 0) or (CompareText(Name, 'modSettings.json') = 0) or (CompareText(Name, 'mod.json') = 0);
+end;
+
+
+/// copies a folder tree file by file and checks each file: its size, and for the settings, the presets and every mod.json its SHA-256.
+/// A file already in the destination is kept as it is, never overwritten. A link is not followed.
+procedure CopyTreeVerified(const Src, Dst: String);
+var
+  FindRec: TFindRec;
+  S, D: String;
+  SSize, DSize: Int64;
+  Ok: Boolean;
+begin
+  if not DirExists(Dst) then
+    if not ForceDirectories(Dst) then
+    begin
+      MigFailed := MigFailed + 1;
+      MigLog.Add('FAILED: the folder ' + Dst + ' could not be made');
+      Exit;
+    end;
+  if FindFirst(Src + '\*', FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        begin
+          S := Src + '\' + FindRec.Name;
+          D := Dst + '\' + FindRec.Name;
+          if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          begin
+            if (FindRec.Attributes and ReparsePointAttribute) = 0 then
+              CopyTreeVerified(S, D)
+            else
+              MigLog.Add('skipped, a link: ' + S);
+          end
+          else if FileExists(D) then
+          begin
+            MigExisting := MigExisting + 1;
+            MigLog.Add('kept, already in Dead Man''s Boots: ' + D);
+          end
+          else
+          begin
+            Ok := False;
+            SSize := 0;
+            if FileCopy(S, D, True) then
+              if FileSize64(S, SSize) and FileSize64(D, DSize) and (SSize = DSize) then
+              begin
+                Ok := True;
+                if IsHashedFile(FindRec.Name) then
+                  Ok := CompareText(GetSHA256OfFile(S), GetSHA256OfFile(D)) = 0;
+              end;
+            if Ok then
+            begin
+              MigCopied := MigCopied + 1;
+              MigBytes := MigBytes + SSize;
+            end
+            else
+            begin
+              MigFailed := MigFailed + 1;
+              MigLog.Add('FAILED: ' + S);
+            end;
+          end;
+        end;
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+
+/// copies VCMI's user data into Dead Man's Boots' folder and checks it: every file's size, a hash for settings, presets and mod.json,
+/// and that the number of files copied and kept equals the number of files in VCMI's folders. True only when all of it holds.
+function MigrateUserData(const DstUser: String): Boolean;
+var
+  I, SrcCount: Integer;
+  Dummy: Int64;
+begin
+  MigCopied := 0;
+  MigExisting := 0;
+  MigFailed := 0;
+  MigBytes := 0;
+  SrcCount := 0;
+  Dummy := 0;
+  Result := False;
+  for I := 0 to 3 do
+    if DirExists(VcmiSourceFolder(I)) then
+    begin
+      MigLog.Add(MigratedFolderWords(I) + ': ' + VcmiSourceFolder(I));
+      SrcCount := SrcCount + CountFilesIn(VcmiSourceFolder(I), Dummy);
+      CopyTreeVerified(VcmiSourceFolder(I), DstUser + '\' + MigratedFolderName(I));
+    end;
+  if SrcCount = 0 then
+  begin
+    MigLog.Add('no VCMI files found to copy');
+    Exit;
+  end;
+  if MigCopied + MigExisting + MigFailed <> SrcCount then
+  begin
+    MigFailed := MigFailed + 1;
+    MigLog.Add('FAILED: ' + IntToStr(SrcCount) + ' files in VCMI''s folders, ' + IntToStr(MigCopied + MigExisting + MigFailed) + ' accounted for');
+  end;
+  MigLog.Add('files in VCMI''s folders: ' + IntToStr(SrcCount) + '; copied and checked: ' + IntToStr(MigCopied) + ' (' + MegabytesText(MigBytes) +
+    '); kept as they were: ' + IntToStr(MigExisting) + '; failed: ' + IntToStr(MigFailed));
+  Result := MigFailed = 0;
+end;
+
+
+/// in the copied settings, the addresses of the mod list and of the update notice name DMB's own again (VCMI's settings can hold VCMI's
+/// list, which would leave Omni Map Gen and the other DMB mods out of the launcher)
+function SetJsonString(var Content: AnsiString; const Key: String; const Value: AnsiString): Boolean;
+var
+  P, Colon, OpenQuote, CloseQuote, I: Integer;
+  OnlySpace: Boolean;
+begin
+  Result := False;
+  P := BytePos('"' + Key + '"', Content, 1);
+  if P = 0 then
+    Exit;
+  Colon := BytePos(':', Content, P + Length(Key) + 2);
+  if Colon = 0 then
+    Exit;
+  OpenQuote := BytePos('"', Content, Colon + 1);
+  if OpenQuote = 0 then
+    Exit;
+  OnlySpace := True;
+  for I := Colon + 1 to OpenQuote - 1 do
+    if Ord(Content[I]) > 32 then
+      OnlySpace := False;
+  if not OnlySpace then
+    Exit;
+  CloseQuote := BytePos('"', Content, OpenQuote + 1);
+  if CloseQuote = 0 then
+    Exit;
+  Content := Copy(Content, 1, OpenQuote) + Value + Copy(Content, CloseQuote, Length(Content));
+  Result := True;
+end;
+
+
+function FixCopiedSettings(const DstUser: String): Boolean;
+var
+  Path: String;
+  Content: AnsiString;
+begin
+  Result := False;
+  Path := DstUser + '\config\settings.json';
+  if not (FileExists(Path) and LoadStringFromFile(Path, Content)) then
+    Exit;
+  if SetJsonString(Content, 'defaultRepositoryURL', DmbCatalogUrl) then
+    Result := True;
+  if SetJsonString(Content, 'updateConfigUrl', DmbUpdateUrl) then
+    Result := True;
+  if Result then
+    Result := SaveStringToFile(Path, Content, False);
+end;
+
+
+/// runs VCMI's own uninstaller and waits for its entry in the list of installed programs to go. VCMI's uninstaller (like DMB's, from the
+/// same script) is a window with an Uninstall button and a "Delete user data" box that the person presses: this setup starts it and waits.
+function RunVcmiUninstall(): Boolean;
+var
+  Code, I: Integer;
+begin
+  Result := False;
+  // not waited for by its process (a window of its own may stay up): what counts is its entry in the list of programs going away
+  if not ShellExec('', VcmiUninstallExe, VcmiUninstallParams, ExtractFileDir(VcmiUninstallExe), SW_SHOWNORMAL, ewNoWait, Code) then
+  begin
+    MigLog.Add('VCMI''s uninstaller could not be started: ' + VcmiUninstallExe);
+    Exit;
+  end;
+  for I := 1 to VcmiUninstallWaitSeconds * 2 do
+  begin
+    if not RegKeyExists(VcmiKeyRoot, VcmiKeyPath) then
+    begin
+      Result := True;
+      Break;
+    end;
+    Sleep(500);
+  end;
+  MigLog.Add('VCMI''s uninstaller was started; VCMI is gone: ' + YesNo(Result));
+end;
+
+
+/// the whole first-time setup for the choice made (SetupChoice, RemoveConfirmed) on the VCMI found: copy and check, and only after a clean
+/// check, on the player's second confirmation, remove VCMI with its own uninstaller. Returns the plain summary the last page shows.
+function FirstTimeSetup(const DstUser: String): String;
+var
+  Started: Cardinal;
+  CopyOk, FixedSettings, Removed, WantsRemoval: Boolean;
+  Nl: String;
+begin
+  Nl := #13#10;
+  Result := '';
+  if (SetupChoice > 1) or not (VcmiFound or VcmiDataFound) then
+    Exit;
+  MigLog := TStringList.Create;
+  try
+    if VcmiFound then
+      MigLog.Add(VcmiName + ' ' + VcmiVersion + ' in ' + VcmiInstallDir + '; its user folder ' + VcmiUserDir + '; dirs.json used: ' + YesNo(VcmiUsesDirsJson))
+    else
+      MigLog.Add('no VCMI install in the list of programs; VCMI files in ' + VcmiUserDir);
+    Started := GetTickCount;
+    CopyOk := MigrateUserData(DstUser);
+    MigLog.Add('copy and check took ' + IntToStr(GetTickCount - Started) + ' ms');
+    FixedSettings := CopyOk and FixCopiedSettings(DstUser);
+    WantsRemoval := VcmiFound and (SetupChoice = 1) and RemoveConfirmed;
+    Removed := False;
+    if CopyOk and WantsRemoval then
+    begin
+      Started := GetTickCount;
+      Removed := RunVcmiUninstall();
+      MigLog.Add('removing VCMI took ' + IntToStr(GetTickCount - Started) + ' ms');
+    end;
+    if CopyOk then
+    begin
+      Result := 'From VCMI to Dead Man''s Boots: ' + FilesText(MigCopied) + ' (' + MegabytesText(MigBytes) + ') copied and checked: mods, saves, maps, settings and presets.';
+      if MigExisting > 0 then
+        Result := Result + Nl + FilesText(MigExisting) + ' already in Dead Man''s Boots were kept as they were.';
+      if FixedSettings then
+        Result := Result + Nl + 'The copied settings now use Dead Man''s Boots'' own mod list.';
+      if Removed then
+        Result := Result + Nl + 'VCMI was removed with its own uninstaller.'
+      else if WantsRemoval then
+        Result := Result + Nl + 'VCMI''s uninstaller did not finish, so VCMI stays installed.'
+      else if VcmiFound then
+        Result := Result + Nl + 'VCMI stays installed as it was.';
+    end
+    else if WantsRemoval then
+      Result := 'Nothing was removed. The copy from VCMI could not be completed and checked, so VCMI is left in place.'
+    else
+      Result := 'The copy from VCMI could not be completed and checked. VCMI is left as it was.';
+    Result := Result + Nl + 'Left alone: Heroes III''s files, Steam and GOG folders, and VCMI''s own user folder.';
+    ForceDirectories(DstUser + '\logs');
+    MigLog.Add(Result);
+    MigLog.SaveToFile(DstUser + '\logs\first-time-setup.txt');
+  finally
+    MigLog.Free;
+  end;
+end;
+
+
+/// what the first page says about the VCMI found
+function VcmiDetailsText(): String;
+var
+  Nl: String;
+  Bytes: Int64;
+  Count, I: Integer;
+begin
+  Nl := #13#10;
+  if VcmiFound then
+  begin
+    Result := VcmiName;
+    if VcmiVersion <> '' then
+      Result := Result + ' ' + VcmiVersion;
+    Result := Result + ' is installed in ' + VcmiInstallDir + '.';
+  end
+  else
+    Result := 'No VCMI install is in the list of installed programs, but VCMI''s files were found, and can be copied.';
+  Result := Result + Nl + 'Its files:';
+  for I := 0 to 3 do
+    if DirExists(VcmiSourceFolder(I)) then
+    begin
+      Bytes := 0;
+      Count := CountFilesIn(VcmiSourceFolder(I), Bytes);
+      Result := Result + Nl + '    ' + MigratedFolderWords(I) + ': ' + FilesText(Count) + ', ' + MegabytesText(Bytes) + ' (' + VcmiSourceFolder(I) + ')';
+    end;
+end;
+
+
 #ifdef DMBSelfTest
 function BoolText(Value: Boolean): String;
 begin
@@ -450,6 +1126,131 @@ begin
     Result := 'true'
   else
     Result := 'false';
+end;
+
+
+/// puts the VCMI user folders of a scenario where the test made them (Root\sN\vcmi-user), as ResolveVcmiFolders would for a default VCMI
+procedure SelfTestUserFolders(const Dir: String);
+begin
+  VcmiUserDir := Dir;
+  VcmiConfigDir := Dir + '\config';
+  VcmiSavesDir := Dir + '\Saves';
+  VcmiDataFound := True;
+end;
+
+
+/// the first-time setup on pretend VCMI installs that test_installer_moves.py made: scenario N has its pretend install's entry under
+/// HKCU\Software\DMBSelfTest\sN, a pretend VCMI user folder Root\sN\vcmi-user and a Dead Man's Boots folder Root\sN\dmb-user
+procedure SelfTestFirstTime(const Root: String; Results: TStringList);
+var
+  N: Integer;
+  Scenario, Prefix, Summary: String;
+begin
+  Results.Add('first.exe.quoted=' + UninstallExeOf('"C:\Program Files\VCMI\unins000.exe" /SILENT'));
+  Results.Add('first.exe.plain=' + UninstallExeOf('C:\Apps\VCMI\unins000.exe /X'));
+  Results.Add('first.exe.alone=' + UninstallExeOf('C:\Apps\VCMI\unins000.exe'));
+  Results.Add('first.neg.noprograms=' + BoolText(ReadVcmiCandidate(HKCU, 'Software\DMBSelfTest\neg', 'VCMI.noprograms_is1')));
+  Results.Add('first.neg.outside=' + BoolText(ReadVcmiCandidate(HKCU, 'Software\DMBSelfTest\neg', 'VCMI.outside_is1')));
+  Results.Add('first.neg.dmb=' + BoolText(ReadVcmiCandidate(HKCU, 'Software\DMBSelfTest\neg', 'VCMI.dmb_is1')));
+  Results.Add('first.neg.othername=' + BoolText(ReadVcmiCandidate(HKCU, 'Software\DMBSelfTest\neg', 'Other.app_is1')));
+  Results.Add('first.neg.nouninstaller=' + BoolText(ReadVcmiCandidate(HKCU, 'Software\DMBSelfTest\neg', 'VCMI.nouninstaller_is1')));
+  Results.Add('first.neg.findany=' + BoolText(FindVcmiIn(HKCU, 'Software\DMBSelfTest\neg')));
+  Results.Add('first.words.files1=' + FilesText(1));
+  Results.Add('first.words.files12=' + FilesText(12));
+  VcmiUninstallWaitSeconds := 4;
+  for N := 0 to 4 do
+  begin
+    Scenario := 's' + IntToStr(N);
+    Prefix := 'first.' + Scenario + '.';
+    VcmiFound := FindVcmiIn(HKCU, 'Software\DMBSelfTest\' + Scenario);
+    Results.Add(Prefix + 'found=' + BoolText(VcmiFound));
+    if VcmiFound then
+    begin
+      Results.Add(Prefix + 'name=' + VcmiName);
+      Results.Add(Prefix + 'version=' + VcmiVersion);
+      Results.Add(Prefix + 'dir=' + VcmiInstallDir);
+      Results.Add(Prefix + 'exe=' + VcmiUninstallExe);
+      SetupChoice := 1;
+      RemoveConfirmed := True;
+      if N = 0 then
+      begin
+        SetupChoice := 0;
+        RemoveConfirmed := False;
+      end;
+      if N = 2 then
+        RemoveConfirmed := False;
+      if N = 4 then
+        SetupChoice := 2;
+      VcmiUninstallParams := '/c "' + Root + '\' + Scenario + '\fake-install\uninstall.cmd"';
+      SelfTestUserFolders(Root + '\' + Scenario + '\vcmi-user');
+      MigCopied := 0;
+      MigExisting := 0;
+      MigFailed := 0;
+      Summary := FirstTimeSetup(Root + '\' + Scenario + '\dmb-user');
+      StringChangeEx(Summary, #13#10, ' | ', True);
+      Results.Add(Prefix + 'summary=' + Summary);
+      Results.Add(Prefix + 'copied=' + IntToStr(MigCopied));
+      Results.Add(Prefix + 'kept=' + IntToStr(MigExisting));
+      Results.Add(Prefix + 'failed=' + IntToStr(MigFailed));
+      Results.Add(Prefix + 'registered-after=' + BoolText(RegKeyExists(VcmiKeyRoot, VcmiKeyPath)));
+    end;
+  end;
+  // s5: a real Inno Setup uninstaller with the custom uninstall form VCMI's own installer script has. The test made a real (pretend) VCMI
+  // install with its own Inno setup, under the test's own key name VCMItest, and says so with a marker file. Only that one key is read here:
+  // never the PC's own list of installed programs as a whole.
+  if FileExists(Root + '\s5\real-installed.txt') then
+  begin
+    Prefix := 'first.s5.';
+    VcmiFound := ReadVcmiCandidate(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall', 'VCMItest_is1');
+    Results.Add(Prefix + 'found=' + BoolText(VcmiFound));
+    if VcmiFound then
+    begin
+      Results.Add(Prefix + 'exe=' + VcmiUninstallExe);
+      VcmiUninstallParams := '/SILENT /NORESTART /SUPPRESSMSGBOXES';
+      VcmiUninstallWaitSeconds := 60;
+      SetupChoice := 1;
+      RemoveConfirmed := True;
+      SelfTestUserFolders(Root + '\s5\vcmi-user');
+      Summary := FirstTimeSetup(Root + '\s5\dmb-user');
+      StringChangeEx(Summary, #13#10, ' | ', True);
+      Results.Add(Prefix + 'summary=' + Summary);
+      Results.Add(Prefix + 'copied=' + IntToStr(MigCopied));
+      Results.Add(Prefix + 'failed=' + IntToStr(MigFailed));
+      Results.Add(Prefix + 'registered-after=' + BoolText(RegKeyExists(VcmiKeyRoot, VcmiKeyPath)));
+    end;
+  end;
+  // s6: VCMI told where its folders are by config\dirs.json (data and saves by path, config by an environment variable)
+  Prefix := 'first.s6.';
+  VcmiFound := FindVcmiIn(HKCU, 'Software\DMBSelfTest\s6');
+  ResolveVcmiFolders(Root + '\s6\docs-never-used');
+  Results.Add(Prefix + 'found=' + BoolText(VcmiFound));
+  Results.Add(Prefix + 'dirsjson=' + BoolText(VcmiUsesDirsJson));
+  Results.Add(Prefix + 'userdir=' + VcmiUserDir);
+  Results.Add(Prefix + 'configdir=' + VcmiConfigDir);
+  Results.Add(Prefix + 'savesdir=' + VcmiSavesDir);
+  VcmiDataFound := VcmiHasUserData();
+  Results.Add(Prefix + 'datafound=' + BoolText(VcmiDataFound));
+  SetupChoice := 0;
+  RemoveConfirmed := False;
+  Summary := FirstTimeSetup(Root + '\s6\dmb-user');
+  Results.Add(Prefix + 'copied=' + IntToStr(MigCopied));
+  Results.Add(Prefix + 'failed=' + IntToStr(MigFailed));
+  // s7: no entry in the list of installed programs, but VCMI's files are where VCMI keeps them by default (Documents\My Games\vcmi): the
+  // copy is offered and a removal never happens
+  Prefix := 'first.s7.';
+  VcmiFound := FindVcmiIn(HKCU, 'Software\DMBSelfTest\s7-nothing-here');
+  VcmiInstallDir := '';
+  ResolveVcmiFolders(Root + '\s7\docs');
+  VcmiDataFound := VcmiHasUserData();
+  Results.Add(Prefix + 'found=' + BoolText(VcmiFound));
+  Results.Add(Prefix + 'datafound=' + BoolText(VcmiDataFound));
+  Results.Add(Prefix + 'userdir=' + VcmiUserDir);
+  SetupChoice := 1;
+  RemoveConfirmed := True;
+  Summary := FirstTimeSetup(Root + '\s7\dmb-user');
+  StringChangeEx(Summary, #13#10, ' | ', True);
+  Results.Add(Prefix + 'summary=' + Summary);
+  Results.Add(Prefix + 'copied=' + IntToStr(MigCopied));
 end;
 
 
@@ -487,6 +1288,7 @@ begin
     Results.Add('repair.newer=' + BoolText(RepairQuestionNeeded('0.2.0.aaaaaaaaa', '0.1.0.ed1132427')));
     Results.Add('repair.none=' + BoolText(RepairQuestionNeeded('', '0.1.0.ed1132427')));
     Results.Add('repair.message=' + FmtMessage(CustomMessage('DMBRepairQuestion'), ['0.1.0.ed1132427']));
+    SelfTestFirstTime(Root, Results);
     Results.Add('name={#DMBNamePas}');
     Results.SaveToFile(Root + '\results.txt');
   finally
@@ -781,6 +1583,9 @@ begin
 
   // Check if the application is already installed
   IsUpgrade := RegQueryStringValue(HKCU, 'Software\{#DMBNamePas}', 'InstallPath', InstallPath) or EarlierKeyIsDmb;
+#ifdef DMBFakeVcmi
+  IsUpgrade := False; // the pages of a first install are what the view build shows
+#endif
 
   // DMB: the same version is already installed: ask before reinstalling it (a silent install, as CI makes, is not asked)
   if IsUpgrade and not WizardSilent and RepairQuestionNeeded(InstalledDisplayVersion(), '{#AppVersion}.{#AppBuild}') then
@@ -794,6 +1599,20 @@ begin
   GlobalUserName := GetCurrentSessionUserName();
   GlobalUserDocsFolder := GetUserDocsFolder();
   GlobalUserAppdataFolder := GetUserAppdataFolder();
+#ifdef DMBFakeVcmi
+  // a build to look at the first-time setup's pages with a pretend VCMI (view_first_time_setup.py), never shipped
+  if ExpandConstant('{%DMB_TEST_DOCS|}') <> '' then
+    GlobalUserDocsFolder := ExpandConstant('{%DMB_TEST_DOCS|}');
+#endif
+
+  // DMB's first-time setup: a VCMI install on this PC is offered for copying or moving; an upgrade and a silent install never are
+  SetupChoice := 2;
+  RemoveConfirmed := False;
+  VcmiName := 'VCMI';
+  VcmiUninstallParams := '/SILENT /NORESTART /SUPPRESSMSGBOXES';
+  VcmiUninstallWaitSeconds := 300;
+  if not IsUpgrade then
+    FindVcmiInstall(GlobalUserDocsFolder);
 
   // Define paths for VCMI: DMB, in the earlier user folder while it waits to be renamed
   EarlierUserFolder := EarlierUserFolderIn(GlobalUserDocsFolder);
@@ -888,8 +1707,47 @@ begin
       // Force a redraw of the CheckListBox to fix appearance
       InstallModePage.CheckListBox.Invalidate();
     end;
+
+    // DMB (K, October 9th): the first-time setup, offered when VCMI or its files were found. The first choice is the harmless one; the
+    // removal needs the second page's own answer, and exists only when VCMI is installed (an uninstaller to run).
+    if VcmiFound or VcmiDataFound then
+    begin
+      SetupChoicePage := CreateInputOptionPage(
+        InstallModePage.ID,
+        'First-time setup',
+        'VCMI was found on this PC.',
+        VcmiDetailsText(),
+        True, False);
+      SetupChoicePage.Add('Copy mods and settings from my VCMI install' + #13#10 + '   VCMI stays installed and is not changed. Recommended.');
+      if VcmiFound then
+        SetupChoicePage.Add('Migrate: copy them, then remove VCMI' + #13#10 + '   Everything is copied and checked first; VCMI is removed with its own uninstaller after one more question.')
+      else
+        SetupChoicePage.Add('Migrate: copy them, then remove VCMI' + #13#10 + '   Not available: no VCMI install was found to remove.');
+      SetupChoicePage.Add('Install without either' + #13#10 + '   The normal installation. Nothing is copied and VCMI is not touched.');
+      SetupChoicePage.SelectedValueIndex := 0;
+      if not VcmiFound then
+        SetupChoicePage.CheckListBox.ItemEnabled[1] := False;
+
+      if VcmiFound then
+      begin
+        RemoveConfirmPage := CreateInputOptionPage(
+          SetupChoicePage.ID,
+          'Remove VCMI?',
+          'Please confirm what happens to ' + VcmiName + '.',
+          'Before anything is removed, Dead Man''s Boots copies the mods, saves, maps, settings and presets from VCMI''s folders and checks every file: ' +
+          'its size, and a hash for the settings, the presets and each mod.json. Only when all of them match, it runs the uninstaller of ' + VcmiName +
+          ' (' + VcmiUninstallExe + '), and nothing else is deleted by this setup. If anything fails, VCMI stays installed.' + #13#10 + #13#10 +
+          'VCMI''s uninstaller opens its own window with an Uninstall button and a "Delete user data" box. Leave that box unticked; ' +
+          'your files are already copied, and the box would delete VCMI''s own copies.' + #13#10 + #13#10 +
+          'Never touched by this setup: your Heroes III files, Steam and GOG folders, and VCMI''s own user folder.',
+          True, False);
+        RemoveConfirmPage.Add('No: copy only, and keep VCMI installed' + #13#10 + '   Recommended.');
+        RemoveConfirmPage.Add('Yes: after the copy is checked, remove ' + VcmiName + ' with its own uninstaller');
+        RemoveConfirmPage.SelectedValueIndex := 0;
+      end;
+    end;
   end;
-  
+
     // Attach an OnClick event handler to the tasks list
   WizardForm.TasksList.OnClickCheck := @OnTaskCheck;
   
@@ -900,7 +1758,7 @@ begin
   // Create a custom label for the footer message
   FooterLabel := TLabel.Create(WizardForm);
   FooterLabel.Parent := WizardForm;
-  FooterLabel.Caption := 'Dead Man''s Boots v' + '{#AppVersion}' + '.' + '{#AppBuild}';
+  FooterLabel.Caption := 'Dead Man''s Boots Straker Beta v' + '{#AppVersion}' + '.' + '{#AppBuild}';
   // Padding from the left edge
   FooterLabel.Left := 10;
   // Adjust to leave space for multiple lines
@@ -915,6 +1773,13 @@ end;
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result := False; // Default is not to skip the page
+
+  // DMB: the question about removing VCMI is asked only after the second choice
+  if Assigned(RemoveConfirmPage) and (PageID = RemoveConfirmPage.ID) then
+  begin
+    Result := SetupChoice <> 1;
+    Exit;
+  end;
 
   // Don't skip Target page if this is a PR build and upgrade
   if IsPRInstaller and IsUpgrade and (PageID = wpSelectDir) then
@@ -946,6 +1811,13 @@ begin
   // Ensure the footer message is visible on every page
   FooterLabel.Visible := True;
 
+  // DMB's first-time setup: what was copied and what was left alone
+  if (CurPageID = wpFinished) and (SetupSummary <> '') then
+  begin
+    WizardForm.FinishedLabel.Caption := WizardForm.FinishedLabel.Caption + #13#10#13#10 + SetupSummary;
+    WizardForm.FinishedLabel.AdjustHeight;
+  end;
+
   // DMB: what became of the earlier user folder, when there was one to move
   if (CurPageID = wpFinished) and (UserFolderMoved or UserFolderNotMoved) then
   begin
@@ -962,6 +1834,10 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+#ifdef DMBFakeVcmi
+  if CurStep = ssInstall then
+    Abort; // the view build never installs, whatever page was reached
+#endif
   // DMB: the earlier user folder takes the new name before any file lands in it (RunPreInstallTasks
   // copies Heroes III's files after this step)
   if (CurStep = ssInstall) and (EarlierUserFolder <> '') then
@@ -976,6 +1852,12 @@ begin
   // DMB: once the new install is in place, the earlier install folder and registry key go
   if CurStep = ssPostInstall then
   begin
+    // the first-time setup (K, October 9th): copy from VCMI, and remove it when that was asked for and the copy checked out
+    if (SetupChoice < 2) and (VcmiFound or VcmiDataFound) then
+    begin
+      WizardForm.StatusLabel.Caption := 'Copying from VCMI and checking every file...';
+      SetupSummary := FirstTimeSetup(GlobalUserDocsFolder + '\{#FilesFolderPas}');
+    end;
     if EarlierProgramFolder <> '' then
       Log('DMB: deleting ' + EarlierProgramFolder + ': ' + IntToStr(Ord(RemoveEarlierProgramFolder(EarlierProgramFolder, ExpandConstant('{app}')))));
     if EarlierKeyIsDmb then
@@ -986,6 +1868,21 @@ end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
+#ifdef DMBFakeVcmi
+  // the build for looking at the pages (view_first_time_setup.py) can never install: it stops at the destination page, which every
+  // path to Ready and Install passes
+  if (CurPageID = wpSelectDir) or (CurPageID = wpSelectTasks) or (CurPageID = wpReady) then
+  begin
+    Result := False;
+    Exit;
+  end;
+#endif
+  // DMB's first-time setup: what the player chose
+  if Assigned(SetupChoicePage) and (CurPageID = SetupChoicePage.ID) then
+    SetupChoice := SetupChoicePage.SelectedValueIndex;
+  if Assigned(RemoveConfirmPage) and (CurPageID = RemoveConfirmPage.ID) then
+    RemoveConfirmed := RemoveConfirmPage.SelectedValueIndex = 1;
+
   // Skip the custom page on upgrade
   if IsUpgrade and Assigned(InstallModePage) and (CurPageID = InstallModePage.ID) then
   begin
@@ -1010,6 +1907,32 @@ begin
 
   Result := True;
 end;
+
+/// DMB: the Ready page names the first-time setup's choice when there is one
+function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
+begin
+  Result := '';
+  if MemoUserInfoInfo <> '' then
+    Result := Result + MemoUserInfoInfo + NewLine + NewLine;
+  if MemoDirInfo <> '' then
+    Result := Result + MemoDirInfo + NewLine + NewLine;
+  if MemoTypeInfo <> '' then
+    Result := Result + MemoTypeInfo + NewLine + NewLine;
+  if MemoComponentsInfo <> '' then
+    Result := Result + MemoComponentsInfo + NewLine + NewLine;
+  if MemoGroupInfo <> '' then
+    Result := Result + MemoGroupInfo + NewLine + NewLine;
+  if MemoTasksInfo <> '' then
+    Result := Result + MemoTasksInfo + NewLine + NewLine;
+  if (VcmiFound or VcmiDataFound) and (SetupChoice = 0) then
+    Result := Result + 'First-time setup:' + NewLine + Space + 'Copy mods and settings from ' + VcmiName + '; VCMI stays installed.'
+  else if VcmiFound and (SetupChoice = 1) and RemoveConfirmed then
+    Result := Result + 'First-time setup:' + NewLine + Space + 'Copy mods and settings from ' + VcmiName + ', check them, then remove ' + VcmiName + ' with its own uninstaller.'
+  else if (VcmiFound or VcmiDataFound) and (SetupChoice = 1) then
+    Result := Result + 'First-time setup:' + NewLine + Space + 'Copy mods and settings from ' + VcmiName + '; VCMI stays installed.';
+  Result := Trim(Result);
+end;
+
 
 function MapEditorInstalled(): Boolean;
 begin

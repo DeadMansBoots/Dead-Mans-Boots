@@ -36,9 +36,9 @@ namespace
 const char * WIKI_API = "https://heroes.thelazy.net/api.php";
 const char * AGENT = "DeadMansBoots-Launcher/1.0 (legacy menu pictures and loading screens, one request at a time; Dead Man's Boots project)";
 // the portable Windows package of Real-ESRGAN's own release (the program MIT, the models BSD 3-clause), 45,474,481 bytes
-const char * SHARPENER_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip";
-const char * SHARPENER_SHA256 = "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d";
-const char * SHARPENER_MODEL = "realesrgan-x4plus";
+[[maybe_unused]] const char * SHARPENER_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-windows.zip";
+[[maybe_unused]] const char * SHARPENER_SHA256 = "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d";
+[[maybe_unused]] const char * SHARPENER_MODEL = "realesrgan-x4plus";
 // the backdrop the sharpener sees: as dark as the buttons' own outline, so what it blurs into the edge is outline and not a pale haze
 const QColor FLAT_GREY(22, 18, 20);
 const int MARGIN = 8; // pixels round a button for the sharpener

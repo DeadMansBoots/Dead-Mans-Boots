@@ -13,11 +13,11 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 class PlayerColor;
+struct MenuEra;  // lib/filesystem/MenuBackgrounds.h: in the library's namespace, which is VCMI on Android and iOS
+struct MenuFile;
 VCMI_LIB_NAMESPACE_END
 
 class ISharedImage;
-struct MenuEra;
-struct MenuFile;
 class CanvasImage;
 
 class AssetGenerator

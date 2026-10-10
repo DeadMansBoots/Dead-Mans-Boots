@@ -10,6 +10,7 @@
 #include "StdInc.h"
 #include "../launchertooltips.h"
 #include "aboutproject_moc.h"
+#include "../../lib/DmbRelease.h"
 #include "ui_aboutproject_moc.h"
 
 #if defined(VCMI_ANDROID)
@@ -54,7 +55,7 @@ AboutProjectView::AboutProjectView(QWidget * parent)
 	ui->lineEditGameDir->setText(pathToQString(VCMIDirs::get().binaryPath()));
 	ui->lineEditTempDir->setText(pathToQString(VCMIDirs::get().userLogsPath()));
 	ui->lineEditConfigDir->setText(pathToQString(VCMIDirs::get().userConfigPath()));
-	ui->lineEditBuildVersion->setText("Dead Man's Boots " DMB_VERSION_STRING " (" + QString::fromStdString(GameConstants::VCMI_VERSION) + ")");
+	ui->lineEditBuildVersion->setText("Dead Man's Boots " DMB_RELEASE_TEXT " (" + QString::fromStdString(GameConstants::VCMI_VERSION) + ")");
 	ui->lineEditOperatingSystem->setText(QSysInfo::prettyProductName());
 
 	// DMB: its own repository for questions and bug reports, never VCMI's, which would get DMB's

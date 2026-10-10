@@ -120,8 +120,10 @@ void BattleEffectsController::collectRenderableObjects(BattleRenderer & renderer
 	{
 		renderer.insert( EBattleFieldLayer::EFFECTS, elem.tile, [&elem](BattleRenderer::RendererRef canvas)
 		{
+			if(elem.animation->size() == 0)
+				return; // an effect whose animation did not load has nothing to draw
 			int currentFrame = static_cast<int>(floor(elem.currentFrame));
-			currentFrame %= elem.animation->size();
+			currentFrame %= static_cast<int>(elem.animation->size());
 
 			auto img = elem.animation->getImage(currentFrame, static_cast<size_t>(elem.type));
 			img->setAlpha(255 * elem.transparencyFactor);

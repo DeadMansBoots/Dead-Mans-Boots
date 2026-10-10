@@ -88,7 +88,9 @@ void ProjectileCatapult::tick(uint32_t msPassed)
 void ProjectileCatapult::show(Canvas & canvas)
 {
 	int frameCounter = std::floor(frameProgress);
-	int frameIndex = (frameCounter + 1) % animation->size(0);
+	if(animation->size(0) == 0)
+		return; // the catapult's animation did not load
+	int frameIndex = (frameCounter + 1) % static_cast<int>(animation->size(0));
 
 	auto image = animation->getImage(frameIndex, 0, true);
 

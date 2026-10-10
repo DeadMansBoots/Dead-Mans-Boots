@@ -180,7 +180,12 @@ void BattleObstacleController::tick(uint32_t msPassed)
 
 	for(auto & animation : obstacleAnimations)
 	{
-		int frameIndex = framesCount % animation.second->size(0);
+		// an obstacle animation that did not load (a mod whose picture is missing: Nate's crash, October 10th, "Animation stardust/starAbsH
+		// failed to load") has no frames: nothing is shown for it, and the game goes on
+		const size_t frames = animation.second->size(0);
+		if(frames == 0)
+			continue;
+		int frameIndex = framesCount % static_cast<int>(frames);
 		obstacleImages[animation.first] = animation.second->getImage(frameIndex, 0);
 	}
 }

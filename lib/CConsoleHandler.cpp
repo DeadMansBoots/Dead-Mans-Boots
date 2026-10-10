@@ -117,7 +117,11 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dfile, dumpType, meinfo, nullptr, nullptr);
 	CloseHandle(dfile);
 	pruneOldDumps(folder, prefix, 5);
-	MessageBoxA(0, "VCMI has crashed. We are sorry. File with information about encountered problem has been created.", "VCMI Crashhandler", MB_OK | MB_ICONERROR);
+	// DMB (K, October 9th: "dmb also reports 'VCMI has crashed' we want to update that"): the game's own name, and where the files are, since
+	// a player is asked to send them
+	const std::string crashMessage = "Dead Man's Boots has crashed. Sorry about that.\n\nA file about the problem was saved here:\n" + dumpPath.string()
+		+ "\n\nWhen you report it, please send that file and the logs folder:\n" + VCMIDirs::get().userLogsPath().string();
+	MessageBoxA(0, crashMessage.c_str(), "Dead Man's Boots crash report", MB_OK | MB_ICONERROR);
 }
 
 #endif

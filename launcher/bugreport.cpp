@@ -14,6 +14,7 @@
 #include "../lib/filesystem/CZipSaver.h"
 #include "../lib/filesystem/Filesystem.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -97,6 +98,12 @@ QString systemInfo(const QString & why)
 	ts << "VCMI version: " << QString::fromStdString(GameConstants::VCMI_VERSION) << '\n';
 	ts << "Operating system: " << QSysInfo::prettyProductName() << " (" << QSysInfo::kernelVersion() << ")\n";
 	ts << "CPU architecture: " << QSysInfo::currentCpuArchitecture() << '\n';
+	// which build the crash addresses belong to: the first 8 characters of the game program's sha256 name the folder of its symbols (build_dmb.py, symbolize.py)
+	{
+		QFile client(QString::fromStdString(VCMIDirs::get().clientPath().string()));
+		if(client.open(QIODevice::ReadOnly))
+			ts << "Game program id: " << QCryptographicHash::hash(client.readAll(), QCryptographicHash::Sha256).toHex().left(8) << '\n';
+	}
 	ts << "Report made: " << QDateTime::currentDateTime().toString(Qt::ISODate) << " (" << why << ")\n";
 	return info;
 }
@@ -110,7 +117,7 @@ void addToZip(CZipSaver & saver, const std::string & name, const QByteArray & da
 
 namespace BugReport
 {
-Report build(const QString & why, const QString & description)
+Report build(const QString & why, const QString & description, bool includeDump)
 {
 	Report report;
 	try
@@ -164,6 +171,18 @@ Report build(const QString & why, const QString & description)
 			if(count > 0)
 				addToZip(saver, "mods-listing.txt", listing.toUtf8());
 		}
+		// the newest crash dump of the game, when it is from the last day (a dump holds memory: the reports go to a private repository); when the whole
+		// report comes out over 40 MB the report is made again without it (the upload takes it as one piece)
+		if(includeDump)
+		{
+			const QFileInfoList dumps = QDir(logs).entryInfoList({"*_crash_*.dmp"}, QDir::Files, QDir::Time);
+			if(!dumps.isEmpty() && dumps.first().lastModified().secsTo(QDateTime::currentDateTime()) < 24 * 3600)
+			{
+				QFile dump(dumps.first().absoluteFilePath());
+				if(dumps.first().size() <= 120 * 1024 * 1024 && dump.open(QIODevice::ReadOnly))
+					addToZip(saver, "crash/" + dumps.first().fileName().toStdString(), dump.readAll());
+			}
+		}
 		const QString crash = crashSummary(clientLog);
 		if(!crash.isEmpty())
 			addToZip(saver, "crash-summary.txt", redacted(crash.toUtf8()));
@@ -177,6 +196,11 @@ Report build(const QString & why, const QString & description)
 	catch(const std::exception & e)
 	{
 		report.error = QString::fromUtf8(e.what());
+	}
+	if(includeDump && report.error.isEmpty() && QFileInfo(report.zipPath).size() > 40 * 1024 * 1024)
+	{
+		QFile::remove(report.zipPath);
+		return build(why, description, false);
 	}
 	return report;
 }

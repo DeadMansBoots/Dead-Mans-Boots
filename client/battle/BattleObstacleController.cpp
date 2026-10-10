@@ -56,6 +56,19 @@ void BattleObstacleController::loadObstacleImage(const CObstacleInstance & oi)
 		obstacleAnimations[oi.uniqueID] = ENGINE->renderHandler().loadAnimation(animationName, EImageBlitMode::SIMPLE);
 		obstacleImages[oi.uniqueID] = obstacleAnimations[oi.uniqueID]->getImage(0);
 	}
+
+	// DMB (K, October 10th: "plumb in more verbose logging, as apparently you can't see crashes you should"): what each obstacle of the battle is and whether its
+	// picture loaded, so a report names the obstacle, its mod's entry and its file
+	const auto & shown = obstacleImages[oi.uniqueID];
+	const size_t frames = obstacleAnimations.count(oi.uniqueID) ? obstacleAnimations[oi.uniqueID]->size(0) : (shown ? 1 : 0);
+	const std::string entry = (oi.obstacleType == CObstacleInstance::USUAL || oi.obstacleType == CObstacleInstance::ABSOLUTE_OBSTACLE) ? oi.getInfo().identifier : std::string("(not from a mod's list)");
+	if(frames == 0 || !shown)
+		logGlobal->error("Battle obstacle %d '%s' (%s): its picture '%s' did not load (%d frame(s)); it will not be drawn",
+			oi.uniqueID, entry, oi.obstacleType == CObstacleInstance::ABSOLUTE_OBSTACLE ? "absolute, one bitmap" : "animated", animationName.getOriginalName(), static_cast<int>(frames));
+	else
+		logGlobal->info("Battle obstacle %d '%s' (%s): picture '%s', %d frame(s), %dx%d",
+			oi.uniqueID, entry, oi.obstacleType == CObstacleInstance::ABSOLUTE_OBSTACLE ? "absolute, one bitmap" : "animated", animationName.getOriginalName(),
+			static_cast<int>(frames), shown->dimensions().x, shown->dimensions().y);
 }
 
 void BattleObstacleController::obstacleRemoved(const std::vector<ObstacleChanges> & obstacles)

@@ -65,6 +65,17 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	launcher::prepare();
 
 	// DMB: "VCMI_launcher.exe --report" (started by the crash dialog) makes and sends a bug report and nothing else
+	// "VCMI_launcher.exe --report-crash" is started by the game's crash handler, with no window: it builds the report and sends it (K, October 10th: "you can't
+	// see crashes you should")
+	if(vcmilauncher.arguments().contains("--report-crash"))
+	{
+		const BugReport::Report report = BugReport::build("the game crashed (sent by itself)");
+		QString problem;
+		if(report.error.isEmpty())
+			BugReport::send(report, problem);
+		return 0;
+	}
+
 	// "--report-dry FILE [--send]" is for tests: builds the report, writes where it is, the upload result and the crash summary to FILE, and shows and sends nothing
 	const int dry = vcmilauncher.arguments().indexOf("--report-dry");
 	if(dry >= 0 && dry + 1 < vcmilauncher.arguments().size())

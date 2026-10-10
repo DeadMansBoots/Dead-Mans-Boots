@@ -37,6 +37,8 @@ constexpr const char * CONSOLE_TEAL = "\x1b[1;36m";
 #else
 #include <windows.h>
 #include <dbghelp.h>
+#include <csignal>
+#include <cstdlib>
 #ifndef __MINGW32__
 	#pragma comment(lib, "dbghelp.lib")
 #endif
@@ -119,22 +121,24 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	pruneOldDumps(folder, prefix, 5);
 	// DMB (K, October 9th: "dmb also reports 'VCMI has crashed' we want to update that"): the game's own name, and where the files are, since
 	// a player is asked to send them
-	const std::string crashMessage = "Dead Man's Boots has crashed. Sorry about that.\n\nA file about the problem was saved here:\n" + dumpPath.string()
-		+ "\n\nSend a report to the developers now? It holds the game's logs and a summary of the crash, with your Windows user name and computer name removed.";
-	if(MessageBoxA(0, crashMessage.c_str(), "Dead Man's Boots crash report", MB_YESNO | MB_ICONERROR) == IDYES)
+	// K, October 10th ("you can't see crashes you should"): the launcher is started at once, with no window, to build the report (the logs, the settings, the Mods
+	// listing and this dump) and send it; the player is told, and can add what they were doing with F12 or Help, Report a bug
+	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+	std::string commandLine = "\"" + launcher + "\" --report-crash";
+	STARTUPINFOA startup = {};
+	startup.cb = sizeof(startup);
+	PROCESS_INFORMATION started = {};
+	const bool sending = CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &started);
+	if(sending)
 	{
-		// the launcher builds and sends the report (K, October 10th: one-click bug reporting); it sits next to the client
-		const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
-		std::string commandLine = "\"" + launcher + "\" --report";
-		STARTUPINFOA startup = {};
-		startup.cb = sizeof(startup);
-		PROCESS_INFORMATION started = {};
-		if(CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &started))
-		{
-			CloseHandle(started.hThread);
-			CloseHandle(started.hProcess);
-		}
+		CloseHandle(started.hThread);
+		CloseHandle(started.hProcess);
 	}
+	const std::string crashMessage = std::string("Dead Man's Boots has crashed. Sorry about that.\n\n")
+		+ (sending ? "A report with the game's logs was sent to the developers by itself (your Windows user name and computer name are removed from it). When the game is running again, "
+			"F12 lets you add what you were doing.\n\n" : "")
+		+ "A file about the problem was saved here:\n" + dumpPath.string();
+	MessageBoxA(0, crashMessage.c_str(), "Dead Man's Boots crash report", MB_OK | MB_ICONERROR);
 }
 
 #endif
@@ -234,6 +238,41 @@ LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* exception)
 #endif
 
 	return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
+#ifdef USE_UNHANDLED_EXCEPTION_FILTER
+/// every other way the program can be ended by itself (K, October 10th: "you can't see crashes you should"): a failed runtime check, a pure virtual call, abort():
+/// the same log lines and dump as an exception, then the program ends
+[[noreturn]] static void onFatal(const char * what)
+{
+	logGlobal->error("Disaster happened. %s", what);
+	const HANDLE process = GetCurrentProcess();
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_FAIL_CRITICAL_ERRORS);
+	SymInitialize(process, nullptr, TRUE);
+	void * frames[48] = {};
+	const USHORT frameCount = CaptureStackBackTrace(0, 48, frames, nullptr);
+	for(USHORT i = 0; i < frameCount; ++i)
+		logGlobal->error("  frame %d: %s", static_cast<int>(i), describeAddress(process, frames[i]));
+	logGlobal->error("Thread ID: %d", static_cast<int>(::GetCurrentThreadId()));
+	createMemoryDump(nullptr);
+	TerminateProcess(process, 3);
+	std::abort();
+}
+
+static void onInvalidParameter(const wchar_t *, const wchar_t *, const wchar_t *, unsigned int, uintptr_t)
+{
+	onFatal("A function of the C runtime was given an invalid argument.");
+}
+
+static void onPureCall()
+{
+	onFatal("A pure virtual function was called.");
+}
+
+static void onAbortSignal(int)
+{
+	onFatal("abort() was called.");
 }
 #endif
 
@@ -379,6 +418,10 @@ CConsoleHandler::CConsoleHandler(const std::function<void(const std::string &, b
 
 #ifdef USE_UNHANDLED_EXCEPTION_FILTER
 	SetUnhandledExceptionFilter(onUnhandledException);
+	_set_invalid_parameter_handler(onInvalidParameter);
+	_set_purecall_handler(onPureCall);
+	std::signal(SIGABRT, onAbortSignal);
+	_set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT); // the program's own handler above, not the runtime's message box
 #endif
 
 #ifdef USE_ON_TERMINATE

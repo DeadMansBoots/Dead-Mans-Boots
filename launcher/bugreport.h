@@ -33,7 +33,7 @@ namespace BugReport
 	};
 
 	/// `description` is the player's own words (what went wrong), kept in the zip as description.txt
-	Report build(const QString & why, const QString & description = {});
+	Report build(const QString & why, const QString & description = {}, bool includeDump = true);
 	bool send(const Report & report, QString & message);
 	/// the whole flow, with the questions and thanks a player sees; `parent` may be null
 	void run(QWidget * parent, const QString & why);

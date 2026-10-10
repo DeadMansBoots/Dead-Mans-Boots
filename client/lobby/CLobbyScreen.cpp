@@ -135,11 +135,17 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 			for(const auto & tab : generatorTabs)
 			{
 				std::weak_ptr<MapGenTab> weak = tab;
-				tab->onPageShown = [this, weak](size_t page)
+				tab->onPageShown = [this, weak](size_t)
 				{
 					const auto shown = weak.lock();
 					if(shown && GAME->server().isHost() && curTab == shown)
-						GAME->server().sendGuiAction(LobbyGuiAction::OPEN_GENERATOR, shown->getGenerator().modID, static_cast<int>(page));
+						sendGeneratorView(*shown);
+				};
+				tab->onSettingsChanged = [this, weak]()
+				{
+					const auto shown = weak.lock();
+					if(shown && GAME->server().isHost() && curTab == shown)
+						sendGeneratorView(*shown);
 				};
 			}
 		}
@@ -186,8 +192,16 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 	onRemoteClientLobbyStateChanged();
 }
 
+void CLobbyScreen::sendGeneratorView(const MapGenTab & tab) const
+{
+	GAME->server().sendGuiAction(LobbyGuiAction::OPEN_GENERATOR, tab.getGenerator().modID, static_cast<int>(tab.currentPage()), tab.stateText());
+}
+
 CLobbyScreen::~CLobbyScreen()
 {
+	// a guest's own generator settings, put aside while the host's were shown
+	for(const auto & tab : generatorTabs)
+		tab->restoreOwnState();
 	// TODO: For now we always destroy whole lobby when leaving bonus selection screen
 	if(GAME->server().getState() == EClientState::LOBBY_CAMPAIGN)
 		GAME->server().sendClientDisconnecting();
@@ -388,7 +402,7 @@ void CLobbyScreen::toggleTab(std::shared_ptr<CIntObject> tab)
 	else if(tab == tabBattleOnlyMode)
 		GAME->server().sendGuiAction(LobbyGuiAction::BATTLE_MODE);
 	else if(const auto generatorTab = std::dynamic_pointer_cast<MapGenTab>(tab); generatorTab && vstd::contains(generatorTabs, generatorTab))
-		GAME->server().sendGuiAction(LobbyGuiAction::OPEN_GENERATOR, generatorTab->getGenerator().modID, static_cast<int>(generatorTab->currentPage()));
+		sendGeneratorView(*generatorTab);
 
 	if(tab == tabBattleOnlyMode)
 	{
@@ -517,6 +531,11 @@ void CLobbyScreen::showHostView()
 		return;
 	std::shared_ptr<CIntObject> tab;
 	std::shared_ptr<MapGenTab> generatorTab;
+	// the host's settings of a generator are shown whatever page the host is on now (a guest who joined after the host moved on has them too)
+	if(!GAME->server().hostViewState.empty())
+		for(const auto & candidate : generatorTabs)
+			if(candidate->getGenerator().modID == GAME->server().hostStateGenerator)
+				candidate->applyHostState(GAME->server().hostViewState);
 	switch(static_cast<LobbyGuiAction::EAction>(GAME->server().hostViewAction))
 	{
 	case LobbyGuiAction::NONE:

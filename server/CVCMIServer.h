@@ -81,6 +81,7 @@ public:
 
 	/// DMB (K, October 9th): the host's last LobbyGuiAction, told to a client that joins after it
 	std::shared_ptr<LobbyGuiAction> lastGuiAction;
+	std::shared_ptr<LobbyGuiAction> lastGeneratorAction; // the last OPEN_GENERATOR that carried settings
 	void replayLobbyView(GameConnectionID clientId);
 
 	uint16_t prepare(bool connectToLobby, bool listenForConnections);

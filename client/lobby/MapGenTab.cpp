@@ -377,6 +377,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 {
 	OBJECT_CONSTRUCTION;
 	recActions = 0; // hidden until its lobby button opens it, like the other tabs
+	restoreOwnStateAfterCrash(); // before anything reads the settings
 	dropUnapprovedTemplate();
 
 	// the mod's own filesystem, so a file of the same name in another mod never stands in
@@ -624,6 +625,74 @@ size_t MapGenTab::currentPage() const
 void MapGenTab::showPage(size_t index)
 {
 	openPage(index);
+	// the row of page buttons shows the page too, as when a button is pressed (a guest's tab follows the host's)
+	if(auto group = widget<CToggleGroup>("pageButtons"))
+		group->setSelectedOnly(static_cast<int>(index));
+}
+
+std::string MapGenTab::stateText() const
+{
+	return persistentStorage["mapGen"].toCompactString();
+}
+
+void MapGenTab::applyHostState(const std::string & text)
+{
+	if(text.empty() || text == appliedHostState)
+		return;
+	const JsonNode host(reinterpret_cast<const std::byte *>(text.data()), text.size(), "<the host's generator settings>");
+	if(!host.isStruct())
+		return;
+	if(!ownStateKept)
+	{
+		ownState = persistentStorage["mapGen"];
+		ownStateKept = true;
+		std::ofstream backup(ownStateFile().c_str(), std::ofstream::out | std::ofstream::trunc);
+		backup << ownState.toString();
+	}
+	{
+		Settings stored = persistentStorage.write["mapGen"];
+		*stored.operator->() = host;
+	}
+	appliedHostState = text;
+	refreshPages();
+}
+
+void MapGenTab::restoreOwnState()
+{
+	if(!ownStateKept)
+		return;
+	{
+		Settings stored = persistentStorage.write["mapGen"];
+		*stored.operator->() = ownState;
+	}
+	ownStateKept = false;
+	appliedHostState.clear();
+	boost::system::error_code ignored;
+	boost::filesystem::remove(ownStateFile(), ignored);
+}
+
+boost::filesystem::path MapGenTab::ownStateFile() const
+{
+	return VCMIDirs::get().userConfigPath() / ("mapGenOwn-" + generator.modID + ".json");
+}
+
+void MapGenTab::restoreOwnStateAfterCrash()
+{
+	// a file left from a lobby that ended without the tab being closed (a crash, the process ended): the settings it holds are the player's own
+	const auto file = ownStateFile();
+	if(!boost::filesystem::exists(file))
+		return;
+	std::ifstream in(file.c_str(), std::ifstream::in | std::ifstream::binary);
+	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	in.close();
+	const JsonNode own(reinterpret_cast<const std::byte *>(text.data()), text.size(), file.string());
+	if(own.isStruct())
+	{
+		Settings stored = persistentStorage.write["mapGen"];
+		*stored.operator->() = own;
+	}
+	boost::system::error_code ignored;
+	boost::filesystem::remove(file, ignored);
 }
 
 void MapGenTab::resetToDefaults()
@@ -724,6 +793,8 @@ void MapGenTab::updateMapInfoByHost()
 	MetaString description;
 	description.appendRawString(LIBRARY->modh->getModInfo(generator.modID).getLocalizedDescription().String());
 	GAME->server().setMapInfo(RandomMapTab::createRandomMapInfo(*options, name, description), options);
+	if(onSettingsChanged)
+		onSettingsChanged(); // the guests are sent the settings too (K, October 10th)
 }
 
 std::shared_ptr<CMapGenOptions> MapGenTab::lobbyOptions() const

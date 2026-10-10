@@ -165,6 +165,12 @@ void CServerHandler::threadRunNetwork()
 void CServerHandler::resetStateForLobby(EStartMode mode, ESelectionScreen screen, EServerMode newServerMode, const std::vector<std::string> & playerNames)
 {
 	hostClientId = GameConnectionID::INVALID;
+	// a new lobby has no page or generator settings of a host yet (the last lobby's would be shown in it)
+	hostViewAction = 0;
+	hostViewGenerator.clear();
+	hostViewPage = -1;
+	hostViewState.clear();
+	hostStateGenerator.clear();
 	setState(EClientState::NONE);
 	serverMode = newServerMode;
 	loadMode = ELoadMode::NONE;
@@ -596,12 +602,13 @@ void CServerHandler::sendMessage(const std::string & txt) const
 	}
 }
 
-void CServerHandler::sendGuiAction(ui8 action, const std::string & generator, int page) const
+void CServerHandler::sendGuiAction(ui8 action, const std::string & generator, int page, const std::string & state) const
 {
 	LobbyGuiAction lga;
 	lga.action = static_cast<LobbyGuiAction::EAction>(action);
 	lga.generator = generator;
 	lga.page = page;
+	lga.state = state;
 	sendLobbyPack(lga);
 }
 

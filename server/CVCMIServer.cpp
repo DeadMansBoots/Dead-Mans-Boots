@@ -430,7 +430,11 @@ void CVCMIServer::handleReceivedPack(std::shared_ptr<GameConnection> connection,
 		if (applier.getResult())
 		{
 			if(const auto * gui = dynamic_cast<LobbyGuiAction *>(&pack))
+			{
 				lastGuiAction = std::make_shared<LobbyGuiAction>(*gui);
+				if(gui->action == LobbyGuiAction::OPEN_GENERATOR && !gui->state.empty())
+					lastGeneratorAction = lastGuiAction;
+			}
 			announcePack(pack);
 		}
 	}
@@ -442,7 +446,12 @@ void CVCMIServer::replayLobbyView(GameConnectionID clientId)
 		return;
 	for(const auto & connection : activeConnections)
 		if(connection->connectionID == clientId)
+		{
+			// the generator's settings first (a guest applies them when it has the tab), then the page the host is on now
+			if(lastGeneratorAction && lastGeneratorAction != lastGuiAction)
+				connection->sendPack(*lastGeneratorAction);
 			connection->sendPack(*lastGuiAction);
+		}
 }
 
 void CVCMIServer::announcePack(CPackForLobby & pack)

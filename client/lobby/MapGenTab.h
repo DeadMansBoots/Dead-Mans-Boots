@@ -115,6 +115,18 @@ public:
 	size_t currentPage() const;
 	void showPage(size_t index);
 	std::function<void(size_t)> onPageShown;
+	/// the host's settings of this generator as JSON text, for the guests (K, October 10th); told to onSettingsChanged when the host changes them
+	std::string stateText() const;
+	std::function<void()> onSettingsChanged;
+	/// a guest: shows the host's settings in place of its own (kept in memory, and put back by restoreOwnState when the lobby closes)
+	void applyHostState(const std::string & text);
+	void restoreOwnState();
+	void restoreOwnStateAfterCrash();
+	boost::filesystem::path ownStateFile() const;
+	/// the guest's own settings while the host's are shown, and the host's text last shown
+	JsonNode ownState;
+	bool ownStateKept = false;
+	std::string appliedHostState;
 
 	/// For a generator that makes the game's map at Begin (MapGeneratorInfo::atBegin): puts the lobby's
 	/// random-map entry together from the tab's settings, the slots everyone sees and the towns they

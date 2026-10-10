@@ -97,6 +97,9 @@ struct DLL_LINKAGE LobbyGuiAction : public CLobbyPackToPropagate
 	/// the map generator mod whose tab the host has open, and the page of it (-1 when it has none)
 	std::string generator;
 	int32_t page = -1;
+	/// DMB (K, October 10th: "get full multiplayer lobby sync for omni map gen"): with OPEN_GENERATOR, the host's settings of that generator (its
+	/// persistentStorage mapGen subtree as JSON text), so a guest's tab shows the host's values, not its own; empty for every other action
+	std::string state;
 
 	void visitTyped(ICPackVisitor & visitor) override;
 
@@ -105,6 +108,7 @@ struct DLL_LINKAGE LobbyGuiAction : public CLobbyPackToPropagate
 		h & action;
 		h & generator;
 		h & page;
+		h & state;
 	}
 };
 

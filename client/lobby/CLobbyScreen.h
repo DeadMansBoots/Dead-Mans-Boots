@@ -32,6 +32,8 @@ public:
 	/// DMB (K, October 9th): a guest's screen shows the page the host's shows (CServerHandler::hostViewAction): the tab, and a map generator
 	/// tab's page. Nothing for the host.
 	void showHostView();
+	/// the host's page of a generator's tab and its settings, to the guests
+	void sendGeneratorView(const MapGenTab & tab) const;
 
 	const CMapInfo * getMapInfo() final;
 	const StartInfo * getStartInfo() final;

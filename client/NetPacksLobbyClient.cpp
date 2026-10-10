@@ -138,6 +138,11 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyGuiAction(LobbyGuiAction & pack
 	handler.hostViewAction = pack.action;
 	handler.hostViewGenerator = pack.generator;
 	handler.hostViewPage = pack.page;
+	if(!pack.state.empty())
+	{
+		handler.hostViewState = pack.state;
+		handler.hostStateGenerator = pack.generator;
+	}
 	if(lobby)
 		lobby->showHostView();
 }

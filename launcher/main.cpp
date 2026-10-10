@@ -65,14 +65,21 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	launcher::prepare();
 
 	// DMB: "VCMI_launcher.exe --report" (started by the crash dialog) makes and sends a bug report and nothing else
-	// "--report-dry FILE" is for tests: builds the report, writes where it is and the crash summary to FILE, and shows and sends nothing
+	// "--report-dry FILE [--send]" is for tests: builds the report, writes where it is, the upload result and the crash summary to FILE, and shows and sends nothing
 	const int dry = vcmilauncher.arguments().indexOf("--report-dry");
 	if(dry >= 0 && dry + 1 < vcmilauncher.arguments().size())
 	{
 		const BugReport::Report report = BugReport::build("test");
 		QFile out(vcmilauncher.arguments().at(dry + 1));
+		// with "--send" too, the upload is made and its result written after the error line
+		QString sent;
+		if(vcmilauncher.arguments().contains("--send"))
+		{
+			QString problem;
+			sent = BugReport::send(report, problem) ? "SENT" : "NOT SENT: " + problem;
+		}
 		if(out.open(QIODevice::WriteOnly))
-			out.write((report.zipPath + "\n" + report.error + "\n" + report.crash).toUtf8());
+			out.write((report.zipPath + "\n" + report.error + "\n" + sent + "\n" + report.crash).toUtf8());
 		return 0;
 	}
 	if(vcmilauncher.arguments().contains("--report"))

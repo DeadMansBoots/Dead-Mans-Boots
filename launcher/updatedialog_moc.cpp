@@ -29,6 +29,12 @@
 #include <shellapi.h>
 #endif
 
+/// the version banner: dark panel, gold type, `accent` as its left edge
+static QString headerStyle(const QString & accent)
+{
+	return QString("QLabel { background-color: #1c1307; color: #f3d27a; border: 1px solid #d9a83e; border-left: 6px solid %1; padding: 4px 10px; }").arg(accent);
+}
+
 UpdateDialog::UpdateDialog(bool calledManually, QWidget *parent):
 	QDialog(parent),
 	ui(new Ui::UpdateDialog),
@@ -75,7 +81,7 @@ UpdateDialog::UpdateDialog(bool calledManually, QWidget *parent):
 		
 		if(response->error() != QNetworkReply::NoError)
 		{
-			ui->versionLabel->setStyleSheet("QLabel { background-color : red; color : black; }");
+			ui->versionLabel->setStyleSheet(headerStyle("#b03030"));
 			ui->versionLabel->setText(tr("Network error"));
 			ui->plainTextEdit->setPlainText(response->errorString());
 			return;
@@ -142,23 +148,23 @@ void UpdateDialog::loadFromJson(const JsonNode & node)
 	
 	const auto updateType = node["updateType"].String();
 	
-	QString bgColor;
-	if(updateType == "minor")
-		bgColor = "gray";
-	else if(updateType == "major")
-		bgColor = "orange";
+	// DMB (K, October 10th, on a grey box with black type: "we should fix it so it looks proper"): a dark panel with gold type, the update's
+	// weight shown by the colour of its left edge
+	QString accent = "#d9a83e";
+	if(updateType == "major")
+		accent = "#d9822b";
 	else if(updateType == "critical")
-		bgColor = "red";
+		accent = "#b03030";
 	
-	ui->versionLabel->setStyleSheet(QString("QLabel { background-color : %1; color : black; }").arg(bgColor));
-	ui->versionLabel->setText(QString::fromStdString(newVersion));
+	ui->versionLabel->setStyleSheet(headerStyle(accent));
+	ui->versionLabel->setText(tr("%1 is out").arg(QString::fromStdString(newVersion)));
 	ui->plainTextEdit->setPlainText(QString::fromStdString(node["changeLog"].String()));
 	
 	QString downloadLink = QString::fromStdString(node["downloadLinks"]["other"].String());
 	if(node["downloadLinks"][platformParameter].getType() == JsonNode::JsonType::DATA_STRING)
 		downloadLink = QString::fromStdString(node["downloadLinks"][platformParameter].String());
 	
-	ui->downloadLink->setText(QString{"<a href=\"%1\">Download page</a>"}.arg(downloadLink));
+	ui->downloadLink->setText(QString{"%2 <a href=\"%1\" style=\"color: #f3d27a;\">Download page</a>"}.arg(downloadLink, tr("You have %1.").arg(QString::fromStdString(currentVersion))));
 
 	// DMB: an "Update now" button when the notice names a Windows installer (https only), with the installer's SHA-256 when it gives one
 	installerUrl.clear();
@@ -182,7 +188,8 @@ void UpdateDialog::loadFromJson(const JsonNode & node)
 			ui->gridLayout->addWidget(updateButton, ui->gridLayout->rowCount(), 0, 1, -1);
 			connect(updateButton, &QPushButton::clicked, this, &UpdateDialog::on_updateNow_clicked);
 		}
-		updateButton->setText(tr("Update now: download and install %1").arg(QString::fromStdString(newVersion)));
+		// a short word: the gold button carves its text in the game's lettering, which cannot be wrapped or shrunk
+		updateButton->setText(tr("Update now"));
 		updateButton->setEnabled(true);
 	}
 }

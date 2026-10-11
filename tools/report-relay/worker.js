@@ -60,25 +60,31 @@ async function fileCount(env, release) {
   return last ? Number(last[1]) : (await listed.json()).length;
 }
 
-// the body with its first four bytes read, put back in front of the rest
-async function checkedBody(request) {
+// The body, checked and handed on: its first four bytes must be the zip signature (read, then written first into the stream that goes to GitHub); the rest is piped
+// on by the runtime itself (a JavaScript read per chunk would spend the Free plan's 10 ms of CPU a request on a 45 MB file; time spent waiting for the network is not
+// CPU). On Cloudflare the stream is a FixedLengthStream, so GitHub is sent a Content-Length and not chunked encoding, and a body shorter or longer than the
+// Content-Length it announced is an error. Outside Cloudflare (the tests under node) a plain stream stands in.
+async function checkedBody(request, length) {
   const reader = request.body.getReader();
-  const first = await reader.read();
-  const head = first.value || new Uint8Array(0);
-  if (head.length < 4 || head[0] !== 0x50 || head[1] !== 0x4b || head[2] !== 0x03 || head[3] !== 0x04) return null;
-  return new ReadableStream({
-    start(controller) {
-      controller.enqueue(head);
-    },
-    async pull(controller) {
-      const next = await reader.read();
-      if (next.done) controller.close();
-      else controller.enqueue(next.value);
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
+  let head = new Uint8Array(0);
+  while (head.length < 4) {
+    const next = await reader.read();
+    if (next.done) return null;
+    const joined = new Uint8Array(head.length + next.value.length);
+    joined.set(head);
+    joined.set(next.value, head.length);
+    head = joined;
+  }
+  if (head[0] !== 0x50 || head[1] !== 0x4b || head[2] !== 0x03 || head[3] !== 0x04) return null;
+  const { readable, writable } = typeof FixedLengthStream !== "undefined" ? new FixedLengthStream(length) : new TransformStream();
+  const writer = writable.getWriter();
+  (async () => {
+    await writer.write(head);
+    writer.releaseLock();
+    reader.releaseLock();
+    await request.body.pipeTo(writable);
+  })().catch(() => {}); // a failure here ends the upload that reads `readable`, which reports it
+  return readable;
 }
 
 async function upload(request, env) {
@@ -97,7 +103,7 @@ async function upload(request, env) {
   const length = Number(request.headers.get("content-length") || "0");
   if (!length || length > MAX_BYTES) return json({ ok: false, error: "size" }, 413);
   if (!env.GITHUB_TOKEN || !env.REPORTS_REPO) return json({ ok: false, error: "relay not set up" }, 500);
-  const body = await checkedBody(request);
+  const body = await checkedBody(request, length);
   if (!body) return json({ ok: false, error: "not a zip" }, 400);
 
   try {

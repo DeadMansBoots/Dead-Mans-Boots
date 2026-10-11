@@ -5,7 +5,9 @@
 // write on that one repository. Nothing on a player's PC can read, list or delete anything. Reading the reports back is done with the developers' own GitHub sign-in
 // (fetch_reports.py), so the relay has no read or admin address at all.
 //
-// Limits: 45 MB, application/zip, a name made by the launcher (DMB-report-YYYYMMDD-HHMMSS-xxxxxx.zip), and the file must begin with the zip signature.
+// Limits: 45 MB, application/zip, a name made by the launcher (DMB-report-YYYYMMDD-HHMMSS-xxxxxx.zip) with a day within one of today's, and the file must begin with
+// the zip signature. Not limited: the number of reports from one address unless the LIMITER binding is set (it is approximate); anyone who finds the address can
+// send junk until the worker is deleted in the Cloudflare dashboard or the feed's reportEndpoint is removed. A release holds a limited number of files.
 //
 // Settings (wrangler.toml / Worker secrets): GITHUB_TOKEN (secret), REPORTS_REPO (e.g. DeadMansBoots/dmb-reports); GITHUB_API and GITHUB_UPLOADS only for tests.
 
@@ -70,6 +72,14 @@ async function upload(request, env) {
   const name = request.headers.get("X-DMB-Report-Name") || "";
   const match = NAME.exec(name);
   if (!match) return json({ ok: false, error: "bad name" }, 400);
+  // the day in the name makes the release tag: only yesterday, today and tomorrow (players' clocks and time zones differ), so nobody can make tags at will
+  const dayOf = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10).replaceAll("-", "");
+  if (![dayOf(-1), dayOf(0), dayOf(1)].includes(match[1])) return json({ ok: false, error: "bad day" }, 400);
+  // an optional Cloudflare rate-limiting binding named LIMITER (wrangler.toml, [[ratelimits]]): one address, a few reports a minute
+  if (env.LIMITER) {
+    const { success } = await env.LIMITER.limit({ key: request.headers.get("cf-connecting-ip") || "unknown" });
+    if (!success) return json({ ok: false, error: "slow down" }, 429);
+  }
   if (request.headers.get("content-type") !== "application/zip") return json({ ok: false, error: "not a zip" }, 400);
   const length = Number(request.headers.get("content-length") || "0");
   if (!length || length > MAX_BYTES) return json({ ok: false, error: "size" }, 413);

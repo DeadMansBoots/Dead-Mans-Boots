@@ -74,6 +74,8 @@ QByteArray redacted(const QByteArray & data)
 	// a folder named after an employer or a person that OneDrive adds ("OneDrive - Contoso"), and addresses of other computers (not this one's loopback)
 	text.replace(QRegularExpression("OneDrive - [^\\\\/\"\r\n]+"), "OneDrive - <name>");
 	text.replace(QRegularExpression("\\b(?!127\\.|0\\.0\\.0\\.0)(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b(?![\\w.])"), "<ip>");
+	// IPv6 addresses (written in full or with ::)
+	text.replace(QRegularExpression("\\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b|\\b(?:[0-9a-fA-F]{1,4}:){1,6}:(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4}){0,5})?(?![\\w:])"), "<ip>");
 	return text.toUtf8();
 }
 
@@ -99,9 +101,11 @@ void scrubDump(QByteArray & dump)
 			return;
 		for(const QString & variant : {name, name.toLower(), name.toUpper()})
 		{
-			const QByteArray narrow = variant.toLatin1();
-			if(variant.toLatin1() == variant.toUtf8() && !narrow.isEmpty())
+			// as written in UTF-8 and in the PC's local code page (for a name with letters outside ASCII the two differ)
+			for(const QByteArray & narrow : {variant.toUtf8(), variant.toLocal8Bit()})
 			{
+				if(narrow.isEmpty())
+					continue;
 				const QByteArray filler(narrow.size(), 'x');
 				for(int at = dump.indexOf(narrow); at >= 0; at = dump.indexOf(narrow, at + narrow.size()))
 					dump.replace(at, narrow.size(), filler);

@@ -135,8 +135,8 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 		CloseHandle(started.hProcess);
 	}
 	const std::string crashMessage = std::string("Dead Man's Boots has crashed. Sorry about that.\n\n")
-		+ (sending ? "A report with the game's logs was sent to the developers by itself (your Windows user name and computer name are removed from it). When the game is running again, "
-			"F12 lets you add what you were doing.\n\n" : "")
+		+ (sending ? "A report with the game's logs is being sent to the developers by itself (your Windows user name and computer name are removed from it; the launcher's Settings "
+			"can switch this off). When the game is running again, F12 lets you add what you were doing.\n\n" : "")
 		+ "A file about the problem was saved here:\n" + dumpPath.string();
 	MessageBoxA(0, crashMessage.c_str(), "Dead Man's Boots crash report", MB_OK | MB_ICONERROR);
 }

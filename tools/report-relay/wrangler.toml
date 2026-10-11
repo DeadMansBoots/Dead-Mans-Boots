@@ -5,5 +5,13 @@ compatibility_date = "2026-10-01"
 [vars]
 REPORTS_REPO = "DeadMansBoots/dmb-reports"
 
+# With the command line (not the dashboard) a rate limit can be added: five reports a minute from one address (Cloudflare calls the count approximate)
+# [[ratelimits]]
+# name = "LIMITER"
+# namespace_id = "1001"
+#   [ratelimits.simple]
+#   limit = 5
+#   period = 60
+
 # GITHUB_TOKEN is a secret: a fine-grained GitHub token with "Contents: read and write" on that one repository only.
 # Set it with:  npx wrangler secret put GITHUB_TOKEN   (never written in this file)

@@ -42,6 +42,8 @@ protected:
 	
 	std::string getDisplayTextImpl(PlayerColor player, const CGHeroInstance * hero, bool includeDescription) const;
 	std::string getScoutedDescriptionMessage(const CGHeroInstance * hero) const;
+	/// DMB: the building's kind, guards, prize range and threat for the pop-up; empty when Settings turn it off
+	std::string getBuildingInfoText(const CGHeroInstance * hero) const;
 	std::string getGenericDescriptionMessage() const;
 	std::string getDescriptionMessage(PlayerColor player, const CGHeroInstance * hero) const;
 	std::vector<Component> getPopupComponentsImpl(PlayerColor player, const CGHeroInstance * hero) const;

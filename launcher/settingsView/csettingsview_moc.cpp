@@ -585,7 +585,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 8; // the four slots, the main menu background, the loading screen, the legacy pictures button and the keep-running toggle
+		constexpr int added = 9; // the four slots, the main menu background, the loading screen, the legacy pictures button, the keep-running toggle and the building-info toggle
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -700,6 +700,24 @@ void CSettingsView::buildCategoryPages()
 			Settings node = settings.write["launcher"]["keepRunning"];
 			node->Bool() = value;
 			updateCheckbuttonText(keepButton);
+		});
+
+		// K, October 8th: a building's pop-up on the adventure map says what the building does, who guards it, the prize and the threat to the selected
+		// hero; on by default, and this switch gives the pop-up its old wording
+		auto * infoLabel = new QLabel(tr("Adventure map buildings: pop-ups say what they do, their guards and prize"), this);
+		infoLabel->setWordWrap(true);
+		auto * infoButton = new QToolButton(this);
+		infoButton->setObjectName("buttonBuildingInfo");
+		infoButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+		infoButton->setCheckable(true);
+		setCheckbuttonState(infoButton, settings["general"]["buildingInfo"].Bool());
+		cells.push_back({new QWidgetItem(infoLabel), row + 4, 0, 1, 1});
+		cells.push_back({new QWidgetItem(infoButton), row + 4, 1, 1, 5});
+		connect(infoButton, &QToolButton::toggled, this, [this, infoButton](bool value)
+		{
+			Settings node = settings.write["general"]["buildingInfo"];
+			node->Bool() = value;
+			updateCheckbuttonText(infoButton);
 		});
 	}
 

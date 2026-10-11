@@ -45,6 +45,7 @@
 				"saveBeforeVisit",
 				"startTurnAutosave",
 				"enableUiEnhancements",
+				"buildingInfo",
 				"audioMuteFocus",
 				"enableOverlay",
 				"lastKindomInterface",
@@ -162,6 +163,11 @@
 					"default": false
 				},
 				"enableUiEnhancements" : {
+					"type": "boolean",
+					"default": true
+				},
+				"buildingInfo" : {
+					// DMB (K, October 8th): the building pop-up says what the building does, who guards it, the prize and the threat
 					"type": "boolean",
 					"default": true
 				},

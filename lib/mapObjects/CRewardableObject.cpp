@@ -12,6 +12,13 @@
 #include "CRewardableObject.h"
 
 #include "../CPlayerState.h"
+#include "../CConfigHandler.h"
+#include "../CCreatureHandler.h"
+#include "../GameLibrary.h"
+#include "../callback/GameRandomizer.h"
+#include "../entities/artifact/CArtifact.h"
+#include "../spells/CSpellHandler.h"
+#include "../texts/CGeneralTextHandler.h"
 #include "../IGameSettings.h"
 #include "../battle/BattleLayout.h"
 #include "../callback/IGameInfoCallback.h"
@@ -26,6 +33,8 @@
 #include "../serializer/JsonSerializeFormat.h"
 
 #include <vstd/RNG.h>
+
+#include <mutex>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -204,6 +213,291 @@ bool CRewardableObject::wasVisited(const CGHeroInstance * h) const
 	}
 }
 
+namespace
+{
+/// DMB (K, October 8th, item 21): what an adventure map building does, shown under its pop-up text. The prize comes from the building TYPE's own reward table,
+/// sampled with a randomizer of its own (never the roll this building has: that would give the prize away), as ranges; the guards are named with the game's
+/// quantity words, and the threat against the selected hero is worded as upstream words it for wandering monsters.
+struct Range
+{
+	int lo = std::numeric_limits<int>::max();
+	int hi = 0;
+
+	void add(int value)
+	{
+		lo = std::min(lo, value);
+		hi = std::max(hi, value);
+	}
+
+	bool any() const { return hi > 0; }
+	std::string text() const { return lo == hi ? std::to_string(hi) : std::to_string(lo) + " to " + std::to_string(hi); }
+};
+
+struct PrizeSummary
+{
+	std::map<int, Range> resources;
+	std::map<int, Range> costs;
+	Range experience;
+	Range levels;
+	Range mana;
+	Range movement;
+	std::map<int, Range> primary; // by primary skill
+	bool secondary = false;
+	std::set<ArtifactID> artifacts;
+	std::set<EArtifactClass> artifactClasses;
+	std::set<SpellID> spells;
+	std::map<CreatureID, Range> creatures;
+	std::set<std::string> bonusTexts; // morale and luck by their signed values
+	bool otherBonuses = false;
+	bool removesObject = false; // taking the reward makes the object vanish (a chest, a pile)
+	bool known = false;
+};
+
+PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallback * cb)
+{
+	static std::mutex lock;
+	static std::map<std::pair<MapObjectID, MapObjectSubID>, PrizeSummary> cache;
+	std::lock_guard guard(lock);
+
+	const auto key = std::make_pair(object.ID, object.subID);
+	if(cache.count(key))
+		return cache.at(key);
+
+	PrizeSummary summary;
+	try
+	{
+		const auto handler = object.getObjectHandler();
+		const auto * constructor = dynamic_cast<const CRewardableConstructor *>(handler.get());
+		if(constructor && cb)
+		{
+			GameRandomizer randomizer(*cb);
+			for(int sample = 0; sample < 120; ++sample)
+			{
+				const auto configuration = constructor->generateConfiguration(cb, randomizer, object.ID, {});
+				for(const auto & info : configuration.info)
+				{
+					if(info.visitType != Rewardable::EEventType::EVENT_FIRST_VISIT)
+						continue;
+					summary.known = true;
+					const auto & reward = info.reward;
+					if(reward.removeObject)
+						summary.removesObject = true;
+					for(int i = 0; i < static_cast<int>(GameResID::COUNT); ++i)
+					{
+						const int amount = reward.resources[static_cast<size_t>(i)];
+						if(amount > 0)
+							summary.resources[i].add(amount);
+						else if(amount < 0)
+							summary.costs[i].add(-amount);
+					}
+					if(reward.heroExperience > 0)
+						summary.experience.add(reward.heroExperience);
+					if(reward.heroLevel > 0)
+						summary.levels.add(reward.heroLevel);
+					if(reward.manaDiff > 0)
+						summary.mana.add(reward.manaDiff);
+					if(reward.movePoints > 0)
+						summary.movement.add(reward.movePoints);
+					for(size_t i = 0; i < reward.primary.size(); ++i)
+						if(reward.primary[i] > 0)
+							summary.primary[static_cast<int>(i)].add(reward.primary[i]);
+					for(const auto & skill : reward.secondary)
+						if(skill.second > 0)
+							summary.secondary = true;
+					for(const auto & artifact : reward.grantedArtifacts)
+					{
+						summary.artifacts.insert(artifact);
+						if(const auto * art = artifact.toArtifact())
+							summary.artifactClasses.insert(art->aClass);
+					}
+					for(const auto & spell : reward.spells)
+						summary.spells.insert(spell);
+					for(const auto & scroll : reward.grantedScrolls)
+						summary.spells.insert(scroll);
+					for(const auto & creature : reward.creatures)
+						if(creature.getCount() > 0)
+							summary.creatures[creature.getId()].add(creature.getCount());
+					for(const auto & bonus : reward.heroBonuses)
+					{
+						if(bonus->type == BonusType::MORALE || bonus->type == BonusType::LUCK)
+							summary.bonusTexts.insert(std::string(bonus->val >= 0 ? "+" : "") + std::to_string(bonus->val) + (bonus->type == BonusType::MORALE ? " morale" : " luck"));
+						else
+							summary.otherBonuses = true;
+					}
+					if(!reward.playerBonuses.empty())
+						summary.otherBonuses = true;
+				}
+			}
+		}
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Building info: the reward table of %d/%d could not be sampled: %s", object.ID.getNum(), object.subID.getNum(), e.what());
+		summary = PrizeSummary();
+	}
+	cache[key] = summary;
+	return summary;
+}
+
+std::string artifactClassWord(EArtifactClass artifactClass)
+{
+	switch(artifactClass)
+	{
+		case EArtifactClass::ART_TREASURE: return "treasure";
+		case EArtifactClass::ART_MINOR: return "minor";
+		case EArtifactClass::ART_MAJOR: return "major";
+		case EArtifactClass::ART_RELIC: return "relic";
+		default: return "special";
+	}
+}
+
+std::string joinWords(const std::vector<std::string> & parts, const std::string & last = "and")
+{
+	std::string result;
+	for(size_t i = 0; i < parts.size(); ++i)
+	{
+		if(i > 0)
+			result += (i + 1 == parts.size()) ? " " + last + " " : ", ";
+		result += parts[i];
+	}
+	return result;
+}
+
+std::string prizeText(const PrizeSummary & prize, bool alternatives)
+{
+	std::vector<std::string> gives;
+	for(const auto & [res, range] : prize.resources)
+		gives.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+	for(const auto & [creature, range] : prize.creatures)
+		gives.push_back(range.text() + " " + (range.hi == 1 ? creature.toEntity(LIBRARY)->getNameSingularTranslated() : creature.toEntity(LIBRARY)->getNamePluralTranslated()));
+	if(prize.experience.any())
+		gives.push_back(prize.experience.text() + " experience");
+	if(prize.levels.any())
+		gives.push_back(prize.levels.hi == 1 ? "a level" : prize.levels.text() + " levels");
+	for(const auto & [skill, range] : prize.primary)
+		gives.push_back("+" + range.text() + " " + LIBRARY->generaltexth->primarySkillNames[skill]);
+	if(prize.secondary)
+		gives.push_back("a secondary skill");
+	if(prize.mana.any())
+		gives.push_back(prize.mana.text() + " spell points");
+	if(prize.movement.any())
+		gives.push_back("movement");
+	if(!prize.artifacts.empty())
+	{
+		if(prize.artifacts.size() <= 2)
+		{
+			for(const auto & artifact : prize.artifacts)
+				gives.push_back(artifact.toEntity(LIBRARY)->getNameTranslated());
+		}
+		else
+		{
+			std::vector<std::string> classes;
+			for(const auto & artifactClass : prize.artifactClasses)
+				classes.push_back(artifactClassWord(artifactClass));
+			gives.push_back("an artifact (" + joinWords(classes, "or") + " class)");
+		}
+	}
+	if(!prize.spells.empty())
+		gives.push_back(prize.spells.size() == 1 ? "the spell " + prize.spells.begin()->toEntity(LIBRARY)->getNameTranslated() : "a spell");
+	for(const auto & text : prize.bonusTexts)
+		gives.push_back(text);
+	if(prize.otherBonuses)
+		gives.push_back("a bonus");
+	return joinWords(gives, alternatives ? "or" : "and");
+}
+
+std::string costText(const PrizeSummary & prize)
+{
+	std::vector<std::string> costs;
+	for(const auto & [res, range] : prize.costs)
+		costs.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+	return joinWords(costs);
+}
+
+std::string quantityWord(int count)
+{
+	const auto quantityId = CCreature::getQuantityID(count);
+	if(settings["gameTweaks"]["numericCreaturesQuantities"].Bool())
+		return CCreature::getQuantityRangeStringForId(quantityId);
+	return LIBRARY->generaltexth->arraytxt[172 + 3 * static_cast<int>(quantityId)];
+}
+
+/// upstream's wording of a wandering monster's threat, for any guard army
+std::string threatWord(uint64_t guardStrength, uint64_t heroStrength)
+{
+	const double ratio = heroStrength == 0 ? 1000.0 : static_cast<double>(guardStrength) / static_cast<double>(heroStrength);
+	static const double limits[] = {0.1, 0.25, 0.6, 0.9, 1.1, 1.3, 1.8, 2.5, 4.0, 8.0, 20.0};
+	int choice = 11;
+	for(int i = 0; i < 11; ++i)
+		if(ratio < limits[i])
+		{
+			choice = i;
+			break;
+		}
+	return LIBRARY->generaltexth->translate("vcmi.adventureMap.monsterThreat.levels." + std::to_string(choice));
+}
+}
+
+std::string CRewardableObject::getBuildingInfoText(const CGHeroInstance * hero) const
+{
+	if(!settings["general"]["buildingInfo"].Bool() || configuration.info.empty())
+		return {};
+
+	const bool guarded = isGuarded();
+	std::string kind;
+	switch(configuration.visitMode)
+	{
+		case Rewardable::VISIT_ONCE: kind = "Only the first visitor gets it."; break;
+		case Rewardable::VISIT_PLAYER:
+		case Rewardable::VISIT_PLAYER_GLOBAL: kind = "Each player can use it once."; break;
+		case Rewardable::VISIT_HERO: kind = "Each hero can use it once."; break;
+		case Rewardable::VISIT_BONUS: kind = "A hero that already has its bonus gets nothing more."; break;
+		case Rewardable::VISIT_LIMITER: kind = "Only heroes that meet its condition can use it."; break;
+		default:
+			kind = "It can be used again and again.";
+			if(configuration.resetParameters.period > 0)
+				kind = "It renews every " + std::to_string(configuration.resetParameters.period) + (configuration.resetParameters.period == 1 ? " day." : " days.");
+			break;
+	}
+	const auto prize = summarizeTypeTable(*this, cb);
+	if(prize.removesObject)
+		kind = "It disappears once taken.";
+	std::string text = "\n\n" + std::string(guarded ? "Guarded: win the fight to claim it. " : "") + kind;
+
+	if(guarded)
+	{
+		std::map<CreatureID, int> guards;
+		for(const auto & slot : stacks)
+			guards[slot.second->getCreatureID()] += slot.second->getCount();
+		std::vector<std::string> names;
+		for(const auto & [creature, count] : guards)
+			names.push_back(quantityWord(count) + " " + creature.toEntity(LIBRARY)->getNamePluralTranslated());
+		if(!names.empty())
+			text += "\nGuards: " + joinWords(names);
+	}
+
+	if(prize.known)
+	{
+		// several rewards that the visitor picks from, or one of which is rolled, are alternatives; otherwise all of them are given
+		size_t firstVisitRewards = 0;
+		for(const auto & info : configuration.info)
+			if(info.visitType == Rewardable::EEventType::EVENT_FIRST_VISIT)
+				++firstVisitRewards;
+		const bool alternatives = firstVisitRewards > 1 && (configuration.selectMode == Rewardable::SELECT_PLAYER || configuration.selectMode == Rewardable::SELECT_RANDOM);
+		const std::string gives = prizeText(prize, alternatives);
+		if(!gives.empty())
+			text += std::string("\n") + (guarded ? "Prize: " : "Gives: ") + (alternatives ? (configuration.selectMode == Rewardable::SELECT_PLAYER ? "your pick of " : "one of ") : "") + gives;
+		const std::string costs = costText(prize);
+		if(!costs.empty())
+			text += "\nCosts: " + costs;
+	}
+
+	if(guarded && hero)
+		text += "\nThreat: " + threatWord(getArmyStrength(), hero->getTotalStrength());
+
+	return text;
+}
+
 std::string CRewardableObject::getDisplayTextImpl(PlayerColor player, const CGHeroInstance * hero, bool includeDescription) const
 {
 	std::string result = getObjectName();
@@ -240,6 +534,9 @@ std::string CRewardableObject::getDisplayTextImpl(PlayerColor player, const CGHe
 				result += "\n" + configuration.notVisitedTooltip.toString();
 		}
 	}
+	// DMB: what the building does, its guards, its prize and the threat (the pop-up only)
+	if(includeDescription)
+		result += getBuildingInfoText(hero);
 	return result;
 }
 

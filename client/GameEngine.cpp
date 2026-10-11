@@ -113,11 +113,33 @@ void GameEngine::fakeMouseMove()
 
 [[noreturn]] void GameEngine::mainLoop()
 {
+	// DMB: a frame that kept the game busy for over 40 ms is written to the log with its parts (events, drawing, presenting), at most one line
+	// a second, so that a report of choppy hero movement says where the time went (K, October 9th playtest)
+	using Clock = std::chrono::steady_clock;
+	const auto millis = [](Clock::time_point from, Clock::time_point to) { return std::chrono::duration<double, std::milli>(to - from).count(); };
+	Clock::time_point lastSlowLine = Clock::now() - std::chrono::seconds(2);
+	int slowSkipped = 0;
 	for (;;)
 	{
+		const auto start = Clock::now();
 		input().fetchEvents();
+		const auto fetched = Clock::now();
 		updateFrame();
+		const auto drawn = Clock::now();
 		screenHandlerInstance->presentScreenTexture();
+		const auto presented = Clock::now();
+		if(millis(start, presented) > 40.0)
+		{
+			if(presented - lastSlowLine >= std::chrono::seconds(1))
+			{
+				logGlobal->warn("Slow frame: %.0f ms (events %.0f, update and drawing %.0f, presenting %.0f)%s", millis(start, presented), millis(start, fetched),
+					millis(fetched, drawn), millis(drawn, presented), slowSkipped > 0 ? ", " + std::to_string(slowSkipped) + " more since the last line" : "");
+				lastSlowLine = presented;
+				slowSkipped = 0;
+			}
+			else
+				++slowSkipped;
+		}
 		framerate().framerateDelay(); // holds a constant FPS
 	}
 }

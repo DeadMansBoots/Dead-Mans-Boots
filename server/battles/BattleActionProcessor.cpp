@@ -773,6 +773,15 @@ BattleActionProcessor::MovementResult BattleActionProcessor::moveStack(const CBa
 
 	if((stackAtEnd && stackAtEnd!=currentUnit && stackAtEnd->alive()) || !accessibility.accessible(dest, currentUnit))
 	{
+		// DMB: why the move was refused (a player's tactics placement of double wide units was refused three times in a row, October 10th)
+		{
+			const auto otherHex = currentUnit->doubleWide() ? battle::Unit::occupiedHex(dest, true, currentUnit->unitSide()) : BattleHex();
+			logGlobal->warn("Move refused: %s (stack %d, %s side, %s) from hex %d to hex %d; a stack stands on the target: %d; accessibility of the target %d%s; tactics distance %d, target in tactics range %s",
+				currentUnit->unitType()->getJsonKey(), stack, currentUnit->unitSide() == BattleSide::ATTACKER ? "attacker" : "defender", currentUnit->doubleWide() ? "double wide" : "one hex",
+				start.toInt(), dest.toInt(), stackAtEnd ? stackAtEnd->unitId() : -1, static_cast<int>(accessibility.at(dest.toInt())),
+				currentUnit->doubleWide() ? (", the second hex " + std::to_string(otherHex.toInt()) + " has " + (otherHex.isValid() ? std::to_string(static_cast<int>(accessibility.at(otherHex.toInt()))) : std::string("no hex"))) : "",
+				static_cast<int>(battle.battleGetTacticDist()), battle.battleGetTacticDist() ? (battle.isInTacticRange(dest) ? "yes" : "no") : "not in tactics");
+		}
 		gameHandler->complain("Given destination is not accessible!");
 		return { 0, false, true };
 	}

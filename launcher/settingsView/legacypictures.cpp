@@ -22,6 +22,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QPainter>
 #include <QProcess>
 
 #include "../../lib/VCMIDirs.h"
@@ -81,6 +82,62 @@ QImage rgbPicture(const QString & path)
 {
 	QImage image(path);
 	return image.isNull() ? image : image.convertToFormat(QImage::Format_RGB888);
+}
+
+// The progress bar of a loading picture (K, October 8th: "legacy image pipeline needs to put progress bar imprints on art that doesn't have them").
+// Horn of the Abyss's picture, the Armageddon's Blade, Shadow of Death and Complete ones carry a frame painted into them, at x 390 to 757 and
+// y 543 to 567 of the 800x600 picture, and the game's progress blocks (x 395 y 548) fill it; the other pictures have none, so the blocks and the text
+// float on the art. Such a picture gets the same frame, cut from the player's own Horn of the Abyss picture when there is one, else drawn.
+const QRect BAR_FRAME(390, 543, 368, 25); // 800x600 pixels
+/// recorded in the pictures' index.json: a set made before the frames were stamped is made again by the pictures button (the client keeps using it meanwhile)
+const int LOAD_BARS_VERSION = 1;
+
+/// Whether the picture (800x600) already has a bar of its own near the bottom: a straight horizontal edge, strong over a stretch of the width,
+/// which the five pictures with a bar have (52 to 203 as the mean change of grey between two rows) and the six without do not (under 4)
+bool hasOwnBar(const QImage & picture)
+{
+	const QImage grey = picture.scaled(800, 600, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_Grayscale8);
+	for(int y = 480; y < 595; ++y)
+	{
+		int sum = 0;
+		for(int x = 450; x < 650; ++x)
+			sum += std::abs(qGray(grey.pixel(x, y)) - qGray(grey.pixel(x, y - 1)));
+		if(sum / 200.0 > 25.0)
+			return true;
+	}
+	return false;
+}
+
+/// The frame drawn in the Horn of the Abyss look (a thin outline, gold, black, a dark teal fill), `scale` times the 800x600 size
+QImage drawnBarFrame(int scale)
+{
+	QImage frame(BAR_FRAME.width() * scale, BAR_FRAME.height() * scale, QImage::Format_RGB32);
+	QPainter painter(&frame);
+	const auto fill = [&](int inset, const QColor & color)
+	{
+		painter.fillRect(QRect(inset * scale, inset * scale, frame.width() - 2 * inset * scale, frame.height() - 2 * inset * scale), color);
+	};
+	fill(0, QColor(16, 4, 16));
+	fill(1, QColor(240, 220, 120));
+	fill(2, QColor(136, 124, 96));
+	fill(3, QColor(0, 0, 0));
+	const QRect inside(5 * scale, 5 * scale, frame.width() - 10 * scale, frame.height() - 10 * scale);
+	QLinearGradient teal(0, inside.top(), 0, inside.bottom());
+	teal.setColorAt(0, QColor(20, 76, 74));
+	teal.setColorAt(1, QColor(12, 52, 59));
+	painter.fillRect(inside, teal);
+	return frame;
+}
+
+/// A copy of the picture with the frame stamped at its place; `scale` is the picture's size over 800x600
+QImage stampBarFrame(const QImage & picture, const QImage & frame, int scale)
+{
+	QImage stamped = picture.convertToFormat(QImage::Format_RGB32);
+	{
+		QPainter painter(&stamped);
+		painter.drawImage(BAR_FRAME.topLeft() * scale, frame);
+	}
+	return stamped.convertToFormat(QImage::Format_RGB888);
 }
 }
 
@@ -560,8 +617,27 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 	}
 	if(!sharpen(exe, work + "/in", work + "/out", pictures.size(), 3, tr("Pictures"), usedProgram))
 		return false;
+	const auto fourTimes = [](const QImage & big)
+	{
+		return big.size() == QSize(3200, 2400) ? big : big.scaled(3200, 2400, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	};
+	// the progress bar frame for the loading pictures that have none: cut from the player's own Horn of the Abyss picture when it is among these,
+	// else drawn in its look
+	QImage frame4;
+	for(const auto & p : pictures)
+		if(p.loading && p.title == "Horn of the Abyss loading screen")
+		{
+			const QImage big(work + "/out/" + slugOf(p.wikiName) + ".png");
+			if(!big.isNull())
+				frame4 = fourTimes(big).copy(BAR_FRAME.x() * 4, BAR_FRAME.y() * 4, BAR_FRAME.width() * 4, BAR_FRAME.height() * 4);
+		}
+	if(frame4.isNull())
+		frame4 = drawnBarFrame(4);
+	const QImage frame1 = frame4.scaled(BAR_FRAME.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 	for(const auto & p : pictures)
 	{
+		const QImage original = rgbPicture(p.originalPath);
+		const bool stamp = p.loading && original.size() == QSize(OWN_WIDTH, OWN_HEIGHT) && !hasOwnBar(original);
 		const QString slug = slugOf(p.title);
 		const QString place = userFolder(p.loading ? "LoadingScreens" : "MenuBackgrounds");
 		const QString prefix = p.loading ? "DMBLoad-" : "DMBMenuFile-";
@@ -570,7 +646,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 		QDir().mkpath(place + "/Upscaled/DATA2X");
 		const QString finalName = p.title + ".png";
 		QFile::remove(place + "/" + finalName);
-		if(!QFile::copy(p.originalPath, place + "/" + finalName))
+		if(stamp ? !stampBarFrame(original, frame1, 1).save(place + "/" + finalName) : !QFile::copy(p.originalPath, place + "/" + finalName))
 		{
 			failure = QString("%1 could not be put in the %2 folder").arg(finalName, p.loading ? "LoadingScreens" : "MenuBackgrounds");
 			return false;
@@ -581,7 +657,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 			failure = QString("the sharpened %1 is missing").arg(p.wikiName);
 			return false;
 		}
-		const QImage four = big.size() == QSize(3200, 2400) ? big : big.scaled(3200, 2400, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+		const QImage four = stamp ? stampBarFrame(fourTimes(big), frame4, 4) : fourTimes(big);
 		const QString file = prefix + slugOf(finalName.left(finalName.size() - 4)) + ".png";
 		four.save(place + "/Upscaled/DATA4X/" + file);
 		four.scaled(2400, 1800, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).save(place + "/Upscaled/DATA3X/" + file);
@@ -1099,7 +1175,7 @@ void LegacyPicturesWorker::writeIndex(const QVector<Picture> & pictures, bool us
 	for(const auto & p : pictures)
 		files.append(QJsonObject{{"file", p.wikiName}, {"title", p.title}, {"kind", p.loading ? "loading screen" : "menu picture"},
 			{"bytes", QFileInfo(p.originalPath).size()}, {"sha1", p.sha1}, {"source", p.ownPath.isEmpty() ? "wiki" : "own copy"}, {"wiki", "https://heroes.thelazy.net/index.php/File:" + QString(p.wikiName).replace(' ', '_')}});
-	QJsonObject index{{"pipeline", PIPELINE_VERSION}, {"finished", QDateTime::currentDateTime().toString(Qt::ISODate)},
+	QJsonObject index{{"pipeline", PIPELINE_VERSION}, {"loadBars", LOAD_BARS_VERSION}, {"finished", QDateTime::currentDateTime().toString(Qt::ISODate)},
 		{"sharpened", usedProgram ? "realesrgan-x4plus" : "smooth resize (the sharpener could not run)"}, {"files", files}};
 	QFile file(baseFolder() + "/index.json");
 	if(file.open(QIODevice::WriteOnly))
@@ -1143,7 +1219,7 @@ void LegacyPicturesWorker::run()
 		if(indexFile.open(QIODevice::ReadOnly))
 		{
 			const QJsonObject index = QJsonDocument::fromJson(indexFile.readAll()).object();
-			complete = index["pipeline"].toInt() == PIPELINE_VERSION && index["sharpened"].toString() == "realesrgan-x4plus"
+			complete = index["pipeline"].toInt() == PIPELINE_VERSION && index["loadBars"].toInt() == LOAD_BARS_VERSION && index["sharpened"].toString() == "realesrgan-x4plus"
 				&& index["files"].toArray().size() == pictures.size();
 		}
 		for(const auto & p : pictures)

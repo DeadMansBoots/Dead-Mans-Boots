@@ -238,11 +238,9 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 	if(ev.type == SDL_QUIT)
 	{
 		std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
-#ifdef VCMI_ANDROID
+		// DMB: closing the window (Alt+F4, the close button) ends the game at once, with no "Are you sure you want to exit" question
+		// (Nate, October 10th playtest); the Quit buttons of the menus keep theirs
 		ENGINE->user().onShutdownRequested(false);
-#else
-		ENGINE->user().onShutdownRequested(true);
-#endif
 		return;
 	}
 	else if(ev.type == SDL_APP_WILLENTERBACKGROUND)
@@ -257,7 +255,7 @@ void InputHandler::preprocessEvent(const SDL_Event & ev)
 		{
 			// FIXME: dead code? Looks like intercepted by OS/SDL and delivered as SDL_Quit instead?
 			std::scoped_lock interfaceLock(ENGINE->interfaceMutex);
-			ENGINE->user().onShutdownRequested(true);
+			ENGINE->user().onShutdownRequested(false);
 			return;
 		}
 

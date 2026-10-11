@@ -89,6 +89,9 @@ QByteArray scrubbedSettings(const QByteArray & data)
 	text.replace(QRegularExpression("(\"remoteHostname\"\\s*:\\s*)\"[^\"]*\""), "\\1\"<removed>\"");
 	text.replace(QRegularExpression("(\"playerName\"\\s*:\\s*)\"[^\"]*\""), "\\1\"<removed>\"");
 	text.replace(QRegularExpression("(\"multiPlayerNames\"\\s*:\\s*)\\[[^\\]]*\\]"), "\\1[]");
+	// other text a player types or pastes: the autosave/save prefix, the host the game's own server binds to, an extra mod repository address (it can carry a key)
+	for(const char * key : {"savePrefix", "localHostname", "extraRepositoryURL"})
+		text.replace(QRegularExpression(QString("(\"%1\"\\s*:\\s*)\"[^\"]*\"").arg(key)), "\\1\"<removed>\"");
 	return redacted(text.toUtf8());
 }
 
@@ -331,7 +334,9 @@ bool send(const Report & report, QString & message)
 
 	QNetworkAccessManager manager;
 	const QString endpoint = reportEndpoint(manager, message);
-	if(endpoint.isEmpty() || !(endpoint.startsWith("https://") || endpoint.startsWith("http://127.0.0.1")))  // loopback only for the tests of this program
+	const QUrl endpointUrl(endpoint);
+	const bool loopback = endpointUrl.scheme() == "http" && endpointUrl.host() == "127.0.0.1"; // only for the tests of this program (the host exactly: "127.0.0.1.example.com" is not it)
+	if(endpoint.isEmpty() || !(endpointUrl.scheme() == "https" || loopback))
 	{
 		if(message.isEmpty())
 			message = "no upload address";

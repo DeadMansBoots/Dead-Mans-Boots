@@ -536,7 +536,17 @@ std::string CRewardableObject::getDisplayTextImpl(PlayerColor player, const CGHe
 	}
 	// DMB: what the building does, its guards, its prize and the threat (the pop-up only)
 	if(includeDescription)
-		result += getBuildingInfoText(hero);
+	{
+		// an odd mod building must never cost the player the pop-up (or the game): the extra text is left out
+		try
+		{
+			result += getBuildingInfoText(hero);
+		}
+		catch(const std::exception & e)
+		{
+			logGlobal->warn("Building info: left out for object %d/%d: %s", ID.getNum(), subID.getNum(), e.what());
+		}
+	}
 	return result;
 }
 

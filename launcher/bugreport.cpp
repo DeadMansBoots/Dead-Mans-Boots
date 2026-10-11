@@ -58,8 +58,8 @@ QByteArray tailOf(const QString & path, qint64 limit)
 	return file.readAll();
 }
 
-/// the Windows user name and the computer name replaced, whatever the path style or case; a name shorter than three letters is left, since
-/// replacing it would damage ordinary words
+/// the Windows user name and the computer name replaced, whatever the path style or case; a name of one or two letters is replaced only as a folder of
+/// a user path (a folder named so under the Users folder), since anywhere else it is an ordinary word
 QByteArray redacted(const QByteArray & data)
 {
 	QString text = QString::fromUtf8(data);
@@ -67,6 +67,8 @@ QByteArray redacted(const QByteArray & data)
 	{
 		if(name.size() >= 3)
 			text.replace(name, with, Qt::CaseInsensitive);
+		else if(!name.isEmpty())
+			text.replace(QRegularExpression("(Users[\\\\/])" + QRegularExpression::escape(name) + "(?=[\\\\/\"\\s]|$)", QRegularExpression::CaseInsensitiveOption), "\\1" + with);
 	};
 	replaceName(qEnvironmentVariable("USERNAME"), "<user>");
 	replaceName(QDir::home().dirName(), "<user>");
@@ -97,8 +99,33 @@ void scrubDump(QByteArray & dump)
 {
 	const auto overwrite = [&dump](const QString & name)
 	{
-		if(name.size() < 3)
+		if(name.isEmpty())
 			return;
+		if(name.size() < 3)
+		{
+			// a short name is overwritten only where it is a user path's folder ("Users\Al\"), in the plain and the wide spelling, as written, lower and upper case
+			for(const QString & variant : {name, name.toLower(), name.toUpper()})
+				for(const QString & separator : {QString("\\"), QString("/")})
+				{
+					const QString whole = "Users" + separator + variant + separator;
+					const int nameAt = 6; // after "Users" and the separator
+					const QByteArray narrow = whole.toUtf8();
+					QByteArray filler = narrow;
+					filler.replace(nameAt, variant.toUtf8().size(), QByteArray(variant.toUtf8().size(), 'x'));
+					for(int at = dump.indexOf(narrow); at >= 0; at = dump.indexOf(narrow, at + narrow.size()))
+						dump.replace(at, narrow.size(), filler);
+					const QByteArray wide(reinterpret_cast<const char *>(whole.utf16()), whole.size() * 2);
+					QByteArray wideFiller = wide;
+					for(int i = 0; i < variant.size(); ++i)
+					{
+						wideFiller[(nameAt + i) * 2] = 'x';
+						wideFiller[(nameAt + i) * 2 + 1] = '\0';
+					}
+					for(int at = dump.indexOf(wide); at >= 0; at = dump.indexOf(wide, at + wide.size()))
+						dump.replace(at, wide.size(), wideFiller);
+				}
+			return;
+		}
 		for(const QString & variant : {name, name.toLower(), name.toUpper()})
 		{
 			// as written in UTF-8 and in the PC's local code page (for a name with letters outside ASCII the two differ)

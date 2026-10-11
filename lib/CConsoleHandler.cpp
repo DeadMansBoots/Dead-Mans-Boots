@@ -128,7 +128,9 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	STARTUPINFOA startup = {};
 	startup.cb = sizeof(startup);
 	PROCESS_INFORMATION started = {};
-	const bool sending = CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &started);
+	// the Settings switch (launcher.sendCrashReports, on by default in the schema): with it off no report is built, and the message says nothing about one
+	const bool allowed = settings["launcher"]["sendCrashReports"].Bool();
+	const bool sending = allowed && CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &started);
 	if(sending)
 	{
 		CloseHandle(started.hThread);

@@ -7,12 +7,17 @@
 //
 // Limits: 45 MB, application/zip, a name made by the launcher (DMB-report-YYYYMMDD-HHMMSS-xxxxxx.zip) with a day within one of today's, and the file must begin with
 // the zip signature. Not limited: the number of reports from one address unless the LIMITER binding is set (it is approximate); anyone who finds the address can
-// send junk until the worker is deleted in the Cloudflare dashboard or the feed's reportEndpoint is removed. A release holds a limited number of files.
+// send junk until the worker is deleted in the Cloudflare dashboard or the feed's reportEndpoint is removed. A release holds at most 1,000 files, so a full one is followed by reports-YYYYMMDD-2 and so on (five a day, 4,500 files at most).
+//
+// Reports are deleted after 30 days by a daily cron trigger (wrangler.toml; KEEP_DAYS in vars changes it).
 //
 // Settings (wrangler.toml / Worker secrets): GITHUB_TOKEN (secret), REPORTS_REPO (e.g. DeadMansBoots/dmb-reports); GITHUB_API and GITHUB_UPLOADS only for tests.
 
 const MAX_BYTES = 45 * 1024 * 1024;
 const NAME = /^DMB-report-(\d{8})-\d{6}-[0-9a-f]{1,6}\.zip$/;
+// GitHub allows 1,000 files on a release (more gives HTTP 422), so a day's reports go into further releases when one fills: reports-YYYYMMDD, reports-YYYYMMDD-2, ...
+const SHARD_FILES = 900;
+const MAX_SHARDS = 5;
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -31,20 +36,28 @@ function github(env, path, init = {}, uploads = false) {
   });
 }
 
-async function releaseFor(env, day) {
-  const tag = `reports-${day}`;
+async function releaseFor(env, day, shard = 1) {
+  const tag = shard === 1 ? `reports-${day}` : `reports-${day}-${shard}`;
   const found = await github(env, `/repos/${env.REPORTS_REPO}/releases/tags/${tag}`);
   if (found.ok) return (await found.json()).id;
   if (found.status !== 404) throw new Error(`release lookup ${found.status}`);
   const made = await github(env, `/repos/${env.REPORTS_REPO}/releases`, {
     method: "POST",
-    body: JSON.stringify({ tag_name: tag, name: `Reports ${day}`, prerelease: true }),
+    body: JSON.stringify({ tag_name: tag, name: `Reports ${day}${shard === 1 ? "" : ` (${shard})`}`, prerelease: true }),
   });
   if (made.ok) return (await made.json()).id;
   // two uploads can race to create it: the loser looks again
   const again = await github(env, `/repos/${env.REPORTS_REPO}/releases/tags/${tag}`);
   if (again.ok) return (await again.json()).id;
   throw new Error(`release create ${made.status}`);
+}
+
+// how many files a release holds: with one file to a page, the last page's number (the Link header) is the count
+async function fileCount(env, release) {
+  const listed = await github(env, `/repos/${env.REPORTS_REPO}/releases/${release}/assets?per_page=1`);
+  if (!listed.ok) throw new Error(`file count ${listed.status}`);
+  const last = /[?&]page=(\d+)>; rel="last"/.exec(listed.headers.get("link") || "");
+  return last ? Number(last[1]) : (await listed.json()).length;
 }
 
 // the body with its first four bytes read, put back in front of the rest
@@ -88,7 +101,13 @@ async function upload(request, env) {
   if (!body) return json({ ok: false, error: "not a zip" }, 400);
 
   try {
-    const release = await releaseFor(env, match[1]);
+    let release = 0;
+    for (let shard = 1; shard <= MAX_SHARDS; shard++) {
+      release = await releaseFor(env, match[1], shard);
+      if ((await fileCount(env, release)) < (Number(env.SHARD_FILES) || SHARD_FILES)) break; // SHARD_FILES in env is for tests
+      release = 0;
+    }
+    if (!release) return json({ ok: false, error: "full for today" }, 503);
     const stored = await github(
       env,
       `/repos/${env.REPORTS_REPO}/releases/${release}/assets?name=${encodeURIComponent(name)}`,
@@ -102,7 +121,36 @@ async function upload(request, env) {
   return json({ ok: true });
 }
 
+// Once a day (the cron trigger in wrangler.toml) the reports older than KEEP_DAYS are deleted from the repository: they hold players' logs and are no use after the
+// developers have read them (fetch_reports.py keeps its own copy). Only releases named reports-YYYYMMDD[-N] are touched.
+const KEEP_DAYS = 30;
+
+async function expire(env) {
+  const keep = Number(env.KEEP_DAYS) || KEEP_DAYS;
+  const cutoff = new Date(Date.now() - keep * 86400000).toISOString().slice(0, 10).replaceAll("-", "");
+  const old = [];
+  for (let page = 1; page <= 20; page++) {
+    const listed = await github(env, `/repos/${env.REPORTS_REPO}/releases?per_page=100&page=${page}`);
+    if (!listed.ok) throw new Error(`release list ${listed.status}`);
+    const items = await listed.json();
+    for (const r of items) {
+      const m = /^reports-(\d{8})(-\d+)?$/.exec(r.tag_name);
+      if (m && m[1] < cutoff) old.push(r);
+    }
+    if (items.length < 100) break;
+  }
+  for (const r of old) {
+    await github(env, `/repos/${env.REPORTS_REPO}/releases/${r.id}`, { method: "DELETE" });
+    await github(env, `/repos/${env.REPORTS_REPO}/git/refs/tags/${r.tag_name}`, { method: "DELETE" });
+  }
+  return old.length;
+}
+
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(expire(env));
+  },
+  expire,
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/report") return upload(request, env);

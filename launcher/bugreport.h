@@ -14,13 +14,15 @@ class QWidget;
 /// player's own logs and sends it.
 ///
 /// The report is a zip in the user folder's Reports folder: the client, server and launcher logs (their last megabytes), the first-time setup log,
-/// the newest play log, the mod list and settings (not persistentStorage.json, which holds lobby sign-ins), a summary of the last crash taken from
-/// the client log, and the game's version and system. The Windows user name and the computer name are replaced in every text file. The crash
-/// dump itself is not included (it carries paths and memory).
+/// the newest play log, the mod list and settings (not persistentStorage.json, which holds lobby sign-ins), the list of the Mods folder, a summary of the
+/// last crash taken from the client log, the crash dump when the game crashed in the last day, and the game's version and system. The Windows user name and the
+/// computer name are replaced in every text file and overwritten in the dump; the settings lose the name of a game joined and the player names; addresses of
+/// other computers and a OneDrive folder's owner are replaced everywhere.
 ///
-/// Sending: a build made with DMB_REPORT_TOKEN (a fine-grained GitHub token that can write only to the private reports repository) uploads the
-/// zip there with one click. A build without it saves the zip, opens its folder and opens the repository's new-issue page with the summary
-/// filled in, for the player to drop the zip into.
+/// Sending: the zip goes to the developers' report relay (an HTTPS address that the update feed names, key "reportEndpoint"; neither a key nor an address is
+/// built into the program). With no address there, or no connection, the zip is saved, its folder opens, and the repository's new-issue page opens with the
+/// summary filled in, for the player to drop the zip into. Settings, General has a switch (launcher.sendCrashReports) for the crashes the launcher
+/// sends by itself.
 namespace BugReport
 {
 	struct Report
@@ -35,6 +37,9 @@ namespace BugReport
 	/// `description` is the player's own words (what went wrong), kept in the zip as description.txt
 	Report build(const QString & why, const QString & description = {}, bool includeDump = true);
 	bool send(const Report & report, QString & message);
+
+	/// Settings, General, "Send crash reports to the developers automatically" (launcher.sendCrashReports in settings.json, on when absent)
+	bool crashReportsEnabled();
 	/// the whole flow, with the questions and thanks a player sees; `parent` may be null
 	void run(QWidget * parent, const QString & why);
 }

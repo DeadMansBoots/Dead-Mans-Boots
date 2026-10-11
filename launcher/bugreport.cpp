@@ -33,6 +33,7 @@
 #include <QSysInfo>
 #include <QTimer>
 #include <QUrl>
+#include <QRegularExpression>
 #include <QUrlQuery>
 #include <QWidget>
 
@@ -70,7 +71,52 @@ QByteArray redacted(const QByteArray & data)
 	replaceName(qEnvironmentVariable("USERNAME"), "<user>");
 	replaceName(QDir::home().dirName(), "<user>");
 	replaceName(qEnvironmentVariable("COMPUTERNAME"), "<computer>");
+	// a folder named after an employer or a person that OneDrive adds ("OneDrive - Contoso"), and addresses of other computers (not this one's loopback)
+	text.replace(QRegularExpression("OneDrive - [^\\\\/\"\r\n]+"), "OneDrive - <name>");
+	text.replace(QRegularExpression("\\b(?!127\\.|0\\.0\\.0\\.0)(?:(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1?\\d?\\d)\\b(?![\\w.])"), "<ip>");
 	return text.toUtf8();
+}
+
+/// settings.json for a report: the host name or address of a game joined (server.remoteHostname), the player's name and the names of the other players on
+/// the same PC are blanked, then the usual redaction
+QByteArray scrubbedSettings(const QByteArray & data)
+{
+	QString text = QString::fromUtf8(data);
+	text.replace(QRegularExpression("(\"remoteHostname\"\\s*:\\s*)\"[^\"]*\""), "\\1\"<removed>\"");
+	text.replace(QRegularExpression("(\"playerName\"\\s*:\\s*)\"[^\"]*\""), "\\1\"<removed>\"");
+	text.replace(QRegularExpression("(\"multiPlayerNames\"\\s*:\\s*)\\[[^\\]]*\\]"), "\\1[]");
+	return redacted(text.toUtf8());
+}
+
+/// The crash dump with the Windows user name and computer name overwritten by filler of the same length (a dump lists the full path of every module,
+/// and a per-user install sits under C:\Users\<name>), in the plain and in the wide spelling, as written, lower and upper case. Same length, so the
+/// dump stays a valid dump
+void scrubDump(QByteArray & dump)
+{
+	const auto overwrite = [&dump](const QString & name)
+	{
+		if(name.size() < 3)
+			return;
+		for(const QString & variant : {name, name.toLower(), name.toUpper()})
+		{
+			const QByteArray narrow = variant.toLatin1();
+			if(variant.toLatin1() == variant.toUtf8() && !narrow.isEmpty())
+			{
+				const QByteArray filler(narrow.size(), 'x');
+				for(int at = dump.indexOf(narrow); at >= 0; at = dump.indexOf(narrow, at + narrow.size()))
+					dump.replace(at, narrow.size(), filler);
+			}
+			QByteArray wide(reinterpret_cast<const char *>(variant.utf16()), variant.size() * 2);
+			QByteArray wideFiller;
+			for(int i = 0; i < variant.size(); ++i)
+				wideFiller.append('x').append('\0');
+			for(int at = dump.indexOf(wide); at >= 0; at = dump.indexOf(wide, at + wide.size()))
+				dump.replace(at, wide.size(), wideFiller);
+		}
+	};
+	overwrite(qEnvironmentVariable("USERNAME"));
+	overwrite(QDir::home().dirName());
+	overwrite(qEnvironmentVariable("COMPUTERNAME"));
 }
 
 /// the last crash in the client's log: from "Disaster happened" on, at most 60 lines
@@ -146,7 +192,7 @@ Report build(const QString & why, const QString & description, bool includeDump)
 		{
 			const QByteArray text = tailOf(config + "/" + jsonName, 2 * 1024 * 1024);
 			if(!text.isEmpty())
-				addToZip(saver, "config/" + jsonName.toStdString(), redacted(text));
+				addToZip(saver, "config/" + jsonName.toStdString(), scrubbedSettings(text));
 		}
 		// the newest play log (what was clicked and what the game answered), its end
 		QFileInfoList playLogs = QDir(data + "/PlayLogs").entryInfoList({"*.jsonl"}, QDir::Files, QDir::Time);
@@ -169,7 +215,7 @@ Report build(const QString & why, const QString & description, bool includeDump)
 				++count;
 			}
 			if(count > 0)
-				addToZip(saver, "mods-listing.txt", listing.toUtf8());
+				addToZip(saver, "mods-listing.txt", redacted(listing.toUtf8()));
 		}
 		// the newest crash dump of the game, when it is from the last day (a dump holds memory: the reports go to a private repository); when the whole
 		// report comes out over 40 MB the report is made again without it (the upload takes it as one piece)
@@ -180,7 +226,7 @@ Report build(const QString & why, const QString & description, bool includeDump)
 			{
 				QFile dump(dumps.first().absoluteFilePath());
 				if(dumps.first().size() <= 120 * 1024 * 1024 && dump.open(QIODevice::ReadOnly))
-					addToZip(saver, "crash/" + dumps.first().fileName().toStdString(), dump.readAll());
+					{ QByteArray bytes = dump.readAll(); scrubDump(bytes); addToZip(saver, "crash/" + dumps.first().fileName().toStdString(), bytes); }
 			}
 		}
 		const QString crash = crashSummary(clientLog);
@@ -205,29 +251,69 @@ Report build(const QString & why, const QString & description, bool includeDump)
 	return report;
 }
 
+/// The player's settings.json read as plain JSON (the report modes run before the launcher's resource handler and settings are set up, and a crash report must not
+/// depend on them): the file is the one the game and the launcher write, so a missing key means its default
+QJsonObject launcherSettings()
+{
+	QFile file(userFolder(VCMIDirs::get().userConfigPath().string()) + "/settings.json");
+	if(!file.open(QIODevice::ReadOnly))
+		return {};
+	return QJsonDocument::fromJson(file.readAll()).object()["launcher"].toObject();
+}
+
+/// The address the reports go to, read from the update feed (the file the launcher already reads for updates; the repository's dmb-updates.json, key
+/// "reportEndpoint"). No address and no key are built into the program: the developers can move the relay or switch uploads off for everyone by editing
+/// the feed, and a program taken apart gives nobody anything to write to
+QString reportEndpoint(QNetworkAccessManager & manager, QString & message)
+{
+	const QString feed = launcherSettings()["updateConfigUrl"].toString("https://raw.githubusercontent.com/DeadMansBoots/DMB-Mods-Repository/main/dmb-updates.json");
+	QNetworkRequest request{QUrl(feed)};
+	request.setRawHeader("User-Agent", "DeadMansBoots-Launcher");
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+	QNetworkReply * reply = manager.get(request);
+	QEventLoop loop;
+	QTimer timeout;
+	timeout.setSingleShot(true);
+	QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+	QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+	timeout.start(30 * 1000);
+	loop.exec();
+	QString endpoint;
+	if(reply->isFinished() && reply->error() == QNetworkReply::NoError)
+		endpoint = QJsonDocument::fromJson(reply->readAll()).object()["reportEndpoint"].toString();
+	else
+		message = reply->isFinished() ? reply->errorString() : QString("the update information could not be reached");
+	reply->deleteLater();
+	if(endpoint.isEmpty() && message.isEmpty())
+		message = "automatic uploads are switched off";
+	return endpoint;
+}
+
 bool send(const Report & report, QString & message)
 {
-#ifdef DMB_REPORT_TOKEN
-	const QString REPORTS_REPOSITORY = "DeadMansBoots/dmb-reports";
 	QFile file(report.zipPath);
 	if(!file.open(QIODevice::ReadOnly))
 	{
 		message = "the report could not be read";
 		return false;
 	}
-	const QByteArray zip = file.readAll();
-	QJsonObject body;
-	body["message"] = "Report " + QFileInfo(report.zipPath).fileName();
-	body["content"] = QString::fromLatin1(zip.toBase64());
-	const QByteArray payload = QJsonDocument(body).toJson(QJsonDocument::Compact);
 
 	QNetworkAccessManager manager;
-	QNetworkRequest request{QUrl(QString("https://api.github.com/repos/%1/contents/reports/%2").arg(REPORTS_REPOSITORY, QFileInfo(report.zipPath).fileName()))};
-	request.setRawHeader("Authorization", QByteArray("Bearer ") + DMB_REPORT_TOKEN);
-	request.setRawHeader("Accept", "application/vnd.github+json");
+	const QString endpoint = reportEndpoint(manager, message);
+	if(endpoint.isEmpty() || !(endpoint.startsWith("https://") || endpoint.startsWith("http://127.0.0.1")))  // loopback only for the tests of this program
+	{
+		if(message.isEmpty())
+			message = "no upload address";
+		return false;
+	}
+
+	QNetworkRequest request{QUrl(endpoint + (endpoint.endsWith('/') ? "" : "/") + "report")};
 	request.setRawHeader("User-Agent", "DeadMansBoots-Launcher");
-	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
-	QNetworkReply * reply = manager.put(request, payload);
+	request.setRawHeader("X-DMB-Report-Name", QFileInfo(report.zipPath).fileName().toUtf8());
+	request.setRawHeader("X-DMB-Build", QByteArray(DMB_RELEASE_TEXT));
+	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/zip");
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+	QNetworkReply * reply = manager.post(request, &file);
 	QEventLoop loop;
 	QTimer timeout;
 	timeout.setSingleShot(true);
@@ -235,14 +321,16 @@ bool send(const Report & report, QString & message)
 	QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
 	timeout.start(180 * 1000);
 	loop.exec();
-	const bool done = reply->isFinished() && reply->error() == QNetworkReply::NoError;
+	const bool done = reply->isFinished() && reply->error() == QNetworkReply::NoError
+		&& reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
 	message = done ? QString() : (reply->isFinished() ? reply->errorString() : QString("the upload timed out"));
 	reply->deleteLater();
 	return done;
-#else
-	message = "this build has no upload set up";
-	return false;
-#endif
+}
+
+bool crashReportsEnabled()
+{
+	return launcherSettings()["sendCrashReports"].toBool(true);
 }
 
 void run(QWidget * parent, const QString & why)

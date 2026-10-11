@@ -268,9 +268,6 @@ jobs:
 
         cmake --preset ${{ matrix.preset }}
       shell: pwsh
-      env:
-        # DMB: the launcher's bug reporter uploads with this token (launcher/CMakeLists.txt); empty when the secret is not set
-        DMB_REPORT_TOKEN: ${{ secrets.DMB_REPORT_TOKEN }}
 
     - name: Build
       run: |

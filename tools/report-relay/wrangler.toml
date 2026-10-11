@@ -1,0 +1,9 @@
+name = "dmb-reports"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+REPORTS_REPO = "DeadMansBoots/dmb-reports"
+
+# GITHUB_TOKEN is a secret: a fine-grained GitHub token with "Contents: read and write" on that one repository only.
+# Set it with:  npx wrangler secret put GITHUB_TOKEN   (never written in this file)

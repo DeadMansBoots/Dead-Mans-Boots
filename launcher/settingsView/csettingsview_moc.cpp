@@ -585,7 +585,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 9; // the four slots, the main menu background, the loading screen, the legacy pictures button, the keep-running toggle and the building-info toggle
+		constexpr int added = 10; // the four slots, the main menu background, the loading screen, the legacy pictures button, the keep-running, building-info and crash-report toggles
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -718,6 +718,24 @@ void CSettingsView::buildCategoryPages()
 			Settings node = settings.write["general"]["buildingInfo"];
 			node->Bool() = value;
 			updateCheckbuttonText(infoButton);
+		});
+
+		// K, October 10th: crash reports are sent by the launcher by itself in the early beta (logs, settings, the Mods listing and the crash file, with the
+		// Windows user name and computer name removed); this is the one switch that turns it off
+		auto * crashLabel = new QLabel(tr("Send crash reports to the developers automatically"), this);
+		crashLabel->setWordWrap(true);
+		auto * crashButton = new QToolButton(this);
+		crashButton->setObjectName("buttonSendCrashReports");
+		crashButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+		crashButton->setCheckable(true);
+		setCheckbuttonState(crashButton, settings["launcher"]["sendCrashReports"].Bool());
+		cells.push_back({new QWidgetItem(crashLabel), row + 5, 0, 1, 1});
+		cells.push_back({new QWidgetItem(crashButton), row + 5, 1, 1, 5});
+		connect(crashButton, &QToolButton::toggled, this, [this, crashButton](bool value)
+		{
+			Settings node = settings.write["launcher"]["sendCrashReports"];
+			node->Bool() = value;
+			updateCheckbuttonText(crashButton);
 		});
 	}
 

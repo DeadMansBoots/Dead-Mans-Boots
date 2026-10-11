@@ -256,11 +256,8 @@ endif()
 
 target_link_libraries(vcmilauncher vcmi vcmiqt Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Network)
 
-# DMB: the bug reporter uploads with a fine-grained GitHub token that can write only to the private reports repository.
-# CI passes it in as the secret DMB_REPORT_TOKEN; a build without it saves the report and opens a prefilled issue page instead.
-if(DEFINED ENV{DMB_REPORT_TOKEN} AND NOT "$ENV{DMB_REPORT_TOKEN}" STREQUAL "")
-	set_source_files_properties(bugreport.cpp PROPERTIES COMPILE_DEFINITIONS "DMB_REPORT_TOKEN=\"$ENV{DMB_REPORT_TOKEN}\"")
-endif()
+# DMB: the bug reporter holds no key and no address (a key in a public program is public): it reads the address of the developers' report relay from the
+# update feed (dmb-updates.json, "reportEndpoint"); with no address there, or no connection, it saves the report and opens a prefilled issue page.
 target_include_directories(vcmilauncher
 	PUBLIC	${CMAKE_CURRENT_SOURCE_DIR}
 )

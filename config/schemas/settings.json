@@ -814,6 +814,7 @@
 				"ignoreSslErrors",
 				"updateOnStartup",
 				"keepRunning",
+				"sendCrashReports",
 				"updateConfigUrl",
 				"trackClipboardState",
 				"dmbHomepage",
@@ -883,6 +884,11 @@
 					"default" : false
 				},
 				"updateOnStartup" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"sendCrashReports" : {
+					// DMB (K, October 10th): when the game crashes the launcher sends a report to the developers by itself; on in the early beta, off here
 					"type" : "boolean",
 					"default" : true
 				},

@@ -985,6 +985,22 @@ void CSimpleJoinScreen::startConnection(const std::string & addr, ui16 port)
 /// DMB: the generated picture the last default loading screen chose from the player's LoadingScreens folder; empty when it was the game's own
 static std::string customLoadingPicture;
 
+/// DMB: the loading pictures of the game's releases carry their own bar, a dark or gold frame painted into the picture, and the game's
+/// progress blocks (config "loadbar", x 395 y 548 in the 800x600 layout) are meant to fill it: that is where it stands in Armageddon's Blade,
+/// Shadow of Death, Heroes III Complete and Horn of the Abyss (the frame at x 392 y 546). The Restoration of Erathia picture has its frame
+/// higher and further left (x 330 y 524), so the blocks and the stage text hung below it and the text stood on its edge (K, October 10th:
+/// "this is still an issue"). By picture: how far the frame is from that usual place. Any other picture keeps the usual place.
+static Point loadBarShift(const std::string & pictureName)
+{
+	static const std::vector<std::pair<std::string, Point>> shifts = {
+		{"DMBLoad-restoration-of-erathia-loading-screen", Point(-62, -22)},
+	};
+	for(const auto & entry : shifts)
+		if(entry.first == pictureName)
+			return entry.second;
+	return Point(0, 0);
+}
+
 CLoadingScreen::CLoadingScreen()
 	: CLoadingScreen(getBackground())
 {
@@ -1028,14 +1044,15 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	// the phase text sat at the window's centre (K, September 29th: "load screen text font is still not
 	// centered, and there was no load bar action")
 	const JsonNode & loadbarConfig = (!conf["loadbar"].isStruct() && conf["amount"].isNumber()) ? conf : conf["loadbar"];
+	const Point barShift = customPicture ? loadBarShift(customLoadingPicture) : Point(0, 0);
 	if (loadbarConfig.isStruct())
 	{
 		const JsonNode & loadbarNames = loadbarConfig["name"];
 		AnimationPath loadbarPath = loadbarNames.isVector()
 			? AnimationPath::fromJson(*RandomGeneratorUtil::nextItem(loadbarNames.Vector(), CRandomGenerator::getDefault()))
 			: AnimationPath::fromJson(loadbarNames);
-		const int posx = loadbarConfig["x"].Integer();
-		const int posy = loadbarConfig["y"].Integer();
+		const int posx = loadbarConfig["x"].Integer() + barShift.x;
+		const int posy = loadbarConfig["y"].Integer() + barShift.y;
 		const int blockSize = loadbarConfig["size"].Integer();
 		const int blocksAmount = loadbarConfig["amount"].Integer();
 		for (int i = 0; i < blocksAmount; ++i)
@@ -1052,7 +1069,7 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	if(conf["phase"].isStruct())
 		phasePos = Point(conf["phase"]["x"].Integer(), conf["phase"]["y"].Integer());
 	else if(loadbarConfig.isStruct())
-		phasePos = Point(loadbarConfig["x"].Integer() + loadbarConfig["size"].Integer() * loadbarConfig["amount"].Integer() / 2, loadbarConfig["y"].Integer() - 12);
+		phasePos = Point(loadbarConfig["x"].Integer() + loadbarConfig["size"].Integer() * loadbarConfig["amount"].Integer() / 2, loadbarConfig["y"].Integer() - 12) + barShift;
 	// the player's loading pictures: Horn of the Abyss's carry a gold frame of their own round the bar, with an ornament standing
 	// above its middle, and the stage text sat on that ornament (K, October 6th: "our map generation/loading screen text
 	// overlaps with their cool bar"); the text goes above the ornament, 12 px higher in the 800x600 layout

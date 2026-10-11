@@ -129,9 +129,9 @@ page of options needs no code:
   sliders take no keys (the arrows turn the page); elsewhere `"keyboard": false` turns them off for
   one slider, and `"keyboard": true` turns them back on;
 - `label`: shows the stored text, or its `emptyText` while there is none (level 2); a stored value
-  named in `valueTexts` shows that text instead, such as `"valueTexts": { "random":
-  "vcmi.myMod.random" }` (level 3). A number is named as it would be written, `"2"` or `"0.5"`
-  (level 4);
+  named in `valueTexts` shows that text instead, such as
+  `"valueTexts": { "random": "vcmi.myMod.random" }` (level 3). A number is named as it would be
+  written, `"2"` or `"0.5"` (level 4);
 - `button` with `options`: a chooser (level 4). Pressed, it lists the options' texts under its
   `title` (and `help`, when given) and stores the value picked; labels on the same layout bound to
   the setting show the new value at once. Each option is `[value, text]`, the value a number or a

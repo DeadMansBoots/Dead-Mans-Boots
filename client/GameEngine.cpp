@@ -119,6 +119,10 @@ void GameEngine::fakeMouseMove()
 	const auto millis = [](Clock::time_point from, Clock::time_point to) { return std::chrono::duration<double, std::milli>(to - from).count(); };
 	Clock::time_point lastSlowLine = Clock::now() - std::chrono::seconds(2);
 	int slowSkipped = 0;
+	// and every 10 seconds the busy time of the frames in them (the time to draw one, without the wait that holds the frame rate), when the slowest
+	// twentieth of them took over 25 ms: a hero step takes the animation plus about one frame at each end, so slow drawing shows as slow steps
+	std::vector<double> frameBusy;
+	Clock::time_point lastStats = Clock::now();
 	for (;;)
 	{
 		const auto start = Clock::now();
@@ -139,6 +143,22 @@ void GameEngine::fakeMouseMove()
 			}
 			else
 				++slowSkipped;
+		}
+		frameBusy.push_back(millis(start, presented));
+		if(presented - lastStats >= std::chrono::seconds(10))
+		{
+			std::sort(frameBusy.begin(), frameBusy.end());
+			const double p95 = frameBusy[static_cast<size_t>(frameBusy.size() * 0.95)];
+			if(p95 > 25.0)
+			{
+				double sum = 0;
+				for(double ms : frameBusy)
+					sum += ms;
+				logGlobal->warn("Frames in the last 10 s: %d, drawing took %.1f ms on average, 95%% under %.0f ms, slowest %.0f ms (screen %dx%d)", frameBusy.size(), sum / frameBusy.size(), p95,
+					frameBusy.back(), screenDimensions().x, screenDimensions().y);
+			}
+			frameBusy.clear();
+			lastStats = presented;
 		}
 		framerate().framerateDelay(); // holds a constant FPS
 	}

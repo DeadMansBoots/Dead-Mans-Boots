@@ -2,12 +2,11 @@ name = "dmb-reports"
 main = "worker.js"
 compatibility_date = "2026-10-01"
 
-# the daily clean-up of reports older than 30 days (worker.js, expire)
-[triggers]
-crons = ["23 4 * * *"]
-
-[vars]
-REPORTS_REPO = "DeadMansBoots/dmb-reports"
+# The reports are kept in a Workers KV namespace (free plan: 25 MiB a value, 1 GB, 1,000 writes a day). Make it once with `npx wrangler kv namespace create REPORTS`
+# and put the id it prints here; the line below is the one to fill in.
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "REPLACE_WITH_THE_NAMESPACE_ID"
 
 # Rate limit (deploys from the command line only): five reports a minute from one address (Cloudflare calls the count approximate)
 [[ratelimits]]
@@ -17,5 +16,4 @@ namespace_id = "1001"
   limit = 5
   period = 60
 
-# GITHUB_TOKEN is a secret: a fine-grained GitHub token with "Contents: read and write" on that one repository only.
-# Set it with:  npx wrangler secret put GITHUB_TOKEN   (never written in this file)
+# READ_SECRET is a secret: a random text that fetch_reports.py sends to read and delete reports. Set it with:  npx wrangler secret put READ_SECRET   (never written in this file)

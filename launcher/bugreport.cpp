@@ -277,7 +277,9 @@ Report build(const QString & why, const QString & description, bool includeDump)
 	{
 		report.error = QString::fromUtf8(e.what());
 	}
-	if(includeDump && report.error.isEmpty() && QFileInfo(report.zipPath).size() > 40 * 1024 * 1024)
+	// the relay keeps a report as one Workers KV value (25 MiB at most, 24 MB accepted): a zip over 20 MB is made again without the crash file, whole and not cut (the
+	// crash summary and frames in the log stay); a real dump is about 40 MB and zips to about 10 MB
+	if(includeDump && report.error.isEmpty() && QFileInfo(report.zipPath).size() > 20 * 1024 * 1024)
 	{
 		QFile::remove(report.zipPath);
 		return build(why, description, false);

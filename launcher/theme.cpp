@@ -12,13 +12,18 @@
 #include "gamefont.h"
 
 #include "../lib/CConfigHandler.h"
-#include "../lib/GameButtonLettering.h"
 #include "../lib/VCMIDirs.h"
 #include "../lib/filesystem/Filesystem.h"
 #include "../lib/texts/CGeneralTextHandler.h"
 #include "../lib/vcmi_endian.h"
 
 #include <QApplication>
+#include <QFont>
+#include <QFontDatabase>
+#include <QPainter>
+#include <QPainterPath>
+#include <QRawFont>
+#include <QTransform>
 #include <QIcon>
 #include <QPalette>
 #include <QPixmap>
@@ -70,6 +75,8 @@ void frameWindow(QWidget * window)
 /// look is not leather or dark; defined with the rest of that work, further down this file
 void carveEveryButtonUnder(QWidget * window, bool active);
 void applyCarvedButtonWord(QPushButton * button, bool active);
+/// whether the word carved on `button` is wider than the room the button has for it
+bool carvedWordTooWide(const QPushButton * button);
 
 /// frames every window as it first shows, dialogs included, and carves every button's word into the
 /// game's gold-button lettering (K's testing found the first cut of this missed the Settings page's
@@ -84,6 +91,28 @@ class FrameEveryWindow : public QObject
 public:
 	bool eventFilter(QObject * watched, QEvent * event) override
 	{
+		// a button's own width is only real once its layout has run, and moves with the window and the column: a word that did not fit
+		// the width it was first carved at is tried again at a new one, and a carved word wider than its button's room is set smaller.
+		// A word is never set larger again: a bigger picture makes the button's size hint bigger, which makes the column wider, which
+		// would make the word bigger
+		if(event->type() == QEvent::Resize)
+		{
+			if(auto * button = qobject_cast<QPushButton *>(watched); button && button->property("dmbCarvedFrom").isValid())
+			{
+				QPointer<QPushButton> guarded(button);
+				const bool active = darkFrames;
+				QTimer::singleShot(0, [guarded, active]()
+				{
+					if(!guarded)
+						return;
+					const bool notCarved = guarded->property("dmbCarvedWordWidth").toInt() == 0;
+					const bool retry = notCarved && guarded->property("dmbCarvedWidth").toInt() != guarded->width();
+					if(retry || carvedWordTooWide(guarded))
+						applyCarvedButtonWord(guarded, active);
+				});
+			}
+			return false;
+		}
 		if(event->type() != QEvent::Show)
 			return false;
 		if(auto * widget = qobject_cast<QWidget *>(watched); widget && widget->isWindow())
@@ -437,196 +466,200 @@ QImage tinted(const QImage & image, const std::string & colour, double weight)
 constexpr double SECONDARY_DARK_WEIGHT = 0.8; // the dark look's switches: the game's colour at this much of its brightness
 
 
-/// a button's frame, through the launcher's own resource access (CResourceHandler, readH3DefFrame);
-/// the game engine reads the same buttons a different way (client/render/GameLettering.cpp)
-GameButtonLettering::Picture qtButtonPicture(const std::string & name)
+/// DMB's own button face (launcher/fonts/DMBButtonFace.ttf, an open-licence heavy serif cut and renamed by DMB/release/make_button_face.py,
+/// licence text beside it): K, October 12th 2026, on the game's letters taken from the player's files and reduced to the launcher's size:
+/// "WHAT PART OF BUILD OUR OWN FONT SET DID YOU NOT UNDERSTAND". Every letter, digit and mark of a button's word is drawn from one face at
+/// the size the button needs, with the carved look (a dark letter, a light edge on its lower left) put on after, so no stroke is a game
+/// letter shrunk and patched. Empty when the file did not load: the button keeps its plain text.
+QString buttonFaceFamily()
 {
-	const AnimationPath path = AnimationPath::builtin("SPRITES/" + name);
-	if(!CResourceHandler::get()->existsResource(path))
-		return {};
-	const auto data = CResourceHandler::get()->load(path)->readAll();
-	const auto * bytes = reinterpret_cast<const ui8 *>(data.first.get());
-	const QImage frame = readH3DefFrame(bytes, data.second, 0).convertToFormat(QImage::Format_ARGB32);
-	if(frame.isNull())
-		return {};
-	GameButtonLettering::Picture picture;
-	picture.w = frame.width();
-	picture.h = frame.height();
-	picture.pixels.reserve(static_cast<size_t>(picture.w) * picture.h);
-	for(int y = 0; y < picture.h; ++y)
+	static const QString family = []()
 	{
-		const auto * line = reinterpret_cast<const QRgb *>(frame.constScanLine(y));
-		for(int x = 0; x < picture.w; ++x)
-			picture.pixels.emplace_back(qRed(line[x]), qGreen(line[x]), qBlue(line[x]), 255);
-	}
-	return picture;
-}
-
-/// the lettering, lifted from the player's own files the first time a button's word asks for it. The
-/// harvest checks the game's own installed language (CGeneralTextHandler::getInstalledLanguage, so a
-/// non-English game's buttons, carrying other words, are not read as if they were the game's own
-/// English ones); the client always has that answer by the time a game is running (loading a mod's
-/// filesystem detects it), the launcher does not unless something has already asked for it, which
-/// showing its own buttons does not. Asked for here, once, the same detection the client would trigger.
-const GameButtonLettering::Lettering & qtButtonLettering()
-{
-	static const GameButtonLettering::Lettering lettering = []()
-	{
-		CGeneralTextHandler::detectInstallParameters();
-		return GameButtonLettering::harvest(qtButtonPicture);
+		const int id = QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/DMBButtonFace.ttf"));
+		const QStringList families = id < 0 ? QStringList() : QFontDatabase::applicationFontFamilies(id);
+		return families.isEmpty() ? QString() : families.front();
 	}();
-	return lettering;
+	return family;
 }
 
-/// `text` in the game's own gold-button lettering (K, overnight into September 28th, after seeing the
-/// in-game carved words: "i want to get that exact look in the DMB launcher"): a transparent image, the
-/// black or white share of each pixel from the harvest painted on. Null when the lettering could not be
-/// read (the language is not English, or the buttons it is read from are missing) or `text` needs a
-/// letter the harvest lacks (J, Q, Z, digits, punctuation): the button's own plain text stays, unchanged.
-/// A hyphen is the one punctuation mark this drops rather than refuses on: the harvest has no glyph for it,
-/// and a translated Settings header such as German "Eingabe - Maus" still carves, as "EINGABE MAUS", where
-/// losing carving altogether would read worse. The English headers carry none since K's correction of
-/// September 29th ("there is no hyphen 'MOUSE INPUT'"): they are "Mouse Input", "Controller Input" and
-/// "Touchscreen Input".
-QImage carvedButtonWord(const QString & text)
+/// the height of a button word's capitals, as the game draws them on its bars: 22 rows on a 40 row bar (RANSHOW's own, the bar
+/// the launcher's buttons are cut from), so 22/40 of BAR_HEIGHT
+constexpr double CAP_OF_BAR = 22.0 / 40.0;
+
+constexpr double BUTTON_FACE_WIDTH = 1.0; // the face already has the game's widths, glyph by glyph (make_button_face.py)
+
+/// a word's outline in 100 pixel type (the face's own spacing, kerning on); its left edge at x = 0, its baseline at y = 0. Every size is this
+/// outline scaled, so a size is never rounded to a whole pixel of type and a shrunk word keeps its proportions exactly
+constexpr double BUTTON_FACE_PROBE = 100.0;
+QPainterPath buttonWordOutline(const QString & word)
 {
-	const GameButtonLettering::Lettering & lettering = qtButtonLettering();
-	if(lettering.band == 0)
-		return {};
-	QString withoutHyphens = text.trimmed();
-	withoutHyphens.replace(QLatin1Char('-'), QLatin1Char(' '));
-	// and a bracket: "Install HD Edition (Steam)" carves as INSTALL HD EDITION STEAM (K, September 29th: "Install
-	// hd edition (steam) button is still old style font"; the harvest has no bracket, so the whole word was refused)
-	withoutHyphens.replace(QLatin1Char('('), QLatin1Char(' '));
-	withoutHyphens.replace(QLatin1Char(')'), QLatin1Char(' '));
-	const QByteArray upper = withoutHyphens.simplified().toUpper().toLatin1();
-	const std::string capitals(upper.constData(), static_cast<size_t>(upper.size()));
-	if(capitals.empty())
-		return {};
-	for(const char c : capitals)
-		if(c != ' ' && !lettering.glyphs.count(c))
-			return {};
+	QFont font(buttonFaceFamily());
+	font.setPixelSize(static_cast<int>(BUTTON_FACE_PROBE));
+	font.setHintingPreference(QFont::PreferNoHinting);
+	font.setStyleStrategy(static_cast<QFont::StyleStrategy>(QFont::PreferAntialias | QFont::ForceOutline));
+	font.setKerning(true);
+	QPainterPath path;
+	path.addText(QPointF(0, 0), font, word);
+	return path;
+}
 
-	using Glyph = GameButtonLettering::Glyph;
-	constexpr double dark = 0.45; // GameButtonLettering's own DARK: a letter's own pixels, at least this black
-	constexpr int letterGap = 1;  // the game's own spacing (GameLettering.cpp): a pixel between letters
-	constexpr int wordGap = 6;    // eight between words, so six added to the letter gap already crossed
-	constexpr int closest = 1;
-	constexpr int farthest = 5;
-	struct Placed
+/// the outline at `pixelSize` pixels of type. The game's letters are broader than this face's: the whole face is drawn BUTTON_FACE_WIDTH
+/// wider, every letter alike (measured against the game's own button words, .tmp/dmb/font/score_faces.py)
+QPainterPath buttonWordPath(const QPainterPath & outline, double pixelSize)
+{
+	const double scale = pixelSize / BUTTON_FACE_PROBE;
+	return QTransform().scale(scale * BUTTON_FACE_WIDTH, scale).map(outline);
+}
+
+/// the width of `word` at the capital height of a button's word, in logical pixels; 0 when the face lacks a letter of it
+double carvedWordWidth(const QString & text)
+{
+	if(buttonFaceFamily().isEmpty())
+		return 0;
+	const QString word = text.simplified().toUpper();
+	if(word.isEmpty())
+		return 0;
+	const QRawFont raw = QRawFont::fromFont(QFont(buttonFaceFamily()));
+	for(const QChar c : word)
+		if(!raw.supportsCharacter(c.unicode()))
+			return 0;
+	const double capOfProbe = -buttonWordOutline(QStringLiteral("H")).boundingRect().top();
+	return buttonWordOutline(word).boundingRect().width() * CAP_OF_BAR * BAR_HEIGHT / capOfProbe;
+}
+
+/// `text` in the button face, carved: a transparent image at `ratio` device pixels to a logical one, with the capitals `scale` times
+/// CAP_OF_BAR * BAR_HEIGHT logical pixels high. Null when the face is missing or `text` has a letter the face lacks. `light`: a light
+/// letter with a dark edge (the leather look's black slots); `enabled`: a disabled button's word is a grey letter with a faint edge,
+/// drawn here and not by Qt's own greying of a picture.
+QImage carvedButtonWord(const QString & text, double ratio, double scale = 1.0, bool light = false, bool enabled = true)
+{
+	if(carvedWordWidth(text) <= 0)
+		return {};
+	const QString word = text.simplified().toUpper();
+	const double wantedCap = CAP_OF_BAR * BAR_HEIGHT * ratio * scale;
+	const double capOfProbe = -buttonWordOutline(QStringLiteral("H")).boundingRect().top();
+	const double size = BUTTON_FACE_PROBE * wantedCap / capOfProbe;
+	const QPainterPath path = buttonWordPath(buttonWordOutline(word), size);
+
+	const double cap = capOfProbe * size / BUTTON_FACE_PROBE;
+	const double edge = std::max(1.0, 0.06 * cap); // the carved edge: a pixel or so, at least a whole device pixel
+	const QRectF box = path.boundingRect();
+	// the same height for every word (its capitals centred), and more only where an accent or a tail needs it, so the buttons' words
+	// stand at one level
+	const double above = std::max(cap / 2 + 1, -box.top() - cap / 2 + 1);
+	const double below = std::max(cap / 2 + 1, box.bottom() + cap / 2 + 1);
+	const double half = std::ceil(std::max(above, below));
+	const int width = static_cast<int>(std::ceil(box.width() + edge + 2));
+	const int height = static_cast<int>(2 * half);
+	QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
+	image.fill(Qt::transparent);
 	{
-		const Glyph * glyph;
-		int x;
-	};
-	std::vector<Placed> placed;
-	std::map<int, int> previous; // the letter before's last black column in each row, at its place
-	int x = 0;
-	for(const char c : capitals)
-	{
-		if(c == ' ')
+		QPainter painter(&image);
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		painter.setPen(Qt::NoPen);
+		// capitals centred on the image's middle row, the word's left edge a whole pixel in
+		const QPointF origin(1.0 + edge - box.left(), half + cap / 2);
+		QColor body = light ? QColor(255, 255, 255) : QColor(0, 0, 0);
+		QColor rim = light ? QColor(0, 0, 0) : QColor(255, 255, 255);
+		if(!enabled)
 		{
-			x += wordGap;
-			previous.clear();
-			continue;
+			body = light ? QColor(150, 150, 150) : QColor(52, 49, 46);
+			rim.setAlpha(45);
 		}
-		const Glyph & glyph = lettering.glyphs.at(c);
-		std::map<int, std::pair<int, int>> rows;
-		for(const auto & [cell, share] : glyph.pixels)
-			if(share.black >= dark)
-			{
-				const int row = cell.second;
-				const auto it = rows.find(row);
-				if(it == rows.end())
-					rows[row] = {cell.first, cell.first};
-				else
-					it->second = {std::min(it->second.first, cell.first), std::max(it->second.second, cell.first)};
-			}
-		int at = x;
-		std::optional<int> nearest;
-		for(const auto & [row, span] : rows)
-			if(previous.count(row))
-			{
-				const int gap = at + span.first - previous.at(row) - 1;
-				nearest = nearest ? std::min(*nearest, gap) : gap;
-			}
-		if(nearest && *nearest < closest)
-			at += closest - *nearest;
-		else if(nearest && *nearest > farthest)
-			at -= std::min(*nearest - farthest, 2);
-		placed.push_back({&glyph, at});
-		previous.clear();
-		for(const auto & [row, span] : rows)
-			previous[row] = at + span.second;
-		x = at + glyph.width + letterGap;
+		painter.setBrush(rim);
+		painter.drawPath(path.translated(origin + QPointF(-edge, edge)));
+		painter.setBrush(body);
+		painter.drawPath(path.translated(origin));
 	}
-	const int width = x - letterGap;
-	if(width <= 0)
-		return {};
+	image.setDevicePixelRatio(ratio);
+	return image;
+}
 
-	QImage image(width, lettering.band, QImage::Format_ARGB32);
-	image.fill(qRgba(0, 0, 0, 0));
-	for(const auto & p : placed)
-		for(const auto & [cell, share] : p.glyph->pixels)
-		{
-			const double a = share.black + share.white;
-			if(a <= 0)
-				continue;
-			const int px = p.x + cell.first;
-			const int py = cell.second;
-			if(px < 0 || px >= width || py < 0 || py >= lettering.band)
-				continue;
-			const auto shade = static_cast<int>(std::lround(std::clamp(255.0 * share.white / a, 0.0, 255.0)));
-			const int value = lightLettering ? 255 - shade : shade;
-			const auto opacity = static_cast<int>(std::lround(std::clamp(a, 0.0, 1.0) * 255));
-			image.setPixelColor(px, py, QColor(value, value, value, opacity));
-		}
-	// the letters, at the height the buttons they were read from are (40, RANSHOW's own, confirmed
-	// against every button the harvest reads from), scaled the same amount the bar itself is
-	// (BAR_HEIGHT / 40, wordlessBar), so they stand in its own proportion, not oversized on a shrunk bar
-	const int scaledHeight = std::max(1, static_cast<int>(std::lround(image.height() * BAR_HEIGHT / 40.0)));
-	return image.scaledToHeight(scaledHeight, Qt::SmoothTransformation);
+/// the logical size of `image` (a carved word at a device pixel ratio)
+QSize logicalSize(const QImage & image)
+{
+	const double ratio = image.devicePixelRatio();
+	return QSize(static_cast<int>(std::ceil(image.width() / ratio)), static_cast<int>(std::ceil(image.height() / ratio)));
 }
 
 // the bar's own scrollwork ends, kept clear on each side (gameButtonStyle's own 21 px at RANSHOW's
-// native size, scaled the same amount the carved word already is), and a little headroom the
-// button's own frame needs top and bottom
+// native size, scaled the same amount the bar is), and a little headroom the button's own frame needs top and bottom
 int carvedBarEnds()
 {
 	return std::max(1, static_cast<int>(std::lround(21 * BAR_HEIGHT / 40.0)));
 }
 constexpr int carvedClear = 2;
 
-/// `button` in the exact carved-gold lettering (K, overnight into September 28th: "i want to get that
-/// exact look in the DMB launcher") where `active` (the look is leather or dark, not "system") and its
-/// own word fits and every letter of it is there; back to its own plain text otherwise, whether that is
-/// because the look is "system" now, the button's own size shrank past fitting, or its word needs a
-/// letter the harvest lacks (J, Q, Z, digits, punctuation: "Install HD Edition (Steam)", any "?" help
-/// button). Idempotent: safe to call again for a button already carved, or already plain.
+bool carvedWordTooWide(const QPushButton * button)
+{
+	return button->property("dmbCarvedWordWidth").toInt() > button->width() - 2 * (carvedBarEnds() + carvedClear);
+}
+
+/// `button` in the carved button face where `active` (the look is leather or dark, not "system") and its own word fits and the face has
+/// every letter of it; back to its own plain text otherwise, whether that is because the look is "system" now, the button's own size
+/// shrank past fitting, or its word has a letter the face lacks. Idempotent: safe to call again for a button already carved, or
+/// already plain.
+constexpr double CARVED_GROUP_FLOOR = 0.9;
+
+/// the size of `button`'s carved word, as a share of the full height: the buttons of one column (same parent, same width) share the
+/// smallest size any of their words needs to fit (down to CARVED_GROUP_FLOOR), so the column's words stand at one height; a word that needs less than
+/// that is set smaller still, alone. 0 when the word would be under 0.6 and cannot be read.
+double carvedWordScale(const QPushButton * button, const QString & word)
+{
+	const auto need = [](const QString & text, int width)
+	{
+		const double natural = carvedWordWidth(text);
+		return natural > 0 ? (width - 2 * (carvedBarEnds() + carvedClear)) / (natural + 4.0) : 1000.0; // the picture's margin included
+	};
+	const double own = need(word, button->width());
+	double group = own;
+	if(const QWidget * parent = button->parentWidget())
+		for(const QPushButton * other : parent->findChildren<QPushButton *>(QString(), Qt::FindDirectChildrenOnly))
+			if(other != button && !other->isHidden() && other->width() == button->width() && other->property("dmbCarvedFrom").isValid()
+				&& other->property("dmbCarvedScale").toDouble() > 0)
+				group = std::min(group, need(other->property("dmbCarvedFrom").toString(), other->width()));
+	const double scale = std::min({1.0, own, std::max(CARVED_GROUP_FLOOR, group)});
+	return scale < 0.6 ? 0 : scale;
+}
+
 void applyCarvedButtonWord(QPushButton * button, bool active)
 {
+	static bool settling = false; // a change of the column's size carves its other words again, once
 	const QVariant stored = button->property("dmbCarvedFrom");
 	const QString original = stored.isValid() ? stored.toString() : button->text();
 	if(!stored.isValid())
 		button->setProperty("dmbCarvedFrom", original);
-	QImage carved = active ? carvedButtonWord(original) : QImage();
-	// a long word on a button too narrow for it ("Install HD Edition (Steam)", K, September 29th: "still old style
-	// font") is drawn smaller to fit, down to two thirds of its size; shorter than that it would not read, and
-	// the button keeps its plain text
-	const int room = button->width() - 2 * (carvedBarEnds() + carvedClear);
-	if(!carved.isNull() && room > 0 && carved.width() > room && carved.width() * 2 <= room * 3)
-		carved = carved.scaledToWidth(room, Qt::SmoothTransformation);
-	const bool fits = !carved.isNull() && carved.width() + 2 * (carvedBarEnds() + carvedClear) <= button->width()
-		&& carved.height() + carvedClear <= button->height();
+	button->setProperty("dmbCarvedWidth", button->width());
+	const double ratio = button->devicePixelRatioF();
+	const double scale = active && button->width() > 0 ? carvedWordScale(button, original) : 0;
+	const QImage enabled = scale > 0 ? carvedButtonWord(original, ratio, scale, lightLettering, true) : QImage();
+	const bool fits = !enabled.isNull() && logicalSize(enabled).height() + carvedClear <= button->height()
+		&& logicalSize(enabled).width() + 2 * (carvedBarEnds() + carvedClear) <= button->width() + 1;
+	button->setProperty("dmbCarvedWordWidth", fits ? logicalSize(enabled).width() : 0);
+	const double before = button->property("dmbCarvedScale").toDouble();
+	button->setProperty("dmbCarvedScale", fits ? scale : 0.0);
 	if(fits)
 	{
-		button->setIcon(QIcon(QPixmap::fromImage(carved)));
-		button->setIconSize(carved.size());
+		QIcon icon;
+		icon.addPixmap(QPixmap::fromImage(enabled), QIcon::Normal);
+		icon.addPixmap(QPixmap::fromImage(carvedButtonWord(original, ratio, scale, lightLettering, false)), QIcon::Disabled);
+		button->setIcon(icon);
+		button->setIconSize(logicalSize(enabled));
 		button->setText(QString());
 	}
 	else if(button->text().isEmpty() && !button->icon().isNull())
 	{
 		button->setIcon(QIcon());
 		button->setText(original);
+	}
+	if(!settling && fits && std::abs(before - scale) > 0.001 && button->parentWidget())
+	{
+		settling = true;
+		for(QPushButton * other : button->parentWidget()->findChildren<QPushButton *>(QString(), Qt::FindDirectChildrenOnly))
+			if(other != button && !other->isHidden() && other->width() == button->width() && other->property("dmbCarvedScale").toDouble() > 0
+				&& other->property("dmbCarvedScale").toDouble() > scale + 0.001)
+				applyCarvedButtonWord(other, active);
+		settling = false;
 	}
 }
 
@@ -1219,10 +1252,11 @@ void LauncherTheme::setButtonText(QPushButton * button, const QString & text)
 
 int LauncherTheme::minimumCarvedButtonWidth(const QString & text)
 {
-	const QImage carved = carvedButtonWord(text);
-	if(carved.isNull())
+	const double natural = carvedWordWidth(text);
+	if(natural <= 0)
 		return 0;
-	return carved.width() + 2 * (carvedBarEnds() + carvedClear);
+	// the smallest a column sets its words at (CARVED_GROUP_FLOOR); a column is never made wider than that asks
+	return static_cast<int>(std::ceil(natural * CARVED_GROUP_FLOOR + 4)) + 2 * (carvedBarEnds() + carvedClear);
 }
 
 void LauncherTheme::apply()

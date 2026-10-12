@@ -486,7 +486,7 @@ QString buttonFaceFamily()
 /// the launcher's buttons are cut from), so 22/40 of BAR_HEIGHT
 constexpr double CAP_OF_BAR = 22.0 / 40.0;
 
-constexpr double BUTTON_FACE_WIDTH = 1.04;
+constexpr double BUTTON_FACE_WIDTH = 1.0; // the face already has the game's widths, glyph by glyph (make_button_face.py)
 
 /// a word's outline in 100 pixel type (the face's own spacing, kerning on); its left edge at x = 0, its baseline at y = 0. Every size is this
 /// outline scaled, so a size is never rounded to a whole pixel of type and a shrunk word keeps its proportions exactly
@@ -511,37 +511,35 @@ QPainterPath buttonWordPath(const QPainterPath & outline, double pixelSize)
 	return QTransform().scale(scale * BUTTON_FACE_WIDTH, scale).map(outline);
 }
 
-/// `text` in the button face, carved: a transparent image at `ratio` device pixels to a logical one, with the capitals
-/// CAP_OF_BAR * BAR_HEIGHT logical pixels high. `room` (logical pixels, 0 for none) is the width the word may take: a word wider
-/// than that is set smaller, down to seven tenths of its size. Null when the face is missing, `text` has a letter the face lacks,
-/// or the word still does not fit. `light`: a light letter with a dark edge (the leather look's black slots); `enabled`: a disabled
-/// button's word is a grey letter with a faint edge, drawn here and not by Qt's own greying of a picture.
-QImage carvedButtonWord(const QString & text, double ratio, double room = 0, bool light = false, bool enabled = true)
+/// the width of `word` at the capital height of a button's word, in logical pixels; 0 when the face lacks a letter of it
+double carvedWordWidth(const QString & text)
 {
 	if(buttonFaceFamily().isEmpty())
-		return {};
+		return 0;
 	const QString word = text.simplified().toUpper();
 	if(word.isEmpty())
-		return {};
+		return 0;
 	const QRawFont raw = QRawFont::fromFont(QFont(buttonFaceFamily()));
 	for(const QChar c : word)
 		if(!raw.supportsCharacter(c.unicode()))
-			return {};
-
-	const double wantedCap = CAP_OF_BAR * BAR_HEIGHT * ratio;
+			return 0;
 	const double capOfProbe = -buttonWordOutline(QStringLiteral("H")).boundingRect().top();
-	const double pixelSize = BUTTON_FACE_PROBE * wantedCap / capOfProbe;
-	const QPainterPath outline = buttonWordOutline(word);
-	double size = pixelSize;
-	QPainterPath path = buttonWordPath(outline, size);
-	const double roomPx = room * ratio;
-	if(roomPx > 0 && path.boundingRect().width() > roomPx)
-	{
-		size = std::max(0.7 * pixelSize, pixelSize * roomPx / path.boundingRect().width());
-		path = buttonWordPath(outline, size);
-		if(path.boundingRect().width() > roomPx + 0.01)
-			return {};
-	}
+	return buttonWordOutline(word).boundingRect().width() * CAP_OF_BAR * BAR_HEIGHT / capOfProbe;
+}
+
+/// `text` in the button face, carved: a transparent image at `ratio` device pixels to a logical one, with the capitals `scale` times
+/// CAP_OF_BAR * BAR_HEIGHT logical pixels high. Null when the face is missing or `text` has a letter the face lacks. `light`: a light
+/// letter with a dark edge (the leather look's black slots); `enabled`: a disabled button's word is a grey letter with a faint edge,
+/// drawn here and not by Qt's own greying of a picture.
+QImage carvedButtonWord(const QString & text, double ratio, double scale = 1.0, bool light = false, bool enabled = true)
+{
+	if(carvedWordWidth(text) <= 0)
+		return {};
+	const QString word = text.simplified().toUpper();
+	const double wantedCap = CAP_OF_BAR * BAR_HEIGHT * ratio * scale;
+	const double capOfProbe = -buttonWordOutline(QStringLiteral("H")).boundingRect().top();
+	const double size = BUTTON_FACE_PROBE * wantedCap / capOfProbe;
+	const QPainterPath path = buttonWordPath(buttonWordOutline(word), size);
 
 	const double cap = capOfProbe * size / BUTTON_FACE_PROBE;
 	const double edge = std::max(1.0, 0.06 * cap); // the carved edge: a pixel or so, at least a whole device pixel
@@ -601,23 +599,50 @@ bool carvedWordTooWide(const QPushButton * button)
 /// every letter of it; back to its own plain text otherwise, whether that is because the look is "system" now, the button's own size
 /// shrank past fitting, or its word has a letter the face lacks. Idempotent: safe to call again for a button already carved, or
 /// already plain.
+constexpr double CARVED_GROUP_FLOOR = 0.9;
+
+/// the size of `button`'s carved word, as a share of the full height: the buttons of one column (same parent, same width) share the
+/// smallest size any of their words needs to fit (down to CARVED_GROUP_FLOOR), so the column's words stand at one height; a word that needs less than
+/// that is set smaller still, alone. 0 when the word would be under 0.6 and cannot be read.
+double carvedWordScale(const QPushButton * button, const QString & word)
+{
+	const auto need = [](const QString & text, int width)
+	{
+		const double natural = carvedWordWidth(text);
+		return natural > 0 ? (width - 2 * (carvedBarEnds() + carvedClear)) / (natural + 4.0) : 1000.0; // the picture's margin included
+	};
+	const double own = need(word, button->width());
+	double group = own;
+	if(const QWidget * parent = button->parentWidget())
+		for(const QPushButton * other : parent->findChildren<QPushButton *>(QString(), Qt::FindDirectChildrenOnly))
+			if(other != button && !other->isHidden() && other->width() == button->width() && other->property("dmbCarvedFrom").isValid()
+				&& other->property("dmbCarvedScale").toDouble() > 0)
+				group = std::min(group, need(other->property("dmbCarvedFrom").toString(), other->width()));
+	const double scale = std::min({1.0, own, std::max(CARVED_GROUP_FLOOR, group)});
+	return scale < 0.6 ? 0 : scale;
+}
+
 void applyCarvedButtonWord(QPushButton * button, bool active)
 {
+	static bool settling = false; // a change of the column's size carves its other words again, once
 	const QVariant stored = button->property("dmbCarvedFrom");
 	const QString original = stored.isValid() ? stored.toString() : button->text();
 	if(!stored.isValid())
 		button->setProperty("dmbCarvedFrom", original);
 	button->setProperty("dmbCarvedWidth", button->width());
 	const double ratio = button->devicePixelRatioF();
-	const double room = button->width() - 2 * (carvedBarEnds() + carvedClear);
-	const QImage enabled = active && room > 0 ? carvedButtonWord(original, ratio, room, lightLettering, true) : QImage();
-	const bool fits = !enabled.isNull() && logicalSize(enabled).height() + carvedClear <= button->height();
+	const double scale = active && button->width() > 0 ? carvedWordScale(button, original) : 0;
+	const QImage enabled = scale > 0 ? carvedButtonWord(original, ratio, scale, lightLettering, true) : QImage();
+	const bool fits = !enabled.isNull() && logicalSize(enabled).height() + carvedClear <= button->height()
+		&& logicalSize(enabled).width() + 2 * (carvedBarEnds() + carvedClear) <= button->width() + 1;
 	button->setProperty("dmbCarvedWordWidth", fits ? logicalSize(enabled).width() : 0);
+	const double before = button->property("dmbCarvedScale").toDouble();
+	button->setProperty("dmbCarvedScale", fits ? scale : 0.0);
 	if(fits)
 	{
 		QIcon icon;
 		icon.addPixmap(QPixmap::fromImage(enabled), QIcon::Normal);
-		icon.addPixmap(QPixmap::fromImage(carvedButtonWord(original, ratio, room, lightLettering, false)), QIcon::Disabled);
+		icon.addPixmap(QPixmap::fromImage(carvedButtonWord(original, ratio, scale, lightLettering, false)), QIcon::Disabled);
 		button->setIcon(icon);
 		button->setIconSize(logicalSize(enabled));
 		button->setText(QString());
@@ -626,6 +651,15 @@ void applyCarvedButtonWord(QPushButton * button, bool active)
 	{
 		button->setIcon(QIcon());
 		button->setText(original);
+	}
+	if(!settling && fits && std::abs(before - scale) > 0.001 && button->parentWidget())
+	{
+		settling = true;
+		for(QPushButton * other : button->parentWidget()->findChildren<QPushButton *>(QString(), Qt::FindDirectChildrenOnly))
+			if(other != button && !other->isHidden() && other->width() == button->width() && other->property("dmbCarvedScale").toDouble() > 0
+				&& other->property("dmbCarvedScale").toDouble() > scale + 0.001)
+				applyCarvedButtonWord(other, active);
+		settling = false;
 	}
 }
 
@@ -1218,10 +1252,11 @@ void LauncherTheme::setButtonText(QPushButton * button, const QString & text)
 
 int LauncherTheme::minimumCarvedButtonWidth(const QString & text)
 {
-	const QImage carved = carvedButtonWord(text, 1.0);
-	if(carved.isNull())
+	const double natural = carvedWordWidth(text);
+	if(natural <= 0)
 		return 0;
-	return logicalSize(carved).width() + 2 * (carvedBarEnds() + carvedClear);
+	// the smallest a column sets its words at (CARVED_GROUP_FLOOR); a column is never made wider than that asks
+	return static_cast<int>(std::ceil(natural * CARVED_GROUP_FLOOR + 4)) + 2 * (carvedBarEnds() + carvedClear);
 }
 
 void LauncherTheme::apply()

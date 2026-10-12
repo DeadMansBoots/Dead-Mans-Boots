@@ -532,12 +532,14 @@ std::string threatWord(uint64_t guardStrength, uint64_t heroStrength)
 }
 }
 
-std::string CRewardableObject::getBuildingInfoText(const CGHeroInstance * hero) const
+std::string CRewardableObject::getBuildingInfoText(PlayerColor player, const CGHeroInstance * hero) const
 {
 	if(!settings["general"]["buildingInfo"].Bool() || configuration.info.empty())
 		return {};
 
 	const bool guarded = isGuarded();
+	// the engine marks a building as scouted for the whole team when a hero arrives (before the fight); until then the guards and the prize stay unknown
+	const bool hidden = guarded && player.isValidPlayer() && !wasScouted(player);
 	const auto prize = summarizeTypeTable(*this, cb);
 	// when the visited state is cleared on a period, the use is per week (or per N days), not for good
 	const int period = configuration.resetParameters.period;
@@ -586,6 +588,9 @@ std::string CRewardableObject::getBuildingInfoText(const CGHeroInstance * hero) 
 	if(prize.removesObject)
 		kind = "It disappears once taken.";
 	std::string text = "\n\n" + std::string(guarded ? "Guarded: win the fight to claim it. " : "") + kind;
+
+	if(hidden)
+		return text + "\nGuards and prize: unknown until a hero of yours or an ally has visited.";
 
 	if(guarded)
 	{
@@ -673,7 +678,7 @@ std::string CRewardableObject::getDisplayTextImpl(PlayerColor player, const CGHe
 		// an odd mod building must never cost the player the pop-up (or the game): the extra text is left out
 		try
 		{
-			result += getBuildingInfoText(hero);
+			result += getBuildingInfoText(player, hero);
 		}
 		catch(const std::exception & e)
 		{

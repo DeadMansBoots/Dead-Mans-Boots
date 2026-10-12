@@ -5,6 +5,9 @@
  */
 #pragma once
 
+#include <QByteArray>
+#include <QList>
+#include <QPair>
 #include <QString>
 
 class QWidget;
@@ -19,8 +22,11 @@ class QWidget;
 /// computer name are replaced in every text file and overwritten in the dump; the settings lose the name of a game joined and the player names; addresses of
 /// other computers and a OneDrive folder's owner are replaced everywhere.
 ///
-/// Sending: the zip goes to the developers' report relay (an HTTPS address that the update feed names, key "reportEndpoint"; neither a key nor an address is
-/// built into the program). With no address there, or no connection, the zip is saved, its folder opens, and the repository's new-issue page opens with the
+/// Sending: the report goes to the address that the update feed names (key "reportEndpoint"; neither a key nor an address is built into the program, and an HTTPS
+/// address is required). An address with "/minidump/" in it is Sentry's minidump endpoint: the dump (gzip compressed, when it keeps the request under 40 MB), the
+/// scrubbed text files one by one as attachments and a "sentry" field with the release and a fingerprint of its own, so each report is an issue of its own. Any other
+/// address is the report relay: the whole zip in one POST to <address>/report.
+/// With no address there, or no connection, the zip is saved, its folder opens, and the repository's new-issue page opens with the
 /// summary filled in, for the player to drop the zip into. Settings, General has a switch (launcher.sendCrashReports) for the crashes the launcher
 /// sends by itself.
 namespace BugReport
@@ -32,6 +38,11 @@ namespace BugReport
 		QString crash;
 		QString description;
 		QString error;
+		/// the scrubbed text files of the zip (name inside the zip, content), for an upload that sends them one by one (Sentry's minidump address)
+		QList<QPair<QString, QByteArray>> parts;
+		/// the scrubbed crash dump (the same bytes as in the zip), empty when there is none or the report was made without it
+		QByteArray dump;
+		QString dumpName;
 	};
 
 	/// `description` is the player's own words (what went wrong), kept in the zip as description.txt

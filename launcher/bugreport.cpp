@@ -23,6 +23,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QInputDialog>
+#include <QHttpMultiPart>
+#include <QHttpPart>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
@@ -193,6 +196,48 @@ void addToZip(CZipSaver & saver, const std::string & name, const QByteArray & da
 	auto stream = saver.addFile(name);
 	stream->write(reinterpret_cast<const ui8 *>(data.constData()), data.size());
 }
+
+quint32 crc32Of(const QByteArray & data)
+{
+	static quint32 table[256];
+	static bool made = false;
+	if(!made)
+	{
+		for(quint32 n = 0; n < 256; ++n)
+		{
+			quint32 c = n;
+			for(int k = 0; k < 8; ++k)
+				c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+			table[n] = c;
+		}
+		made = true;
+	}
+	quint32 crc = 0xFFFFFFFFu;
+	for(const char byte : data)
+		crc = table[(crc ^ static_cast<uchar>(byte)) & 0xFF] ^ (crc >> 8);
+	return crc ^ 0xFFFFFFFFu;
+}
+
+/// `data` as a gzip file (Sentry takes a compressed minidump as gzip, zstd, bzip2 or xz): the deflate data of Qt's own zlib stream (qCompress: four bytes of length, a two byte
+/// zlib header, the data, four bytes of checksum) between a gzip header and the gzip trailer (the data's CRC-32 and length)
+QByteArray gzipped(const QByteArray & data)
+{
+	const QByteArray zlibStream = qCompress(data, 6);
+	QByteArray out(10, '\0');
+	out[0] = static_cast<char>(0x1f);
+	out[1] = static_cast<char>(0x8b);
+	out[2] = 8;
+	out[9] = static_cast<char>(0xff);
+	out.append(zlibStream.constData() + 6, zlibStream.size() - 10);
+	const auto littleEndian = [&out](quint32 value)
+	{
+		for(int i = 0; i < 4; ++i)
+			out.append(static_cast<char>((value >> (8 * i)) & 0xFF));
+	};
+	littleEndian(crc32Of(data));
+	littleEndian(static_cast<quint32>(data.size()));
+	return out;
+}
 }
 
 namespace BugReport
@@ -213,6 +258,12 @@ Report build(const QString & why, const QString & description, bool includeDump)
 
 		std::shared_ptr<CIOApi> api = std::make_shared<CDefaultIOApi>();
 		CZipSaver saver(api, boost::filesystem::path(report.zipPath.toStdString()));
+		// a text file goes into the zip and into the list of parts that a one-by-one upload sends
+		const auto add = [&](const std::string & fileName, const QByteArray & bytes)
+		{
+			addToZip(saver, fileName, bytes);
+			report.parts.append({QString::fromStdString(fileName), bytes});
+		};
 
 		QString clientLog;
 		for(const QFileInfo & file : QDir(logs).entryInfoList({"*.txt"}, QDir::Files, QDir::Name))
@@ -220,21 +271,21 @@ Report build(const QString & why, const QString & description, bool includeDump)
 			QByteArray text = tailOf(file.absoluteFilePath(), LOG_TAIL_BYTES);
 			if(file.fileName() == "VCMI_Client_log.txt")
 				clientLog = QString::fromUtf8(text);
-			addToZip(saver, "logs/" + file.fileName().toStdString(), redacted(text));
+			add("logs/" + file.fileName().toStdString(), redacted(text));
 		}
 		for(const QString & jsonName : {"settings.json", "modSettings.json"})
 		{
 			const QByteArray text = tailOf(config + "/" + jsonName, 2 * 1024 * 1024);
 			if(!text.isEmpty())
-				addToZip(saver, "config/" + jsonName.toStdString(), scrubbedSettings(text));
+				add("config/" + jsonName.toStdString(), scrubbedSettings(text));
 		}
 		// the newest play log (what was clicked and what the game answered), its end
 		QFileInfoList playLogs = QDir(data + "/PlayLogs").entryInfoList({"*.jsonl"}, QDir::Files, QDir::Time);
 		if(!playLogs.isEmpty())
-			addToZip(saver, "playlog/" + playLogs.first().fileName().toStdString(), redacted(tailOf(playLogs.first().absoluteFilePath(), PLAY_LOG_TAIL_BYTES)));
+			add("playlog/" + playLogs.first().fileName().toStdString(), redacted(tailOf(playLogs.first().absoluteFilePath(), PLAY_LOG_TAIL_BYTES)));
 
 		if(!description.trimmed().isEmpty())
-			addToZip(saver, "description.txt", redacted(description.toUtf8()));
+			add("description.txt", redacted(description.toUtf8()));
 		// every file of the user's Mods folder with its size (K, October 10th, on a crash that only one player had): a mod that is incomplete or different
 		// on one PC shows up against another player's listing; paths are relative to the user folder, so no Windows user name is in them
 		{
@@ -249,7 +300,7 @@ Report build(const QString & why, const QString & description, bool includeDump)
 				++count;
 			}
 			if(count > 0)
-				addToZip(saver, "mods-listing.txt", redacted(listing.toUtf8()));
+				add("mods-listing.txt", redacted(listing.toUtf8()));
 		}
 		// the newest crash dump of the game, when it is from the last day (a dump holds memory: the reports go to a private repository); when the whole
 		// report comes out over 40 MB the report is made again without it (the upload takes it as one piece)
@@ -260,14 +311,20 @@ Report build(const QString & why, const QString & description, bool includeDump)
 			{
 				QFile dump(dumps.first().absoluteFilePath());
 				if(dumps.first().size() <= 120 * 1024 * 1024 && dump.open(QIODevice::ReadOnly))
-					{ QByteArray bytes = dump.readAll(); scrubDump(bytes); addToZip(saver, "crash/" + dumps.first().fileName().toStdString(), bytes); }
+					{
+						QByteArray bytes = dump.readAll();
+						scrubDump(bytes);
+						addToZip(saver, "crash/" + dumps.first().fileName().toStdString(), bytes);
+						report.dump = bytes;
+						report.dumpName = dumps.first().fileName();
+					}
 			}
 		}
 		const QString crash = crashSummary(clientLog);
 		if(!crash.isEmpty())
-			addToZip(saver, "crash-summary.txt", redacted(crash.toUtf8()));
+			add("crash-summary.txt", redacted(crash.toUtf8()));
 		const QString info = systemInfo(why);
-		addToZip(saver, "report-info.txt", redacted(info.toUtf8()));
+		add("report-info.txt", redacted(info.toUtf8()));
 
 		report.summary = info;
 		report.description = description;
@@ -325,6 +382,72 @@ QString reportEndpoint(QNetworkAccessManager & manager, QString & message)
 	return endpoint;
 }
 
+/// Sentry's minidump endpoint (an address with "/minidump/" in it, https://docs.sentry.io/platforms/native/guides/minidumps/): the crash dump in the field
+/// upload_file_minidump, gzip compressed, and every scrubbed text file as a file part of its own (each becomes an event attachment, with the name and type given here;
+/// Sentry scrubs nothing in an attachment, so the scrub is ours), and a "sentry" field with the release and a fingerprint of this report alone, so that each report is
+/// an issue of its own and can be deleted on its own. One request must stay under 40 MB: the dump is left out whole when it would not fit, and then nothing is sent (the
+/// endpoint takes no report without a dump) and the player gets the saved zip as for any failed upload.
+static bool sendToSentry(const Report & report, const QUrl & endpoint, QNetworkAccessManager & manager, QString & message)
+{
+	constexpr qint64 REQUEST_LIMIT = 38LL * 1024 * 1024;
+	if(report.dump.isEmpty())
+	{
+		message = "no crash file in this report: nothing is sent to the crash service";
+		return false;
+	}
+	const QByteArray dump = gzipped(report.dump);
+	qint64 total = dump.size();
+	for(const auto & part : report.parts)
+		total += part.second.size();
+	if(total > REQUEST_LIMIT)
+	{
+		message = "the report is too large for the crash service";
+		return false;
+	}
+
+	auto * multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+	const auto addFile = [multi](const QString & field, const QString & fileName, const QByteArray & mime, const QByteArray & bytes)
+	{
+		QHttpPart part;
+		part.setHeader(QNetworkRequest::ContentDispositionHeader, QString("form-data; name=\"%1\"; filename=\"%2\"").arg(field, fileName));
+		part.setHeader(QNetworkRequest::ContentTypeHeader, mime);
+		part.setBody(bytes);
+		multi->append(part);
+	};
+	addFile("upload_file_minidump", report.dumpName + ".gz", "application/gzip", dump);
+	for(const auto & part : report.parts)
+	{
+		QString flat = part.first;
+		flat.replace('/', '_');
+		addFile(flat, flat, "text/plain", part.second);
+	}
+	QJsonObject sentry;
+	sentry["release"] = QString::fromUtf8(DMB_RELEASE_TEXT);
+	sentry["environment"] = "beta";
+	sentry["fingerprint"] = QJsonArray{QFileInfo(report.zipPath).completeBaseName()};
+	QHttpPart field;
+	field.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"sentry\"");
+	field.setBody(QJsonDocument(sentry).toJson(QJsonDocument::Compact));
+	multi->append(field);
+
+	QNetworkRequest request{endpoint};
+	request.setRawHeader("User-Agent", "DeadMansBoots-Launcher");
+	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+	QNetworkReply * reply = manager.post(request, multi);
+	multi->setParent(reply);
+	QEventLoop loop;
+	QTimer timeout;
+	timeout.setSingleShot(true);
+	QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+	QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+	timeout.start(180 * 1000);
+	loop.exec();
+	const bool done = reply->isFinished() && reply->error() == QNetworkReply::NoError && reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200;
+	message = done ? QString() : (reply->isFinished() ? reply->errorString() : QString("the upload timed out"));
+	reply->deleteLater();
+	return done;
+}
+
 bool send(const Report & report, QString & message)
 {
 	QFile file(report.zipPath);
@@ -344,6 +467,8 @@ bool send(const Report & report, QString & message)
 			message = "no upload address";
 		return false;
 	}
+	if(endpointUrl.path().contains("/minidump"))
+		return sendToSentry(report, endpointUrl, manager, message);
 
 	QNetworkRequest request{QUrl(endpoint + (endpoint.endsWith('/') ? "" : "/") + "report")};
 	request.setRawHeader("User-Agent", "DeadMansBoots-Launcher");

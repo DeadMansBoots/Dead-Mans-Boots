@@ -445,6 +445,13 @@ void CGHeroInstance::initHero(IGameRandomizer & gameRandomizer, bool isFake)
 		levelUpAutomatically(gameRandomizer);
 	}
 
+	if(ID == Obj::PRISON)
+	{
+		logGlobal->debug("Prison hero %s: level %d, experience %d, attack %d, defence %d, power %d, knowledge %d",
+			getHeroTypeName(), level, exp, getPrimSkillLevel(PrimarySkill::ATTACK), getPrimSkillLevel(PrimarySkill::DEFENSE),
+			getPrimSkillLevel(PrimarySkill::SPELL_POWER), getPrimSkillLevel(PrimarySkill::KNOWLEDGE));
+	}
+
 	// load base hero bonuses, TODO: per-map loading of base hero bonuses
 	// must be done separately from global bonuses since recruitable heroes in taverns 
 	// are not attached to global bonus node but need access to some global bonuses
@@ -1535,14 +1542,6 @@ void CGHeroInstance::serializeCommonOptions(JsonSerializeFormat & handler)
 	handler.serializeString("biography", biographyCustomTextId);
 	handler.serializeInt("experience", exp, 0);
 
-	if(!handler.saving && exp != UNINITIALIZED_EXPERIENCE) //do not gain levels if experience is not initialized
-	{
-		while (gainsLevel())
-		{
-			++level;
-		}
-	}
-
 	handler.serializeString("name", nameCustomTextId);
 	handler.serializeInt("gender", gender, 0);
 	handler.serializeId("portrait", customPortraitSource, HeroTypeID::NONE);
@@ -1576,7 +1575,18 @@ void CGHeroInstance::serializeCommonOptions(JsonSerializeFormat & handler)
 				handler.serializeInt(NPrimarySkill::names[i], value, 0);
 				pushPrimSkill(static_cast<PrimarySkill>(i), value);
 			}
+
+			// the map gives the stats the hero has at this experience: only the level follows from it
+			if(exp != UNINITIALIZED_EXPERIENCE)
+			{
+				while (gainsLevel())
+				{
+					++level;
+				}
+			}
 		}
+		// Without stats in the map the level is left to initHero(), which rolls the stats and skills of every level
+		// (a generated prison hero with 500000 experience came out at level 30 with a new hero's stats, October 2026).
 	}
 
 	//secondary skills

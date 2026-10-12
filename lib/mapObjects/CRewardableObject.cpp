@@ -233,6 +233,20 @@ struct Range
 	std::string text() const { return lo == hi ? std::to_string(hi) : std::to_string(lo) + " to " + std::to_string(hi); }
 };
 
+/// how long a hero bonus lasts, as a phrase that follows its value (nothing for a permanent one)
+std::string bonusDuration(const Bonus & bonus)
+{
+	if(bonus.duration & BonusDuration::ONE_DAY)
+		return " until the day ends";
+	if(bonus.duration & BonusDuration::ONE_WEEK)
+		return " until the week ends";
+	if(bonus.duration & BonusDuration::N_DAYS)
+		return " for " + std::to_string(bonus.turnsRemain) + (bonus.turnsRemain == 1 ? " day" : " days");
+	if(bonus.duration & BonusDuration::ONE_BATTLE)
+		return " in the next battle";
+	return {};
+}
+
 struct PrizeSummary
 {
 	std::map<int, Range> resources;
@@ -240,6 +254,9 @@ struct PrizeSummary
 	Range experience;
 	Range levels;
 	Range mana;
+	int manaPercentage = -1; // refills spell points up to this share of the maximum
+	size_t mostResourceKinds = 0; // the most resource kinds one roll of the table gives (a windmill gives one kind of several)
+	bool dailyBonus = false; // a hero bonus that lasts until the end of the day: the well's mark that the hero used it today
 	Range movement;
 	std::map<int, Range> primary; // by primary skill
 	bool secondary = false;
@@ -282,14 +299,21 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 					const auto & reward = info.reward;
 					if(reward.removeObject)
 						summary.removesObject = true;
+					size_t kinds = 0;
 					for(int i = 0; i < static_cast<int>(GameResID::COUNT); ++i)
 					{
 						const int amount = reward.resources[static_cast<size_t>(i)];
 						if(amount > 0)
+						{
 							summary.resources[i].add(amount);
+							++kinds;
+						}
 						else if(amount < 0)
 							summary.costs[i].add(-amount);
 					}
+					summary.mostResourceKinds = std::max(summary.mostResourceKinds, kinds);
+					if(reward.manaPercentage >= 0)
+						summary.manaPercentage = std::max(summary.manaPercentage, static_cast<int>(reward.manaPercentage));
 					if(reward.heroExperience > 0)
 						summary.experience.add(reward.heroExperience);
 					if(reward.heroLevel > 0)
@@ -319,8 +343,15 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 							summary.creatures[creature.getId()].add(creature.getCount());
 					for(const auto & bonus : reward.heroBonuses)
 					{
+						if(bonus->duration & BonusDuration::ONE_DAY)
+							summary.dailyBonus = true;
+						if(bonus->type == BonusType::NONE)
+							continue; // a mark with no effect of its own
+						const std::string signedValue = std::string(bonus->val >= 0 ? "+" : "") + std::to_string(bonus->val);
 						if(bonus->type == BonusType::MORALE || bonus->type == BonusType::LUCK)
-							summary.bonusTexts.insert(std::string(bonus->val >= 0 ? "+" : "") + std::to_string(bonus->val) + (bonus->type == BonusType::MORALE ? " morale" : " luck"));
+							summary.bonusTexts.insert(signedValue + (bonus->type == BonusType::MORALE ? " morale" : " luck") + bonusDuration(*bonus));
+						else if(bonus->type == BonusType::SIGHT_RADIUS)
+							summary.bonusTexts.insert(signedValue + " sight radius" + bonusDuration(*bonus));
 						else
 							summary.otherBonuses = true;
 					}
@@ -363,11 +394,27 @@ std::string joinWords(const std::vector<std::string> & parts, const std::string 
 	return result;
 }
 
-std::string prizeText(const PrizeSummary & prize, bool alternatives)
+std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveOutSpells)
 {
 	std::vector<std::string> gives;
-	for(const auto & [res, range] : prize.resources)
-		gives.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+	if(prize.resources.size() > 1 && prize.mostResourceKinds == 1)
+	{
+		// one roll gives one kind of several (a windmill): the amount, then which kinds it may be
+		Range amount;
+		std::vector<std::string> kinds;
+		for(const auto & [res, range] : prize.resources)
+		{
+			amount.add(range.lo);
+			amount.add(range.hi);
+			kinds.push_back(boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+		}
+		gives.push_back(amount.text() + " of one of " + joinWords(kinds, "or"));
+	}
+	else
+	{
+		for(const auto & [res, range] : prize.resources)
+			gives.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+	}
 	for(const auto & [creature, range] : prize.creatures)
 		gives.push_back(range.text() + " " + (range.hi == 1 ? creature.toEntity(LIBRARY)->getNameSingularTranslated() : creature.toEntity(LIBRARY)->getNamePluralTranslated()));
 	if(prize.experience.any())
@@ -380,6 +427,10 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives)
 		gives.push_back("a secondary skill");
 	if(prize.mana.any())
 		gives.push_back(prize.mana.text() + " spell points");
+	if(prize.manaPercentage >= 100)
+		gives.push_back("spell points back to the maximum");
+	else if(prize.manaPercentage > 0)
+		gives.push_back("spell points up to " + std::to_string(prize.manaPercentage) + "% of the maximum");
 	if(prize.movement.any())
 		gives.push_back("movement");
 	if(!prize.artifacts.empty())
@@ -397,13 +448,56 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives)
 			gives.push_back("an artifact (" + joinWords(classes, "or") + " class)");
 		}
 	}
-	if(!prize.spells.empty())
+	if(!prize.spells.empty() && !leaveOutSpells)
 		gives.push_back(prize.spells.size() == 1 ? "the spell " + prize.spells.begin()->toEntity(LIBRARY)->getNameTranslated() : "a spell");
 	for(const auto & text : prize.bonusTexts)
 		gives.push_back(text);
 	if(prize.otherBonuses)
 		gives.push_back("a bonus");
 	return joinWords(gives, alternatives ? "or" : "and");
+}
+
+/// a limiter's conditions in words, added to `out`; false when it holds something that is not worded here (the caller then keeps a general sentence)
+bool limiterWords(const Rewardable::Limiter & limiter, std::vector<std::string> & out)
+{
+	if(!limiter.allOf.empty() || !limiter.anyOf.empty() || !limiter.noneOf.empty() || !limiter.heroes.empty() || !limiter.heroClasses.empty() || !limiter.players.empty()
+		|| limiter.dayOfWeek > 0 || limiter.movePoints > 0 || limiter.movePercentage > 0 || !limiter.secondary.empty()
+		|| !limiter.scrolls.empty() || !limiter.availableSlots.empty() || limiter.commanderAlive || limiter.hasExtraCreatures || !limiter.canReceiveCreatures.empty())
+		return false;
+	for(const auto value : limiter.primary)
+		if(value > 0)
+			return false;
+	if(limiter.heroLevel > 0)
+		out.push_back("hero level " + std::to_string(limiter.heroLevel) + " or higher");
+	if(limiter.heroExperience > 0)
+		out.push_back(std::to_string(limiter.heroExperience) + " experience");
+	if(limiter.daysPassed > 0)
+		out.push_back("day " + std::to_string(limiter.daysPassed) + " or later");
+	if(limiter.manaPoints > 0)
+		out.push_back(std::to_string(limiter.manaPoints) + " spell points");
+	if(limiter.manaPercentage > 0)
+		out.push_back(std::to_string(limiter.manaPercentage) + "% of the maximum spell points");
+	if(limiter.canLearnSkills)
+		out.push_back("a free skill slot");
+	for(int i = 0; i < static_cast<int>(GameResID::COUNT); ++i)
+		if(limiter.resources[static_cast<size_t>(i)] > 0)
+			out.push_back(std::to_string(limiter.resources[static_cast<size_t>(i)]) + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[i]));
+	for(const auto & artifact : limiter.artifacts)
+		out.push_back("the " + artifact.toEntity(LIBRARY)->getNameTranslated());
+	for(const auto & creature : limiter.creatures)
+		out.push_back(std::to_string(creature.getCount()) + " " + (creature.getCount() == 1 ? creature.getCreature()->getNameSingularTranslated() : creature.getCreature()->getNamePluralTranslated()));
+	for(const auto & spell : limiter.spells)
+		out.push_back("the spell " + spell.toEntity(LIBRARY)->getNameTranslated());
+	if(!limiter.canLearnSpells.empty())
+	{
+		// a hero learns spells up to the 3rd level with no Wisdom (the game's base limit); only a higher spell needs it
+		bool needsWisdom = false;
+		for(const auto & spell : limiter.canLearnSpells)
+			if(spell.toEntity(LIBRARY)->getLevel() > 3)
+				needsWisdom = true;
+		out.push_back(needsWisdom ? "a spell book and enough Wisdom to learn the spell" : "a spell book");
+	}
+	return true;
 }
 
 std::string costText(const PrizeSummary & prize)
@@ -444,22 +538,51 @@ std::string CRewardableObject::getBuildingInfoText(const CGHeroInstance * hero) 
 		return {};
 
 	const bool guarded = isGuarded();
+	const auto prize = summarizeTypeTable(*this, cb);
+	// when the visited state is cleared on a period, the use is per week (or per N days), not for good
+	const int period = configuration.resetParameters.period;
+	const bool renews = period > 0 && configuration.resetParameters.visitors;
+	const std::string every = period == 7 ? "each week" : period == 1 ? "each day" : "every " + std::to_string(period) + " days";
+	bool learnsSpell = false; // the shrines: the pop-up already names the spell and shows its picture
 	std::string kind;
 	switch(configuration.visitMode)
 	{
-		case Rewardable::VISIT_ONCE: kind = "Only the first visitor gets it."; break;
+		case Rewardable::VISIT_ONCE: kind = renews ? "Only the first hero to visit " + every + " gets it." : "Only the first visitor gets it."; break;
 		case Rewardable::VISIT_PLAYER:
-		case Rewardable::VISIT_PLAYER_GLOBAL: kind = "Each player can use it once."; break;
-		case Rewardable::VISIT_HERO: kind = "Each hero can use it once."; break;
-		case Rewardable::VISIT_BONUS: kind = "A hero that already has its bonus gets nothing more."; break;
-		case Rewardable::VISIT_LIMITER: kind = "Only heroes that meet its condition can use it."; break;
+		case Rewardable::VISIT_PLAYER_GLOBAL: kind = renews ? "Each player can use it once " + every + "." : "Each player can use it once."; break;
+		case Rewardable::VISIT_HERO: kind = renews ? "Each hero can use it once " + every + "." : "Each hero can use it once."; break;
+		case Rewardable::VISIT_BONUS: kind = prize.dailyBonus ? "Each hero can use it once a day." : "A hero that already has its bonus gets nothing more."; break;
+		case Rewardable::VISIT_LIMITER:
+		{
+			std::vector<std::string> needs;
+			bool worded = true;
+			for(const auto & info : configuration.info)
+			{
+				if(info.visitType != Rewardable::EEventType::EVENT_FIRST_VISIT)
+					continue;
+				learnsSpell = learnsSpell || !info.limiter.canLearnSpells.empty();
+				std::vector<std::string> mine;
+				worded = worded && limiterWords(info.limiter, mine);
+				for(const auto & need : mine)
+					if(!vstd::contains(needs, need))
+						needs.push_back(need);
+			}
+			if(worded && !needs.empty())
+			{
+				kind = "A hero needs " + joinWords(needs) + ".";
+				if(!configuration.visitLimiter.spells.empty())
+					kind += " A hero that already knows the spell gets nothing.";
+			}
+			else
+				kind = "Only heroes that meet its condition can use it.";
+			break;
+		}
 		default:
 			kind = "It can be used again and again.";
 			if(configuration.resetParameters.period > 0)
 				kind = "It renews every " + std::to_string(configuration.resetParameters.period) + (configuration.resetParameters.period == 1 ? " day." : " days.");
 			break;
 	}
-	const auto prize = summarizeTypeTable(*this, cb);
 	if(prize.removesObject)
 		kind = "It disappears once taken.";
 	std::string text = "\n\n" + std::string(guarded ? "Guarded: win the fight to claim it. " : "") + kind;
@@ -484,9 +607,19 @@ std::string CRewardableObject::getBuildingInfoText(const CGHeroInstance * hero) 
 			if(info.visitType == Rewardable::EEventType::EVENT_FIRST_VISIT)
 				++firstVisitRewards;
 		const bool alternatives = firstVisitRewards > 1 && (configuration.selectMode == Rewardable::SELECT_PLAYER || configuration.selectMode == Rewardable::SELECT_RANDOM);
-		const std::string gives = prizeText(prize, alternatives);
+		const std::string gives = prizeText(prize, alternatives, learnsSpell);
 		if(!gives.empty())
 			text += std::string("\n") + (guarded ? "Prize: " : "Gives: ") + (alternatives ? (configuration.selectMode == Rewardable::SELECT_PLAYER ? "your pick of " : "one of ") : "") + gives;
+		if(configuration.selectMode == Rewardable::SELECT_FIRST && firstVisitRewards > 1)
+		{
+			// a reward that needs a later day is checked first (a water wheel gives more after the first week)
+			for(const auto & info : configuration.info)
+				if(info.visitType == Rewardable::EEventType::EVENT_FIRST_VISIT && info.limiter.daysPassed > 0)
+				{
+					text += "\nThe larger prize is given from day " + std::to_string(info.limiter.daysPassed) + " on.";
+					break;
+				}
+		}
 		const std::string costs = costText(prize);
 		if(!costs.empty())
 			text += "\nCosts: " + costs;

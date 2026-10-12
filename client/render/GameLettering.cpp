@@ -18,13 +18,14 @@
 #include "IScreenHandler.h"
 #include "../GameEngine.h"
 
-#include "../../lib/GameButtonLettering.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/filesystem/Filesystem.h"
 #include "../../lib/json/JsonNode.h"
 #include "../../lib/modding/CModHandler.h"
 #include "../../lib/texts/TextOperations.h"
 #include "../../lib/vcmi_endian.h"
+
+#include <SDL_ttf.h>
 
 namespace
 {
@@ -146,150 +147,178 @@ std::shared_ptr<IImage> GameLettering::carved(EFonts font, const std::string & t
 
 namespace
 {
-/// a button's first frame, pixel by pixel, at the game's own size, read through the engine's own
-/// renderer (the launcher reads the same buttons a different way: theme.cpp)
-GameButtonLettering::Picture readButton(const std::string & name)
+/// DMB's own button face (Data/DMBButtonFace.ttf in the vcmi mod: an open-licence heavy serif cut and renamed by DMB/release/make_button_face.py, licence
+/// text beside it), the same face the launcher draws its buttons' words in (launcher/theme.cpp). K, October 12th 2026, on the game's letters taken
+/// from the player's files and patched: "WHAT PART OF BUILD OUR OWN FONT SET DID YOU NOT UNDERSTAND". Loaded once for the screen's scale; its
+/// capitals are as tall as the game's own on a 40 pixel bar.
+struct ButtonFace
 {
-	GameButtonLettering::Picture picture;
-	if(!CResourceHandler::get()->existsResource(AnimationPath::builtin("SPRITES/" + name)))
-		return picture;
-	const auto frame = ENGINE->renderHandler().loadAnimation(AnimationPath::builtin(name), EImageBlitMode::OPAQUE)->getImage(0);
-	if(!frame)
-		return picture;
-	const Point size = frame->dimensions();
-	auto copy = ENGINE->renderHandler().createImage(size, CanvasScalingPolicy::IGNORE);
-	Canvas canvas = copy->getCanvas();
-	canvas.draw(frame, Point(0, 0));
-	picture.w = size.x;
-	picture.h = size.y;
-	picture.pixels.reserve(size.x * size.y);
-	for(int y = 0; y < size.y; ++y)
-		for(int x = 0; x < size.x; ++x)
-			picture.pixels.push_back(canvas.getPixel(Point(x, y)));
-	return picture;
+	std::pair<std::unique_ptr<ui8[]>, ui64> data;
+	std::unique_ptr<TTF_Font, decltype(&TTF_CloseFont)> font{nullptr, TTF_CloseFont};
+	int factor = 0;
+	int ascent = 0;
+	int capHeight = 0; ///< pixels, at the screen's scale
+};
+
+constexpr int CAPITALS = 22; ///< rows tall, as the letters of the game's gold buttons on its 40 pixel bars
+
+const ButtonFace * buttonFace()
+{
+	static ButtonFace face;
+	const int factor = std::max(1, ENGINE->screenHandler().getScalingFactor());
+	if(face.font && face.factor == factor)
+		return &face;
+	face = ButtonFace();
+	const ResourcePath path("Data/DMBButtonFace.ttf", EResType::TTF_FONT);
+	if(!CResourceHandler::get()->existsResource(path))
+		return nullptr;
+	if(!TTF_WasInit() && TTF_Init() == -1)
+		return nullptr;
+	face.data = CResourceHandler::get()->load(path)->readAll();
+	// the type size whose capitals are CAPITALS * factor pixels tall, from the capital H of a large probe
+	constexpr int probe = 200;
+	std::unique_ptr<TTF_Font, decltype(&TTF_CloseFont)> big(TTF_OpenFontRW(SDL_RWFromConstMem(face.data.first.get(), face.data.second), 1, probe), TTF_CloseFont);
+	int minX = 0, maxX = 0, minY = 0, maxY = 0, advance = 0;
+	if(!big || TTF_GlyphMetrics32(big.get(), 'H', &minX, &maxX, &minY, &maxY, &advance) != 0 || maxY <= 0)
+		return nullptr;
+	const int size = std::max(4, static_cast<int>(std::lround(static_cast<double>(CAPITALS * factor) * probe / maxY)));
+	face.font.reset(TTF_OpenFontRW(SDL_RWFromConstMem(face.data.first.get(), face.data.second), 1, size));
+	if(!face.font)
+		return nullptr;
+	TTF_SetFontHinting(face.font.get(), TTF_HINTING_NONE);
+	face.factor = factor;
+	face.ascent = TTF_FontAscent(face.font.get());
+	if(TTF_GlyphMetrics32(face.font.get(), 'H', &minX, &maxX, &minY, &maxY, &advance) != 0)
+		return nullptr;
+	face.capHeight = maxY;
+	return &face;
 }
 
-/// the lettering, lifted from the player's own files the first time a word asks for it
-const GameButtonLettering::Lettering & buttonLettering()
+std::string utf8(uint32_t c)
 {
-	static const GameButtonLettering::Lettering lettering = GameButtonLettering::harvest(readButton);
-	return lettering;
+	std::string out;
+	if(c < 0x80)
+		out += static_cast<char>(c);
+	else if(c < 0x800)
+	{
+		out += static_cast<char>(0xC0 | (c >> 6));
+		out += static_cast<char>(0x80 | (c & 0x3F));
+	}
+	else
+	{
+		out += static_cast<char>(0xE0 | (c >> 12));
+		out += static_cast<char>(0x80 | ((c >> 6) & 0x3F));
+		out += static_cast<char>(0x80 | (c & 0x3F));
+	}
+	return out;
+}
+
+/// the capital of a Unicode letter: the Latin, Latin-1, Latin Extended-A and Cyrillic letters the face has
+uint32_t capital(uint32_t c)
+{
+	if(c >= 'a' && c <= 'z')
+		return c - 32;
+	if(c >= 0xE0 && c <= 0xFE && c != 0xF7)
+		return c - 32;
+	if(c == 0xFF)
+		return 0x178;
+	if(c >= 0x100 && c <= 0x17F && c != 0x131 && c != 0x138 && c != 0x149 && c != 0x17F)
+	{
+		const bool oddIsLower = (c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17E);
+		const bool lower = oddIsLower ? (c % 2 == 0) : (c % 2 == 1);
+		return lower ? c - 1 : c;
+	}
+	if(c >= 0x430 && c <= 0x44F)
+		return c - 32;
+	if(c >= 0x450 && c <= 0x45F)
+		return c - 80;
+	return c;
 }
 }
 
 GameLettering::ButtonWords GameLettering::buttonWords(const std::string & text)
 {
-	using Glyph = GameButtonLettering::Glyph;
-	const GameButtonLettering::Lettering & lettering = buttonLettering();
 	ButtonWords result;
-	if(lettering.band == 0)
+	const ButtonFace * face = buttonFace();
+	if(!face)
 		return result;
 	// capitals, as the game's buttons write their words
-	std::string capitals = boost::algorithm::trim_copy(text);
-	for(char & c : capitals)
+	std::string capitals;
+	const std::string trimmed = boost::algorithm::trim_copy(text);
+	for(size_t at = 0; at < trimmed.size();)
 	{
-		if(c == ' ')
-			continue;
-		c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-		if(!lettering.glyphs.count(c))
+		const size_t length = TextOperations::getUnicodeCharacterSize(trimmed[at]);
+		const uint32_t c = capital(TextOperations::getUnicodeCodepoint(trimmed.data() + at, trimmed.size() - at));
+		at += std::max<size_t>(1, length);
+		if(c == ' ' || (c > ' ' && TTF_GlyphIsProvided32(face->font.get(), c) != 0))
+			capitals += utf8(c);
+		else
 			return result;
 	}
 	if(capitals.empty())
 		return result;
 
-	struct Placed
+	std::unique_ptr<SDL_Surface, decltype(&SDL_FreeSurface)> rendered(TTF_RenderUTF8_Blended(face->font.get(), capitals.c_str(), SDL_Color{255, 255, 255, 255}), SDL_FreeSurface);
+	if(!rendered)
+		return result;
+	std::unique_ptr<SDL_Surface, decltype(&SDL_FreeSurface)> argb(SDL_ConvertSurfaceFormat(rendered.get(), SDL_PIXELFORMAT_ARGB8888, 0), SDL_FreeSurface);
+	if(!argb)
+		return result;
+	const int w = argb->w;
+	const int h = argb->h;
+	std::vector<uint8_t> coverage(static_cast<size_t>(w) * h, 0);
+	SDL_LockSurface(argb.get());
+	for(int y = 0; y < h; ++y)
 	{
-		const Glyph * glyph;
-		int x;
-	};
-	std::vector<Placed> placed;
-	std::map<int, int> previous; // the letter before's last black column in each row, at its place
-	int x = 0;
-	for(const char c : capitals)
-	{
-		if(c == ' ')
-		{
-			x += WORD_GAP;
-			previous.clear();
-			continue;
-		}
-		const Glyph & glyph = lettering.glyphs.at(c);
-		std::map<int, std::pair<int, int>> rows; // its black's first and last column in each row
-		for(const auto & [cell, share] : glyph.pixels)
-			if(share.black >= DARK)
-			{
-				const int row = cell.second;
-				const auto it = rows.find(row);
-				if(it == rows.end())
-					rows[row] = {cell.first, cell.first};
-				else
-					it->second = {std::min(it->second.first, cell.first), std::max(it->second.second, cell.first)};
-			}
-		int at = x;
-		std::optional<int> nearest;
-		for(const auto & [row, span] : rows)
-			if(previous.count(row))
-			{
-				const int gap = at + span.first - previous.at(row) - 1;
-				nearest = nearest ? std::min(*nearest, gap) : gap;
-			}
-		if(nearest && *nearest < CLOSEST)
-			at += CLOSEST - *nearest;
-		else if(nearest && *nearest > FARTHEST)
-			at -= std::min(*nearest - FARTHEST, 2);
-		placed.push_back({&glyph, at});
-		previous.clear();
-		for(const auto & [row, span] : rows)
-			previous[row] = at + span.second;
-		x = at + glyph.width + LETTER_GAP;
+		const auto * line = reinterpret_cast<const uint32_t *>(static_cast<const uint8_t *>(argb->pixels) + static_cast<size_t>(y) * argb->pitch);
+		for(int x = 0; x < w; ++x)
+			coverage[static_cast<size_t>(y) * w + x] = static_cast<uint8_t>(line[x] >> 24);
 	}
-	const int width = x - LETTER_GAP;
+	SDL_UnlockSurface(argb.get());
 
-	// every pixel the letters touch, each letter over the one before it where their edges meet
-	int minX = std::numeric_limits<int>::max();
-	int minY = std::numeric_limits<int>::max();
-	int maxX = std::numeric_limits<int>::min();
-	int maxY = std::numeric_limits<int>::min();
-	for(const auto & p : placed)
-		for(const auto & [cell, share] : p.glyph->pixels)
-		{
-			minX = std::min(minX, p.x + cell.first);
-			maxX = std::max(maxX, p.x + cell.first);
-			minY = std::min(minY, cell.second);
-			maxY = std::max(maxY, cell.second);
-		}
-	const Point size(maxX - minX + 1, maxY - minY + 1);
-	std::vector<double> alpha(size.x * size.y, 0.0);
-	std::vector<double> grey(size.x * size.y, 0.0);
-	for(const auto & p : placed)
-		for(const auto & [cell, share] : p.glyph->pixels)
-		{
-			const double a = share.black + share.white;
-			if(a <= 0)
-				continue;
-			const double value = 255.0 * share.white / a;
-			const size_t at = (cell.second - minY) * size.x + (p.x + cell.first - minX);
-			const double under = alpha[at];
-			const double both = a + under * (1 - a);
-			grey[at] = both > 0 ? (value * a + grey[at] * under * (1 - a)) / both : 0;
-			alpha[at] = both;
-		}
-	auto image = ENGINE->renderHandler().createImage(size, CanvasScalingPolicy::IGNORE);
+	int inkLeft = w, inkRight = -1, inkTop = h, inkBottom = -1;
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			if(coverage[static_cast<size_t>(y) * w + x] > 0)
+			{
+				inkLeft = std::min(inkLeft, x);
+				inkRight = std::max(inkRight, x);
+				inkTop = std::min(inkTop, y);
+				inkBottom = std::max(inkBottom, y);
+			}
+	if(inkRight < 0)
+		return result;
+
+	// the carved light is a game pixel to the lower left of every letter; margins keep it inside the picture, and the picture starts a
+	// whole game pixel above the capitals' top so the letters land on the game's own pixel grid
+	const int f = face->factor;
+	const int margin = 2 * f;
+	const int capTop = face->ascent - face->capHeight;
+	const int up = std::max(0, (capTop - inkTop + f - 1) / f * f);
+	const int left = inkLeft - margin;
+	const int top = capTop - up - margin;
+	const int imageW = inkRight - inkLeft + 1 + 2 * margin;
+	const int imageH = std::max(inkBottom, capTop + CAPITALS * f - 1) - top + 1 + margin;
+	const auto at = [&](int x, int y) -> double
+	{
+		return x < 0 || y < 0 || x >= w || y >= h ? 0.0 : coverage[static_cast<size_t>(y) * w + x] / 255.0;
+	};
+	auto image = ENGINE->renderHandler().createImage(Point(imageW, imageH), CanvasScalingPolicy::IGNORE);
 	Canvas canvas = image->getCanvas();
-	for(int row = 0; row < size.y; ++row)
-		for(int col = 0; col < size.x; ++col)
+	for(int row = 0; row < imageH; ++row)
+		for(int col = 0; col < imageW; ++col)
 		{
-			const size_t at = row * size.x + col;
-			if(alpha[at] <= 0)
+			const double letter = at(left + col, top + row);
+			const double light = at(left + col + f, top + row - f);
+			const double opacity = letter + light * (1 - letter);
+			if(opacity <= 0)
 				continue;
-			const auto value = static_cast<uint8_t>(std::lround(std::clamp(grey[at], 0.0, 255.0)));
-			const auto opacity = static_cast<uint8_t>(std::lround(std::clamp(alpha[at], 0.0, 1.0) * 255));
-			// drawPoint blends into what is there; a fill writes the pixel's own opacity
-			canvas.drawColor(Rect(col, row, 1, 1), ColorRGBA(value, value, value, opacity));
+			const double white = light * (1 - letter) / opacity;
+			const auto value = static_cast<uint8_t>(std::lround(255.0 * white));
+			canvas.drawColor(Rect(col, row, 1, 1), ColorRGBA(value, value, value, static_cast<uint8_t>(std::lround(opacity * 255))));
 		}
-	if(ENGINE->screenHandler().getScalingFactor() > 1)
-		image->scaleTo(size, EScalingAlgorithm::XBRZ_ALPHA);
 	result.image = image;
-	result.letters = Rect(-minX, -minY, width, lettering.band);
+	// the letters' black in game pixels: the words' width, and the capitals' height
+	result.letters = Rect(margin / f, (margin + up) / f, (inkRight - inkLeft + f) / f, CAPITALS);
 	return result;
 }

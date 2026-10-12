@@ -42,12 +42,9 @@ namespace GameLettering
 		Rect letters; ///< the letters' black in the image: the words' width, and the lettering's height
 	};
 
-	/// `text` in capitals in the lettering of the game's gold buttons (K, September 27th: "its a bold, and
-	/// specific font (that we should match)"), 22 pixels tall as on the game's 40 pixel bars. No bitmap
-	/// font of the game's has it: each letter is lifted from a button whose word has it (BEGIN, BACK,
-	/// LOAD, NEXT, SAVE, EXIT, RESTART) as its black and white over the bar's gold, so it lands on any
-	/// gold bar as the game drew it. F, H, M, P, U, W and Y are built from those letters' strokes. No
-	/// image when the text needs anything else (J, Q, Z, digits, marks), or when the game's files or the
-	/// player's language are not English: those buttons carry other words.
+	/// `text` in capitals in DMB's own button face (Data/DMBButtonFace.ttf, the face the launcher's buttons use), its capitals 22
+	/// game pixels tall as the lettering of the game's gold buttons on their 40 pixel bars (K, October 12th 2026: "build OUR OWN FONT SET"),
+	/// carved: a dark letter with a light edge to its lower left, smoothed at the screen's scale. Every letter, digit and mark the face
+	/// has, the accented capitals included. No image when the face's file is missing or the text has a character the face lacks.
 	ButtonWords buttonWords(const std::string & text);
 }

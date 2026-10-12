@@ -364,7 +364,9 @@ bool CGDwelling::wasVisited (PlayerColor player) const
 
 std::vector<Component> CGDwelling::getPopupComponents(PlayerColor player) const
 {
-	bool visitedByOwner = getOwner() == player;
+	// DMB: a dwelling's amount is shown to its owner and to the owner's allies (K: hidden until a hero of the player or an ally has visited)
+	bool visitedByOwner = getOwner() == player
+		|| (getOwner().isValidPlayer() && player.isValidPlayer() && cb->getPlayerRelations(getOwner(), player) == PlayerRelations::ALLIES);
 	bool isDwelling = ID == Obj::CREATURE_GENERATOR1 || ID == Obj::CREATURE_GENERATOR4;
 	bool isRefugeeCamp = ID == Obj::REFUGEE_CAMP;
 	bool canSeeUnitTypes = isDwelling || (isRefugeeCamp && wasVisited(player));

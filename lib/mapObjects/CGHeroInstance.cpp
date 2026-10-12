@@ -1021,6 +1021,8 @@ CStackBasicDescriptor CGHeroInstance::calculateNecromancy (const BattleResult &b
 			continue;
 
 		CreatureID newCreature = newPick->subtype.as<CreatureID>();;
+		if(!newCreature.hasValue())
+			continue; // DMB: a mod's bonus naming no creature raises nothing
 
 		if(!bestCreature.hasValue())
 		{
@@ -1038,7 +1040,11 @@ CStackBasicDescriptor CGHeroInstance::calculateNecromancy (const BattleResult &b
 		}
 	}
 
-	assert(bestCreature != CreatureID::NONE);
+	// DMB: every bonus can ask for more skill than the hero has (an artifact's bonus beside a skill that is too low): nothing is raised, as with no bonus
+	// at all. The assert this replaces is compiled out of release builds, and the creature lookup after it threw "creature id -1 is invalid" on the server
+	// thread, which ended the whole game (0xC0000409)
+	if(!bestCreature.hasValue())
+		return CStackBasicDescriptor();
 	CreatureID selectedCreature = bestCreature;
 
 	// raise upgraded creature (at 2/3 rate) if no space available otherwise

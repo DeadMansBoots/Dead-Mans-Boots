@@ -559,11 +559,11 @@ void runCrashWindow(const QString & dumpPath)
 		label->setWordWrap(true);
 	detail->hide();
 	auto * buttons = new QHBoxLayout;
-	auto * send = new QPushButton(QObject::tr("Send report"));
+	auto * sendButton = new QPushButton(QObject::tr("Send report"));
 	auto * dont = new QPushButton(QObject::tr("Don't send"));
-	send->setDefault(true);
+	sendButton->setDefault(true);
 	buttons->addStretch(1);
-	buttons->addWidget(send);
+	buttons->addWidget(sendButton);
 	buttons->addWidget(dont);
 	for(QWidget * widget : QList<QWidget *>{what, detail, sends, stays})
 		layout->addWidget(widget);
@@ -571,13 +571,13 @@ void runCrashWindow(const QString & dumpPath)
 
 	const auto finish = [&]()
 	{
-		send->hide();
+		sendButton->hide();
 		dont->setText(QObject::tr("Close"));
 		dont->setDefault(true);
 	};
 	const auto sendNow = [&](bool automatic)
 	{
-		send->setEnabled(false);
+		sendButton->setEnabled(false);
 		dont->setEnabled(false);
 		detail->setText(automatic ? QObject::tr("Sending a report by itself (Settings, General switches this off)...") : QObject::tr("Sending..."));
 		detail->show();
@@ -598,7 +598,7 @@ void runCrashWindow(const QString & dumpPath)
 		dont->setEnabled(true);
 		finish();
 	};
-	QObject::connect(send, &QPushButton::clicked, &dialog, [&]() { sendNow(false); });
+	QObject::connect(sendButton, &QPushButton::clicked, &dialog, [&]() { sendNow(false); });
 	QObject::connect(dont, &QPushButton::clicked, &dialog, &QDialog::accept);
 	if(crashReportsEnabled())
 		QTimer::singleShot(0, &dialog, [&]() { sendNow(true); });

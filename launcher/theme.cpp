@@ -601,7 +601,7 @@ bool carvedWordTooWide(const QPushButton * button)
 /// already plain.
 /// how far a word may be condensed to fit its button: the capitals keep one height on every button of the launcher (K, October 12th: "some of it is different
 /// sizes"), a word too wide for its button is drawn narrower, down to this share of its width; under it the button keeps its plain text
-constexpr double CARVED_CONDENSE_FLOOR = 0.8;
+constexpr double CARVED_CONDENSE_FLOOR = 0.75;
 
 /// the share of its natural width `word` is drawn at on `button`: 1, or less where the button is too narrow; 0 when even the floor is not enough
 double carvedWordScale(const QPushButton * button, const QString & word)

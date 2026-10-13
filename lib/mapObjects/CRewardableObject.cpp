@@ -15,6 +15,7 @@
 #include "../CConfigHandler.h"
 #include "../CCreatureHandler.h"
 #include "../GameLibrary.h"
+#include "../CBonusTypeHandler.h"
 #include "../callback/GameRandomizer.h"
 #include "../entities/artifact/CArtifact.h"
 #include "../spells/CSpellHandler.h"
@@ -264,7 +265,8 @@ struct PrizeSummary
 	std::set<EArtifactClass> artifactClasses;
 	std::set<SpellID> spells;
 	std::map<CreatureID, Range> creatures;
-	std::set<std::string> bonusTexts; // morale and luck by their signed values
+	std::set<std::string> bonusTexts; // the hero bonuses that have a wording of their own (sight radius, a bonus type's own description)
+	std::map<std::string, std::pair<int, int>> signedBonuses; // morale and luck: the wording after the value (" luck in the next battle"), the lowest and highest value of the table
 	bool otherBonuses = false;
 	bool removesObject = false; // taking the reward makes the object vanish (a chest, a pile)
 	bool known = false;
@@ -341,22 +343,63 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 					for(const auto & creature : reward.creatures)
 						if(creature.getCount() > 0)
 							summary.creatures[creature.getId()].add(creature.getCount());
-					for(const auto & bonus : reward.heroBonuses)
+					const auto addBonus = [&summary](const std::shared_ptr<Bonus> & bonus, bool ofHero)
 					{
-						if(bonus->duration & BonusDuration::ONE_DAY)
+						if(ofHero && (bonus->duration & BonusDuration::ONE_DAY))
 							summary.dailyBonus = true;
 						if(bonus->type == BonusType::NONE)
-							continue; // a mark with no effect of its own
+							return; // a mark with no effect of its own
 						const std::string signedValue = std::string(bonus->val >= 0 ? "+" : "") + std::to_string(bonus->val);
-						if(bonus->type == BonusType::MORALE || bonus->type == BonusType::LUCK)
-							summary.bonusTexts.insert(signedValue + (bonus->type == BonusType::MORALE ? " morale" : " luck") + bonusDuration(*bonus));
-						else if(bonus->type == BonusType::SIGHT_RADIUS)
+						if(ofHero && (bonus->type == BonusType::MORALE || bonus->type == BonusType::LUCK))
+						{
+							// one table rolls several values of one kind (the Fountain of Fortune: -1 to +3 luck): one range, not one line per value
+							const std::string wording = std::string(bonus->type == BonusType::MORALE ? " morale" : " luck") + bonusDuration(*bonus);
+							auto found = summary.signedBonuses.find(wording);
+							if(found == summary.signedBonuses.end())
+								summary.signedBonuses[wording] = {bonus->val, bonus->val};
+							else
+							{
+								found->second.first = std::min(found->second.first, static_cast<int>(bonus->val));
+								found->second.second = std::max(found->second.second, static_cast<int>(bonus->val));
+							}
+						}
+						else if(ofHero && bonus->type == BonusType::SIGHT_RADIUS)
 							summary.bonusTexts.insert(signedValue + " sight radius" + bonusDuration(*bonus));
 						else
-							summary.otherBonuses = true;
-					}
-					if(!reward.playerBonuses.empty())
-						summary.otherBonuses = true;
+						{
+							// any other bonus: the game's own description of its type (the text its pop-ups and hero window use), in the game's language;
+							// a "{Title}" line is left off and the lines are run together
+							std::string description;
+							try
+							{
+								description = LIBRARY->bth->bonusToString(bonus);
+							}
+							catch(const std::exception &)
+							{
+							}
+							boost::algorithm::trim(description);
+							if(!description.empty() && description.front() == '{')
+							{
+								const auto closing = description.find('}');
+								description = closing == std::string::npos ? description : description.substr(closing + 1);
+								boost::algorithm::trim(description);
+							}
+							std::replace(description.begin(), description.end(), '\n', ' ');
+							if(description.empty())
+								summary.otherBonuses = true;
+							else if(description.back() == '.')
+							{
+								description.pop_back(); // a whole sentence already says how long it lasts
+								summary.bonusTexts.insert(description);
+							}
+							else
+								summary.bonusTexts.insert(description + bonusDuration(*bonus));
+						}
+					};
+					for(const auto & bonus : reward.heroBonuses)
+						addBonus(bonus, true);
+					for(const auto & bonus : reward.playerBonuses)
+						addBonus(bonus, false);
 				}
 			}
 		}
@@ -463,6 +506,11 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveO
 	}
 	if(!prize.spells.empty() && !leaveOutSpells)
 		gives.push_back(prize.spells.size() == 1 ? "the spell " + prize.spells.begin()->toEntity(LIBRARY)->getNameTranslated() : "a spell");
+	for(const auto & [wording, range] : prize.signedBonuses)
+	{
+		const auto sign = [](int value) { return std::string(value >= 0 ? "+" : "") + std::to_string(value); };
+		gives.push_back(range.first == range.second ? sign(range.first) + wording : sign(range.first) + " to " + sign(range.second) + wording);
+	}
 	for(const auto & text : prize.bonusTexts)
 		gives.push_back(text);
 	if(prize.otherBonuses)

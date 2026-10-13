@@ -313,9 +313,12 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 
+	// DMB: the turn dialog is for players who share this screen. It counted every human seat of the game, so in a network game with two humans each
+	// player had to click it before playing, and a host who had not (it hidden behind another window) stalled everyone waiting for their turn. Only the
+	// human seats this client controls count.
 	int humanPlayersCount = 0;
 	for(const auto & info : cb->getStartInfo()->playerInfos)
-		if (info.second.isControlledByHuman())
+		if (info.second.isControlledByHuman() && GAME->server().isMyColor(info.first))
 			humanPlayersCount++;
 
 	bool hotseatWait = humanPlayersCount > 1;
@@ -363,6 +366,11 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 		adventureInt->onPlayerTurnStarted(playerID);
 	}
 
+	// DMB: the turn query is answered before the no-town warning waits for a click: while it is open the server keeps this player's timer stopped
+	// (TimerPauseQuery), so a player away from the keyboard with no town held up a simultaneous turns game
+	if (queryID.hasValue())
+		cb->selectionMade(0, queryID);
+
 	// warn player if he has no town
 	if (cb->howManyTowns() == 0)
 	{
@@ -395,8 +403,6 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 			logGlobal->warn("Player has no towns, but daysWithoutCastle is not set");
 	}
 
-	if (queryID.hasValue())
-		cb->selectionMade(0, queryID);
 	movementController->onPlayerTurnStarted();
 }
 

@@ -509,7 +509,8 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveO
 	}
 	for(const auto & text : prize.bonusTexts)
 		gives.push_back(text);
-	if(prize.otherBonuses)
+	// a bonus with no words of its own is named only where the prize has nothing else to say (the rest is usually the engine's mark that a hero has visited)
+	if(prize.otherBonuses && gives.empty())
 		gives.push_back("a bonus");
 	return joinWords(gives, alternatives ? "or" : "and");
 }

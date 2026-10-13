@@ -397,7 +397,12 @@ std::string joinWords(const std::vector<std::string> & parts, const std::string 
 std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveOutSpells)
 {
 	std::vector<std::string> gives;
-	if(prize.resources.size() > 1 && prize.mostResourceKinds == 1)
+	// every kind with the same amounts: the windmill's one kind of several
+	bool sameAmounts = true;
+	for(const auto & [res, range] : prize.resources)
+		if(range.lo != prize.resources.begin()->second.lo || range.hi != prize.resources.begin()->second.hi)
+			sameAmounts = false;
+	if(prize.resources.size() > 1 && prize.mostResourceKinds == 1 && sameAmounts)
 	{
 		// one roll gives one kind of several (a windmill): the amount, then which kinds it may be
 		Range amount;
@@ -409,6 +414,14 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveO
 			kinds.push_back(boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
 		}
 		gives.push_back(amount.text() + " of one of " + joinWords(kinds, "or"));
+	}
+	else if(prize.resources.size() > 1 && prize.mostResourceKinds == 1)
+	{
+		// one roll gives one kind, and the amounts differ by kind: each kind with its own amount, as alternatives (not "up to the largest of any")
+		std::vector<std::string> each;
+		for(const auto & [res, range] : prize.resources)
+			each.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+		gives.push_back(joinWords(each, "or"));
 	}
 	else
 	{
@@ -490,10 +503,10 @@ bool limiterWords(const Rewardable::Limiter & limiter, std::vector<std::string> 
 		out.push_back("the spell " + spell.toEntity(LIBRARY)->getNameTranslated());
 	if(!limiter.canLearnSpells.empty())
 	{
-		// a hero learns spells up to the 3rd level with no Wisdom (the game's base limit); only a higher spell needs it
+		// a hero learns spells of the 1st and 2nd level with no Wisdom (MAX_LEARNABLE_SPELL_LEVEL 2 in config/gameConfig.json); a 3rd level spell needs it
 		bool needsWisdom = false;
 		for(const auto & spell : limiter.canLearnSpells)
-			if(spell.toEntity(LIBRARY)->getLevel() > 3)
+			if(spell.toEntity(LIBRARY)->getLevel() > 2)
 				needsWisdom = true;
 		out.push_back(needsWisdom ? "a spell book and enough Wisdom to learn the spell" : "a spell book");
 	}

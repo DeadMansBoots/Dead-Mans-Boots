@@ -424,7 +424,12 @@ void ApplyClientNetPackVisitor::visitPlayerEndsGame(PlayerEndsGame & pack)
 	{
 		logAi->info("Red player %s. Ending game.", pack.victoryLossCheckResult.victory() ? "won" : "lost");
 
-		GAME->onShutdownRequested(settings["session"]["spectate"].Bool()); // if spectator is active ask to close client or not
+		if(settings["session"]["spectate"].Bool())
+			GAME->onShutdownRequested(true); // if spectator is active ask to close client or not
+		else if(ENGINE)
+			ENGINE->dispatchMainThread([](){ throw GameShutdownException(); }); // the main loop ends it (thrown here, on the network thread, nothing caught it: abort and a crash dump)
+		else
+			headlessQuitRequested = true; // no window: the headless main loop ends
 	}
 }
 

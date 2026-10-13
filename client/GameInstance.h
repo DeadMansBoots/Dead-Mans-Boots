@@ -9,6 +9,8 @@
  */
 #pragma once
 
+#include <atomic>
+
 #include "GameEngineUser.h"
 
 class CServerHandler;
@@ -20,6 +22,9 @@ class CMainMenu;
 VCMI_LIB_NAMESPACE_BEGIN
 class INetworkHandler;
 VCMI_LIB_NAMESPACE_END
+
+/// set by the network thread when an automatic test game (--testmap) is over and the client has no window to close: the headless main loop ends on it
+inline std::atomic<bool> headlessQuitRequested{false};
 
 class GameShutdownException final : public std::exception
 {

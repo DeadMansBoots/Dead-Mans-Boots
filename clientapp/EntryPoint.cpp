@@ -60,7 +60,6 @@
 namespace po = boost::program_options;
 namespace po_style = boost::program_options::command_line_style;
 
-static std::atomic<bool> headlessQuit = false;
 static std::optional<std::string> criticalInitializationError;
 
 /// The client's log is written fresh at every launch, so a crash was lost the moment the player started the game
@@ -429,7 +428,7 @@ int main(int argc, char * argv[])
 				}
 				else
 				{
-					while(!headlessQuit)
+					while(!headlessQuitRequested)
 						std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
 					std::this_thread::sleep_for(std::chrono::milliseconds(500));

@@ -127,6 +127,22 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	// K, October 10th ("you can't see crashes you should"): the launcher is started at once, with no window, to build the report (the logs, the settings, the Mods
 	// listing and this dump) and send it; the player is told, and can add what they were doing with F12 or Help, Report a bug
 	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+	// K, October 13th: "this is not the easy, one-click crash reporter I expected": the launcher shows one window (what happened, Send report, Don't send, what is sent
+	// and where the file stays; with the Settings switch on it sends at once and says so) instead of the plain message box below, which stays only as the fallback
+	{
+		std::string windowLine = "\"" + launcher + "\" --crash-window \"" + dumpPath.string() + "\"";
+		STARTUPINFOA windowStartup = {};
+		windowStartup.cb = sizeof(windowStartup);
+		PROCESS_INFORMATION windowStarted = {};
+		if(settings["session"]["headless"].Bool() || !settings["session"]["testmap"].isNull())
+			return;
+		if(CreateProcessA(launcher.c_str(), windowLine.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &windowStartup, &windowStarted))
+		{
+			CloseHandle(windowStarted.hThread);
+			CloseHandle(windowStarted.hProcess);
+			return;
+		}
+	}
 	std::string commandLine = "\"" + launcher + "\" --report-crash";
 	STARTUPINFOA startup = {};
 	startup.cb = sizeof(startup);

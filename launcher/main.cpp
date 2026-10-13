@@ -96,6 +96,13 @@ int MAIN_EXPORT main(int argc, char * argv[])
 			out.write((report.zipPath + "\n" + report.error + "\n" + sent + "\n" + report.crash).toUtf8());
 		return 0;
 	}
+	// "--crash-window <dump>" is started by the game's crash handler, in the player's view (K, October 13th): one window with Send report and Don't send
+	const int crashWindow = vcmilauncher.arguments().indexOf("--crash-window");
+	if(crashWindow >= 0 && crashWindow + 1 < vcmilauncher.arguments().size())
+	{
+		BugReport::runCrashWindow(vcmilauncher.arguments().at(crashWindow + 1));
+		return 0;
+	}
 	if(vcmilauncher.arguments().contains("--report"))
 	{
 		BugReport::run(nullptr, "after a crash");

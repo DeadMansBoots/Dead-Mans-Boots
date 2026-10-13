@@ -366,6 +366,11 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 		adventureInt->onPlayerTurnStarted(playerID);
 	}
 
+	// DMB: the turn query is answered before the no-town warning waits for a click: while it is open the server keeps this player's timer stopped
+	// (TimerPauseQuery), so a player away from the keyboard with no town held up a simultaneous turns game
+	if (queryID.hasValue())
+		cb->selectionMade(0, queryID);
+
 	// warn player if he has no town
 	if (cb->howManyTowns() == 0)
 	{
@@ -398,8 +403,6 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 			logGlobal->warn("Player has no towns, but daysWithoutCastle is not set");
 	}
 
-	if (queryID.hasValue())
-		cb->selectionMade(0, queryID);
 	movementController->onPlayerTurnStarted();
 }
 

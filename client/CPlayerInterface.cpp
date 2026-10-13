@@ -313,9 +313,12 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 
+	// DMB: the turn dialog is for players who share this screen. It counted every human seat of the game, so in a network game with two humans each
+	// player had to click it before playing, and a host who had not (it hidden behind another window) stalled everyone waiting for their turn. Only the
+	// human seats this client controls count.
 	int humanPlayersCount = 0;
 	for(const auto & info : cb->getStartInfo()->playerInfos)
-		if (info.second.isControlledByHuman())
+		if (info.second.isControlledByHuman() && GAME->server().isMyColor(info.first))
 			humanPlayersCount++;
 
 	bool hotseatWait = humanPlayersCount > 1;

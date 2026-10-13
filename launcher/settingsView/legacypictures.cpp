@@ -90,10 +90,12 @@ QImage rgbPicture(const QString & path)
 // float on the art. Such a picture gets the same frame, cut from the player's own Horn of the Abyss picture when there is one, else drawn.
 const QRect BAR_FRAME(390, 543, 368, 25); // 800x600 pixels
 /// recorded in the pictures' index.json: a set made before the frames were stamped is made again by the pictures button (the client keeps using it meanwhile)
-const int LOAD_BARS_VERSION = 1;
+const int LOAD_BARS_VERSION = 2;
 
 /// Whether the picture (800x600) already has a bar of its own near the bottom: a straight horizontal edge, strong over a stretch of the width,
-/// which the five pictures with a bar have (52 to 203 as the mean change of grey between two rows) and the six without do not (under 4)
+/// which two pictures have (the Horn of the Abyss one 203 and the Restoration of Erathia one 97 as the mean change of grey between two rows) and the six without do not (under 4);
+/// the Armageddon's Blade, Shadow of Death and Complete pictures carry only a faint, see-through ghost of a frame there (52 to 55: K, October 12th, Armageddon's Blade
+/// "still needs a load bar imprint"), which is no bar, so they get the frame like the others
 bool hasOwnBar(const QImage & picture)
 {
 	const QImage grey = picture.scaled(800, 600, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_Grayscale8);
@@ -102,7 +104,7 @@ bool hasOwnBar(const QImage & picture)
 		int sum = 0;
 		for(int x = 450; x < 650; ++x)
 			sum += std::abs(qGray(grey.pixel(x, y)) - qGray(grey.pixel(x, y - 1)));
-		if(sum / 200.0 > 25.0)
+		if(sum / 200.0 > 80.0)
 			return true;
 	}
 	return false;

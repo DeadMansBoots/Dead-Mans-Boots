@@ -445,11 +445,13 @@ int main(int argc, char * argv[])
 		{
 			GAME->server().endNetwork();
 
+			// the game is ended before anything it uses is destroyed, headless too: a finished --testmap game left its AIs running while the state under them was torn
+			// down (a crash in AIGateway::makingTurn 0.6 s after "Ending game", October 13th)
+			if(GAME->server().client)
+				GAME->server().endGameplay();
+
 			if(!settings["session"]["headless"].Bool())
 			{
-				if(GAME->server().client)
-					GAME->server().endGameplay();
-
 				if (ENGINE)
 					ENGINE->windows().clear();
 			}

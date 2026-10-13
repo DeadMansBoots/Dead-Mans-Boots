@@ -213,7 +213,7 @@ std::string utf8(uint32_t c)
 	return out;
 }
 
-/// the capital of a Unicode letter: the Latin, Latin-1, Latin Extended-A and Cyrillic letters the face has
+/// the capital of a Unicode letter: the Latin, Latin-1 and Latin Extended-A letters the face has (it has no Cyrillic: a Cyrillic word is carved from the game's bitmap letters, or plain in the launcher)
 uint32_t capital(uint32_t c)
 {
 	if(c >= 'a' && c <= 'z')

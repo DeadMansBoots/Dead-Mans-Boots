@@ -14,7 +14,13 @@
 #include "../lib/filesystem/CZipSaver.h"
 #include "../lib/filesystem/Filesystem.h"
 
+#include <QApplication>
 #include <QCryptographicHash>
+#include <QDialog>
+#include <QLabel>
+#include <QPushButton>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -536,5 +542,66 @@ void run(QWidget * parent, const QString & why)
 	QMessageBox::information(parent, QObject::tr("Report saved"),
 		QObject::tr("The report is saved here:\n%1\n\nIts folder is open, and so is a page on GitHub with the details filled in. Drag the zip file into that page's box and press Submit (this needs a GitHub account).%2")
 			.arg(report.zipPath, problem.isEmpty() ? QString() : QObject::tr("\n\n(The automatic upload did not work: %1)").arg(problem)));
+}
+
+void runCrashWindow(const QString & dumpPath)
+{
+	// K, October 13th: "this is not the easy, one-click crash reporter I expected to see triggered on a crash"
+	QDialog dialog;
+	dialog.setWindowTitle(QObject::tr("Dead Man's Boots crashed"));
+	dialog.setMinimumWidth(520);
+	auto * layout = new QVBoxLayout(&dialog);
+	auto * what = new QLabel(QObject::tr("<b>Dead Man's Boots has crashed.</b> Sorry about that."));
+	auto * detail = new QLabel;
+	auto * sends = new QLabel(QObject::tr("Send report sends the crash file (a small snapshot of what the game was doing), the game's logs and its settings. Your Windows user name and computer name are removed first. Nothing else leaves your computer."));
+	auto * stays = new QLabel(QObject::tr("The crash file stays on your computer: %1").arg(QDir::toNativeSeparators(dumpPath)));
+	for(QLabel * label : {detail, sends, stays})
+		label->setWordWrap(true);
+	detail->hide();
+	auto * buttons = new QHBoxLayout;
+	auto * send = new QPushButton(QObject::tr("Send report"));
+	auto * dont = new QPushButton(QObject::tr("Don't send"));
+	send->setDefault(true);
+	buttons->addStretch(1);
+	buttons->addWidget(send);
+	buttons->addWidget(dont);
+	for(QWidget * widget : QList<QWidget *>{what, detail, sends, stays})
+		layout->addWidget(widget);
+	layout->addLayout(buttons);
+
+	const auto finish = [&]()
+	{
+		send->hide();
+		dont->setText(QObject::tr("Close"));
+		dont->setDefault(true);
+	};
+	const auto sendNow = [&](bool automatic)
+	{
+		send->setEnabled(false);
+		dont->setEnabled(false);
+		detail->setText(automatic ? QObject::tr("Sending a report by itself (Settings, General switches this off)...") : QObject::tr("Sending..."));
+		detail->show();
+		QApplication::processEvents();
+		const Report report = build("the game crashed", {}, true);
+		QString problem;
+		const bool sent = report.error.isEmpty() && send(report, problem);
+		QString cause = report.crash.section('\n', 0, 0).trimmed();
+		if(cause.size() > 160)
+			cause = cause.left(160) + "...";
+		QString text = sent ? (automatic ? QObject::tr("A report was sent to the developers by itself. Thank you.") : QObject::tr("The report was sent. Thank you."))
+			: QObject::tr("The report could not be sent (%1).").arg(report.error.isEmpty() ? problem : report.error);
+		if(!sent && !report.zipPath.isEmpty())
+			text += QObject::tr(" It is saved here: %1").arg(QDir::toNativeSeparators(report.zipPath));
+		if(!cause.isEmpty())
+			text = QObject::tr("What happened: %1").arg(cause) + "\n\n" + text;
+		detail->setText(text);
+		dont->setEnabled(true);
+		finish();
+	};
+	QObject::connect(send, &QPushButton::clicked, &dialog, [&]() { sendNow(false); });
+	QObject::connect(dont, &QPushButton::clicked, &dialog, &QDialog::accept);
+	if(crashReportsEnabled())
+		QTimer::singleShot(0, &dialog, [&]() { sendNow(true); });
+	dialog.exec();
 }
 }

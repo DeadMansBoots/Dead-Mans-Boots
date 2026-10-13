@@ -104,7 +104,10 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	}
 	logGlobal->error("Crash info will be put in %s", dumpPath.string());
 
-	auto dumpType = MiniDumpWithDataSegs;
+	// DMB (October 12th: the full report with MiniDumpWithDataSegs was 39.9 MB, 9.45 zipped, and Sentry counts it against 1 GB a month): stacks, modules,
+	// thread contexts and the memory the stacks point at, no data segments. Measured on a live client: 1.4 MB against 5.4 MB for the data segments (zipped 0.15
+	// against 0.32). The extraDump setting below keeps the full dump.
+	auto dumpType = (MINIDUMP_TYPE)(MiniDumpNormal | MiniDumpWithIndirectlyReferencedMemory | MiniDumpWithThreadInfo | MiniDumpWithUnloadedModules);
 
 	if(settings["general"]["extraDump"].Bool())
 	{

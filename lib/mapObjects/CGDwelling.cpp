@@ -362,6 +362,24 @@ bool CGDwelling::wasVisited (PlayerColor player) const
 	return cb->getPlayerState(player)->visitedObjects.count(id) != 0;
 }
 
+/// DMB (K, October 12th: 'Creature generation structures need a "Creature Generation Structure - Generates Creatures" type tooltip as well'): every
+/// dwelling pop-up says what kind of building it is, as the other buildings' pop-ups say what they do (the same settings switch)
+std::string CGDwelling::getPopupText(PlayerColor player) const
+{
+	std::string text = CGObjectInstance::getPopupText(player);
+	if(settings["general"]["buildingInfo"].Bool())
+		text += "\nCreature Generation Structure - Generates Creatures";
+	return text;
+}
+
+std::string CGDwelling::getPopupText(const CGHeroInstance * hero) const
+{
+	std::string text = CGObjectInstance::getPopupText(hero);
+	if(settings["general"]["buildingInfo"].Bool())
+		text += "\nCreature Generation Structure - Generates Creatures";
+	return text;
+}
+
 std::vector<Component> CGDwelling::getPopupComponents(PlayerColor player) const
 {
 	// DMB: a dwelling's amount is shown to its owner and to the owner's allies (by ownership; no visit is needed); anyone else does not see it

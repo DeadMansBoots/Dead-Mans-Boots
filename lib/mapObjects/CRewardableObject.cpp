@@ -368,7 +368,7 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 						else
 						{
 							// any other bonus: the game's own description of its type (the text its pop-ups and hero window use), in the game's language;
-							// a "{Title}" line is left off and the lines are run together
+							// the lines are run together
 							std::string description;
 							try
 							{
@@ -379,11 +379,7 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 							}
 							boost::algorithm::trim(description);
 							if(!description.empty() && description.front() == '{')
-							{
-								const auto closing = description.find('}');
-								description = closing == std::string::npos ? description : description.substr(closing + 1);
-								boost::algorithm::trim(description);
-							}
+								return; // a titled ability text ("{Enchanter}: can cast ... every turn") is a mark the engine keeps on the hero, not a prize
 							std::replace(description.begin(), description.end(), '\n', ' ');
 							if(description.empty())
 								summary.otherBonuses = true;

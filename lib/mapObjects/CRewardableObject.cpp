@@ -397,7 +397,10 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 								if(description.back() == '.')
 									description.pop_back();
 								// the sentence says what the bonus does, not how long it lasts (Reviewer pass 49: the Swan Pond's Forest Power lasts one battle)
-								summary.bonusTexts.insert(description + bonusDuration(*bonus));
+								const std::string lasts = bonusDuration(*bonus);
+								if(!lasts.empty() && description.compare(0, 12, "permanently ") == 0)
+									description.erase(0, 12); // "permanently affected by Bless" for a bonus that lasts one battle
+								summary.bonusTexts.insert(description + lasts);
 							}
 						}
 					};

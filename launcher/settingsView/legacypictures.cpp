@@ -94,7 +94,7 @@ const QRect ORNATE_RECT(368, 528, 412, 54);
 /// recorded in the pictures' index.json: a set made before the frames were stamped is made again by the pictures button (the client keeps using it meanwhile)
 const int LOAD_BARS_VERSION = 4; // 3 (October 14th): the Restoration of Erathia picture's own dark bar is taken out and it gets the common frame too; 4: the common frame is Horn of the Abyss's whole ornate bar
 
-/// Whether the picture (800x600) already has a bar of its own near the bottom: a straight horizontal edge, strong over a stretch of the width,
+/// Whether the picture (800x600) already has a bar of its own closeToLeather the bottom: a straight horizontal edge, strong over a stretch of the width,
 /// which two pictures have (the Horn of the Abyss one 203 and the Restoration of Erathia one 97 as the mean change of grey between two rows) and the six without do not (under 4);
 /// the Armageddon's Blade, Shadow of Death and Complete pictures carry only a faint, see-through ghost of a frame there (52 to 55: K, October 12th, Armageddon's Blade
 /// "still needs a load bar imprint"), which is no bar, so they get the frame like the others
@@ -213,14 +213,14 @@ BarArt ornateBar(const QImage & big)
 	for(int y = 0; y < h; ++y)
 		for(int x = 0; x < w; ++x)
 		{
-			bool near = false;
-			for(int dy = -3; dy <= 3 && !near; ++dy)
-				for(int dx = -3; dx <= 3 && !near; ++dx)
+			bool closeToLeather = false;
+			for(int dy = -3; dy <= 3 && !closeToLeather; ++dy)
+				for(int dx = -3; dx <= 3 && !closeToLeather; ++dx)
 				{
 					const int yy = y + dy, xx = x + dx;
-					near = yy >= 0 && yy < h && xx >= 0 && xx < w && leather[at(xx, yy)];
+					closeToLeather = yy >= 0 && yy < h && xx >= 0 && xx < w && leather[at(xx, yy)];
 				}
-			fillAlpha[at(x, y)] = near ? 255 : 0;
+			fillAlpha[at(x, y)] = closeToLeather ? 255 : 0;
 		}
 	QImage frame(w, h, QImage::Format_ARGB32), fill(w, h, QImage::Format_ARGB32);
 	for(int y = 0; y < h; ++y)
@@ -1083,7 +1083,7 @@ static double hotaScale(const QString & name)
 /// K, October 5th and 6th: "we want to iterate until we get icons that look as good as HOTA's". The method of HotA's own button art
 /// (Research/2026-10-05-HotA-Main-Menu-Buttons.md), applied to a button cut out at 4x: the floating bits are dropped, the button is
 /// drawn smaller (its centre kept) so its edge is a soft ramp of alpha, the baked reddish ring inside the outline is painted over with the
-/// colours next to it, a soft near-black shadow sits in the alpha channel under it, and the hover frame adds a soft white glow.
+/// colours next to it, a soft closeToLeather-black shadow sits in the alpha channel under it, and the hover frame adds a soft white glow.
 /// `cut` is the 4x frame with the colour defined everywhere and the alpha of the cut; `scale` is the button's size against the original art; holes of
 /// a few pixels are closed, the art's own tears stay open
 static void hotaButton(const QImage & cut, double scale, QImage & normal, QImage & hover)
@@ -1237,7 +1237,7 @@ static void hotaButton(const QImage & cut, double scale, QImage & normal, QImage
 	distanceFrom(shape, w, h, dout, unused);
 	for(size_t i = 0; i < count; ++i)
 		edgeSigned[i] = mask[i] ? din[i] - 0.5f : -(dout[i] - 0.5f);
-	// the baked reddish-brown ring inside the near-black outline: replaced by the nearest colour that is not part of it, eased by a blur
+	// the baked reddish-brown ring inside the closeToLeather-black outline: replaced by the nearest colour that is not part of it, eased by a blur
 	std::vector<unsigned char> ring(count, 0), good(count, 0);
 	for(size_t i = 0; i < count; ++i)
 	{
@@ -1267,7 +1267,7 @@ static void hotaButton(const QImage & cut, double scale, QImage & normal, QImage
 			bled[i * 3 + k] = plane[i];
 	}
 	blurPlane(soft, w, h, 1.5);
-	// the shadow: the shape moved down and right, near-black, a soft alpha ramp
+	// the shadow: the shape moved down and right, closeToLeather-black, a soft alpha ramp
 	std::vector<unsigned char> moved(count, 0);
 	for(int y = 0; y < h; ++y)
 		for(int x = 0; x < w; ++x)

@@ -392,13 +392,13 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 							std::replace(description.begin(), description.end(), '\n', ' ');
 							if(description.empty())
 								summary.otherBonuses = true;
-							else if(description.back() == '.')
-							{
-								description.pop_back(); // a whole sentence already says how long it lasts
-								summary.bonusTexts.insert(description);
-							}
 							else
+							{
+								if(description.back() == '.')
+									description.pop_back();
+								// the sentence says what the bonus does, not how long it lasts (Reviewer pass 49: the Swan Pond's Forest Power lasts one battle)
 								summary.bonusTexts.insert(description + bonusDuration(*bonus));
+							}
 						}
 					};
 					for(const auto & bonus : reward.heroBonuses)

@@ -466,7 +466,8 @@ int main(int argc, char * argv[])
 			}
 
 			// must be executed before reset - since unique_ptr resets pointer to null before calling destructor
-			ENGINE->async().wait();
+			if(ENGINE) // a headless client has none (DMB, October 14th)
+				ENGINE->async().wait();
 
 			ENGINE.reset();
 

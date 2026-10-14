@@ -576,7 +576,8 @@ void CClient::reinitScripting()
 void CClient::removeGUI() const
 {
 	// CClient::endGame
-	ENGINE->windows().clear();
+	if(ENGINE) // none in a headless client (DMB, October 14th: the headless cleanup ends the game too)
+		ENGINE->windows().clear();
 	adventureInt.reset();
 	logGlobal->info("Removed GUI.");
 

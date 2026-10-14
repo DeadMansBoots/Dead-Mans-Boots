@@ -585,7 +585,32 @@ void runCrashWindow(const QString & dumpPath)
 		const Report report = build("the game crashed", {}, true);
 		QString problem;
 		const bool sent = report.error.isEmpty() && send(report, problem);
-		QString cause = report.crash.section('\n', 0, 0).trimmed();
+		// the crash text opens with the log's lines ("[2026-Oct-14 08:42:28.739218] ERROR [39436] global - Disaster happened."): the exception line without its stamp says more
+		// (K, October 14th: "Exception EXCEPTION_ACCESS_VIOLATION (0xc0000005) at ? (Attempt to read from 0x0000000000000000)")
+		static const QRegularExpression stamp("^\\[[^\\]]+\\]\\s+\\w+\\s+\\[[^\\]]+\\]\\s+\\w+\\s+-\\s+");
+		const QStringList crashLines = report.crash.split('\n');
+		QString cause;
+		for(int i = 0; i < crashLines.size() && i < 12; i++)
+		{
+			QString line = crashLines[i];
+			line.remove(stamp);
+			line = line.trimmed();
+			if(line.startsWith("Exception "))
+			{
+				cause = line;
+				if(i + 1 < crashLines.size())
+				{
+					QString next = crashLines[i + 1];
+					next.remove(stamp);
+					next = next.trimmed();
+					if(next.startsWith("Attempt to "))
+						cause += " (" + next + ")";
+				}
+				break;
+			}
+		}
+		if(cause.isEmpty())
+			cause = report.crash.section('\n', 0, 0).remove(stamp).trimmed();
 		if(cause.size() > 160)
 			cause = cause.left(160) + "...";
 		QString text = sent ? (automatic ? QObject::tr("A report was sent to the developers by itself. Thank you.") : QObject::tr("The report was sent. Thank you."))

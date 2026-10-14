@@ -35,6 +35,7 @@
 
 #include <vstd/RNG.h>
 
+#include <cctype>
 #include <mutex>
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -379,7 +380,15 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 							}
 							boost::algorithm::trim(description);
 							if(!description.empty() && description.front() == '{')
-								return; // a titled ability text ("{Enchanter}: can cast ... every turn") is a mark the engine keeps on the hero, not a prize
+							{
+								// every English description is titled ("{Enchanter}\nCan cast Forest Power every turn."): the title is left out and the sentence is the prize
+								// (October 14th, Reviewer pass 48: dropping them hid the Swan Pond and Fountain of Fortune spell prizes)
+								const auto close = description.find('}');
+								description = close == std::string::npos ? std::string() : description.substr(close + 1);
+								boost::algorithm::trim(description);
+								if(description.size() > 1 && std::isupper(static_cast<unsigned char>(description[0])) && std::islower(static_cast<unsigned char>(description[1])))
+									description[0] = static_cast<char>(std::tolower(static_cast<unsigned char>(description[0])));
+							}
 							std::replace(description.begin(), description.end(), '\n', ' ');
 							if(description.empty())
 								summary.otherBonuses = true;

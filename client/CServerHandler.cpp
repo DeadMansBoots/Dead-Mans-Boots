@@ -1056,8 +1056,11 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 	if(client)
 	{
 		endGameplay();
-		GAME->mainmenu()->menu->switchToTab("main");
-		showServerError(LIBRARY->generaltexth->translate("vcmi.server.errors.disconnected"));
+		if(ENGINE) // a headless client has no main menu and no windows (DMB, Reviewer pass 49)
+		{
+			GAME->mainmenu()->menu->switchToTab("main");
+			showServerError(LIBRARY->generaltexth->translate("vcmi.server.errors.disconnected"));
+		}
 	}
 	else
 	{

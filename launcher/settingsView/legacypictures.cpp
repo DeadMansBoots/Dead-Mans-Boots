@@ -89,8 +89,10 @@ QImage rgbPicture(const QString & path)
 // y 543 to 567 of the 800x600 picture, and the game's progress blocks (x 395 y 548) fill it; the other pictures have none, so the blocks and the text
 // float on the art. Such a picture gets the same frame, cut from the player's own Horn of the Abyss picture when there is one, else drawn.
 const QRect BAR_FRAME(390, 543, 368, 25); // 800x600 pixels
+/// Horn of the Abyss's whole bar: the frame and its gold cartouches at the ends, the top and the bottom (K, October 14th: "upgrade all of the load screens to the HOTA compiled look so they all match")
+const QRect ORNATE_RECT(368, 528, 412, 54);
 /// recorded in the pictures' index.json: a set made before the frames were stamped is made again by the pictures button (the client keeps using it meanwhile)
-const int LOAD_BARS_VERSION = 2;
+const int LOAD_BARS_VERSION = 4; // 3 (October 14th): the Restoration of Erathia picture's own dark bar is taken out and it gets the common frame too; 4: the common frame is Horn of the Abyss's whole ornate bar
 
 /// Whether the picture (800x600) already has a bar of its own near the bottom: a straight horizontal edge, strong over a stretch of the width,
 /// which two pictures have (the Horn of the Abyss one 203 and the Restoration of Erathia one 97 as the mean change of grey between two rows) and the six without do not (under 4);
@@ -132,14 +134,248 @@ QImage drawnBarFrame(int scale)
 }
 
 /// A copy of the picture with the frame stamped at its place; `scale` is the picture's size over 800x600
-QImage stampBarFrame(const QImage & picture, const QImage & frame, int scale)
+QImage stampBarFrame(const QImage & picture, const QImage & frame, const QPoint & origin, int scale, const QImage & fill = QImage())
 {
 	QImage stamped = picture.convertToFormat(QImage::Format_RGB32);
 	{
 		QPainter painter(&stamped);
-		painter.drawImage(BAR_FRAME.topLeft() * scale, frame);
+		if(!fill.isNull())
+			painter.drawImage(origin * scale, fill);
+		painter.drawImage(origin * scale, frame);
 	}
 	return stamped.convertToFormat(QImage::Format_RGB888);
+}
+
+/// The bar every loading picture gets, in two layers so that either can be changed on its own (K, October 14th: the fill may become another material, "onyx black marble", and later
+/// a setting, the frame following the gold trim of the interface): the frame (the gold and black lines and the cartouches, transparent where the fill shows and around them) and the fill
+/// (the material inside the frame, opaque a little under the frame's lines). Both are `scale` times 800x600 and drawn at `origin`, the fill first
+struct BarArt
+{
+	QImage frame, fill;
+	QPoint origin;
+	bool valid() const { return !frame.isNull(); }
+	BarArt scaledTo(int scale) const // from the 4x originals
+	{
+		const auto fit = [&](const QImage & image) { return image.scaled(QSize(image.width() * scale / 4, image.height() * scale / 4), Qt::IgnoreAspectRatio, Qt::SmoothTransformation); };
+		return BarArt{fit(frame), fit(fill), origin};
+	}
+};
+
+/// Horn of the Abyss's bar with its ornaments, cut out of that picture's sharpened 4x copy `big`: the frame opaque except where the leather is, with the gold ornaments around it
+/// found by their colour (grown a little to take their dark outline, softened at the edge), and the leather as the default fill
+BarArt ornateBar(const QImage & big)
+{
+	QImage crop = big.copy(ORNATE_RECT.x() * 4, ORNATE_RECT.y() * 4, ORNATE_RECT.width() * 4, ORNATE_RECT.height() * 4).convertToFormat(QImage::Format_ARGB32);
+	const int w = crop.width(), h = crop.height();
+	const auto at = [w](int x, int y) { return static_cast<size_t>(y) * w + x; };
+	std::vector<unsigned char> gold(static_cast<size_t>(w) * h, 0), alpha(gold.size(), 0), leather(gold.size(), 0), tmp(gold.size(), 0);
+	const QRect bar((BAR_FRAME.x() - ORNATE_RECT.x()) * 4, (BAR_FRAME.y() - ORNATE_RECT.y()) * 4, BAR_FRAME.width() * 4, BAR_FRAME.height() * 4);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			const QRgb c = crop.pixel(x, y);
+			if(qRed(c) > 120 && qGreen(c) > 85 && qRed(c) - qBlue(c) > 55 && qRed(c) >= qGreen(c) * 0.95)
+				gold[at(x, y)] = 255;
+			if(bar.contains(x, y) && qGreen(c) - qRed(c) > 14 && qBlue(c) - qRed(c) > 8)
+				leather[at(x, y)] = 255; // the teal leather inside the frame's black line
+		}
+	for(int y = 0; y < h; ++y) // the ornaments' neighbourhood: grown by two pixels each way
+		for(int x = 0; x < w; ++x)
+		{
+			bool any = false;
+			for(int dy = -2; dy <= 2 && !any; ++dy)
+				for(int dx = -2; dx <= 2 && !any; ++dx)
+				{
+					const int yy = y + dy, xx = x + dx;
+					any = yy >= 0 && yy < h && xx >= 0 && xx < w && gold[at(xx, yy)];
+				}
+			alpha[at(x, y)] = any ? 255 : 0;
+		}
+	for(int y = bar.top(); y <= bar.bottom(); ++y)
+		for(int x = bar.left(); x <= bar.right(); ++x)
+			alpha[at(x, y)] = 255;
+	const auto soften = [&](std::vector<unsigned char> & plane)
+	{
+		for(int pass = 0; pass < 2; ++pass) // a [1 2 1] blur along both axes, twice
+		{
+			for(int y = 0; y < h; ++y)
+				for(int x = 0; x < w; ++x)
+					tmp[at(x, y)] = static_cast<unsigned char>((plane[at(std::max(0, x - 1), y)] + 2 * plane[at(x, y)] + plane[at(std::min(w - 1, x + 1), y)]) / 4);
+			for(int y = 0; y < h; ++y)
+				for(int x = 0; x < w; ++x)
+					plane[at(x, y)] = static_cast<unsigned char>((tmp[at(x, std::max(0, y - 1))] + 2 * tmp[at(x, y)] + tmp[at(x, std::min(h - 1, y + 1))]) / 4);
+		}
+	};
+	soften(alpha);
+	std::vector<unsigned char> hole = leather; // where the leather was: the frame is cut away there, with a soft edge, and the fill is opaque a little wider
+	soften(hole);
+	std::vector<unsigned char> fillAlpha(gold.size(), 0);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			bool near = false;
+			for(int dy = -3; dy <= 3 && !near; ++dy)
+				for(int dx = -3; dx <= 3 && !near; ++dx)
+				{
+					const int yy = y + dy, xx = x + dx;
+					near = yy >= 0 && yy < h && xx >= 0 && xx < w && leather[at(xx, yy)];
+				}
+			fillAlpha[at(x, y)] = near ? 255 : 0;
+		}
+	QImage frame(w, h, QImage::Format_ARGB32), fill(w, h, QImage::Format_ARGB32);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+		{
+			const QRgb c = crop.pixel(x, y);
+			frame.setPixel(x, y, qRgba(qRed(c), qGreen(c), qBlue(c), alpha[at(x, y)] * (255 - hole[at(x, y)]) / 255));
+			fill.setPixel(x, y, qRgba(qRed(c), qGreen(c), qBlue(c), fillAlpha[at(x, y)]));
+		}
+	return BarArt{frame.convertToFormat(QImage::Format_ARGB32_Premultiplied), fill.convertToFormat(QImage::Format_ARGB32_Premultiplied), ORNATE_RECT.topLeft()};
+}
+
+/// The bar a picture carries of its own that is not the one every screen gets: where it is (800x600 pixels, the frame's outer edge, inclusive) and what it does to the art behind it.
+/// K, October 14th: "we should definitely make all the originals and SOD+ROE load screen bars look the same": the Restoration of Erathia picture has a dark see-through bar of its own
+/// (x 330 to 694, y 524 to 546), away from the place the game draws its progress blocks, so it is taken out before the common frame is stamped
+struct OwnBar
+{
+	bool valid = false;
+	int left = 0, top = 0, right = 0, bottom = 0;
+	double gain[3] = {1, 1, 1}, offset[3] = {0, 0, 0}; // what the bar makes of a colour: seen = gain * art + offset, per channel
+};
+
+/// Finds the bar by its edges: the strongest straight horizontal edge in the lower part is its bottom, the first strong one above it its top, and the strong vertical edges
+/// between them are its ends; then fits its effect on the colours from the pixels just inside its ends against the ones just outside them on the same rows
+OwnBar findOwnBar(const QImage & picture)
+{
+	OwnBar bar;
+	const QImage grey = picture.scaled(800, 600, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_Grayscale8);
+	const auto g = [&](int x, int y) { return qGray(grey.pixel(x, y)); };
+	std::vector<double> rows(600, 0.0);
+	for(int y = 1; y < 600; ++y)
+	{
+		int sum = 0;
+		for(int x = 450; x < 650; ++x)
+			sum += std::abs(g(x, y) - g(x, y - 1));
+		rows[y] = sum / 200.0;
+	}
+	int bottom = 480;
+	for(int y = 480; y < 595; ++y)
+		if(rows[y] > rows[bottom])
+			bottom = y;
+	const double peak = rows[bottom];
+	int top = -1;
+	for(int y = bottom - 40; y < bottom - 8 && top < 0; ++y)
+		if(rows[y] >= 0.25 * peak)
+			top = y;
+	if(top < 0 || peak < 40.0)
+		return bar;
+	std::vector<double> cols(800, 0.0);
+	double cpeak = 0;
+	for(int x = 251; x < 790; ++x)
+	{
+		int sum = 0;
+		for(int y = top + 4; y < bottom - 3; ++y)
+			sum += std::abs(g(x, y) - g(x - 1, y));
+		cols[x] = sum / static_cast<double>(bottom - 3 - top - 4);
+		cpeak = std::max(cpeak, cols[x]);
+	}
+	int left = -1, right = -1;
+	for(int x = 251; x < 790; ++x)
+		if(cols[x] >= 0.25 * cpeak)
+		{
+			if(left < 0)
+				left = x;
+			right = x;
+		}
+	if(left < 0 || right - left < 250 || right - left > 450 || bottom - top < 14 || bottom - top > 40)
+		return bar;
+	bar.left = left;
+	bar.top = top;
+	bar.right = right;
+	bar.bottom = bottom;
+	const QImage rgb = picture.scaled(800, 600, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_RGB32);
+	for(int channel = 0; channel < 3; ++channel)
+	{
+		const auto value = [&](int x, int y)
+		{
+			const QRgb c = rgb.pixel(x, y);
+			return channel == 0 ? qRed(c) : channel == 1 ? qGreen(c) : qBlue(c);
+		};
+		double sumOut = 0, sumIn = 0, sumOutOut = 0, sumOutIn = 0;
+		int n = 0;
+		for(int y = top + 4; y <= bottom - 4; ++y)
+			for(int dx = 3; dx <= 5; ++dx)
+				for(int side = 0; side < 2; ++side)
+				{
+					const double in = value(side == 0 ? left + dx : right - dx, y);
+					const double out = value(side == 0 ? left - dx : right + dx, y);
+					sumOut += out;
+					sumIn += in;
+					sumOutOut += out * out;
+					sumOutIn += out * in;
+					++n;
+				}
+		const double variance = sumOutOut / n - (sumOut / n) * (sumOut / n);
+		const double gain = variance > 1.0 ? (sumOutIn / n - (sumOut / n) * (sumIn / n)) / variance : 1.0;
+		bar.gain[channel] = std::clamp(gain, 0.1, 1.0);
+		bar.offset[channel] = sumIn / n - bar.gain[channel] * sumOut / n;
+	}
+	bar.valid = true;
+	return bar;
+}
+
+/// The picture without that bar (`scale` times 800x600): inside the bar the colours are put back as they were before the dark layer, and the thin border lines and shadow
+/// are replaced by a straight blend between the rows (or columns) just outside them and just inside; the art behind the bar shows through, as it did before the bar
+QImage removeOwnBar(const QImage & picture, const OwnBar & bar, int scale)
+{
+	QImage image = picture.convertToFormat(QImage::Format_RGB32);
+	const auto clampByte = [](double v) { return static_cast<int>(std::clamp(v, 0.0, 255.0) + 0.5); };
+	const int x0 = (bar.left + 1) * scale, x1 = bar.right * scale, y0 = (bar.top + 1) * scale, y1 = bar.bottom * scale;
+	for(int y = y0; y < y1; ++y)
+	{
+		QRgb * line = reinterpret_cast<QRgb *>(image.scanLine(y));
+		for(int x = x0; x < x1; ++x)
+			line[x] = qRgb(clampByte((qRed(line[x]) - bar.offset[0]) / bar.gain[0]), clampByte((qGreen(line[x]) - bar.offset[1]) / bar.gain[1]), clampByte((qBlue(line[x]) - bar.offset[2]) / bar.gain[2]));
+	}
+	const auto blendRows = [&](int r0, int r1, int xa, int xb) // rows r0 to r1 inclusive, columns xa to xb exclusive, in 800x600 pixels
+	{
+		const int ya = (r0 - 1) * scale, yb = (r1 + 1) * scale;
+		std::vector<QRgb> up, down;
+		for(int x = xa * scale; x < xb * scale; ++x)
+		{
+			up.push_back(image.pixel(x, ya));
+			down.push_back(image.pixel(x, yb));
+		}
+		for(int y = r0 * scale; y < (r1 + 1) * scale; ++y)
+		{
+			const double t = (y - r0 * scale) / static_cast<double>((r1 + 1 - r0) * scale);
+			for(size_t i = 0; i < up.size(); ++i)
+				image.setPixel(xa * scale + static_cast<int>(i), y, qRgb(clampByte((1 - t) * qRed(up[i]) + t * qRed(down[i])), clampByte((1 - t) * qGreen(up[i]) + t * qGreen(down[i])),
+					clampByte((1 - t) * qBlue(up[i]) + t * qBlue(down[i]))));
+		}
+	};
+	const auto blendColumns = [&](int c0, int c1, int ya, int yb)
+	{
+		const int xa = (c0 - 1) * scale, xb = (c1 + 1) * scale;
+		std::vector<QRgb> left, right;
+		for(int y = ya * scale; y < yb * scale; ++y)
+		{
+			left.push_back(image.pixel(xa, y));
+			right.push_back(image.pixel(xb, y));
+		}
+		for(int x = c0 * scale; x < (c1 + 1) * scale; ++x)
+		{
+			const double t = (x - c0 * scale) / static_cast<double>((c1 + 1 - c0) * scale);
+			for(size_t i = 0; i < left.size(); ++i)
+				image.setPixel(x, ya * scale + static_cast<int>(i), qRgb(clampByte((1 - t) * qRed(left[i]) + t * qRed(right[i])), clampByte((1 - t) * qGreen(left[i]) + t * qGreen(right[i])),
+					clampByte((1 - t) * qBlue(left[i]) + t * qBlue(right[i]))));
+		}
+	};
+	blendRows(bar.top - 2, bar.top + 3, bar.left - 3, bar.right + 4);
+	blendRows(bar.bottom - 2, bar.bottom + 3, bar.left - 3, bar.right + 4);
+	blendColumns(bar.left - 3, bar.left + 2, bar.top - 2, bar.bottom + 4);
+	blendColumns(bar.right - 2, bar.right + 3, bar.top - 2, bar.bottom + 4);
+	return image.convertToFormat(QImage::Format_RGB888);
 }
 }
 
@@ -625,21 +861,27 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 	};
 	// the progress bar frame for the loading pictures that have none: cut from the player's own Horn of the Abyss picture when it is among these,
 	// else drawn in its look
-	QImage frame4;
+	BarArt art4;
 	for(const auto & p : pictures)
 		if(p.loading && p.title == "Horn of the Abyss loading screen")
 		{
 			const QImage big(work + "/out/" + slugOf(p.wikiName) + ".png");
 			if(!big.isNull())
-				frame4 = fourTimes(big).copy(BAR_FRAME.x() * 4, BAR_FRAME.y() * 4, BAR_FRAME.width() * 4, BAR_FRAME.height() * 4);
+				art4 = ornateBar(fourTimes(big));
 		}
-	if(frame4.isNull())
-		frame4 = drawnBarFrame(4);
-	const QImage frame1 = frame4.scaled(BAR_FRAME.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	if(!art4.valid())
+		art4 = BarArt{drawnBarFrame(4), QImage(), BAR_FRAME.topLeft()};
+	const BarArt art1 = art4.scaledTo(1);
 	for(const auto & p : pictures)
 	{
 		const QImage original = rgbPicture(p.originalPath);
-		const bool stamp = p.loading && original.size() == QSize(OWN_WIDTH, OWN_HEIGHT) && !hasOwnBar(original);
+		// every loading picture except Horn of the Abyss's carries the same frame (K, October 14th): the ones with none get it, and a bar of another kind (the Restoration of Erathia
+		// picture's dark one) is taken out first, so that the frame sits where the game's progress blocks are drawn; Horn of the Abyss's own ornate bar stays as it is
+		const bool plain = p.loading && original.size() == QSize(OWN_WIDTH, OWN_HEIGHT);
+		const bool hota = p.title == "Horn of the Abyss loading screen";
+		const bool ownBar = plain && hasOwnBar(original);
+		const OwnBar foreign = plain && ownBar && !hota ? findOwnBar(original) : OwnBar();
+		const bool stamp = plain && !hota && (!ownBar || foreign.valid);
 		const QString slug = slugOf(p.title);
 		const QString place = userFolder(p.loading ? "LoadingScreens" : "MenuBackgrounds");
 		const QString prefix = p.loading ? "DMBLoad-" : "DMBMenuFile-";
@@ -648,7 +890,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 		QDir().mkpath(place + "/Upscaled/DATA2X");
 		const QString finalName = p.title + ".png";
 		QFile::remove(place + "/" + finalName);
-		if(stamp ? !stampBarFrame(original, frame1, 1).save(place + "/" + finalName) : !QFile::copy(p.originalPath, place + "/" + finalName))
+		if(stamp ? !stampBarFrame(foreign.valid ? removeOwnBar(original, foreign, 1) : original, art1.frame, art1.origin, 1, art1.fill).save(place + "/" + finalName) : !QFile::copy(p.originalPath, place + "/" + finalName))
 		{
 			failure = QString("%1 could not be put in the %2 folder").arg(finalName, p.loading ? "LoadingScreens" : "MenuBackgrounds");
 			return false;
@@ -659,7 +901,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 			failure = QString("the sharpened %1 is missing").arg(p.wikiName);
 			return false;
 		}
-		const QImage four = stamp ? stampBarFrame(fourTimes(big), frame4, 4) : fourTimes(big);
+		const QImage four = stamp ? stampBarFrame(foreign.valid ? removeOwnBar(fourTimes(big), foreign, 4) : fourTimes(big), art4.frame, art4.origin, 4, art4.fill) : fourTimes(big);
 		const QString file = prefix + slugOf(finalName.left(finalName.size() - 4)) + ".png";
 		four.save(place + "/Upscaled/DATA4X/" + file);
 		four.scaled(2400, 1800, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).save(place + "/Upscaled/DATA3X/" + file);

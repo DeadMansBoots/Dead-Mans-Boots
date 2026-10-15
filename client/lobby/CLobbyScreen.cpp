@@ -345,10 +345,24 @@ void CLobbyScreen::updateModeBar()
 		modeName->enable();
 	else
 		modeName->disable();
-	// the mode on screen: a guest's own remembered mode (randomMode) is not the host's, the open tab is
-	const auto openGenerator = std::dynamic_pointer_cast<MapGenTab>(curTab);
-	const auto tab = openGenerator && vstd::contains(generatorTabs, openGenerator) ? openGenerator : nullptr;
-	modeName->setText(tab ? tab->getGenerator().name : LIBRARY->generaltexth->translate("vcmi.dmb.randomMode.vcmi"));
+	// the mode on screen. The host's is the tab it has open. A guest's is the host's (GAME->server().hostMode, kept from the last
+	// page the host showed, whichever tab the guest has open): the guest's own remembered mode (randomMode) is its own business
+	std::shared_ptr<MapGenTab> tab;
+	std::string hostModeText;
+	if(host)
+	{
+		const auto openGenerator = std::dynamic_pointer_cast<MapGenTab>(curTab);
+		tab = openGenerator && vstd::contains(generatorTabs, openGenerator) ? openGenerator : nullptr;
+	}
+	else
+	{
+		for(const auto & candidate : generatorTabs)
+			if(candidate->getGenerator().modID == GAME->server().hostMode)
+				tab = candidate;
+		if(!tab && !GAME->server().hostMode.empty())
+			hostModeText = GAME->server().hostMode; // the host's generator is not among this guest's mods: its id is all there is
+	}
+	modeName->setText(tab ? tab->getGenerator().name : !hostModeText.empty() ? hostModeText : LIBRARY->generaltexth->translate("vcmi.dmb.randomMode.vcmi"));
 	// K, September 27th/28th: "omni map gen needs centered in the box at the top, as do the arrows, and
 	// the arrows should land just a few mm (maybe 5) from the text on each side, and should scale
 	// dynamically with the text of whatever menu name is being displayed." The name is already centered
@@ -373,6 +387,14 @@ void CLobbyScreen::updateModeBar()
 
 void CLobbyScreen::showRandomMode(bool modeChanged)
 {
+	// a guest's random map window is the host's mode, never the mode the guest last used itself
+	if(GAME->server().isGuest())
+	{
+		randomMode = 0;
+		for(size_t i = 0; i < generatorTabs.size(); ++i)
+			if(generatorTabs[i]->getGenerator().modID == GAME->server().hostMode)
+				randomMode = i + 1;
+	}
 	if(const auto tab = modeGenerator())
 	{
 		if(curTab != tab)

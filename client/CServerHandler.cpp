@@ -171,6 +171,7 @@ void CServerHandler::resetStateForLobby(EStartMode mode, ESelectionScreen screen
 	hostViewPage = -1;
 	hostViewState.clear();
 	hostStateGenerator.clear();
+	hostMode.clear();
 	setState(EClientState::NONE);
 	serverMode = newServerMode;
 	loadMode = ELoadMode::NONE;

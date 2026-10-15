@@ -178,6 +178,7 @@ public:
 	int hostViewPage = -1;
 	std::string hostStateGenerator; // whose settings those are
 	std::string hostViewState; // the host's settings of that generator, as the last OPEN_GENERATOR that carried any said
+	std::string hostMode; // the random map mode the host last had open: a generator's mod id, empty for VCMI's own (whatever page the host is on now)
 	bool isGuest() const;
 	bool hasRemoteClientInLobby() const;
 	bool inLobbyRoom() const;

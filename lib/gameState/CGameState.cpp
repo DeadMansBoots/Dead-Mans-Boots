@@ -638,6 +638,38 @@ void CGameState::placeStartingHeroes(vstd::RNG & randomGenerator)
 {
 	logGlobal->debug("\tGiving starting hero");
 
+	// DMB (K, October 14th: "a random hero instead of the hero they pick", on the first start of a game): a hero a player picked in the lobby that
+	// the map already holds as a prisoner belongs to the player; the prisoner becomes another hero. The lobby cannot know: a map generator makes the map
+	// at Begin, after the picks, and pickNextHeroType below drops a pick that is "used" by any hero object, prisons included.
+	for(auto & playerSettingPair : scenarioOps->playerInfos)
+	{
+		const HeroTypeID picked = playerSettingPair.second.hero;
+		if(!picked.isValid())
+			continue;
+		CGHeroInstance * holder = getUsedHero(picked);
+		if(!holder || holder->ID != Obj::PRISON || holder->getOwner().isValidPlayer())
+			continue;
+
+		// the replacement: an unused allowed hero of the same faction, else of any faction, never a hero another player picked
+		std::vector<HeroTypeID> sameFaction;
+		std::vector<HeroTypeID> otherFaction;
+		for(const HeroTypeID & candidate : getUnusedAllowedHeroes())
+		{
+			if(candidate == picked)
+				continue;
+			if(candidate.toHeroType()->heroClass->faction == picked.toHeroType()->heroClass->faction)
+				sameFaction.push_back(candidate);
+			else
+				otherFaction.push_back(candidate);
+		}
+		const auto & pool = sameFaction.empty() ? otherFaction : sameFaction;
+		if(pool.empty())
+			continue;
+		const HeroTypeID replacement = *RandomGeneratorUtil::nextItem(pool, randomGenerator);
+		logGlobal->info("Player %s picked %s, which the map holds as a prisoner: the prisoner becomes %s", playerSettingPair.first.toString(), picked.toHeroType()->getJsonKey(), replacement.toHeroType()->getJsonKey());
+		holder->setHeroType(replacement);
+	}
+
 	for(auto & playerSettingPair : scenarioOps->playerInfos)
 	{
 		auto playerColor = playerSettingPair.first;

@@ -140,6 +140,10 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyGuiAction(LobbyGuiAction & pack
 	handler.hostViewAction = pack.action;
 	handler.hostViewGenerator = pack.generator;
 	handler.hostViewPage = pack.page;
+	if(pack.action == LobbyGuiAction::OPEN_GENERATOR)
+		handler.hostMode = pack.generator;
+	else if(pack.action == LobbyGuiAction::OPEN_RANDOM_MAP_OPTIONS)
+		handler.hostMode.clear();
 	if(!pack.state.empty())
 	{
 		handler.hostViewState = pack.state;

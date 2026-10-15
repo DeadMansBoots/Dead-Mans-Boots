@@ -279,6 +279,20 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 		args.push_back("--humanColors");
 		args.push_back(boost::algorithm::join(humanColors, ","));
 	}
+	// the heroes the players picked in the lobby, for a generator that declares the "heroes" argument: it never places those heroes (a prison hero equal to a
+	// pick cost the player the pick, K, October 14th). Colour=hero pairs, only the players who picked one.
+	if(generator->arguments.count("heroes"))
+	{
+		std::vector<std::string> picked;
+		for(const auto & [color, player] : start.playerInfos)
+			if(player.hero.isValid())
+				picked.push_back(color.toString() + "=" + HeroTypeID::encode(player.hero.getNum()));
+		if(!picked.empty())
+		{
+			args.push_back("--heroes");
+			args.push_back(boost::algorithm::join(picked, ","));
+		}
+	}
 	args.push_back("--declaremods");
 	args.push_back(mapSetting("declareMods").isNumber() && mapSetting("declareMods").Integer() ? "1" : "0");
 	const auto noTrailingSlash = [](std::string s)

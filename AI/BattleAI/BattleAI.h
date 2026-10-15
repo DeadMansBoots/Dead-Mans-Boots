@@ -62,6 +62,13 @@ class CBattleAI : public CBattleGameInterface
 	bool wasWaitingForRealize;
 	int movesSkippedByDefense;
 
+	// DMB (October 15th, lane 4 game V2M1SKMBSM15: "Best spell is Cure (value 45.1268). Will cast." 13,290 times, each cast refused by the server with
+	// "That spell will affect no one", so the stack's turn never ended): the same stack offered again with the battle unchanged since the last offer
+	int lastOfferedBattle = -1;
+	uint32_t lastOfferedStack = 0;
+	uint64_t lastOfferedSignature = 0;
+	int unchangedOffers = 0;
+
 public:
 	CBattleAI();
 	~CBattleAI();

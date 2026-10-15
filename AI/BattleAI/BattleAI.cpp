@@ -140,7 +140,31 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 
 	BattleAction result = BattleAction::makeDefend(stack);
 
+	// DMB: what the battle looks like now (every stack: id, hex, count, hit points of the top creature). A stack that is offered again while
+	// this is the same as at its last offer had nothing it did accepted: a refused spell cast is the known case (see the members in BattleAI.h)
+	uint64_t signature = 1469598103934665603ULL;
+	for(const auto * unit : cb->getBattle(battleID)->battleGetAllStacks())
+	{
+		for(const uint64_t part : {static_cast<uint64_t>(unit->unitId()), static_cast<uint64_t>(unit->getPosition().toInt() + 2), static_cast<uint64_t>(unit->getCount()), static_cast<uint64_t>(unit->getFirstHPleft())})
+			signature = (signature ^ part) * 1099511628211ULL;
+	}
+	if(battleID.getNum() == lastOfferedBattle && stack->unitId() == lastOfferedStack && signature == lastOfferedSignature)
+		++unchangedOffers;
+	else
+		unchangedOffers = 0;
+	lastOfferedBattle = battleID.getNum();
+	lastOfferedStack = stack->unitId();
+	lastOfferedSignature = signature;
+
 	auto start = std::chrono::high_resolution_clock::now();
+
+	if(unchangedOffers >= 6)
+	{
+		// six offers in a row with nothing changed: the decisions are being refused, the turn is ended with the one action that always stands
+		logAi->warn("BattleAI: %s was offered %d times with the battle unchanged: defending", stack->nodeName(), unchangedOffers);
+		cb->battleMakeUnitAction(battleID, result);
+		return;
+	}
 
 	if(stack->creatureId() == CreatureID::CATAPULT)
 	{
@@ -164,7 +188,8 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 
 	result = evaluator.selectStackAction(stack);
 
-	if(autobattlePreferences.enableSpellsUsage && evaluator.canCastSpell())
+	// after two offers with nothing changed no spell is tried again: the plain action decided above is what is left
+	if(autobattlePreferences.enableSpellsUsage && unchangedOffers < 2 && evaluator.canCastSpell())
 	{
 		auto spelCasted = evaluator.attemptCastingSpell(stack);
 

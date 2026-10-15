@@ -397,10 +397,14 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 				text.replaceName(playerColor);
 			}
 
-			// DMB: shown without waiting for the click. acceptTurn runs on the client's network thread, and waiting here stopped every pack behind the
-			// dialog (October 15th, two clients: the host received none of about 100 TurnTimeUpdate packs while it was open, its on-screen timer stayed at
-			// 1:00 while the server ended its turn at 60 s). The window is modal on screen; the packs that need a dialog or a hero move still wait for it
-			showInfoDialog(EInfoWindowMode::MODAL, text.toString(), components, 0);
+			// DMB: shown without waiting for the click, and without marking the interface busy. acceptTurn runs on the client's network thread, and waiting
+			// here stopped every pack behind the dialog (October 15th, two clients: the host received none of about 100 TurnTimeUpdate packs while it was
+			// open, its on-screen timer stayed at 1:00 while the server ended its turn at 60 s). A busy flag would make the next hero move of another
+			// player wait for the click on the same thread (Reviewer pass 91); the window is modal on screen either way
+			CInfoWindow::TCompsInfo warningComponents;
+			for(const auto & component : components)
+				warningComponents.push_back(std::make_shared<CComponent>(component));
+			CInfoWindow::showInfoDialog(text.toString(), warningComponents, playerColor);
 		}
 		else
 			logGlobal->warn("Player has no towns, but daysWithoutCastle is not set");

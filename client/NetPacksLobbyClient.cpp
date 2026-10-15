@@ -111,9 +111,11 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyClientDisconnected(LobbyClientD
 {
 	if(pack.clientId == handler.logicConnection->connectionID)
 	{
+		if(!ENGINE) // headless: no windows to close
+			return;
 		if(auto w = ENGINE->windows().topWindow<CLoadingScreen>())
 			ENGINE->windows().popWindow(w);
-		
+
 		if(ENGINE->windows().count() > 0)
 			ENGINE->windows().popWindows(1);
 		return;

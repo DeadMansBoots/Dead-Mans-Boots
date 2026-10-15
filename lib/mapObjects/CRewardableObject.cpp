@@ -397,7 +397,8 @@ PrizeSummary summarizeTypeTable(const CRewardableObject & object, IGameInfoCallb
 								if(description.back() == '.')
 									description.pop_back();
 								// the sentence says what the bonus does, not how long it lasts (Reviewer pass 49: the Swan Pond's Forest Power lasts one battle)
-								const std::string lasts = bonusDuration(*bonus);
+								// only the English wording is known here (Reviewer pass 55): in another language the sentence stays as the translation gives it
+									const std::string lasts = LIBRARY->generaltexth->getPreferredLanguage() == "english" ? bonusDuration(*bonus) : std::string();
 								if(!lasts.empty() && description.compare(0, 12, "permanently ") == 0)
 									description.erase(0, 12); // "permanently affected by Bless" for a bonus that lasts one battle
 								summary.bonusTexts.insert(description + lasts);

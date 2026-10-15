@@ -330,15 +330,24 @@ void CLobbyScreen::updateModeBar()
 {
 	if(!modeName)
 		return;
-	const bool shown = GAME->server().isHost() && randomWindowShown();
-	for(const std::shared_ptr<CIntObject> & part : {std::static_pointer_cast<CIntObject>(modePrevious), std::static_pointer_cast<CIntObject>(modeNext), std::static_pointer_cast<CIntObject>(modeName)})
+	// the arrows are the host's; the mode's name is shown to every player while the random map window is open (K,
+	// October 14th: a guest saw an empty box over the host's generator page, and VCMI's own headline in VCMI's mode)
+	const bool host = GAME->server().isHost();
+	const bool shown = randomWindowShown();
+	for(const std::shared_ptr<CIntObject> & part : {std::static_pointer_cast<CIntObject>(modePrevious), std::static_pointer_cast<CIntObject>(modeNext)})
 	{
-		if(shown)
+		if(shown && host)
 			part->enable();
 		else
 			part->disable();
 	}
-	const auto tab = modeGenerator();
+	if(shown)
+		modeName->enable();
+	else
+		modeName->disable();
+	// the mode on screen: a guest's own remembered mode (randomMode) is not the host's, the open tab is
+	const auto openGenerator = std::dynamic_pointer_cast<MapGenTab>(curTab);
+	const auto tab = openGenerator && vstd::contains(generatorTabs, openGenerator) ? openGenerator : nullptr;
 	modeName->setText(tab ? tab->getGenerator().name : LIBRARY->generaltexth->translate("vcmi.dmb.randomMode.vcmi"));
 	// K, September 27th/28th: "omni map gen needs centered in the box at the top, as do the arrows, and
 	// the arrows should land just a few mm (maybe 5) from the text on each side, and should scale

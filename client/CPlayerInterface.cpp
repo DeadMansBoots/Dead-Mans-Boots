@@ -397,7 +397,10 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 				text.replaceName(playerColor);
 			}
 
-			showInfoDialogAndWait(components, text);
+			// DMB: shown without waiting for the click. acceptTurn runs on the client's network thread, and waiting here stopped every pack behind the
+			// dialog (October 15th, two clients: the host received none of about 100 TurnTimeUpdate packs while it was open, its on-screen timer stayed at
+			// 1:00 while the server ended its turn at 60 s). The window is modal on screen; the packs that need a dialog or a hero move still wait for it
+			showInfoDialog(EInfoWindowMode::MODAL, text.toString(), components, 0);
 		}
 		else
 			logGlobal->warn("Player has no towns, but daysWithoutCastle is not set");

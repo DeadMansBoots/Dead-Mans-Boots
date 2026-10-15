@@ -454,7 +454,13 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveO
 	for(const auto & [res, range] : prize.resources)
 		if(range.lo != prize.resources.begin()->second.lo || range.hi != prize.resources.begin()->second.hi)
 			sameAmounts = false;
-	if(prize.resources.size() > 1 && prize.mostResourceKinds == 1 && sameAmounts)
+	if(prize.resources.size() > 1 && prize.mostResourceKinds == 1 && sameAmounts && alternatives)
+	{
+		// among other alternatives (the Treasure Pile: wood or ore, experience, an artifact) each kind is its own choice with its amount, not "4 to 8 of one of wood or ore"
+		for(const auto & [res, range] : prize.resources)
+			gives.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+	}
+	else if(prize.resources.size() > 1 && prize.mostResourceKinds == 1 && sameAmounts)
 	{
 		// one roll gives one kind of several (a windmill): the amount, then which kinds it may be
 		Range amount;
@@ -507,10 +513,37 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveO
 		}
 		else
 		{
-			std::vector<std::string> classes;
-			for(const auto & artifactClass : prize.artifactClasses)
-				classes.push_back(artifactClassWord(artifactClass));
-			gives.push_back("an artifact (" + joinWords(classes, "or") + " class)");
+			// named by what the pool holds, the class only for ordinary artifacts (K, October 14th: "war machines are not artifacts"; the Siege
+			// Workshop printed "an artifact (special class)" and the Treasure Pile "(treasure class)")
+			bool machines = false;
+			bool scrolls = false;
+			std::set<EArtifactClass> classes;
+			for(const auto & artifact : prize.artifacts)
+			{
+				const auto * art = artifact.toArtifact();
+				if(!art)
+					continue;
+				if(art->getWarMachine().hasValue())
+					machines = true;
+				else if(art->isScroll())
+					scrolls = true;
+				else
+					classes.insert(art->aClass);
+			}
+			if(machines)
+				gives.push_back("a war machine");
+			if(scrolls)
+				gives.push_back("a spell scroll");
+			std::vector<std::string> kinds;
+			for(const auto & artifactClass : classes)
+				if(artifactClass != EArtifactClass::ART_RELIC && artifactClass != EArtifactClass::ART_SPECIAL)
+					kinds.push_back(artifactClassWord(artifactClass));
+			if(!kinds.empty())
+				gives.push_back("a " + joinWords(kinds, "or") + " artifact");
+			else if(classes.count(EArtifactClass::ART_SPECIAL))
+				gives.push_back("an artifact");
+			if(classes.count(EArtifactClass::ART_RELIC))
+				gives.push_back("a relic");
 		}
 	}
 	if(!prize.spells.empty() && !leaveOutSpells)
@@ -571,11 +604,17 @@ bool limiterWords(const Rewardable::Limiter & limiter, std::vector<std::string> 
 	return true;
 }
 
-std::string costText(const PrizeSummary & prize)
+/// the costs of a prize; a cost the object's own description already states (the School of Magic's "1000 gold") is left out, so the price is said once
+std::string costText(const PrizeSummary & prize, const std::string & description)
 {
+	const std::string lowered = boost::to_lower_copy(description);
 	std::vector<std::string> costs;
 	for(const auto & [res, range] : prize.costs)
-		costs.push_back(range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]));
+	{
+		const std::string cost = range.text() + " " + boost::to_lower_copy(LIBRARY->generaltexth->restypes[res]);
+		if(lowered.find(cost) == std::string::npos)
+			costs.push_back(cost);
+	}
 	return joinWords(costs);
 }
 
@@ -696,7 +735,7 @@ std::string CRewardableObject::getBuildingInfoText(PlayerColor player, const CGH
 					break;
 				}
 		}
-		const std::string costs = costText(prize);
+		const std::string costs = costText(prize, getDescriptionMessage(player, hero));
 		if(!costs.empty())
 			text += "\nCosts: " + costs;
 	}

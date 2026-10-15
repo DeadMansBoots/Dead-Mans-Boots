@@ -434,6 +434,8 @@ void CVCMIServer::handleReceivedPack(std::shared_ptr<GameConnection> connection,
 				lastGuiAction = std::make_shared<LobbyGuiAction>(*gui);
 				if(gui->action == LobbyGuiAction::OPEN_GENERATOR && !gui->state.empty())
 					lastGeneratorAction = lastGuiAction;
+				else if(gui->action == LobbyGuiAction::OPEN_RANDOM_MAP_OPTIONS)
+					lastGeneratorAction.reset(); // the host is on VCMI's own random map page: a late guest must not be told it is on a generator's
 			}
 			announcePack(pack);
 		}

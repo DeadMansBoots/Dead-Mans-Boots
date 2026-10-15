@@ -664,7 +664,10 @@ void CGameState::placeStartingHeroes(vstd::RNG & randomGenerator)
 		}
 		const auto & pool = sameFaction.empty() ? otherFaction : sameFaction;
 		if(pool.empty())
+		{
+			logGlobal->warn("Player %s picked %s, which the map holds as a prisoner, and no unused hero is left to take the prisoner's place: the pick is lost", playerSettingPair.first.toString(), picked.toHeroType()->getJsonKey());
 			continue;
+		}
 		const HeroTypeID replacement = *RandomGeneratorUtil::nextItem(pool, randomGenerator);
 		logGlobal->info("Player %s picked %s, which the map holds as a prisoner: the prisoner becomes %s", playerSettingPair.first.toString(), picked.toHeroType()->getJsonKey(), replacement.toHeroType()->getJsonKey());
 		holder->setHeroType(replacement);

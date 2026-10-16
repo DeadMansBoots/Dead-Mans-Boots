@@ -12,11 +12,15 @@
 #include "mainwindow_moc.h"
 #include "prepare.h"
 #include "bugreport.h"
+#include "helper.h"
+#include "theme.h"
 
 #include "../lib/VCMIDirs.h"
 #include "../lib/CConfigHandler.h"
+#include "../lib/filesystem/Filesystem.h"
 
 #include <QApplication>
+#include <QDir>
 #include <QFile>
 #include <QNetworkProxy>
 #include <QNetworkProxyFactory>
@@ -100,6 +104,19 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	const int crashWindow = vcmilauncher.arguments().indexOf("--crash-window");
 	if(crashWindow >= 0 && crashWindow + 1 < vcmilauncher.arguments().size())
 	{
+		// DMB (October 15th): the window wears the launcher's look (frame, gold buttons, lettering), which is read from the player's game files: the file system
+		// is loaded as the main window loads it. Whatever goes wrong here, the window still opens in the platform's own look: a crash report must not depend on it
+		try
+		{
+			QDir::setCurrent(QApplication::applicationDirPath());
+			CResourceHandler::initialize();
+			CResourceHandler::load("config/filesystem.json");
+			Helper::loadSettings();
+			LauncherTheme::apply();
+		}
+		catch(const std::exception &)
+		{
+		}
 		BugReport::runCrashWindow(vcmilauncher.arguments().at(crashWindow + 1));
 		return 0;
 	}

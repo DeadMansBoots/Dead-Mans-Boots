@@ -553,7 +553,7 @@ void runCrashWindow(const QString & dumpPath)
 	auto * layout = new QVBoxLayout(&dialog);
 	auto * what = new QLabel(QObject::tr("<b>Dead Man's Boots has crashed.</b> Sorry about that."));
 	auto * detail = new QLabel;
-	auto * sends = new QLabel(QObject::tr("Send report sends the crash file (a small snapshot of what the game was doing), the game's logs and its settings. Your Windows user name and computer name are removed first. Nothing else leaves your computer."));
+	auto * sends = new QLabel(QObject::tr("The report holds the crash file (a small snapshot of what the game was doing), the game's logs and its settings. Your Windows user name and computer name are removed first, and nothing else leaves your computer."));
 	auto * stays = new QLabel(QObject::tr("The crash file stays on your computer: %1").arg(QDir::toNativeSeparators(dumpPath)));
 	for(QLabel * label : {detail, sends, stays})
 		label->setWordWrap(true);

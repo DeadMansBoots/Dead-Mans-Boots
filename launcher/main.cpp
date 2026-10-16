@@ -21,6 +21,10 @@
 
 #include <QApplication>
 #include <QDir>
+#include <chrono>
+#include <future>
+#include <memory>
+#include <thread>
 #include <QFile>
 #include <QNetworkProxy>
 #include <QNetworkProxyFactory>
@@ -46,6 +50,41 @@ char ** argvForClient;
 #else
 # define MAIN_EXPORT
 #endif // VCMI_ANDROID
+
+namespace
+{
+bool loadLauncherFilesPlain()
+{
+	try
+	{
+		CResourceHandler::initialize();
+		CResourceHandler::load("config/filesystem.json");
+		Helper::loadSettings();
+		return true;
+	}
+	catch(const std::exception &)
+	{
+		return false;
+	}
+}
+
+/// the player's game files read for the crash window's look; false when anything goes wrong, an access violation included (DMB, Reviewer pass 96)
+bool loadLauncherFilesGuarded()
+{
+#ifdef _MSC_VER
+	__try
+	{
+		return loadLauncherFilesPlain();
+	}
+	__except(EXCEPTION_EXECUTE_HANDLER)
+	{
+		return false;
+	}
+#else
+	return loadLauncherFilesPlain();
+#endif
+}
+}
 
 int MAIN_EXPORT main(int argc, char * argv[])
 {
@@ -104,18 +143,22 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	const int crashWindow = vcmilauncher.arguments().indexOf("--crash-window");
 	if(crashWindow >= 0 && crashWindow + 1 < vcmilauncher.arguments().size())
 	{
-		// DMB (October 15th): the window wears the launcher's look (frame, gold buttons, lettering), which is read from the player's game files: the file system
-		// is loaded as the main window loads it. Whatever goes wrong here, the window still opens in the platform's own look: a crash report must not depend on it
-		try
+		// DMB (October 15th): the window wears the launcher's look (frame, gold buttons, lettering), which is read from the player's game files. A crash that came
+		// from a broken mod or file must not take this window down too (Reviewer pass 96: a C++ catch does not stop an access violation), so the files are read on a
+		// worker thread that is guarded against access violations, and waited for for a few seconds: a hang or a fault there leaves the window in the platform's own look
+		QDir::setCurrent(QApplication::applicationDirPath());
+		auto loaded = std::make_shared<std::promise<bool>>();
+		std::future<bool> loadedResult = loaded->get_future();
+		std::thread([loaded]() { loaded->set_value(loadLauncherFilesGuarded()); }).detach();
+		if(loadedResult.wait_for(std::chrono::seconds(6)) == std::future_status::ready && loadedResult.get())
 		{
-			QDir::setCurrent(QApplication::applicationDirPath());
-			CResourceHandler::initialize();
-			CResourceHandler::load("config/filesystem.json");
-			Helper::loadSettings();
-			LauncherTheme::apply();
-		}
-		catch(const std::exception &)
-		{
+			try
+			{
+				LauncherTheme::apply();
+			}
+			catch(const std::exception &)
+			{
+			}
 		}
 		BugReport::runCrashWindow(vcmilauncher.arguments().at(crashWindow + 1));
 		return 0;

@@ -1776,7 +1776,7 @@ void CObjectListWindow::init(std::shared_ptr<CIntObject> titleWidget_, std::stri
 	// ...)` for the list itself and `Rect(262, ...)` for the slider within it), overlapping a box
 	// that only cleared the window's own edges: the first found run still clipped under the
 	// scrollbar (K, same day, second look). 270 clears the slider with a couple of pixels to spare.
-	descr = std::make_shared<CMultiLineLabel>(Rect(20, 106, std::min(pos.w - 40, 270 - 20), 44), FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, _descr);
+	descr = std::make_shared<CMultiLineLabel>(Rect(20, 111, std::min(pos.w - 40, 270 - 20), 44), FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, _descr);
 	exit = std::make_shared<CButton>( Point(228, 402), AnimationPath::builtin(blue ? "MuBcanc" : "ICANCEL.DEF"), CButton::tooltip(), std::bind(&CObjectListWindow::exitPressed, this), EShortcut::GLOBAL_CANCEL);
 
 	if(titleWidget)

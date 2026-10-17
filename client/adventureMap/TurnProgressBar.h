@@ -13,6 +13,7 @@
 class CLabel;
 class FilledTexturePlayerColored;
 class TransparentFilledRectangle;
+class SimpleLine;
 
 /// DMB (K, October 16th and 17th): a bar at the top left of the adventure map showing how much of the player's turn is done, in the player's colour over the game's
 /// own marble texture. Display only: it reads the game state the client already holds and changes no rule, timer or AI. Measured against a snapshot taken when the
@@ -44,8 +45,9 @@ class TurnProgressBar : public CIntObject
 	Point barSize;
 
 	std::shared_ptr<FilledTexturePlayerColored> background;
-	std::shared_ptr<TransparentFilledRectangle> fill;
-	std::shared_ptr<TransparentFilledRectangle> frame;
+	std::shared_ptr<TransparentFilledRectangle> shade;
+	std::shared_ptr<FilledTexturePlayerColored> fill;
+	std::vector<std::shared_ptr<SimpleLine>> bevel;
 	std::shared_ptr<CLabel> label;
 
 	int compute() const;

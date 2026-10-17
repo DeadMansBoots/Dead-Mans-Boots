@@ -38,7 +38,7 @@ TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
 	// the game's own marble (the player coloured box texture the other panels use), harvested at run time from the player's files
 	background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, barSize.x, barSize.y));
 	background->setPlayerColor(player);
-	frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, barSize.x, barSize.y), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
+	shade = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, barSize.x, barSize.y), ColorRGBA(0, 0, 0, 170)); // the empty part: the same marble, darkened
 	refresh();
 }
 
@@ -211,10 +211,24 @@ void TurnProgressBar::refresh()
 {
 	OBJECT_CONSTRUCTION;
 	fill.reset();
+	bevel.clear();
 	label.reset();
+	background->setPlayerColor(player);
 	const int width = ((barSize.x - 4) * percent) / 100;
 	if(width > 0)
-		fill = std::make_shared<TransparentFilledRectangle>(Rect(2, 2, width, barSize.y - 4), graphics->playerColors[player.getNum()]);
+	{
+		// the marble, tinted with the player's colour, over the darkened marble; it keeps its own origin so it grows like a reveal
+		fill = std::make_shared<FilledTexturePlayerColored>(Rect(2, 2, width, barSize.y - 4));
+		fill->setPlayerColor(player);
+	}
+	// a bevelled frame: gold light on the top and left, dark brown on the bottom and right
+	const ColorRGBA light(240, 205, 110, 255), dark(60, 40, 10, 255);
+	bevel.push_back(std::make_shared<SimpleLine>(Point(0, 0), Point(barSize.x - 1, 0), light));
+	bevel.push_back(std::make_shared<SimpleLine>(Point(0, 0), Point(0, barSize.y - 1), light));
+	bevel.push_back(std::make_shared<SimpleLine>(Point(0, barSize.y - 1), Point(barSize.x - 1, barSize.y - 1), dark));
+	bevel.push_back(std::make_shared<SimpleLine>(Point(barSize.x - 1, 0), Point(barSize.x - 1, barSize.y - 1), dark));
+	bevel.push_back(std::make_shared<SimpleLine>(Point(1, 1), Point(barSize.x - 2, 1), dark));
+	bevel.push_back(std::make_shared<SimpleLine>(Point(1, 1), Point(1, barSize.y - 2), dark));
 	label = std::make_shared<CLabel>(barSize.x / 2, barSize.y / 2, FONT_TINY, ETextAlignment::CENTER, Colors::WHITE, std::to_string(percent) + "%");
 	redraw();
 }
@@ -226,9 +240,6 @@ void TurnProgressBar::tick(uint32_t msPassed)
 		return;
 	sinceUpdate = 0;
 	const int now = compute();
-	if(now != percent)
-	{
-		percent = now;
-		refresh();
-	}
+	percent = now;
+	refresh(); // redrawn every time: the bar is there from the first frame of the turn, whatever closed the window that covered it
 }

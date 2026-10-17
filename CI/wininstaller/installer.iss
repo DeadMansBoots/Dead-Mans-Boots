@@ -133,7 +133,7 @@ PrivilegesRequiredOverridesAllowed=commandline dialog
 ShowLanguageDialog=yes
 DisableWelcomePage=no
 DisableProgramGroupPage=yes
-ChangesAssociations=no
+ChangesAssociations=yes
 UsePreviousLanguage=yes
 DirExistsWarning=no
 UsePreviousAppDir=yes
@@ -203,13 +203,28 @@ Name: "{code:GetUserDesktopFolder}\Dead Man's Boots{code:GetBranchSuffix}"; File
 [Tasks]
 Name: "desktop"; Description: "{cm:CreateDesktopShortcuts}"; GroupDescription: "{cm:SystemIntegration}"; Check: not IsPRInstaller
 Name: "startmenu"; Description: "{cm:CreateStartMenuShortcuts}"; GroupDescription: "{cm:SystemIntegration}"; Check: not IsPRInstaller
-; DMB: no file associations; .h3m, .vmap and .vcmp stay with whatever the player already uses
+; stock's two association tasks (.h3m unchecked, .vmap and .vcmp checked), as VCMI's own installer offers them
+Name: "fileassociation_h3m"; Description: "{cm:AssociateH3MFiles}"; GroupDescription: "{cm:SystemIntegration}"; Flags: unchecked; Check: not IsPRInstaller
+Name: "fileassociation_vcmimap"; Description: "{cm:AssociateVCMIMapFiles}"; GroupDescription: "{cm:SystemIntegration}"; Check: not IsPRInstaller
 
 Name: "firewallrules"; Description: "{cm:AddFirewallRules}"; GroupDescription: "{cm:VCMISettings}"; Check: not IsPRInstaller and IsAdminInstallMode
 Name: "h3copyfiles"; Description: "{cm:CopyH3Files}"; GroupDescription: "{cm:VCMISettings}"; Check: not IsPRInstaller and IsHeroes3Installed and IsCopyFilesNeeded
 
 [Registry]
 Root: HKCU; Subkey: "Software\{#DMBName}"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+
+; stock's association entries, under DMB's own ProgIDs (DMB.vmap, DMB.vcmp, DMB.h3m) so removing them never touches VCMI's
+Root: HKCU; Subkey: "Software\Classes\.vmap"; ValueType: string; ValueName: ""; ValueData: "DMB.vmap"; Flags: uninsdeletevalue; Tasks: fileassociation_vcmimap
+Root: HKCU; Subkey: "Software\Classes\DMB.vmap"; ValueType: string; ValueName: ""; ValueData: "{cm:VMAPDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_vcmimap
+Root: HKCU; Subkey: "Software\Classes\DMB.vmap\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_vcmimap
+
+Root: HKCU; Subkey: "Software\Classes\.vcmp"; ValueType: string; ValueName: ""; ValueData: "DMB.vcmp"; Flags: uninsdeletevalue; Tasks: fileassociation_vcmimap
+Root: HKCU; Subkey: "Software\Classes\DMB.vcmp"; ValueType: string; ValueName: ""; ValueData: "{cm:VCMPDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_vcmimap
+Root: HKCU; Subkey: "Software\Classes\DMB.vcmp\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_vcmimap
+
+Root: HKCU; Subkey: "Software\Classes\.h3m"; ValueType: string; ValueName: ""; ValueData: "DMB.h3m"; Flags: uninsdeletevalue; Tasks: fileassociation_h3m
+Root: HKCU; Subkey: "Software\Classes\DMB.h3m"; ValueType: string; ValueName: ""; ValueData: "{cm:H3MDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_h3m
+Root: HKCU; Subkey: "Software\Classes\DMB.h3m\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_h3m
 
 
 

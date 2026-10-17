@@ -86,7 +86,7 @@
 				},
 				"loadingScreen" : {
 					"type" : "string",
-					"default" : "random"
+					"default" : "default"
 				},
 				"language" : {
 					"type" : "string",

@@ -695,7 +695,13 @@ std::string CRewardableObject::getBuildingInfoText(PlayerColor player, const CGH
 				kind = "It renews every " + std::to_string(configuration.resetParameters.period) + (configuration.resetParameters.period == 1 ? " day." : " days.");
 			break;
 	}
-	if(prize.removesObject)
+	// the object's OWN rewards say whether taking one removes it: a map-placed Pandora's Box has no type table (summarizeTypeTable knows nothing about it) but
+	// CGPandoraBox::init() marks every reward as removing the object, and the generated text used to read "It can be used again and again." there
+	bool removesItself = prize.removesObject;
+	for(const auto & info : configuration.info)
+		if(info.visitType == Rewardable::EEventType::EVENT_FIRST_VISIT && info.reward.removeObject)
+			removesItself = true;
+	if(removesItself)
 		kind = "It disappears once taken.";
 	std::string text = "\n\n" + std::string(guarded ? "Guarded: win the fight to claim it. " : "") + kind;
 

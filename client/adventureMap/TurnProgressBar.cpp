@@ -62,7 +62,7 @@ void TurnProgressBar::startTurn(PlayerColor newPlayer)
 		start.mana = hero->mana;
 		if(hero->hasSpellbook())
 		{
-			for(const SpellID & id : hero->spells)
+			for(const SpellID & id : hero->getSpellsInSpellbook())
 			{
 				const auto * spell = id.toSpell();
 				if(spell && spell->isAdventure() && hero->getSpellCost(spell) <= hero->mana)

@@ -815,6 +815,7 @@
 				"updateOnStartup",
 				"keepRunning",
 				"sendCrashReports",
+				"crashReportsAsked",
 				"updateConfigUrl",
 				"trackClipboardState",
 				"dmbHomepage",
@@ -888,9 +889,15 @@
 					"default" : true
 				},
 				"sendCrashReports" : {
-					// DMB (K, October 10th): when the game crashes the launcher sends a report to the developers by itself; on in the early beta, off here
+					// DMB (K, October 10th; October 17th: off until the player says yes, as stock sends nothing): when the game crashes the launcher sends a
+					// report to the developers by itself
 					"type" : "boolean",
-					"default" : true
+					"default" : false
+				},
+				"crashReportsAsked" : {
+					// DMB (K, October 17th): the launcher asks once whether to send crash reports by itself; this is set when that question has been answered
+					"type" : "boolean",
+					"default" : false
 				},
 				"keepRunning" : {
 					// DMB (K, October 6th): the launcher stays open when the game starts; off is how it always was (it closes)

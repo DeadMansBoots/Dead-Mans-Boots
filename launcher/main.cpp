@@ -112,7 +112,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	// see crashes you should")
 	if(vcmilauncher.arguments().contains("--report-crash"))
 	{
-		// Settings, General, "Send crash reports to the developers automatically" (launcher.sendCrashReports, on in the early beta)
+		// Settings, General, "Send crash reports to the developers automatically" (launcher.sendCrashReports, off until the player says yes)
 		if(!BugReport::crashReportsEnabled())
 			return 0;
 		const BugReport::Report report = BugReport::build("the game crashed (sent by itself)");

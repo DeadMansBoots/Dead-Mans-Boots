@@ -153,6 +153,30 @@ MainWindow::MainWindow(QWidget * parent)
 	if(settings["launcher"]["updateOnStartup"].Bool())
 		UpdateDialog::showUpdateDialog(false);
 
+	// DMB (K, October 17th): automatic crash reports are off until the player says yes; this asks once (a first install, or a start that finds no stored answer)
+	if(!settings["launcher"]["crashReportsAsked"].Bool())
+	{
+		QTimer::singleShot(0, this, [this]()
+		{
+			QMessageBox box(QMessageBox::Question, tr("Send crash reports?"),
+				tr("If Dead Man's Boots crashes, it can send the developers a report so the crash can be fixed.\n\n"
+				   "The report holds the game's log files and details about the crash. Your Windows user name and your computer name are removed from it. "
+				   "Nothing is sent unless you answer Yes.\n\n"
+				   "You can change this at any time in Settings, General.\n\n"
+				   "Send crash reports automatically?"),
+				QMessageBox::Yes | QMessageBox::No, this);
+			box.setDefaultButton(QMessageBox::No);
+			const bool yes = box.exec() == QMessageBox::Yes;
+			Settings answer = settings.write["launcher"]["sendCrashReports"];
+			answer->Bool() = yes;
+			Settings asked = settings.write["launcher"]["crashReportsAsked"];
+			asked->Bool() = true;
+			// the Settings page was built before the answer: its switch shows it
+			if(auto * crashButton = ui->settingsView->findChild<QToolButton *>("buttonSendCrashReports"))
+				crashButton->setChecked(yes);
+		});
+	}
+
 	// DMB: says so when this start moved an earlier DMB's user folder to its current name, or could
 	// not; says nothing when there was nothing to move (VCMIDirs.h)
 	const auto & dirs = VCMIDirs::get();

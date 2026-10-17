@@ -499,7 +499,7 @@ bool send(const Report & report, QString & message)
 
 bool crashReportsEnabled()
 {
-	return launcherSettings()["sendCrashReports"].toBool(true);
+	return launcherSettings()["sendCrashReports"].toBool(false);
 }
 
 void run(QWidget * parent, const QString & why)

@@ -372,6 +372,34 @@ QImage wordlessBar(const QImage & frame, int height = BAR_HEIGHT)
 	return bar.scaledToHeight(height, Qt::SmoothTransformation);
 }
 
+/// `base` (the one line bar) drawn `height` high with its scrollwork ends and brushed middle at the SAME size: the four pixel borders top and bottom kept, and the rows
+/// between them mirrored over and over, centred on the bar's middle, so the carved ornaments of a tall button are the ornaments of a short one and sit at the
+/// same place from the button's middle (K, October 16th: "this side garnish ... is visually out of sync with the rest just because the button is smaller
+/// vertically"; the tall bar used to be the game's frame scaled up to 52 px, its ornaments nearly twice the size of the one line bar's)
+QImage tallBar(const QImage & base, int height)
+{
+	constexpr int border = 4;
+	const int inner = base.height() - 2 * border;
+	if(base.isNull() || inner < 2 || height <= base.height())
+		return base;
+	QImage out(base.width(), height, QImage::Format_ARGB32);
+	out.fill(Qt::transparent);
+	QPainter painter(&out);
+	painter.drawImage(0, 0, base, 0, 0, base.width(), border);
+	painter.drawImage(0, height - border, base, 0, base.height() - border, base.width(), border);
+	const int rows = height - 2 * border;
+	const int shift = ((inner / 2 - rows / 2) % (2 * inner) + 2 * inner) % (2 * inner);
+	for(int i = 0; i < rows; ++i)
+	{
+		int row = (i + shift) % (2 * inner);
+		if(row >= inner)
+			row = 2 * inner - 1 - row;
+		painter.drawImage(0, border + i, base, 0, border + row, base.width(), 1);
+	}
+	painter.end();
+	return out;
+}
+
 /// Heroes III's blue marbled choice button, the Random Map Setup's (RANWEAK), without its words as
 /// DMB's RanButton pieces are: the 6-pixel ends and its two word-free middles, 6-14 and 70-76
 QImage wordlessChoice(const QImage & frame)
@@ -940,9 +968,11 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 	};
 	const auto bars = [&](int height, const std::string & size) -> Bars
 	{
-		QImage normal = wordlessBar(readH3DefFrame(bytes, data.second, 0), height);
-		QImage pressed = wordlessBar(readH3DefFrame(bytes, data.second, 1), height);
-		QImage lit = wordlessBar(readH3DefFrame(bytes, data.second, 3), height);
+		// every height has the one line bar's ornaments (tallBar), not the game's frame scaled up
+		const auto bar = [&](int frame) { return tallBar(wordlessBar(readH3DefFrame(bytes, data.second, frame), BAR_HEIGHT), height); };
+		QImage normal = bar(0);
+		QImage pressed = bar(1);
+		QImage lit = bar(3);
 		if(normal.isNull() || pressed.isNull() || lit.isNull())
 			return {};
 		if(primary != "default")

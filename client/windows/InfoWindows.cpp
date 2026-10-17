@@ -144,6 +144,13 @@ void CInfoWindow::close()
 
 	if(GAME->interface())
 		GAME->interface()->showingDialog->setFree();
+
+	if(onClose)
+	{
+		auto handler = std::move(onClose);
+		onClose = nullptr;
+		handler();
+	}
 }
 
 void CInfoWindow::showAll(Canvas & to)

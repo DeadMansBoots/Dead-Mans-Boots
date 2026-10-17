@@ -363,10 +363,9 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 		adventureInt->onPlayerTurnStarted(playerID);
 	}
 
-	// DMB: the turn query is answered before the no-town warning waits for a click: while it is open the server keeps this player's timer stopped
-	// (TimerPauseQuery), so a player away from the keyboard with no town held up a simultaneous turns game
-	if (queryID.hasValue())
-		cb->selectionMade(0, queryID);
+	// stock's order: the turn query is answered when the no-town warning has been closed, so the server keeps this player's timer stopped while it is open
+	// (TimerPauseQuery). Beta 13 answered it first (an away player with no town held up a simultaneous turns game): that was a change of stock, undone
+	bool queryAnsweredByWarning = false;
 
 	// warn player if he has no town
 	if (cb->howManyTowns() == 0)
@@ -394,19 +393,30 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 				text.replaceName(playerColor);
 			}
 
-			// DMB: shown without waiting for the click, and without marking the interface busy. acceptTurn runs on the client's network thread, and waiting
-			// here stopped every pack behind the dialog (October 15th, two clients: the host received none of about 100 TurnTimeUpdate packs while it was
-			// open, its on-screen timer stayed at 1:00 while the server ended its turn at 60 s). A busy flag would make the next hero move of another
-			// player wait for the click on the same thread (Reviewer pass 91); the window is modal on screen either way
+			// DMB: shown without waiting for the click on the network thread, and without marking the interface busy. acceptTurn runs on the client's network
+			// thread, and waiting here stopped every pack behind the dialog (October 15th, two clients: the host received none of about 100 TurnTimeUpdate packs
+			// while it was open, its on-screen timer stayed at 1:00 while the server ended its turn at 60 s). A busy flag would make the next hero move of another
+			// player wait for the click on the same thread (Reviewer pass 91). The turn query is answered when the window closes, as stock answers it after the wait
 			CInfoWindow::TCompsInfo warningComponents;
 			for(const auto & component : components)
 				warningComponents.push_back(std::make_shared<CComponent>(component));
-			CInfoWindow::showInfoDialog(text.toString(), warningComponents, playerColor);
+			auto warning = CInfoWindow::create(text.toString(), playerColor, warningComponents);
+			if(queryID.hasValue())
+			{
+				warning->onClose = [this, queryID]()
+				{
+					cb->selectionMade(0, queryID);
+				};
+				queryAnsweredByWarning = true;
+			}
+			ENGINE->windows().pushWindow(warning);
 		}
 		else
 			logGlobal->warn("Player has no towns, but daysWithoutCastle is not set");
 	}
 
+	if (queryID.hasValue() && !queryAnsweredByWarning)
+		cb->selectionMade(0, queryID);
 	movementController->onPlayerTurnStarted();
 }
 

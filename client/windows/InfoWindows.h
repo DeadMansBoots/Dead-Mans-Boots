@@ -49,6 +49,7 @@ public:
 	std::shared_ptr<CTextBox> text;
 	std::shared_ptr<CComponentBox> components;
 	std::vector<std::shared_ptr<CButton>> buttons;
+	std::function<void()> onClose; // DMB: run once when the window closes, whichever way (the turn query waits for the no-town warning's close, as in stock)
 
 	void close() override;
 	void showAll(Canvas & to) override;

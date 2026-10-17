@@ -1371,13 +1371,14 @@ public:
 	/// the heading and the box of a picture from `top` down; returns where the text below may start (`top` itself when there is no picture)
 	int placePicture(int top, const std::string & heading, int boxHeight, const std::string & imageName, const std::string & caption)
 	{
-		pictureTop = top + 22;
+		pictureTop = top + (heading.empty() ? 6 : 22);
 		pictureBoxHeight = boxHeight;
 		if(!placeImage(imageName, caption))
 			return top;
 		OBJECT_CONSTRUCTION;
-		pictureTitle = std::make_shared<CLabel>(area.w / 2, top + 10, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, heading);
-		return pictureTop + pictureBoxHeight + 4 + 28 + 6;
+		if(!heading.empty())
+			pictureTitle = std::make_shared<CLabel>(area.w / 2, top + 10, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, heading);
+		return pictureTop + pictureBoxHeight + 4 + 26 + 4;
 	}
 
 	/// the open layout ("None"): the module's gallery of generated examples, one after the other
@@ -1410,7 +1411,7 @@ public:
 		const JsonNode config = previewConfig(slug + ".json");
 		const std::string caption = config["caption"].isString() ? config["caption"].String() : std::string();
 		const bool wide = config["levels"].isNumber() && config["levels"].Integer() >= 2;
-		return placePicture(top, tabText("template.details.layout"), wide ? (area.w - 28) / 2 : 170, "mapgen/preview/" + slug, caption);
+		return placePicture(top, std::string(), wide ? (area.w - 28) / 2 : 150, "mapgen/preview/" + slug, caption);
 	}
 
 	void showGalleryFrame()
@@ -1609,7 +1610,7 @@ public:
 		OBJECT_CONSTRUCTION;
 		if(!infoFile["templates"].isStruct())
 			return; // a module without template-info.json has no panel
-		const int gap = 6, width = 310, height = 500;
+		const int gap = 6, width = 310, height = 560;
 		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values, names, moduleFolder);
 		panel->show(static_cast<int>(current));
 		// the panel follows the selection however it moved (a click, the arrow keys, a search narrowing the list)

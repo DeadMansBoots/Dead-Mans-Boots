@@ -1316,11 +1316,14 @@ EVictoryLossCheckResult CGameState::checkForVictoryAndLoss(const PlayerColor & p
 	{
 		if (event.trigger.test(evaluateEvent))
 		{
+			// DMB (K, October 17th: "do it how VCMI does it"): a JSON map whose event carries no text (a generator module's map writer wrote none, and the JSON
+			// reader drops a missing one) gets what CMapHeader::setupEvents gives an H3M map: genrltxt .659 to the winner and .5 to the others on victory, .7 to the
+			// loser and .8 to the others on defeat. A text the map does carry is used as written
 			if (event.effect.type == EventEffect::VICTORY)
-				return EVictoryLossCheckResult::victory(event.onFulfill, event.effect.toOtherMessage);
+				return EVictoryLossCheckResult::victory(event.onFulfill.empty() ? messageWonSelf : event.onFulfill, event.effect.toOtherMessage.empty() ? messageWonOther : event.effect.toOtherMessage);
 
 			if (event.effect.type == EventEffect::DEFEAT)
-				return EVictoryLossCheckResult::defeat(event.onFulfill, event.effect.toOtherMessage);
+				return EVictoryLossCheckResult::defeat(event.onFulfill.empty() ? messageLostSelf : event.onFulfill, event.effect.toOtherMessage.empty() ? messageLostOther : event.effect.toOtherMessage);
 		}
 	}
 

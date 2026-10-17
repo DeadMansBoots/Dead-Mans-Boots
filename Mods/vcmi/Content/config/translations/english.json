@@ -1045,6 +1045,8 @@
 	"vcmi.dmb.lobby.heroReset" : "the hero you picked is not available with these settings (banned by the template or taken), so it is back to random",
 	"vcmi.dmb.lobby.seatRemoved" : "this player slot no longer exists, so its town and hero choices are gone",
 	"vcmi.dmb.mapGenerator.template.details.specs" : "Original game specs",
+	"vcmi.dmb.mapGenerator.template.details.layout" : "Layout (one example map)",
+	"vcmi.dmb.mapGenerator.template.details.layoutOpen" : "Open layout (example maps)",
 	"vcmi.dmb.mapGenerator.template.details.humanStarts" : "Human start zones",
 	"vcmi.dmb.mapGenerator.template.details.computerStarts" : "Computer start zones",
 	"vcmi.dmb.mapGenerator.template.details.checked" : "Checked on",

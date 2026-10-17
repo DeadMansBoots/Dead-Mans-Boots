@@ -47,6 +47,7 @@
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/texts/MetaString.h"
 
+#include <cctype>
 #include <chrono>
 #include <fstream>
 #include <future>
@@ -1252,6 +1253,24 @@ class TemplateInfoPanel : public CIntObject
 	JsonNode info;
 	std::vector<std::string> values;
 	std::vector<std::string> names;
+	std::optional<boost::filesystem::path> module; // the generator module's folder: its Content/config/mapgen/preview holds the pictures' captions and the open layout's frames
+
+	/// the layout picture (and its heading and caption) under the facts; a gallery of the open layout cycles on a timer
+	std::shared_ptr<CLabel> pictureTitle;
+	std::shared_ptr<TransparentFilledRectangle> pictureFrame;
+	std::shared_ptr<CPicture> picture;
+	std::shared_ptr<CMultiLineLabel> pictureCaption;
+	struct GalleryFrame
+	{
+		std::string image;
+		std::string caption;
+		uint32_t milliseconds;
+	};
+	std::vector<GalleryFrame> gallery;
+	size_t galleryAt = 0;
+	uint32_t galleryElapsed = 0;
+	int pictureTop = 0;
+	int pictureBoxHeight = 0;
 
 	static std::string whole(const JsonNode & node)
 	{
@@ -1275,8 +1294,8 @@ class TemplateInfoPanel : public CIntObject
 	}
 
 public:
-	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues, std::vector<std::string> entryNames)
-		: CIntObject(0, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues)), names(std::move(entryNames))
+	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues, std::vector<std::string> entryNames, std::optional<boost::filesystem::path> moduleFolder)
+		: CIntObject(TIME, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues)), names(std::move(entryNames)), module(std::move(moduleFolder))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;
@@ -1286,6 +1305,136 @@ public:
 		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, area.w, area.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2);
 		title = std::make_shared<CLabel>(area.w / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
 		setBody(44, "");
+	}
+
+	/// the module's name for a template's picture: lower case letters and digits, apostrophes dropped, anything else one underscore ("Coldshadow's Fantasy" is coldshadows_fantasy)
+	static std::string pictureSlug(const std::string & name)
+	{
+		std::string slug;
+		for(const unsigned char c : name)
+		{
+			if(std::isalnum(c))
+				slug += static_cast<char>(std::tolower(c));
+			else if(c != '\'' && !slug.empty() && slug.back() != '_')
+				slug += '_';
+		}
+		while(!slug.empty() && slug.back() == '_')
+			slug.pop_back();
+		return slug;
+	}
+
+	JsonNode previewConfig(const std::string & file) const
+	{
+		if(!module)
+			return JsonNode();
+		std::ifstream in((*module / "Content" / "config" / "mapgen" / "preview" / file).c_str(), std::ios::binary);
+		if(!in)
+			return JsonNode();
+		const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+		return JsonNode(text.data(), text.size(), file);
+	}
+
+	void clearPicture()
+	{
+		pictureTitle.reset();
+		pictureFrame.reset();
+		picture.reset();
+		pictureCaption.reset();
+		gallery.clear();
+		galleryAt = 0;
+		galleryElapsed = 0;
+	}
+
+	/// the picture named `imageName` (a sprite of the module, no extension) scaled into the panel's width and `boxHeight` high, kept in its proportions and centred; false when the
+	/// module has no such picture
+	bool placeImage(const std::string & imageName, const std::string & caption)
+	{
+		const ImagePath path = ImagePath::builtin(imageName);
+		if(!CResourceHandler::get()->existsResource(ImagePath::builtin("SPRITES/" + imageName))) // the loader adds the sprites folder itself, the lookup does not
+			return false;
+		auto image = ENGINE->renderHandler().loadImage(path, EImageBlitMode::OPAQUE);
+		if(!image || image->width() <= 0 || image->height() <= 0)
+			return false;
+		OBJECT_CONSTRUCTION;
+		const int boxWidth = area.w - 28;
+		const double scale = std::min(static_cast<double>(boxWidth) / image->width(), static_cast<double>(pictureBoxHeight) / image->height());
+		const Point size(std::max(1, static_cast<int>(image->width() * scale + 0.5)), std::max(1, static_cast<int>(image->height() * scale + 0.5)));
+		const Point at((area.w - size.x) / 2, pictureTop + (pictureBoxHeight - size.y) / 2);
+		picture = std::make_shared<CPicture>(image, at);
+		picture->scaleTo(size);
+		pictureFrame = std::make_shared<TransparentFilledRectangle>(Rect(at.x - 1, at.y - 1, size.x + 2, size.y + 2), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
+		pictureCaption = std::make_shared<CMultiLineLabel>(Rect(14, pictureTop + pictureBoxHeight + 4, area.w - 28, 28), FONT_TINY, ETextAlignment::TOPCENTER, Colors::WHITE);
+		pictureCaption->setText(caption);
+		return true;
+	}
+
+	/// the heading and the box of a picture from `top` down; returns where the text below may start (`top` itself when there is no picture)
+	int placePicture(int top, const std::string & heading, int boxHeight, const std::string & imageName, const std::string & caption)
+	{
+		pictureTop = top + 22;
+		pictureBoxHeight = boxHeight;
+		if(!placeImage(imageName, caption))
+			return top;
+		OBJECT_CONSTRUCTION;
+		pictureTitle = std::make_shared<CLabel>(area.w / 2, top + 10, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, heading);
+		return pictureTop + pictureBoxHeight + 4 + 28 + 6;
+	}
+
+	/// the open layout ("None"): the module's gallery of generated examples, one after the other
+	int placeGallery(int top)
+	{
+		const JsonNode frames = previewConfig("frames.json");
+		if(!frames["frames"].isVector())
+			return top;
+		for(const auto & frame : frames["frames"].Vector())
+		{
+			if(!frame["path"].isString())
+				continue;
+			const double seconds = frame["seconds"].isNumber() ? frame["seconds"].Float() : 2.5;
+			gallery.push_back({frame["path"].String(), frame["caption"].isString() ? frame["caption"].String() : std::string(), static_cast<uint32_t>(std::max(0.5, seconds) * 1000)});
+		}
+		if(gallery.empty())
+			return top;
+		const int next = placePicture(top, tabText("template.details.layoutOpen"), (area.w - 28) / 2, gallery.front().image, gallery.front().caption);
+		if(next == top)
+			gallery.clear();
+		return next;
+	}
+
+	/// a template's own picture (the module's `preview` name in template-info.json when it gives one, else the slug of the template's name)
+	int placeTemplatePicture(int top, const std::string & name, const JsonNode & entry)
+	{
+		const std::string slug = entry["preview"].isString() ? entry["preview"].String() : pictureSlug(name);
+		if(slug.empty())
+			return top;
+		const JsonNode config = previewConfig(slug + ".json");
+		const std::string caption = config["caption"].isString() ? config["caption"].String() : std::string();
+		const bool wide = config["levels"].isNumber() && config["levels"].Integer() >= 2;
+		return placePicture(top, tabText("template.details.layout"), wide ? (area.w - 28) / 2 : 170, "mapgen/preview/" + slug, caption);
+	}
+
+	void showGalleryFrame()
+	{
+		if(gallery.empty())
+			return;
+		picture.reset();
+		pictureFrame.reset();
+		pictureCaption.reset();
+		placeImage(gallery[galleryAt].image, gallery[galleryAt].caption);
+	}
+
+public:
+	void tick(uint32_t msPassed) override
+	{
+		if(gallery.size() < 2)
+			return;
+		galleryElapsed += msPassed;
+		if(galleryElapsed < gallery[galleryAt].milliseconds)
+			return;
+		galleryElapsed = 0;
+		galleryAt = (galleryAt + 1) % gallery.size();
+		showGalleryFrame();
+		redraw();
 	}
 
 	int shown = -2;
@@ -1323,6 +1472,7 @@ public:
 			return;
 		shown = id;
 		setSpecs("");
+		clearPicture();
 		if(id < 0 || id >= static_cast<int>(values.size()))
 		{
 			title->setText("");
@@ -1360,7 +1510,7 @@ public:
 		{
 			// the entry in the list is cut to the list's width: the whole line is the first line here
 			title->setText(tabText("template.details.noneTitle"));
-			setBody(44, "{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
+			setBody(placeGallery(44), "{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
 			return;
 		}
 		if(value == RANDOM_TEMPLATE)
@@ -1442,7 +1592,7 @@ public:
 		if(entry["description"].isString())
 			text += entry["description"].String();
 		const int top = specsFrame ? specsFrame->pos.h + 46 + 10 : 44;
-		setBody(top, text);
+		setBody(placeTemplatePicture(top, value, entry), text);
 	}
 };
 
@@ -1452,7 +1602,7 @@ class TemplateListWindow : public CObjectListWindow
 	std::shared_ptr<TemplateInfoPanel> panel;
 
 public:
-	TemplateListWindow(const std::vector<std::string> & names, const std::vector<std::string> & values, const JsonNode & infoFile,
+	TemplateListWindow(const std::vector<std::string> & names, const std::vector<std::string> & values, const JsonNode & infoFile, const std::optional<boost::filesystem::path> & moduleFolder,
 		std::string heading, std::string description, std::function<void(int)> callback, size_t current)
 		: CObjectListWindow(names, nullptr, heading, description, callback, current, std::vector<std::shared_ptr<IImage>>(), true)
 	{
@@ -1460,7 +1610,7 @@ public:
 		if(!infoFile["templates"].isStruct())
 			return; // a module without template-info.json has no panel
 		const int gap = 6, width = 310, height = 500;
-		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values, names);
+		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values, names, moduleFolder);
 		panel->show(static_cast<int>(current));
 		// the panel follows the selection however it moved (a click, the arrow keys, a search narrowing the list)
 		onSelectionChanged = [this]() { panel->show(idAt(selected)); panel->redraw(); };
@@ -1508,7 +1658,8 @@ void MapGenTab::chooseTemplate()
 			current = i;
 	// the module's template-info.json beside its mod.json: what the panel beside the list shows
 	JsonNode details;
-	if(const auto folder = AddonCode::modFolder(generator.modID))
+	const auto moduleFolder = AddonCode::modFolder(generator.modID);
+	if(const auto folder = moduleFolder)
 	{
 		std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
 		if(in)
@@ -1517,7 +1668,7 @@ void MapGenTab::chooseTemplate()
 			details = JsonNode(text.data(), text.size(), "template-info.json");
 		}
 	}
-	ENGINE->windows().createAndPushWindow<TemplateListWindow>(names, values, details,
+	ENGINE->windows().createAndPushWindow<TemplateListWindow>(names, values, details, moduleFolder,
 		tabText("template.hover"),
 		tabText("template.choose"),
 		[this, values](int index)

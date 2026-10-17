@@ -540,7 +540,7 @@ void run(QWidget * parent, const QString & why)
 	issue.setQuery(query);
 	QDesktopServices::openUrl(issue);
 	QMessageBox::information(parent, QObject::tr("Report saved"),
-		QObject::tr("The report is saved here:\n%1\n\nIts folder is open, and so is a page on GitHub with the details filled in. Drag the zip file into that page's box and press Submit (this needs a GitHub account).%2")
+		QObject::tr("The report is saved here:\n%1\n\nIts folder is open, and so is a page on GitHub with the details filled in. Drag the zip file into that page's box and press the \"Submit New Issue\" button (this needs a GitHub account).%2")
 			.arg(report.zipPath, problem.isEmpty() ? QString() : QObject::tr("\n\n(The automatic upload did not work: %1)").arg(problem)));
 }
 
@@ -579,7 +579,7 @@ void runCrashWindow(const QString & dumpPath)
 	{
 		sendButton->setEnabled(false);
 		dont->setEnabled(false);
-		detail->setText(automatic ? QObject::tr("Sending a report by itself (Settings, General switches this off)...") : QObject::tr("Sending..."));
+		detail->setText(automatic ? QObject::tr("Sending a report by itself (the \"General\" button on the \"Settings\" tab switches this off)...") : QObject::tr("Sending..."));
 		detail->show();
 		QApplication::processEvents();
 		const Report report = build("the game crashed", {}, true);

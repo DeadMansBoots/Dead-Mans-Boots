@@ -1510,7 +1510,7 @@ void LegacyPicturesWorker::run()
 	if(own > 0)
 		message += QString(" %1 of the pictures are your own copies.").arg(own);
 	if(leftOut > 0)
-		message += QString(" The wiki could not be reached, so %1 pictures that you have no own copy of were left out; press Start again when it can be.").arg(leftOut);
+		message += QString(" The wiki could not be reached, so %1 pictures that you have no own copy of were left out; press the \"Start\" button again when it can be.").arg(leftOut);
 	emit finishedWith(true, message);
 }
 
@@ -1526,7 +1526,7 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 		"Real-ESRGAN (a small program of about 45 MB, fetched once, which needs a graphics card; without one the pictures are only "
 		"enlarged smoothly). Everything goes in your own Dead Man's Boots folder (%3). Nothing is installed apart from that, and it runs "
 		"only while this window is open. Your own copies of the pictures (800x600, named like the originals, for example Shadow of Death.png) "
-		"are used in place of the wiki's: press My own copies, or drop the files on this window.").arg(counts.first).arg(counts.second).arg(LegacyPicturesWorker::baseFolder()), this);
+		"are used in place of the wiki's: press the \"My Own Copies\" button, or drop the files on this window.").arg(counts.first).arg(counts.second).arg(LegacyPicturesWorker::baseFolder()), this);
 	plan->setWordWrap(true);
 	layout->addWidget(plan);
 	bar = new QProgressBar(this);
@@ -1536,7 +1536,7 @@ LegacyPicturesDialog::LegacyPicturesDialog(QWidget * parent)
 	bar->setFormat("%p%");
 	bar->setMinimumHeight(26);
 	layout->addWidget(bar);
-	step = new QLabel(tr("Ready. Press Start."), this);
+	step = new QLabel(tr("Ready. Press the \"Start\" button."), this);
 	step->setWordWrap(true);
 	QFont stepFont = step->font();
 	stepFont.setBold(true);

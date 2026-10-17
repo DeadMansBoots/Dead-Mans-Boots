@@ -147,7 +147,7 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	STARTUPINFOA startup = {};
 	startup.cb = sizeof(startup);
 	PROCESS_INFORMATION started = {};
-	// the Settings switch (launcher.sendCrashReports, on by default in the schema): with it off no report is built, and the message says nothing about one
+	// the Settings switch (launcher.sendCrashReports, off by default in the schema until the player says yes): with it off no report is built, and the message says nothing about one
 	// an automatic test (--testmap) or a headless client has nobody to read a box and nothing worth reporting: neither a report nor a window
 	if(settings["session"]["headless"].Bool() || !settings["session"]["testmap"].isNull())
 		return;

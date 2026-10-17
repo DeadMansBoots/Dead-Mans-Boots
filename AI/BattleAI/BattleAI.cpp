@@ -140,6 +140,10 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 
 	BattleAction result = BattleAction::makeDefend(stack);
 
+	// DMB STOPGAP, NOT A FIX: the cause of the refused-spell loop is not found. The AI asks the server's own applicability functions (CSpell::canBeCast,
+	// Mechanics::canBeCastAt), so the loop means the client's and the server's picture of some unit differ; the cause is on the queue. Diagnostics (DMBDIAG lines: the
+	// server's per-unit dump when it refuses a hero spell, the AI's dump when it repeats a cast) ran 28 games of the lane game's setup on October 17th and caught no refusal.
+	// The guard below only ends a turn that would otherwise never end.
 	// DMB: what the battle looks like now (every stack: id, hex, count, hit points of the top creature). A stack that is offered again while
 	// this is the same as at its last offer had nothing it did accepted: a refused spell cast is the known case (see the members in BattleAI.h)
 	uint64_t signature = 1469598103934665603ULL;

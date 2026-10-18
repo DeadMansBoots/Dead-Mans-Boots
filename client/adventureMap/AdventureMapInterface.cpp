@@ -17,6 +17,7 @@
 #include "CList.h"
 #include "CInfoBar.h"
 #include "MapAudioPlayer.h"
+#include "TurnProgressBar.h"
 #include "TurnTimerWidget.h"
 #include "AdventureMapWidget.h"
 #include "AdventureMapShortcuts.h"
@@ -74,6 +75,16 @@ AdventureMapInterface::AdventureMapInterface():
 
 	if(GAME->interface()->cb->getStartInfo()->turnTimerInfo.turnTimer != 0)
 		watches = std::make_shared<TurnTimerWidget>(Point(24, 24));
+
+	// DMB (K, October 16th and 17th): the turn progress bar of a game with more than one human player, top left of the map; below the turn timer when there is one
+	{
+		int humans = 0;
+		for(const auto & info : GAME->interface()->cb->getStartInfo()->playerInfos)
+			if(info.second.isControlledByHuman())
+				humans++;
+		if(humans > 1)
+			turnBar = std::make_shared<TurnProgressBar>(Point(24, watches ? 24 + watches->pos.h + 6 : 24), GAME->interface()->playerID);
+	}
 	
 	addUsedEvents(KEYBOARD | TIME);
 }
@@ -411,6 +422,9 @@ void AdventureMapInterface::onPlayerTurnStarted(PlayerColor playerID)
 
 	onCurrentPlayerChanged(playerID);
 
+	if(turnBar && playerID == GAME->interface()->playerID)
+		turnBar->startTurn(playerID);
+
 	setState(EAdventureState::MAKING_TURN);
 	if(playerID == GAME->interface()->playerID || settings["session"]["spectate"].Bool())
 	{
@@ -481,6 +495,8 @@ void AdventureMapInterface::hotkeyEndingTurn()
 	}
 
 	GAME->interface()->makingTurn = false;
+	if(turnBar)
+		turnBar->endTurn();
 	GAME->interface()->cb->endTurn();
 
 	mapAudio->onPlayerTurnEnded();

@@ -40,6 +40,7 @@ class CInfoBar;
 class CMinimap;
 class MapAudioPlayer;
 class TurnTimerWidget;
+class TurnProgressBar;
 enum class EAdventureState;
 
 struct MapDrawingInfo;
@@ -69,6 +70,7 @@ private:
 	std::shared_ptr<AdventureMapWidget> widget;
 	std::shared_ptr<AdventureMapShortcuts> shortcuts;
 	std::shared_ptr<TurnTimerWidget> watches;
+	std::shared_ptr<TurnProgressBar> turnBar; // DMB: how much of this player's turn is done (display only)
 
 private:
 	void setState(EAdventureState state);

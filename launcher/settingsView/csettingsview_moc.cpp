@@ -776,6 +776,9 @@ void CSettingsView::buildCategoryPages()
 				continue;
 			if(QWidget * widget = cell.item->widget())
 			{
+				// a row's label wraps where its column is short, instead of being cut by the button beside it
+				if(auto * label = qobject_cast<QLabel *>(widget); label && cell.column == 0 && widget != start->second)
+					label->setWordWrap(true);
 				// addWidget, which moves the widget onto the page as well (addItem would leave it where
 				// it was); one the code hid stays hidden
 				pageGrid->addWidget(widget, cell.row - first, cell.column, cell.rowSpan, cell.columnSpan, cell.item->alignment());
@@ -794,7 +797,9 @@ void CSettingsView::buildCategoryPages()
 		auto * scroll = new QScrollArea();
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
-		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// K, October 18th: a page wider than its window (a larger system text size, a narrow window) was cut at the right edge with
+		// nothing to show it; it scrolls sideways now, and only then
+		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		scroll->setWidget(page);
 		Helper::enableScrollBySwiping(scroll);
 		const int index = categoryPages->addWidget(scroll);

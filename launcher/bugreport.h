@@ -49,7 +49,7 @@ namespace BugReport
 	Report build(const QString & why, const QString & description = {}, bool includeDump = true);
 	bool send(const Report & report, QString & message);
 
-	/// Settings, General, "Send crash reports to the developers automatically" (launcher.sendCrashReports in settings.json, on when absent)
+	/// Settings, General, "Send crash reports to the developers automatically" (launcher.sendCrashReports in settings.json, off until the player has answered the launcher question, launcher.crashReportsAsked)
 	bool crashReportsEnabled();
 	/// the whole flow, with the questions and thanks a player sees; `parent` may be null
 	void run(QWidget * parent, const QString & why);

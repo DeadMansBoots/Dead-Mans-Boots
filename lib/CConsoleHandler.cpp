@@ -151,7 +151,8 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	// an automatic test (--testmap) or a headless client has nobody to read a box and nothing worth reporting: neither a report nor a window
 	if(settings["session"]["headless"].Bool() || !settings["session"]["testmap"].isNull())
 		return;
-	const bool allowed = settings["launcher"]["sendCrashReports"].Bool();
+	// a stored "true" counts only once the player has answered the launcher's question (crashReportsAsked): a file written by an earlier beta, whose default was on, stays off until then (K, October 18th)
+	const bool allowed = settings["launcher"]["sendCrashReports"].Bool() && settings["launcher"]["crashReportsAsked"].Bool();
 	const bool sending = allowed && CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &started);
 	if(sending)
 	{

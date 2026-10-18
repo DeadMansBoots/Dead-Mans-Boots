@@ -499,7 +499,8 @@ bool send(const Report & report, QString & message)
 
 bool crashReportsEnabled()
 {
-	return launcherSettings()["sendCrashReports"].toBool(false);
+	// a stored "true" counts only once the player has answered the launcher's question (crashReportsAsked): a file written by an earlier beta, whose default was on, stays off until then (K, October 18th)
+	return launcherSettings()["sendCrashReports"].toBool(false) && launcherSettings()["crashReportsAsked"].toBool(false);
 }
 
 void run(QWidget * parent, const QString & why)

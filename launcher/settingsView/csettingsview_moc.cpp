@@ -728,13 +728,16 @@ void CSettingsView::buildCategoryPages()
 		crashButton->setObjectName("buttonSendCrashReports");
 		crashButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
 		crashButton->setCheckable(true);
-		setCheckbuttonState(crashButton, settings["launcher"]["sendCrashReports"].Bool());
+		// shows what the game will do: a stored "true" the player never answered (an earlier beta's default) reads Off until the question is answered
+		setCheckbuttonState(crashButton, settings["launcher"]["sendCrashReports"].Bool() && settings["launcher"]["crashReportsAsked"].Bool());
 		cells.push_back({new QWidgetItem(crashLabel), row + 5, 0, 1, 1});
 		cells.push_back({new QWidgetItem(crashButton), row + 5, 1, 1, 5});
 		connect(crashButton, &QToolButton::toggled, this, [this, crashButton](bool value)
 		{
 			Settings node = settings.write["launcher"]["sendCrashReports"];
 			node->Bool() = value;
+			Settings asked = settings.write["launcher"]["crashReportsAsked"]; // pressing the switch is an answer: the launcher's question is not asked after it
+			asked->Bool() = true;
 			updateCheckbuttonText(crashButton);
 		});
 	}

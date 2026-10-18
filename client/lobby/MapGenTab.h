@@ -109,6 +109,11 @@ class MapGenTab : public InterfaceObjectConfigurable
 public:
 	explicit MapGenTab(const MapGeneratorInfo & generator);
 
+	/// DMB (K, October 18th: never lock the player out): the notice for a generator whose code DMB's mod catalog does not vouch for
+	/// (AddonCode::trustProblem gave problem). The check mark runs it anyway (onRun), the cross or Escape cancels (onCancel); each
+	/// of the two is called once. Main thread only.
+	static void askRunAnyway(const MapGeneratorInfo & generator, const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel);
+
 	const MapGeneratorInfo & getGenerator() const;
 	/// DMB (K, October 9th): the page of the tab shown now, and a way to show one (the guests' lobby follows the host's page); and who is told
 	/// when a page is shown

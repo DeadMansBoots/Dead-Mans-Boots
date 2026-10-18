@@ -24,6 +24,7 @@ public:
 	void start(bool campaign);
 	void startCampaign();
 	void startScenario(bool allowOnlyAI = false);
+	void startScenarioChecked(bool allowOnlyAI);
 	void toggleMode(bool host);
 	void toggleChat();
 

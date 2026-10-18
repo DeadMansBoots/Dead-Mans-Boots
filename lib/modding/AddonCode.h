@@ -12,7 +12,9 @@
 VCMI_LIB_NAMESPACE_BEGIN
 
 /// DMB: the code an addon mod brings (an AI plugin's "ai" folder, a map generator's "generator" folder)
-/// runs only when DMB's mod catalog vouches for it (K, September 26th). A catalog entry pins its mod's
+/// runs without a question only when DMB's mod catalog vouches for it (K, September 26th; October 18th: "we should never
+/// lock the user out": a mismatch is a notice the player answers, with Run it anyway always offered, never a refusal;
+/// the lobby asks before Begin and the answer is remembered for that exact code, runAnywayFile). A catalog entry pins its mod's
 /// code with "codeSha256", one hash or a list of them; the launcher saves the pins of the default
 /// catalog (the one DMB ships with), and the game checks the folder against them before it runs
 /// anything from it. A tester's PC may also hold builds approved there before the catalog lists them
@@ -46,7 +48,15 @@ namespace AddonCode
 	/// a tester a build before its release: <user config>/dmbTestedCode.json. The launcher never writes it.
 	DLL_LINKAGE boost::filesystem::path testedPinsFile();
 
-	/// Why the code in the folder, from the mod modID, may not run; empty when it may
+	/// What the player chose to run anyway, by mod and exact code hash, in the same form as the catalog's pins:
+	/// <user config>/dmbRunAnyway.json. The game writes it (rememberRunAnyway) when the player answers the notice.
+	DLL_LINKAGE boost::filesystem::path runAnywayFile();
+
+	/// Remembers the code now in the folder as one the player chose to run anyway (its exact hash, for the mod modID)
+	DLL_LINKAGE void rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder);
+
+	/// Why the code in the folder, from the mod modID, is not one the catalog vouches for; empty when it is (or the player
+	/// chose to run it anyway). A reason is for a notice with a choice, not a refusal.
 	DLL_LINKAGE std::string trustProblem(const std::string & modID, const boost::filesystem::path & folder);
 }
 

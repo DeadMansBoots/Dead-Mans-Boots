@@ -190,6 +190,47 @@ boost::filesystem::path AddonCode::testedPinsFile()
 	return VCMIDirs::get().userConfigPath() / "dmbTestedCode.json";
 }
 
+boost::filesystem::path AddonCode::runAnywayFile()
+{
+	return VCMIDirs::get().userConfigPath() / "dmbRunAnyway.json";
+}
+
+void AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder)
+{
+	const std::string hash = folderHash(folder);
+	if(hash.empty())
+		return;
+	JsonNode all;
+	{
+		std::ifstream in(runAnywayFile().c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			try
+			{
+				all = JsonNode(text.data(), text.size(), runAnywayFile().string());
+			}
+			catch(const std::exception &)
+			{
+				all = JsonNode(); // an unreadable file is started again
+			}
+		}
+	}
+	JsonVector & list = all[boost::to_lower_copy(modID)].Vector();
+	for(const auto & entry : list)
+		if(entry.isString() && boost::to_lower_copy(entry.String()) == hash)
+			return;
+	list.push_back(JsonNode(hash));
+	const boost::filesystem::path temporary = runAnywayFile().string() + ".tmp";
+	{
+		std::ofstream out(temporary.c_str(), std::ios::binary | std::ios::trunc);
+		out << all.toString();
+	}
+	boost::system::error_code ignored;
+	boost::filesystem::rename(temporary, runAnywayFile(), ignored);
+	logMod->info("Mod %s: the player chose to run its code anyway (%s), remembered in %s", modID, hash, runAnywayFile().string());
+}
+
 std::string AddonCode::trustProblem(const std::string & modID, const boost::filesystem::path & folder)
 {
 	if(settings["mods"]["allowUnlistedCode"].Bool())
@@ -224,14 +265,19 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 	const std::vector<std::string> accepted = hashesFor(catalog);
 	// builds a tester runs before the catalog lists them, each approved on this PC by its exact hash
 	const std::vector<std::string> tested = hashesFor(read(testedPinsFile()));
-	if(accepted.empty() && tested.empty())
+	// versions the player answered "Run it anyway" for (K, October 18th), by exact hash
+	const std::vector<std::string> remembered = hashesFor(read(runAnywayFile()));
+	// why the catalog does not vouch for the mod at all
+	const auto unlisted = [&catalog]() -> std::string
 	{
 		if(!catalog)
 			return "DMB's mod catalog has not been downloaded yet (the launcher downloads it)";
 		if(!catalog->isStruct())
 			return "DMB's mod catalog could not be read (the launcher downloads it again)";
 		return "it is not in DMB's mod catalog";
-	}
+	};
+	if(accepted.empty() && tested.empty() && remembered.empty())
+		return unlisted();
 
 	const std::string hash = folderHash(folder);
 	if(hash.empty())
@@ -243,10 +289,17 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 		logMod->info("Mod %s: its code is a build approved for testing on this PC (%s)", modID, testedPinsFile().string());
 		return {};
 	}
-	// the numbers are for the log, where a mod's author looks; the player is told what to do
+	if(vstd::contains(remembered, hash))
+	{
+		logMod->info("Mod %s: its code is a version the player chose to run anyway (%s)", modID, runAnywayFile().string());
+		return {};
+	}
+	if(accepted.empty() && tested.empty())
+		return unlisted();
+	// the numbers are for the log, where a mod's author looks; the player gets a notice with a choice
 	logMod->warn("Mod %s: its code in %s hashes to %s, and DMB's mod catalog pins %s", modID, folder.string(), hash,
 		boost::algorithm::join(accepted, ", "));
-	return "its files are not the ones DMB's mod catalog lists; reinstall it from the launcher";
+	return "its files are not the ones DMB's mod catalog lists";
 }
 
 VCMI_LIB_NAMESPACE_END

@@ -37,6 +37,7 @@
 #include "../../lib/mapping/CMapInfo.h"
 #include "../../lib/networkPacks/PacksForLobby.h"
 #include "../../lib/rmg/CMapGenOptions.h"
+#include "../../lib/modding/AddonCode.h"
 #include "../../lib/modding/MapGenerators.h"
 #include "../../lib/GameLibrary.h"
 
@@ -482,6 +483,32 @@ void CLobbyScreen::startCampaign()
 }
 
 void CLobbyScreen::startScenario(bool allowOnlyAI)
+{
+	// DMB (K, October 18th: "we should never lock the user out"): a map generator whose code DMB's mod catalog does not vouch for
+	// is a notice with a choice, asked here because the server that runs the generator at Begin has no window. Run it anyway is
+	// remembered for that exact code (AddonCode::rememberRunAnyway), and the server then accepts it.
+	if(GAME->server().si->mapGenOptions && !GAME->server().si->mapGenOptions->getExternalGenerator().empty())
+	{
+		for(const auto & found : MapGenerators::active())
+		{
+			if(found.modID != GAME->server().si->mapGenOptions->getExternalGenerator() || !found.problem.empty() || !found.atBegin)
+				continue;
+			const std::string problem = AddonCode::trustProblem(found.modID, found.codeFolder);
+			if(problem.empty())
+				break;
+			logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", found.name, found.modID, problem);
+			MapGenTab::askRunAnyway(found, problem, [this, allowOnlyAI, found]()
+			{
+				AddonCode::rememberRunAnyway(found.modID, found.codeFolder);
+				startScenarioChecked(allowOnlyAI);
+			}, []() {});
+			return;
+		}
+	}
+	startScenarioChecked(allowOnlyAI);
+}
+
+void CLobbyScreen::startScenarioChecked(bool allowOnlyAI)
 {
 	if (tabRand && GAME->server().si->mapGenOptions && GAME->server().si->mapGenOptions->getExternalGenerator().empty())
 	{

@@ -49,6 +49,7 @@
 
 #include <chrono>
 #include <fstream>
+#include <future>
 #include <random>
 #include <thread>
 
@@ -369,6 +370,18 @@ void MapGenTab::greyCustomSize()
 			apply(page->textInput("input_map.height"));
 		}
 	}
+}
+
+void MapGenTab::askRunAnyway(const MapGeneratorInfo & generator, const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel)
+{
+	MetaString text;
+	text.appendRawString(tabText("notice"));
+	text.replaceRawString(generator.name);
+	text.replaceRawString(problem);
+	auto answered = std::make_shared<bool>(false);
+	CInfoWindow::showYesNoDialog(text.toString(), {},
+		[answered, onRun]() { if(!*answered) { *answered = true; onRun(); } },
+		[answered, onCancel]() { if(!*answered) { *answered = true; onCancel(); } });
 }
 
 MapGenTab::MapGenTab(const MapGeneratorInfo & info)
@@ -1507,18 +1520,30 @@ void MapGenTab::generate()
 		};
 		const std::string title = "{" + tabText("generate.hover") + "}\n\n";
 
-		// DMB's mod catalog must vouch for the generator's code first. The check hashes the whole
-		// generator folder, so it runs here, off the game's main thread.
+		// DMB's mod catalog is asked first (K, October 18th: never a refusal). The check hashes the whole
+		// generator folder, so it runs here, off the game's main thread; a mismatch is a notice the player
+		// answers on the main thread (check mark: run it anyway and remember this version; cross: cancel),
+		// waited for here for ten minutes at most.
 		const std::string refused = AddonCode::trustProblem(gen.modID, gen.codeFolder);
 		if(!refused.empty())
 		{
-			logGlobal->warn("Map generator %s (mod %s) cannot run: %s", gen.name, gen.modID, refused);
-			MetaString text;
-			text.appendRawString(tabText("generate.refused"));
-			text.replaceRawString(gen.name);
-			text.replaceRawString(refused);
-			failWith(title + text.toString());
-			return;
+			logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", gen.name, gen.modID, refused);
+			auto answer = std::make_shared<std::promise<bool>>();
+			auto reply = answer->get_future();
+			ENGINE->dispatchMainThread([gen, refused, answer]()
+			{
+				MapGenTab::askRunAnyway(gen, refused, [answer]() { answer->set_value(true); }, [answer]() { answer->set_value(false); });
+			});
+			if(reply.wait_for(std::chrono::minutes(10)) != std::future_status::ready || !reply.get())
+			{
+				ENGINE->dispatchMainThread([flag, runningText]()
+				{
+					*flag = false;
+					ENGINE->statusbar()->clearIfMatching(runningText);
+				});
+				return;
+			}
+			AddonCode::rememberRunAnyway(gen.modID, gen.codeFolder);
 		}
 
 		logGlobal->info("Map generator %s (mod %s) running: %s -> %s", gen.name, gen.modID, gen.command.string(), outPath.string());

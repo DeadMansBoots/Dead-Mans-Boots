@@ -128,7 +128,8 @@
 // They all assume that interface mutex is locked.
 #define EVENT_HANDLER_CALLED_BY_CLIENT
 
-#define BATTLE_EVENT_POSSIBLE_RETURN	if (GAME->interface() != this) return; if (isAutoFightOn && !battleInt) return
+// DMB: also when there is no battle window at all (a headless run whose quick-combat AI plugin was refused has neither the AI nor a window), so a battle event never dereferences a null battleInt
+#define BATTLE_EVENT_POSSIBLE_RETURN	if (GAME->interface() != this) return; if (!battleInt) return
 
 std::shared_ptr<BattleInterface> CPlayerInterface::battleInt;
 
@@ -710,6 +711,7 @@ void CPlayerInterface::battleStart(const BattleID & battleID, const CCreatureSet
 
 	if ((replayAllowed && useQuickCombat) || forceQuickCombat)
 	{
+		// DMB: when the AI plugin is refused the player has been told, and the battle goes on by hand (the normal battle window follows once the notice is read)
 		prepareAutoFightingAI(battleID, army1, army2, tile, hero1, hero2, side);
 	}
 

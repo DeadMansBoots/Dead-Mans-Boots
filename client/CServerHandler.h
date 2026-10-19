@@ -220,6 +220,10 @@ public:
 	/// window to ask in (headless) is refused, never given a stock AI in its place. Only the host is asked: its start is the one the server takes,
 	/// and its client runs the AI players
 	bool aiPluginsAnswered(const std::function<void()> & then) const;
+	/// DMB: called when the player answers the cross to an AI plugin notice (the lobby unblocks Begin); the newest chain of notices, and whether the answer being run now is the check mark's (it is not asked again)
+	mutable std::function<void()> aiQuestionDeclined;
+	mutable uint64_t aiQuestionChain = 0;
+	mutable bool aiAnsweredNow = false;
 
 	void startMapAfterConnection(std::shared_ptr<CMapInfo> to);
 	bool validateGameStart(bool allowOnlyAI = false) const;

@@ -653,15 +653,11 @@ void BattleWindow::bAutofightf()
 	}
 	else if(!owner.curInt->autofightingAI)
 	{
-		owner.curInt->isAutoFightOn = true;
-		blockUI(true);
-
+		// DMB: prepareAutoFightingAI tells the player itself when the AI plugin is refused; then nothing changes here and the battle goes on by hand
+		// (it sets isAutoFightOn on success; the UI is blocked only then, so a refusal never unblocks a panel that was blocked for the enemy's turn)
 		if(!owner.curInt->prepareAutoFightingAI(owner.getBattleID(), owner.army1, owner.army2, int3(0,0,0), owner.attackingHeroInstance, owner.defendingHeroInstance, owner.getBattle()->battleGetMySide()))
-		{
-			owner.curInt->isAutoFightOn = false;
-			blockUI(false);
 			return;
-		}
+		blockUI(true);
 		owner.requestAutofightingAIToTakeAction();
 	}
 }

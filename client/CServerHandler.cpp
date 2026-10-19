@@ -631,8 +631,10 @@ static std::vector<AIPluginInfo> unansweredAIPlugins()
 }
 
 /// One notice each, in turn; the check mark runs it anyway and remembers that exact code, the cross ends the questions and nothing starts
-static void askAboutAIPlugins(std::vector<AIPluginInfo> list, size_t index, std::function<void()> proceed)
+static void askAboutAIPlugins(std::vector<AIPluginInfo> list, size_t index, std::function<void()> proceed, std::function<void()> cancel, std::function<bool()> stillCurrent)
 {
+	if(!stillCurrent()) // a newer start has been asked for, or the game it was for is gone
+		return;
 	if(index >= list.size())
 	{
 		proceed();
@@ -641,13 +643,20 @@ static void askAboutAIPlugins(std::vector<AIPluginInfo> list, size_t index, std:
 	const AIPluginInfo plugin = list[index];
 	logGlobal->warn("AI plugin %s (mod %s) is not one the catalog vouches for: %s; asking the player", plugin.name, plugin.modID, plugin.problem);
 	MapGenTab::askRunAnywayFor("vcmi.dmb.aiPlugin.notice", plugin.name, plugin.modID, plugin.path.parent_path(), plugin.problem,
-		[list = std::move(list), index, proceed]() mutable { askAboutAIPlugins(std::move(list), index + 1, proceed); }, []() {});
+		[list = std::move(list), index, proceed, cancel, stillCurrent]() mutable { askAboutAIPlugins(std::move(list), index + 1, proceed, cancel, stillCurrent); }, cancel);
 }
 
 bool CServerHandler::aiPluginsAnswered(const std::function<void()> & then) const
 {
+	if(aiAnsweredNow) // the continuation of the check mark: the player has just answered, and a remembered answer that could not be written must not ask again for ever
+		return true;
 	if(!isHost())
 		return true;
+	if(!logicConnection) // no game or lobby to start: nothing is asked and nothing starts
+	{
+		logGlobal->warn("An AI plugin question was asked with no lobby or game connected; dropped");
+		return false;
+	}
 	std::vector<AIPluginInfo> unanswered = unansweredAIPlugins();
 	if(unanswered.empty())
 		return true;
@@ -659,7 +668,24 @@ bool CServerHandler::aiPluginsAnswered(const std::function<void()> & then) const
 		return false;
 	}
 	// a start can come from the network thread (a quick load, a map given on the command line): the notices are shown on the main thread
-	ENGINE->dispatchMainThread([unanswered, then]() { askAboutAIPlugins(unanswered, 0, then); });
+	// the newest chain only: a second Begin or a start from the network thread supersedes the one before, which drops its start (no two starts), and a chain for a connection that has gone is dropped
+	const uint64_t chain = ++aiQuestionChain;
+	const std::weak_ptr<GameConnection> connection = logicConnection;
+	auto stillCurrent = [this, chain, connection]() { return chain == aiQuestionChain && !connection.expired() && connection.lock() == logicConnection; };
+	auto proceed = [this, then, stillCurrent]()
+	{
+		if(!stillCurrent())
+			return;
+		aiAnsweredNow = true;
+		then();
+		aiAnsweredNow = false;
+	};
+	auto cancel = [this, stillCurrent]()
+	{
+		if(stillCurrent() && aiQuestionDeclined)
+			aiQuestionDeclined();
+	};
+	ENGINE->dispatchMainThread([unanswered, proceed, cancel, stillCurrent]() { askAboutAIPlugins(unanswered, 0, proceed, cancel, stillCurrent); });
 	return false;
 }
 
@@ -1052,7 +1078,11 @@ void CServerHandler::debugStartTest(std::string filename, bool save)
 	{
 		try
 		{
-			sendStartGame();
+			if(!sendStartGame()) // DMB: refused (an AI plugin the catalog does not vouch for, and no window to ask in): the run ends with a failure, it does not wait for a game that will not start
+			{
+				logGlobal->error("The test map cannot start: see the AI plugin line above. The run ends.");
+				std::exit(3);
+			}
 			break;
 		}
 		catch(...)

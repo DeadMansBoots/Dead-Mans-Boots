@@ -545,8 +545,16 @@ void CLobbyScreen::startScenarioChecked(bool allowOnlyAI)
 	if (GAME->server().validateGameStart(allowOnlyAI))
 	{
 		// DMB: Begin stays usable while the player is asked about an AI plugin, so the cross leaves the lobby as it was
-		if(GAME->server().sendStartGame(allowOnlyAI))
-			buttonStart->block(true);
+		// Begin is blocked before the question too (it is one start, however it is answered); the cross unblocks it, the check mark's start keeps it blocked
+		buttonStart->block(true);
+		GAME->server().aiQuestionDeclined = []()
+		{
+			for(const auto & lobby : ENGINE->windows().findWindows<CLobbyScreen>())
+				lobby->updateStartButtonState();
+		};
+		if(!GAME->server().sendStartGame(allowOnlyAI))
+			updateStartButtonState(); // a refusal with nothing asked (headless, no connection) leaves Begin as it was; with the question open it stays blocked until the answer
+
 	}
 }
 

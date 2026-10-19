@@ -26,6 +26,7 @@
 #include "lobby/CSelectionBase.h"
 #include "lobby/CLobbyScreen.h"
 #include "lobby/CBonusSelection.h"
+#include "lobby/MapGenTab.h"
 
 #include "netlag/NetworkLagCompensator.h"
 
@@ -55,6 +56,7 @@
 #include "../lib/mapping/CMapInfo.h"
 #include "../lib/mapObjects/CGTownInstance.h"
 #include "../lib/mapObjects/MiscObjects.h"
+#include "../lib/modding/AIPlugins.h"
 #include "../lib/modding/ModIncompatibility.h"
 #include "../lib/rmg/CMapGenOptions.h"
 #include "../lib/serializer/GameConnection.h"
@@ -613,8 +615,60 @@ void CServerHandler::sendGuiAction(ui8 action, const std::string & generator, in
 	sendLobbyPack(lga);
 }
 
+/// The AI plugins the settings choose whose code DMB's mod catalog does not vouch for (and the player has not chosen to run anyway)
+static std::vector<AIPluginInfo> unansweredAIPlugins()
+{
+	std::set<std::string> chosen = {settings["ai"]["adventureAlliedAI"].String(), settings["ai"]["adventureEnemyAI"].String(), settings["ai"]["combatEnemyAI"].String(),
+		settings["ai"]["combatAlliedAI"].String(), settings["ai"]["combatNeutralAI"].String()};
+	for(const auto & [colour, choice] : settings["ai"]["playerAIOverrides"].Struct())
+		if(choice.isString() && !choice.String().empty())
+			chosen.insert(choice.String());
+	std::vector<AIPluginInfo> unanswered;
+	for(const auto & plugin : AIPlugins::active())
+		if(plugin.untrusted && chosen.count(plugin.name))
+			unanswered.push_back(plugin);
+	return unanswered;
+}
+
+/// One notice each, in turn; the check mark runs it anyway and remembers that exact code, the cross ends the questions and nothing starts
+static void askAboutAIPlugins(std::vector<AIPluginInfo> list, size_t index, std::function<void()> proceed)
+{
+	if(index >= list.size())
+	{
+		proceed();
+		return;
+	}
+	const AIPluginInfo plugin = list[index];
+	logGlobal->warn("AI plugin %s (mod %s) is not one the catalog vouches for: %s; asking the player", plugin.name, plugin.modID, plugin.problem);
+	MapGenTab::askRunAnywayFor("vcmi.dmb.aiPlugin.notice", plugin.name, plugin.modID, plugin.path.parent_path(), plugin.problem,
+		[list = std::move(list), index, proceed]() mutable { askAboutAIPlugins(std::move(list), index + 1, proceed); }, []() {});
+}
+
+bool CServerHandler::aiPluginsAnswered(const std::function<void()> & then) const
+{
+	if(!isHost())
+		return true;
+	std::vector<AIPluginInfo> unanswered = unansweredAIPlugins();
+	if(unanswered.empty())
+		return true;
+	if(!ENGINE || settings["session"]["headless"].Bool())
+	{
+		for(const auto & plugin : unanswered)
+			logGlobal->error("AI plugin %s (mod %s) is not one DMB's mod catalog vouches for (%s), and there is no window to ask in: the game does not start",
+				plugin.name, plugin.modID, plugin.problem);
+		return false;
+	}
+	// a start can come from the network thread (a quick load, a map given on the command line): the notices are shown on the main thread
+	ENGINE->dispatchMainThread([unanswered, then]() { askAboutAIPlugins(unanswered, 0, then); });
+	return false;
+}
+
 void CServerHandler::sendRestartGame() const
 {
+	// DMB: asked before the game ends, so the cross leaves the game being played; the restart's own start then finds the answer (sendStartGame)
+	if(!aiPluginsAnswered([this]() { sendRestartGame(); }))
+		return;
+
 	// DMB: one ENGINE check around VCMI's if/else. An if(ENGINE) in front of each branch bound the
 	// else to the inner if, so a game without a campaign background got no loading screen.
 	if(ENGINE)
@@ -657,10 +711,19 @@ bool CServerHandler::validateGameStart(bool allowOnlyAI) const
 	return true;
 }
 
-void CServerHandler::sendStartGame(bool allowOnlyAI, bool verify) const
+bool CServerHandler::sendStartGame(bool allowOnlyAI, bool verify) const
 {
 	if(verify)
 		verifyStateBeforeStart(allowOnlyAI ? true : settings["session"]["onlyai"].Bool());
+
+	// DMB: every start the server takes passes here (the lobby's Begin, a campaign's scenario, a restart, a quick load, a map given on the command line),
+	// so an AI plugin DMB's mod catalog does not vouch for is asked about here, and the start follows the check mark (checked again, as the lobby can change meanwhile)
+	if(!aiPluginsAnswered([this, allowOnlyAI, verify]()
+		{
+			if(!verify || validateGameStart(allowOnlyAI))
+				sendStartGame(allowOnlyAI, false);
+		}))
+		return false;
 
 	if(!settings["session"]["headless"].Bool() && ENGINE) // DMB: one ENGINE check, see sendRestartGame
 	{
@@ -675,6 +738,7 @@ void CServerHandler::sendStartGame(bool allowOnlyAI, bool verify) const
 
 	LobbyStartGame lsg;
 	sendLobbyPack(lsg);
+	return true;
 }
 
 void CServerHandler::startMapAfterConnection(std::shared_ptr<CMapInfo> to)

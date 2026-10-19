@@ -91,7 +91,8 @@ public:
 	virtual void setExtraOptionsInfo(const ExtraOptionsInfo & info) const = 0;
 	virtual void sendMessage(const std::string & txt) const = 0;
 	virtual void sendGuiAction(ui8 action, const std::string & generator = "", int page = -1, const std::string & state = "") const = 0; // TODO: possibly get rid of it?
-	virtual void sendStartGame(bool allowOnlyAI = false, bool verify = true) const = 0;
+	/// false when the game does not start now: the player is asked about an AI plugin first (the start follows the check mark), or it cannot start
+	virtual bool sendStartGame(bool allowOnlyAI = false, bool verify = true) const = 0;
 	virtual void sendRestartGame() const = 0;
 };
 
@@ -213,7 +214,12 @@ public:
 	void sendMessage(const std::string & txt) const override;
 	void sendGuiAction(ui8 action, const std::string & generator = "", int page = -1, const std::string & state = "") const override;
 	void sendRestartGame() const override;
-	void sendStartGame(bool allowOnlyAI = false, bool verify = true) const override;
+	bool sendStartGame(bool allowOnlyAI = false, bool verify = true) const override;
+	/// DMB (rule 38, K, October 18th): true when no AI plugin the settings choose needs the player's answer. Else false, and the player is asked
+	/// (one notice each, on the main thread): the check mark runs it anyway and calls `then`, the cross leaves things as they are. A host with no
+	/// window to ask in (headless) is refused, never given a stock AI in its place. Only the host is asked: its start is the one the server takes,
+	/// and its client runs the AI players
+	bool aiPluginsAnswered(const std::function<void()> & then) const;
 
 	void startMapAfterConnection(std::shared_ptr<CMapInfo> to);
 	bool validateGameStart(bool allowOnlyAI = false) const;

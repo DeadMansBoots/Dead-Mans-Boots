@@ -38,7 +38,6 @@
 #include "../../lib/networkPacks/PacksForLobby.h"
 #include "../../lib/rmg/CMapGenOptions.h"
 #include "../../lib/modding/AddonCode.h"
-#include "../../lib/modding/AIPlugins.h"
 #include "../../lib/modding/MapGenerators.h"
 #include "../../lib/GameLibrary.h"
 
@@ -488,40 +487,9 @@ void CLobbyScreen::startCampaign()
 	}
 }
 
-/// The AI plugins the settings choose whose code DMB's mod catalog does not vouch for (and the player has not chosen to run anyway): one notice each, in turn,
-/// before the game starts (rule 38, K, October 18th: no silent fallback to a stock AI); the check mark runs it anyway and remembers that exact code, the cross cancels the start
-static void askAboutAIPlugins(std::vector<AIPluginInfo> list, size_t index, std::function<void()> proceed)
-{
-	if(index >= list.size())
-	{
-		proceed();
-		return;
-	}
-	const AIPluginInfo plugin = list[index];
-	logGlobal->warn("AI plugin %s (mod %s) is not one the catalog vouches for: %s; asking the player", plugin.name, plugin.modID, plugin.problem);
-	MapGenTab::askRunAnywayFor("vcmi.dmb.aiPlugin.notice", plugin.name, plugin.modID, plugin.path.parent_path(), plugin.problem,
-		[list = std::move(list), index, proceed]() mutable { askAboutAIPlugins(std::move(list), index + 1, proceed); }, []() {});
-}
-
 void CLobbyScreen::startScenario(bool allowOnlyAI)
 {
-	// the AI plugins the settings choose are asked about first (the AIs run on this client), then the map generator below
-	{
-		std::set<std::string> chosen = {settings["ai"]["adventureAlliedAI"].String(), settings["ai"]["adventureEnemyAI"].String(), settings["ai"]["combatEnemyAI"].String(),
-			settings["ai"]["combatAlliedAI"].String(), settings["ai"]["combatNeutralAI"].String()};
-		for(const auto & [colour, choice] : settings["ai"]["playerAIOverrides"].Struct())
-			if(choice.isString() && !choice.String().empty())
-				chosen.insert(choice.String());
-		std::vector<AIPluginInfo> unlisted;
-		for(const auto & plugin : AIPlugins::active())
-			if(plugin.untrusted && chosen.count(plugin.name))
-				unlisted.push_back(plugin);
-		if(!unlisted.empty())
-		{
-			askAboutAIPlugins(unlisted, 0, [this, allowOnlyAI]() { startScenarioGenerator(allowOnlyAI); });
-			return;
-		}
-	}
+	// the AI plugins the settings choose are asked about where every start goes (CServerHandler::sendStartGame); the map generator first, here
 	startScenarioGenerator(allowOnlyAI);
 }
 
@@ -564,8 +532,9 @@ void CLobbyScreen::startScenarioChecked(bool allowOnlyAI)
 
 	if (GAME->server().validateGameStart(allowOnlyAI))
 	{
-		GAME->server().sendStartGame(allowOnlyAI);
-		buttonStart->block(true);
+		// DMB: Begin stays usable while the player is asked about an AI plugin, so the cross leaves the lobby as it was
+		if(GAME->server().sendStartGame(allowOnlyAI))
+			buttonStart->block(true);
 	}
 }
 

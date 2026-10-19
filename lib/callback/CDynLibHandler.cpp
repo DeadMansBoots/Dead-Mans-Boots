@@ -209,6 +209,13 @@ boost::filesystem::path CDynLibHandler::findAILibrary(const std::string & aiName
 			continue;
 		if(plugin.problem.empty())
 			return plugin.path;
+		// DMB (rule 38): code DMB's mod catalog does not vouch for runs only after the player answered its notice (CServerHandler::sendStartGame asks at
+		// every start). One that reaches here unanswered is refused, and no stock AI plays in its place
+		if(plugin.untrusted)
+		{
+			logGlobal->error("AI plugin %s (mod %s) is refused: %s, and the player has not chosen to run it anyway", plugin.name, plugin.modID, plugin.problem);
+			throw std::runtime_error("AI plugin " + plugin.name + " cannot run: " + plugin.problem + ", and the player has not chosen to run it anyway");
+		}
 		logGlobal->warn("AI plugin %s (mod %s) cannot load: %s", plugin.name, plugin.modID, plugin.problem);
 	}
 	return {};
@@ -222,8 +229,9 @@ std::shared_ptr<rett> createAnyAI(const std::string & dllname, const std::string
 	std::string name = dllname;
 	boost::filesystem::path filePath = CDynLibHandler::findAILibrary(name, battle);
 
-	// DMB: an AI the settings name but the game does not have (a plugin removed or refused, say)
-	// falls back to the first of VCMI's own that is here, where it used to end the game
+	// DMB: an AI the settings name but the game does not have (a plugin removed, or built for another DMB, say)
+	// falls back to the first of VCMI's own that is here, where it used to end the game. A plugin DMB's mod
+	// catalog does not vouch for never gets here: findAILibrary refuses it
 	if(filePath.empty())
 	{
 		const std::vector<std::string> fallbacks = battle

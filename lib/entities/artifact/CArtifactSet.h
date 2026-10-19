@@ -51,6 +51,8 @@ public:
 	{
 		h & artifactsInBackpack;
 		h & artifactsWorn;
+		if(h.version >= Handler::Version::DMB_ARTIFACT_TRANSITION_SLOT)
+			h & artifactsTransitionPos;
 	}
 
 	void artDeserializationFix(CGameState & gs, CBonusSystemNode *node);

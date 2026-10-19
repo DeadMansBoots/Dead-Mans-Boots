@@ -126,6 +126,11 @@ void TurnProgressBar::takeSnapshot()
 	}
 }
 
+void TurnProgressBar::invalidate()
+{
+	glassStale = true;
+}
+
 void TurnProgressBar::endTurn()
 {
 	turnEnded = true;
@@ -316,6 +321,16 @@ void TurnProgressBar::show(Canvas & to)
 	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
 
 	// every frame starts from the kept copy of the terrain (the glass already darkened in it): nothing drawn on an earlier frame piles up
+	if(glassStale.exchange(false))
+	{
+		glass.reset();
+		captureDelay = 1;
+	}
+	if(!glass && captureDelay > 0)
+	{
+		--captureDelay;
+		return;
+	}
 	if(!glass)
 		captureGlass(to);
 	if(glass)

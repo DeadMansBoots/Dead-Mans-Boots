@@ -8,6 +8,8 @@
 #pragma once
 
 #include "../gui/CIntObject.h"
+
+#include <atomic>
 #include "../../lib/constants/EntityIdentifiers.h"
 
 /// DMB (K, October 16th and 17th): a bar at the top left of the adventure map showing how much of the player's turn is done, in the player's colour over the game's
@@ -48,6 +50,10 @@ class TurnProgressBar : public CIntObject
 	uint32_t clockMs = 0;
 	/// the terrain under the glass, darkened once (taken in showAll, when the map has just been painted fresh)
 	std::shared_ptr<Canvas> glass;
+	/// the map moved under the bar: the copy is taken again at the next frame (set from any thread)
+	std::atomic<bool> glassStale{false};
+	/// frames to wait before the copy is taken again after the map moved: the map repaints the tiles under the bar in the frame after the move, and a copy taken at once would hold the old bar
+	int captureDelay = 0;
 	/// the name of the tracked player, drawn above the bar
 	std::string playerName;
 
@@ -66,6 +72,8 @@ public:
 	void startTurn(PlayerColor newPlayer);
 	/// the player ended the turn: the bar shows full
 	void endTurn();
+	/// the map moved under the bar (a scroll, a centring, a hero followed): the kept copy of the terrain under it is stale
+	void invalidate();
 	/// another player's turn begins on this client: a human teammate's is tracked (their colour, their progress from the game state this client holds), an enemy's or an AI's shows the empty frame
 	void remoteTurn(PlayerColor active, bool human);
 };

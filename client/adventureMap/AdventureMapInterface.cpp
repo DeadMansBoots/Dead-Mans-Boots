@@ -92,6 +92,8 @@ AdventureMapInterface::AdventureMapInterface():
 void AdventureMapInterface::onMapViewMoved(const Rect & visibleArea, int mapLevel)
 {
 	shortcuts->onMapViewMoved(visibleArea, mapLevel);
+	if(turnBar)
+		turnBar->invalidate(); // the kept copy of the terrain under the bar is stale
 	widget->getMinimap()->onMapViewMoved(visibleArea, mapLevel);
 	widget->onMapViewMoved(visibleArea, mapLevel);
 }

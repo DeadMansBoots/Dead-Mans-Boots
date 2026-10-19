@@ -873,6 +873,10 @@ std::optional<std::string> CServerHandler::canQuickLoadGame(const std::string & 
 
 void CServerHandler::quickLoadGame(const std::string & path)
 {
+	// DMB: asked before the game ends, as for a restart (sendRestartGame), so the cross leaves the game being played
+	if(!aiPluginsAnswered([this, path]() { quickLoadGame(path); }))
+		return;
+
 	LobbyQuickLoadGame pack;
 	pack.saveFilePath = path;
 	sendLobbyPack(pack);

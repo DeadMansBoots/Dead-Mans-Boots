@@ -43,11 +43,18 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-/// DMB: a library the game will not run because its ABI number is not the engine's (lib/modding/AIAbi.h)
-class AIAbiMismatch : public std::runtime_error
+/// DMB: a library the game will not run (its ABI number is not the engine's, or its factory gave no AI); the game's own AI plays instead
+class AIRefused : public std::runtime_error
 {
 public:
 	using std::runtime_error::runtime_error;
+};
+
+/// DMB: a library the game will not run because its ABI number is not the engine's (lib/modding/AIAbi.h)
+class AIAbiMismatch : public AIRefused
+{
+public:
+	using AIRefused::AIRefused;
 };
 
 std::string CDynLibHandler::abiProblem(bool hasAbi, int abi, const char * builtFor)
@@ -72,7 +79,8 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 	using TGetAIFun = void (*)(std::shared_ptr<rett> &);
 	using TGetNameFun = void (*)(char *);
 
-	char temp[150];
+	// DMB: GetAiName writes a C string of its own length; the buffer is generous and must hold the terminator afterwards
+	std::array<char, 1024> temp{};
 
 	TGetAIFun getAI = nullptr;
 	TGetNameFun getName = nullptr;
@@ -140,13 +148,32 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 		throw AIAbiMismatch(problem);
 	}
 
-	getName(temp);
-	logGlobal->info("Loaded %s", temp);
+	getName(temp.data());
+	if(temp.back() != '\0')
+	{
+		logGlobal->error("%s gives a name longer than %d characters", libpath.string(), static_cast<int>(temp.size() - 1));
+#ifdef VCMI_WINDOWS
+		FreeLibrary(dll);
+#else
+		dlclose(dll);
+#endif
+		throw AIRefused("its GetAiName gives a name longer than " + std::to_string(temp.size() - 1) + " characters");
+	}
+	logGlobal->info("Loaded %s", temp.data());
 
 	std::shared_ptr<rett> ret;
 	getAI(ret);
 	if(!ret)
-		logGlobal->error("Cannot get AI!");
+	{
+		// DMB: a factory that gives no AI is refused here, so the caller never runs on an empty pointer
+		logGlobal->error("%s: %s gave no AI", libpath.string(), methodName);
+#ifdef VCMI_WINDOWS
+		FreeLibrary(dll);
+#else
+		dlclose(dll);
+#endif
+		throw AIRefused("its " + methodName + " gave no AI");
+	}
 
 	return ret;
 #endif // STATIC_AI
@@ -257,10 +284,11 @@ std::shared_ptr<rett> createAnyAI(const std::string & dllname, const std::string
 	{
 		ret = createAny<rett>(filePath, methodName);
 	}
-	catch(const AIAbiMismatch & mismatch)
+	catch(const AIRefused & refusal)
 	{
-		// DMB: a library built for another AI ABI is not run; VCMI's own AI plays, as when the plugin is missing, and the log says why
-		logGlobal->warn("AI %s is refused: %s", name, mismatch.what());
+		// DMB: a library built for another AI ABI, or whose factory gave no AI, is not run; VCMI's own AI plays, as when the plugin is
+		// missing, and the log says why
+		logGlobal->warn("AI %s is refused: %s", name, refusal.what());
 		const std::vector<std::string> fallbacks = battle
 			? std::vector<std::string>{"BattleAI", "StupidAI"}
 			: std::vector<std::string>{"Nullkiller2", "Nullkiller", "EmptyAI"};

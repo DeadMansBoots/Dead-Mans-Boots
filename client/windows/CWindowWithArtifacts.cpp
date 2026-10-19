@@ -111,8 +111,10 @@ void CWindowWithArtifacts::clickPressedOnArtPlace(const CGHeroInstance * hero, c
 void CWindowWithArtifacts::swapArtifactAndClose(const CArtifactsOfHeroBase & artsInst, const ArtifactPosition & slot,
 	const ArtifactLocation & dstLoc)
 {
-	if(!GAME->interface()->hasPendingArtifactRequest())
-		GAME->interface()->cb->swapArtifacts(ArtifactLocation(artsInst.getHero()->id, slot), dstLoc);
+	// while a request is pending the window stays open, so a choice that was not sent does not look made
+	if(GAME->interface()->hasPendingArtifactRequest())
+		return;
+	GAME->interface()->cb->swapArtifacts(ArtifactLocation(artsInst.getHero()->id, slot), dstLoc);
 	close();
 }
 

@@ -396,12 +396,22 @@ void OptionsTabBase::recreate(bool campaign)
 
 	if(auto w = widget<ComboBox>("timerModeSwitch"))
 	{
-		// DMB: the server's timers are in the chess mode while the combo shows another: show it, sending nothing
+		// DMB: the combo follows the server's timers, sending nothing. Chess values the classic mode cannot show switch it to the chess mode
+		// (a mode of a mod's own, past the second, can show them and is kept). A guest whose combo shows a chess mode while the server's
+		// timers have no chess values, after the host picked the classic mode, goes back to the classic one; the host is left alone there,
+		// as its own fields read 0:00 while it types
 		const auto & timerModes = std::as_const(variables)["timers"].Vector();
-		if((turnTimerRemote.battleTimer || turnTimerRemote.unitTimer || turnTimerRemote.baseTimer) && timerModes.size() > 1 && shownTimerMode != &timerModes[1])
+		const bool chessValues = turnTimerRemote.battleTimer || turnTimerRemote.unitTimer || turnTimerRemote.baseTimer;
+		const JsonNode * classic = timerModes.empty() ? nullptr : &timerModes[0];
+		int target = -1;
+		if(chessValues && timerModes.size() > 1 && (shownTimerMode == nullptr || shownTimerMode == classic))
+			target = 1;
+		else if(!chessValues && classic && GAME->server().isGuest() && shownTimerMode != nullptr && shownTimerMode != classic)
+			target = 0;
+		if(target >= 0)
 		{
 			timerModeSendsDefaults = false;
-			w->setItem(1);
+			w->setItem(target);
 			timerModeSendsDefaults = true;
 		}
 	}

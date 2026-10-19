@@ -1473,7 +1473,9 @@ void LauncherTheme::setButtonText(QPushButton * button, const QString & text)
 		button->setText(text); // never seen by the carving: a plain button
 		return;
 	}
-	const bool carved = button->property("dmbCarvedIcon").toBool();
+	// carved means the picture is all the button shows: a plain setText since (a download's progress, say) put text beside it, and then the
+	// text asked for here is set, so it wins over that text in applyCarvedButtonWord
+	const bool carved = button->property("dmbCarvedIcon").toBool() && button->text().isEmpty();
 	if(carved && stored.toString() == text)
 		return; // the word it already carries
 	button->setProperty("dmbCarvedFrom", text);

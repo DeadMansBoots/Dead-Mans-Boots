@@ -40,9 +40,12 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 		info.battle = info.battle || kind.String() == "battle";
 	}
 
+	// DMB: the library is one file in the folder the trust check hashes; a path ("../x", "C:/x") would load a file the check never saw
+	const bool plainName = info.library != "." && info.library != ".." && info.library.find_first_of("/\\:") == std::string::npos;
+
 	// the library is no resource any filesystem lists, so it is found on disk in the mod's own folder
 	const auto folder = AddonCode::modFolder(info.modID);
-	if(folder && !info.library.empty())
+	if(folder && !info.library.empty() && plainName)
 		info.path = *folder / "ai" / VCMIDirs::get().libraryName(info.library);
 
 #ifdef STATIC_AI
@@ -50,6 +53,8 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 #else
 	if(info.name.empty() || info.library.empty())
 		info.problem = "its mod.json gives no name or no library";
+	else if(!plainName)
+		info.problem = "its library must be a plain file name in its ai folder, and its mod.json gives \"" + info.library + "\"";
 	else if(!info.adventure && !info.battle)
 		info.problem = "its mod.json names no kind (adventure or battle)";
 	else if(info.abi >= 0 && info.abi != AIAbi::VERSION)

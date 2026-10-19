@@ -12,10 +12,13 @@
 #include "../../lib/modding/MapGenerators.h"
 
 // DMB: the cmd.exe line of a .cmd or .bat generator
-TEST(MapGenerators, batchLineQuotesEveryArgument)
+TEST(MapGenerators, batchLineQuotesWhatCmdWouldSplitOrRead)
 {
 	EXPECT_EQ(MapGenerators::batchCommandLine("C:\\Mods\\gen\\run.cmd", {"--template", "x&calc", "--vcmiroot", "D:\\Games\\R&D\\vcmi", "--teams", ""}),
-		"cmd /c \"\"C:\\Mods\\gen\\run.cmd\" \"--template\" \"x&calc\" \"--vcmiroot\" \"D:\\Games\\R&D\\vcmi\" \"--teams\" \"\"\"");
+		"cmd /c \"\"C:\\Mods\\gen\\run.cmd\" --template \"x&calc\" --vcmiroot \"D:\\Games\\R&D\\vcmi\" --teams \"\"\"");
+	// plain tokens stay bare (a script's %1 is --w, as before); a drive root's final backslash is then not in front of a quote
+	EXPECT_EQ(MapGenerators::batchCommandLine("run.cmd", {"--w", "64", "--vcmiroot", "E:\\", "a,b", "k=v", "x;y"}),
+		"cmd /c \"\"run.cmd\" --w 64 --vcmiroot E:\\ \"a,b\" \"k=v\" \"x;y\"\"");
 	EXPECT_EQ(MapGenerators::batchCommandLine("C:\\My Mods\\run.bat", {"a b", "(x)|^<y>"}),
 		"cmd /c \"\"C:\\My Mods\\run.bat\" \"a b\" \"(x)|^<y>\"\"");
 }

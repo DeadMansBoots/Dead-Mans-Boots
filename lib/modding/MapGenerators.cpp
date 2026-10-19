@@ -394,18 +394,25 @@ std::string MapGenerators::batchCommandLine(const std::string & script, const st
 {
 	// batch scripts need the shell. cmd /c splits `cmd /c "quoted path" args` at the first space
 	// inside the quotes; the form that parses is one more quote pair around the whole tail:
-	// cmd /c ""path" args", passed verbatim as one string. DMB: every argument is quoted, where only those
-	// with a space were, so cmd reads & | < > ^ ( ) in one as text; cmd has no escape for a quote or a
-	// percent sign inside quotes, so an argument with one is refused with its name
+	// cmd /c ""path" args", passed verbatim as one string. DMB: an argument is quoted when cmd would read
+	// part of it as something else: an empty one, one with a space or another of the batch argument
+	// separators (tab , ; =), and one with & | < > ^ ( ), which cmd reads as text inside quotes. Every
+	// other argument goes bare, as before, so a script reading %1 without the ~ still gets --w, not "--w".
+	// cmd has no escape for a quote or a percent sign inside quotes, so an argument with one is refused
+	// with its name
 	const auto checked = [](const std::string & text) -> const std::string &
 	{
 		if(text.find_first_of("\"%\r\n") != std::string::npos)
 			throw std::runtime_error("a .cmd or .bat map generator cannot be given " + text + ": cmd.exe passes no quote, percent sign or line break intact");
 		return text;
 	};
+	const auto needsQuotes = [](const std::string & text)
+	{
+		return text.empty() || text.find_first_of(" \t,;=&|<>^()") != std::string::npos;
+	};
 	std::string tail = "cmd /c \"\"" + checked(script) + "\"";
 	for(const auto & a : args)
-		tail += " \"" + checked(a) + "\"";
+		tail += needsQuotes(checked(a)) ? " \"" + a + "\"" : " " + a;
 	tail += '"';
 	return tail;
 }

@@ -266,7 +266,8 @@ void CWindowWithArtifacts::putPickedArtifact(const CGHeroInstance & curHero, con
 		}
 		else
 		{
-			if(ArtifactUtils::isBackpackFreeSlots(heroArtOwner))
+			// The artifact goes into the backpack of the hero it is dropped on
+			if(ArtifactUtils::isBackpackFreeSlots(&curHero))
 				GAME->interface()->cb->swapArtifacts(srcLoc, dstLoc);
 			else
 				GAME->interface()->showInfoDialog(LIBRARY->generaltexth->translate("core.genrltxt.152"));

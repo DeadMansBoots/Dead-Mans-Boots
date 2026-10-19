@@ -2658,8 +2658,8 @@ bool CGameHandler::moveArtifact(const PlayerColor & player, const ArtifactLocati
 {
 	const auto * srcArtSet = gameState().getArtSet(src);
 	const auto * dstArtSet = gameState().getArtSet(dst);
-	assert(srcArtSet);
-	assert(dstArtSet);
+	if(!srcArtSet || !dstArtSet)
+		COMPLAIN_RET("moveArtifact: wrong artifact holder");
 
 	// Make sure exchange is even possible between the two heroes.
 	if(!isAllowedExchange(src.artHolder, dst.artHolder))
@@ -2667,6 +2667,9 @@ bool CGameHandler::moveArtifact(const PlayerColor & player, const ArtifactLocati
 
 	COMPLAIN_RET_FALSE_IF(!ArtifactUtils::checkIfSlotValid(*srcArtSet, src.slot), "moveArtifact: wrong artifact source slot");
 	const auto * srcArtifact = srcArtSet->getArt(src.slot);
+	// Checked before FIRST_AVAILABLE is resolved, which reads the artifact's type
+	if(srcArtifact == nullptr)
+		COMPLAIN_RET("No artifact to move!");
 	auto dstSlot = dst.slot;
 	if(dstSlot == ArtifactPosition::FIRST_AVAILABLE)
 		dstSlot = ArtifactUtils::getArtAnyPosition(dstArtSet, srcArtifact->getTypeId());
@@ -2676,8 +2679,6 @@ bool CGameHandler::moveArtifact(const PlayerColor & player, const ArtifactLocati
 	const bool isDstSlotOccupied = dstArtSet->bearerType() == ArtBearer::ALTAR ? false : dstArtifact != nullptr;
 	const bool isDstSlotBackpack = dstArtSet->bearerType() == ArtBearer::HERO ? ArtifactUtils::isSlotBackpack(dstSlot) : false;
 
-	if(srcArtifact == nullptr)
-		COMPLAIN_RET("No artifact to move!");
 	if(isDstSlotOccupied && gameState().getOwner(src.artHolder) != gameState().getOwner(dst.artHolder) && !isDstSlotBackpack)
 		COMPLAIN_RET("Can't touch artifact on hero of another player!");
 

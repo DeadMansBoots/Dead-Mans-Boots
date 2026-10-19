@@ -125,7 +125,11 @@ void CSettingsView::setDisplayList()
 	for (const auto screen : QGuiApplication::screens())
 		list << QString{"%1 - %2"}.arg(screen->name(), resolutionToString(screen->size()));
 
-	if(list.count() < 2)
+	// DMB: each entry carries its display's index; a stored display that is not connected now is shown as such and kept,
+	// where it used to select no entry and store -1
+	const int displayIndex = settings["video"]["displayIndex"].Integer();
+	const bool storedPresent = displayIndex >= 0 && displayIndex < list.count();
+	if(list.count() < 2 && storedPresent)
 	{
 		ui->comboBoxDisplayIndex->hide();
 		ui->labelDisplayIndex->hide();
@@ -133,10 +137,13 @@ void CSettingsView::setDisplayList()
 	}
 	else
 	{
-		int displayIndex = settings["video"]["displayIndex"].Integer();
-		ui->comboBoxDisplayIndex->addItems(list);
-		// calls fillValidResolutions() in slot
-		ui->comboBoxDisplayIndex->setCurrentIndex(displayIndex);
+		QSignalBlocker guard(ui->comboBoxDisplayIndex);
+		for(int i = 0; i < list.count(); ++i)
+			ui->comboBoxDisplayIndex->addItem(list[i], i);
+		if(!storedPresent)
+			ui->comboBoxDisplayIndex->addItem(tr("Display %1 (not connected)").arg(displayIndex + 1), displayIndex);
+		ui->comboBoxDisplayIndex->setCurrentIndex(ui->comboBoxDisplayIndex->findData(displayIndex));
+		fillValidResolutionsForScreen(displayIndex);
 	}
 }
 
@@ -305,13 +312,21 @@ void CSettingsView::loadSettings()
 	}
 	fillLookSlots();
 
-	std::string upscalingFilter = settings["video"]["upscalingFilter"].String();
-	int upscalingFilterIndex = vstd::find_pos(upscalingFilterTypes, upscalingFilter);
-	ui->comboBoxUpscalingFilter->setCurrentIndex(upscalingFilterIndex);
-
-	std::string downscalingFilter = settings["video"]["downscalingFilter"].String();
-	int downscalingFilterIndex = vstd::find_pos(downscalingFilterTypes, downscalingFilter);
-	ui->comboBoxDownscalingFilter->setCurrentIndex(downscalingFilterIndex);
+	// DMB: a stored filter this build does not list (hand-edited, or from another build) is shown as itself and kept
+	const auto showFilter = [](QComboBox * combo, const auto & types, const std::string & stored)
+	{
+		int index = vstd::find_pos(types, stored);
+		if(index < 0)
+		{
+			while(combo->count() > static_cast<int>(types.size()))
+				combo->removeItem(combo->count() - 1);
+			combo->addItem(tr("%1 (not known to this version)").arg(QString::fromStdString(stored)));
+			index = combo->count() - 1;
+		}
+		combo->setCurrentIndex(index);
+	};
+	showFilter(ui->comboBoxUpscalingFilter, upscalingFilterTypes, settings["video"]["upscalingFilter"].String());
+	showFilter(ui->comboBoxDownscalingFilter, downscalingFilterTypes, settings["video"]["downscalingFilter"].String());
 
 	ui->sliderMusicVolume->setValue(settings["general"]["music"].Integer());
 	ui->sliderSoundVolume->setValue(settings["general"]["sound"].Integer());
@@ -387,7 +402,8 @@ void CSettingsView::loadToggleButtonSettings()
 
 void CSettingsView::fillValidResolutions()
 {
-	fillValidResolutionsForScreen(ui->comboBoxDisplayIndex->isVisible() ? ui->comboBoxDisplayIndex->currentIndex() : 0);
+	// DMB: the display the settings name; isVisible() read false on any page not shown yet
+	fillValidResolutionsForScreen(ui->comboBoxDisplayIndex->isHidden() ? 0 : ui->comboBoxDisplayIndex->currentData().toInt());
 }
 
 QSize CSettingsView::getPreferredRenderingResolution()
@@ -402,6 +418,18 @@ QSize CSettingsView::getPreferredRenderingResolution()
 		int resY = settings["video"]["resolution"]["height"].Integer();
 		return QSize(resX, resY);
 	}
+
+	// DMB: the desktop mode of the display the game opens on, in its own pixels; Qt's rounded logical geometry of the
+	// primary screen was off by a pixel at fractional scaling, and was the wrong display on a second monitor
+	const int displayIndex = settings["video"]["displayIndex"].Integer();
+	SDL_Init(SDL_INIT_VIDEO);
+	SDL_DisplayMode mode;
+	const bool known = SDL_GetDesktopDisplayMode(displayIndex, &mode) == 0;
+	const QString error = known ? QString() : QString::fromUtf8(SDL_GetError());
+	SDL_Quit();
+	if(known)
+		return QSize(mode.w, mode.h);
+	logGlobal->warn("Desktop mode of display %d is not known (%s); the primary screen's size is shown", displayIndex, error.toStdString());
 #endif
 	return QApplication::primaryScreen()->geometry().size() * QApplication::primaryScreen()->devicePixelRatio();
 }
@@ -914,10 +942,14 @@ void CSettingsView::on_buttonFullModExtraction_toggled(bool value)
 
 void CSettingsView::on_comboBoxDisplayIndex_currentIndexChanged(int index)
 {
+	if(index < 0)
+		return;
+	const int display = ui->comboBoxDisplayIndex->itemData(index).toInt();
 	Settings node = settings.write["video"];
-	node["displayIndex"].Float() = index;
+	node["displayIndex"].Float() = display;
 
-	fillValidResolutionsForScreen(index);
+	fillValidResolutionsForScreen(display);
+	fillValidScalingRange();
 }
 
 void CSettingsView::on_comboBoxFriendlyAI_currentIndexChanged(int index)
@@ -1296,12 +1328,17 @@ void CSettingsView::on_buttonIgnoreSslErrors_clicked(bool checked)
 
 void CSettingsView::on_comboBoxUpscalingFilter_currentIndexChanged(int index)
 {
+	// the entry for a stored filter this build does not list keeps the stored value
+	if(index < 0 || index >= static_cast<int>(upscalingFilterTypes.size()))
+		return;
 	Settings node = settings.write["video"]["upscalingFilter"];
 	node->String() = upscalingFilterTypes[index];
 }
 
 void CSettingsView::on_comboBoxDownscalingFilter_currentIndexChanged(int index)
 {
+	if(index < 0 || index >= static_cast<int>(downscalingFilterTypes.size()))
+		return;
 	Settings node = settings.write["video"]["downscalingFilter"];
 	node->String() = downscalingFilterTypes[index];
 }

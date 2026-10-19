@@ -375,5 +375,12 @@ void TurnProgressBar::showAll(Canvas & to)
 	}
 
 	if(!emptyFrame)
-		to.drawText(Point(outer.x + outer.w / 2, outer.y + outer.h / 2), FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, std::to_string(static_cast<int>(std::lround(shown))) + "%");
+	{
+		// the percent, with a dark shadow so it reads over the terrain showing through the glass
+		const std::string text = std::to_string(static_cast<int>(std::lround(shown))) + "%";
+		const Point middle(outer.x + outer.w / 2, outer.y + outer.h / 2);
+		to.drawText(Point(middle.x + 1, middle.y + 1), FONT_TINY, Colors::BLACK, ETextAlignment::CENTER, text);
+		to.drawText(Point(middle.x + 1, middle.y), FONT_TINY, Colors::BLACK, ETextAlignment::CENTER, text);
+		to.drawText(middle, FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, text);
+	}
 }

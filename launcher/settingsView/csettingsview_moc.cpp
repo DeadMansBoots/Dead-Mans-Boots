@@ -430,8 +430,10 @@ QSize CSettingsView::getPreferredRenderingResolution()
 		return QSize(resX, resY);
 	}
 
+#ifndef VCMI_APPLE
 	// DMB: the desktop mode of the display the game opens on, in its own pixels; Qt's rounded logical geometry of the
-	// primary screen was off by a pixel at fractional scaling, and was the wrong display on a second monitor
+	// primary screen was off by a pixel at fractional scaling, and was the wrong display on a second monitor.
+	// Not on macOS, where SDL 2 gives the desktop mode in points (half the pixels of a Retina screen), so Qt's size times its pixel ratio stays
 	const int displayIndex = settings["video"]["displayIndex"].Integer();
 	SDL_Init(SDL_INIT_VIDEO);
 	SDL_DisplayMode mode;
@@ -441,6 +443,7 @@ QSize CSettingsView::getPreferredRenderingResolution()
 	if(known)
 		return QSize(mode.w, mode.h);
 	logGlobal->warn("Desktop mode of display %d is not known (%s); the primary screen's size is shown", displayIndex, error.toStdString());
+#endif
 #endif
 	return QApplication::primaryScreen()->geometry().size() * QApplication::primaryScreen()->devicePixelRatio();
 }

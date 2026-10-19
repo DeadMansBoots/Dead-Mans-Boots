@@ -1066,7 +1066,7 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 		return {};
 	const auto face = [](const Bars & set, int picture)
 	{
-		return QString("border-image: url(\"%1\") 4 %2 4 %2 stretch stretch;").arg(set.files[picture]).arg(set.end);
+		return QString("border-image: url(\"%1\") 4 %2 4 %2 stretch stretch;").arg(set.files[picture], QString::number(set.end)); // DMB: one pass, so a "%1" in the cache path is not substituted again
 	};
 	const int end = one.end;
 	const QString ink = lightLettering ? textColour(look_) : "black";

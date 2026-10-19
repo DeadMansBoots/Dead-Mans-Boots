@@ -287,13 +287,25 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 		if(in)
 		{
 			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			// read strictly: the lenient parser keeps what it could read of a damaged file, and the rewrite below would then drop the rest without a word
+			JsonParsingSettings strict;
+			strict.strict = true;
 			try
 			{
-				all = JsonNode(text.data(), text.size(), runAnywayFile().string());
+				all = JsonNode(text.data(), text.size(), strict, runAnywayFile().string());
+				if(!all.isStruct() && !all.isNull())
+					throw std::runtime_error("it does not hold a JSON object");
 			}
-			catch(const std::exception &)
+			catch(const std::exception & e)
 			{
-				all = JsonNode(); // an unreadable file is started again
+				// a damaged file is kept aside as <name>.bad, for the player or a helper to look at, and started again
+				in.close();
+				const boost::filesystem::path aside = runAnywayFile().string() + ".bad";
+				boost::system::error_code renameError;
+				boost::filesystem::rename(runAnywayFile(), aside, renameError);
+				logMod->warn("%s could not be read (%s); it is kept as %s and started again%s", runAnywayFile().string(), e.what(), aside.string(),
+					renameError ? " (it could not be renamed: " + renameError.message() + ")" : std::string());
+				all = JsonNode();
 			}
 		}
 	}

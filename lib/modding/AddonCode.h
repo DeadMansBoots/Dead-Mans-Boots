@@ -49,7 +49,7 @@ namespace AddonCode
 	DLL_LINKAGE boost::filesystem::path testedPinsFile();
 
 	/// What the player chose to run anyway, by mod and exact code hash, in the same form as the catalog's pins:
-	/// <user config>/dmbRunAnyway.json. The game writes it (rememberRunAnyway) when the player answers the notice.
+	/// <user config>/dmbRunAnyway.json. The game writes it (rememberRunAnyway) when the player answers the notice; a damaged one is kept aside as dmbRunAnyway.json.bad.
 	DLL_LINKAGE boost::filesystem::path runAnywayFile();
 
 	/// Works out the hash of the folder into the cache that trustProblem and rememberRunAnyway use, so a later check does not wait for it. Reads no settings: safe on a worker thread.

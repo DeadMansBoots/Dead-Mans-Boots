@@ -20,6 +20,7 @@
 #include "../widgets/TextControls.h"
 
 #include "../../lib/CPlayerState.h"
+#include "../../lib/StartInfo.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/entities/building/CBuilding.h"
 #include "../../lib/entities/faction/CTown.h"

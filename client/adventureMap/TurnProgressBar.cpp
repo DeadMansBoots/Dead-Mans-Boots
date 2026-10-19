@@ -296,9 +296,9 @@ void TurnProgressBar::showAll(Canvas & to)
 	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
 
 	// the empty part: dark glass you see through. Not blended: the map tiles under the bar are repainted only where they change, so a translucent patch drawn over them every frame piles up to black.
-	// Dark lines on every other row instead, the map showing in the rows between
-	for(int row = 0; row < inner.h; row += 2)
-		to.drawColor(Rect(inner.x, inner.y + row, inner.w, 1), ColorRGBA(10, 7, 4, 255));
+	// Dark lines on every third row instead (a third covered, 70 percent see-through), the map showing in the rows between
+	for(int row = 0; row < inner.h; row += 3)
+		to.drawColor(Rect(inner.x, inner.y + row, inner.w, 1), ColorRGBA(6, 4, 2, 255));
 
 	const double t = clockMs / 1000.0;
 	if(!emptyFrame)
@@ -326,22 +326,52 @@ void TurnProgressBar::showAll(Canvas & to)
 		}
 	}
 
-	// the trim: a gold frame with a dark outer line, a light inner line and small ornaments at the corners and the middle of each end
-	const ColorRGBA dark(45, 28, 8, 255), gold(214, 170, 70, 255), light(250, 222, 140, 255), deep(120, 82, 22, 255);
+	// the trim: a gold frame in three lines (dark, gold, deep bronze) with a light edge on the top and left, a row of pearls along the top and bottom, flourishes at the corners and
+	// diamond end pieces
+	const ColorRGBA dark(45, 28, 8, 255), gold(214, 170, 70, 255), light(250, 222, 140, 255), deep(120, 82, 22, 255), pearl(255, 240, 190, 255);
 	to.drawBorder(outer, dark, 1);
 	to.drawBorder(Rect(outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2), gold, 1);
 	to.drawBorder(Rect(outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4), deep, 1);
 	to.drawLine(Point(outer.x + 2, outer.y + 1), Point(outer.x + outer.w - 3, outer.y + 1), light, light);
 	to.drawLine(Point(outer.x + 1, outer.y + 2), Point(outer.x + 1, outer.y + outer.h - 3), light, light);
-	for(const Point & corner : {Point(outer.x, outer.y), Point(outer.x + outer.w - 3, outer.y), Point(outer.x, outer.y + outer.h - 3), Point(outer.x + outer.w - 3, outer.y + outer.h - 3)})
+	for(int x = outer.x + 8; x < outer.x + outer.w - 8; x += 5)
 	{
-		to.drawColor(Rect(corner.x, corner.y, 3, 3), gold);
-		to.drawPoint(Point(corner.x + 1, corner.y + 1), light);
+		to.drawColor(Rect(x, outer.y + 1, 1, 1), pearl); // pearls on the gold line, top and bottom
+		to.drawColor(Rect(x, outer.y + outer.h - 2, 1, 1), pearl);
+		to.drawColor(Rect(x + 2, outer.y + 1, 1, 1), dark); // a dark bead between each pair
+		to.drawColor(Rect(x + 2, outer.y + outer.h - 2, 1, 1), dark);
 	}
-	for(const int x : {outer.x - 2, outer.x + outer.w + 1})
+	for(const bool right : {false, true})
 	{
-		to.drawColor(Rect(x, outer.y + outer.h / 2 - 2, 2, 5), gold);
-		to.drawPoint(Point(x, outer.y + outer.h / 2), light);
+		for(const bool bottom : {false, true})
+		{
+			// a corner flourish: a bronze plate with a gold border, a bright diagonal stroke and a pearl
+			const int cx = right ? outer.x + outer.w - 6 : outer.x;
+			const int cy = bottom ? outer.y + outer.h - 6 : outer.y;
+			to.drawColor(Rect(cx, cy, 6, 6), deep);
+			to.drawBorder(Rect(cx, cy, 6, 6), dark, 1);
+			to.drawBorder(Rect(cx + 1, cy + 1, 4, 4), gold, 1);
+			to.drawLine(Point(cx + (right ? 4 : 1), cy + (bottom ? 4 : 1)), Point(cx + (right ? 1 : 4), cy + (bottom ? 1 : 4)), light, light);
+			to.drawPoint(Point(cx + 2 + (right ? 1 : 0), cy + 2 + (bottom ? 1 : 0)), pearl);
+		}
+	}
+	for(const bool right : {false, true})
+	{
+		// a diamond end piece in the middle of each end: bronze outline, gold body, a pearl in the middle and short bars either side
+		const int mx = right ? outer.x + outer.w + 3 : outer.x - 4;
+		const int my = outer.y + outer.h / 2;
+		for(int d = 0; d <= 5; ++d)
+		{
+			const int half = 5 - d;
+			to.drawLine(Point(mx - half, my - d), Point(mx + half, my - d), d == 5 ? dark : gold, d == 5 ? dark : gold);
+			to.drawLine(Point(mx - half, my + d), Point(mx + half, my + d), d == 5 ? dark : gold, d == 5 ? dark : gold);
+		}
+		to.drawBorder(Rect(mx - 2, my - 2, 5, 5), deep, 1);
+		to.drawColor(Rect(mx - 1, my - 1, 3, 3), light);
+		to.drawPoint(Point(mx, my), pearl);
+		const int inward = right ? -6 : 6;
+		to.drawColor(Rect(mx + (right ? -7 : 5), my - 1, 3, 3), gold); // a bar joining the diamond to the frame
+		(void)inward;
 	}
 
 	if(!emptyFrame)

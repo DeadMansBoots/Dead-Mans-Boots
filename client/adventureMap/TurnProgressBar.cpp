@@ -292,11 +292,21 @@ void TurnProgressBar::showAll(Canvas & to)
 		return ColorRGBA(static_cast<uint8_t>(std::clamp(c.r * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.g * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.b * factor, 0.0, 255.0)), alpha);
 	};
 
+	// a patch of colour laid over what is there with real transparency: drawColorBlended on the screen canvas draws opaque (its surface has no alpha channel)
+	const auto blend = [&to](const Rect & area, const ColorRGBA & color)
+	{
+		if(area.w <= 0 || area.h <= 0)
+			return;
+		Canvas patch(Point(area.w, area.h), CanvasScalingPolicy::AUTO);
+		patch.drawColor(Rect(0, 0, area.w, area.h), ColorRGBA(color.r, color.g, color.b, 255));
+		to.drawTransparent(patch, Point(area.x, area.y), color.a / 255.0);
+	};
+
 	const Rect outer(pos.x, pos.y, pos.w, pos.h);
 	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
 
 	// the empty part: a dark glass, semi-transparent, the map or the marble shows through
-	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 95));
+	blend(inner, ColorRGBA(0, 0, 0, 105));
 
 	const double t = clockMs / 1000.0;
 	if(!emptyFrame)
@@ -304,23 +314,23 @@ void TurnProgressBar::showAll(Canvas & to)
 		const int width = std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
 		{
-			// the liquid: lighter at the top, darker at the bottom, a bright thin highlight under the top edge
+			// the liquid: lighter at the top, darker at the bottom; its leading edge is a few columns whose surface ripples
+			const int ripple = std::min(width, 5);
+			const int body = width - ripple;
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
-				to.drawColorBlended(Rect(inner.x, inner.y + row, width, 1), shade(base, 1.30 - 0.85 * depth, 235));
+				const ColorRGBA tone = shade(base, 1.30 - 0.85 * depth, 255);
+				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
+				for(int i = 0; i < ripple; ++i)
+				{
+					const double lift = 1.4 * std::sin(t * 4.0 + i * 1.1) * (1.0 + i * 0.25);
+					const int top = std::clamp(static_cast<int>(std::lround((ripple - 1 - i) * 0.0 + (i + 1) * 0.5 + lift)), 0, inner.h - 3);
+					if(row >= top)
+						to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), tone);
+				}
 			}
-			to.drawColorBlended(Rect(inner.x, inner.y + 1, width, 1), ColorRGBA(255, 255, 255, 80));
-			// the leading edge: a few columns that ripple, the surface of the liquid shimmering
-			const int ripple = std::min(width, 5);
-			for(int i = 0; i < ripple; ++i)
-			{
-				const int x = inner.x + width - 1 - i;
-				const double lift = 1.6 * std::sin(t * 4.0 + i * 1.1) * (1.0 + i * 0.25);
-				const int top = std::clamp(static_cast<int>(std::lround(i * 0.7 + lift)), 0, inner.h - 2);
-				to.drawColorBlended(Rect(x, inner.y, 1, top), ColorRGBA(0, 0, 0, 95)); // the glass shows above the ripple
-				to.drawColorBlended(Rect(x, inner.y + top, 1, 1), ColorRGBA(255, 255, 255, 110));
-			}
+			blend(Rect(inner.x, inner.y + 1, body, 1), ColorRGBA(255, 255, 255, 90)); // the soft highlight under the surface
 		}
 	}
 

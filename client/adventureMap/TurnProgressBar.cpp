@@ -120,8 +120,8 @@ void TurnProgressBar::endTurn()
 	percent = 100;
 }
 
-/// Whether another human's turn is shown on this client (that player's colour, a travelling band, no percent). Off until K decides what a guest should see during another player's turn (lead, October 18th 17:24); the code is ready to switch.
-static constexpr bool showOtherHumansTurn = false;
+/// Whether another human's turn is shown on this client (that player's colour, a travelling band, no percent). On (K decided, October 18th 17:36: the waiting client shows the active human's colour and progress); the percent for another player arrives by a display-only message (not built yet), until then a travelling band.
+static constexpr bool showOtherHumansTurn = true;
 
 void TurnProgressBar::remoteTurn(PlayerColor active, bool human)
 {

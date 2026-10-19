@@ -537,17 +537,23 @@ void run(QWidget * parent, const QString & why)
 	// DMB: the upload waits in nested event loops for up to minutes. A window-modal note keeps the launcher from being closed
 	// under it or asked for a second report meanwhile, and the boxes after it take the launcher only while it still exists
 	const QPointer<QWidget> owner(parent);
-	WaitNote waiting(parent, Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-	waiting.setWindowTitle(QObject::tr("Report a bug"));
-	waiting.setWindowModality(Qt::WindowModal);
-	auto * waitingLayout = new QVBoxLayout(&waiting);
+	// the note is the launcher's child, so it is made on the heap and followed by a QPointer: if the launcher goes during the wait, it takes the
+	// note with it, and nothing here touches or deletes it again
+	const QPointer<WaitNote> waiting = new WaitNote(parent, Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+	waiting->setWindowTitle(QObject::tr("Report a bug"));
+	waiting->setWindowModality(Qt::WindowModal);
+	auto * waitingLayout = new QVBoxLayout(waiting.data());
 	waitingLayout->addWidget(new QLabel(QObject::tr("Making the report and sending it to the developers...")));
-	waiting.show();
+	waiting->show();
 	QApplication::processEvents();
 	const Report report = build(why, description);
 	QString problem;
 	const bool sent = report.zipPath.isEmpty() || !report.error.isEmpty() ? false : send(report, problem);
-	waiting.hide();
+	if(waiting)
+	{
+		waiting->hide();
+		delete waiting.data();
+	}
 	if(report.zipPath.isEmpty() || !report.error.isEmpty())
 	{
 		QMessageBox::critical(owner.data(), QObject::tr("Report"), QObject::tr("The report could not be made: %1").arg(report.error));

@@ -179,13 +179,32 @@ QImage readH3Pcx(const ui8 * pcx, size_t size)
 	return {};
 }
 
+/// DMB: a listed resource's bytes, or nothing, with the reason in the log, when it cannot be read (a damaged entry in an imported
+/// archive). The look then shows that part as unimported, where the exception ended the launcher on every start and kept the
+/// player from Settings, where the look is changed
+std::optional<std::pair<std::unique_ptr<ui8[]>, si64>> readResource(const ResourcePath & path)
+{
+	try
+	{
+		return CResourceHandler::get()->load(path)->readAll();
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->error("Launcher look: %s is listed but could not be read (%s); the look shows without it", path.getOriginalName(), e.what());
+		return std::nullopt;
+	}
+}
+
 /// The leather Heroes III fills its windows with, from the player's own game files; null before an import
 QPixmap playerLeather()
 {
 	const ResourcePath path("DATA/DIBOXBCK", EResType::IMAGE);
 	if(!CResourceHandler::get()->existsResource(path))
 		return {};
-	const auto data = CResourceHandler::get()->load(path)->readAll();
+	const auto read = readResource(path);
+	if(!read)
+		return {};
+	const auto & data = *read;
 	const auto * bytes = reinterpret_cast<const ui8 *>(data.first.get());
 	QImage image = readH3Pcx(bytes, data.second);
 	if(image.isNull()) // a mod may put a PNG in its place
@@ -967,7 +986,10 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 	const AnimationPath path = AnimationPath::builtin("SPRITES/RANSHOW");
 	if(!CResourceHandler::get()->existsResource(path))
 		return {};
-	const auto data = CResourceHandler::get()->load(path)->readAll();
+	const auto read = readResource(path);
+	if(!read)
+		return {};
+	const auto & data = *read;
 	const auto * bytes = reinterpret_cast<const ui8 *>(data.first.get());
 	const std::string primary = look_.primary;
 	const auto folder = VCMIDirs::get().userCachePath() / "launcher";
@@ -1080,7 +1102,10 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 	const AnimationPath choicePath = AnimationPath::builtin("SPRITES/RANWEAK");
 	if(!CResourceHandler::get()->existsResource(choicePath))
 		return styles;
-	const auto choiceData = CResourceHandler::get()->load(choicePath)->readAll();
+	const auto choiceRead = readResource(choicePath);
+	if(!choiceRead)
+		return styles;
+	const auto & choiceData = *choiceRead;
 	const auto * choiceBytes = reinterpret_cast<const ui8 *>(choiceData.first.get());
 	const std::string secondary = look_.secondary;
 	// the blue choice art is dark in lightness, so silver on it would read near black: lifted (K's other colours get their
@@ -1403,7 +1428,10 @@ void LauncherTheme::applySidebarIcon(QToolButton * button, const std::string & d
 	const AnimationPath path = AnimationPath::builtin("SPRITES/" + defName);
 	if(!CResourceHandler::get()->existsResource(path))
 		return;
-	const auto data = CResourceHandler::get()->load(path)->readAll();
+	const auto read = readResource(path);
+	if(!read)
+		return;
+	const auto & data = *read;
 	const auto * bytes = reinterpret_cast<const ui8 *>(data.first.get());
 	// frame 3, the button's own "lit" colouring (wordlessBar reads the same frame for the gold bar
 	// itself): the most saturated of the four, closest to what a hovered main-menu button looks like

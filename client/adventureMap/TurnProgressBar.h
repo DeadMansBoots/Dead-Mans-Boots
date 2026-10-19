@@ -31,7 +31,7 @@ class TurnProgressBar : public CIntObject
 		ObjectInstanceID id;
 		bool canBuild = false;
 		int recruitable = 0;
-		/// the dwelling levels counted in recruitable (the ones whose creature the player could afford at the start): the same levels are summed again later
+		/// the dwelling levels counted in recruitable (the ones with a creature, basic or upgraded, the player could afford at the start): the same levels are summed again later
 		std::vector<size_t> levels;
 	};
 

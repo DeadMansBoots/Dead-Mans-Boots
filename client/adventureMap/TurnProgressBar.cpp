@@ -133,8 +133,13 @@ void TurnProgressBar::takeSnapshot()
 			const auto & level = town->creatures[index];
 			if(level.second.empty() || level.first == 0)
 				continue;
-			const auto * creature = level.second.back().toCreature();
-			if(creature && resources.canAfford(creature->getFullRecruitCost()))
+			// the level counts when the player can pay for any creature of it, the basic one included (not only its last, upgraded form)
+			const bool affordable = std::any_of(level.second.begin(), level.second.end(), [&resources](const CreatureID & id)
+			{
+				const auto * creature = id.toCreature();
+				return creature && resources.canAfford(creature->getFullRecruitCost());
+			});
+			if(affordable)
 			{
 				start.recruitable += static_cast<int>(level.first);
 				start.levels.push_back(index);

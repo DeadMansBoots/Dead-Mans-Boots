@@ -63,7 +63,10 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 	else if(!boost::filesystem::exists(info.path))
 		info.problem = "its library is missing: ai/" + VCMIDirs::get().libraryName(info.library);
 	else
+	{
 		info.problem = AddonCode::trustProblem(info.modID, *folder / "ai");
+		info.untrusted = !info.problem.empty();
+	}
 #endif
 	return info;
 }

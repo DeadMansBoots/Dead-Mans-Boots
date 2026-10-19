@@ -35,6 +35,9 @@ struct DLL_LINKAGE AIPluginInfo
 	boost::filesystem::path path;
 	/// empty when the plugin can load, else why it cannot
 	std::string problem;
+	/// true when the only thing keeping it from loading is that DMB's mod catalog does not vouch for its code (and the player has not chosen to run it anyway):
+	/// a notice with a choice, asked before the game starts (CLobbyScreen::startScenario), never a silent fallback
+	bool untrusted = false;
 };
 
 namespace AIPlugins

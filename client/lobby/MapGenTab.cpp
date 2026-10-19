@@ -374,13 +374,20 @@ void MapGenTab::greyCustomSize()
 
 void MapGenTab::askRunAnyway(const MapGeneratorInfo & generator, const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel)
 {
+	askRunAnywayFor("vcmi.dmb.mapGenerator.notice", generator.name, generator.modID, generator.codeFolder, problem, onRun, onCancel);
+}
+
+void MapGenTab::askRunAnywayFor(const std::string & textID, const std::string & name, const std::string & modID, const boost::filesystem::path & codeFolder,
+	const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel)
+{
 	MetaString text;
-	text.appendRawString(tabText("notice"));
-	text.replaceRawString(generator.name);
+	text.appendRawString(LIBRARY->generaltexth->translate(textID));
+	text.replaceRawString(name);
 	text.replaceRawString(problem);
 	auto answered = std::make_shared<bool>(false);
+	// the answer is remembered the moment it is given (the Generate button's worker stops waiting after ten minutes; a later check mark still counts)
 	CInfoWindow::showYesNoDialog(text.toString(), {},
-		[answered, onRun]() { if(!*answered) { *answered = true; onRun(); } },
+		[answered, onRun, modID, codeFolder]() { if(!*answered) { *answered = true; AddonCode::rememberRunAnyway(modID, codeFolder); onRun(); } },
 		[answered, onCancel]() { if(!*answered) { *answered = true; onCancel(); } });
 }
 
@@ -1543,7 +1550,6 @@ void MapGenTab::generate()
 				});
 				return;
 			}
-			AddonCode::rememberRunAnyway(gen.modID, gen.codeFolder);
 		}
 
 		logGlobal->info("Map generator %s (mod %s) running: %s -> %s", gen.name, gen.modID, gen.command.string(), outPath.string());

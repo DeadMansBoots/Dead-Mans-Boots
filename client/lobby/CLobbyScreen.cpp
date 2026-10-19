@@ -38,8 +38,11 @@
 #include "../../lib/networkPacks/PacksForLobby.h"
 #include "../../lib/rmg/CMapGenOptions.h"
 #include "../../lib/modding/AddonCode.h"
+#include "../../lib/modding/AIPlugins.h"
 #include "../../lib/modding/MapGenerators.h"
 #include "../../lib/GameLibrary.h"
+
+#include <thread>
 
 CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 	: CSelectionBase(screenType), bonusSel(nullptr)
@@ -112,6 +115,9 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 				continue;
 			}
 			generatorTabs.push_back(std::make_shared<MapGenTab>(found));
+			// the generator's code hash is worked out in the background now (cached by what the folder looks like), so Begin does not wait for it
+			if(found.atBegin)
+				std::thread([found]() { AddonCode::trustProblem(found.modID, found.codeFolder); }).detach();
 			if(found.modID == rememberedMode)
 				randomMode = generatorTabs.size();
 		}
@@ -482,7 +488,44 @@ void CLobbyScreen::startCampaign()
 	}
 }
 
+/// The AI plugins the settings choose whose code DMB's mod catalog does not vouch for (and the player has not chosen to run anyway): one notice each, in turn,
+/// before the game starts (rule 38, K, October 18th: no silent fallback to a stock AI); the check mark runs it anyway and remembers that exact code, the cross cancels the start
+static void askAboutAIPlugins(std::vector<AIPluginInfo> list, size_t index, std::function<void()> proceed)
+{
+	if(index >= list.size())
+	{
+		proceed();
+		return;
+	}
+	const AIPluginInfo plugin = list[index];
+	logGlobal->warn("AI plugin %s (mod %s) is not one the catalog vouches for: %s; asking the player", plugin.name, plugin.modID, plugin.problem);
+	MapGenTab::askRunAnywayFor("vcmi.dmb.aiPlugin.notice", plugin.name, plugin.modID, plugin.path.parent_path(), plugin.problem,
+		[list = std::move(list), index, proceed]() mutable { askAboutAIPlugins(std::move(list), index + 1, proceed); }, []() {});
+}
+
 void CLobbyScreen::startScenario(bool allowOnlyAI)
+{
+	// the AI plugins the settings choose are asked about first (the AIs run on this client), then the map generator below
+	{
+		std::set<std::string> chosen = {settings["ai"]["adventureAlliedAI"].String(), settings["ai"]["adventureEnemyAI"].String(), settings["ai"]["combatEnemyAI"].String(),
+			settings["ai"]["combatAlliedAI"].String(), settings["ai"]["combatNeutralAI"].String()};
+		for(const auto & [colour, choice] : settings["ai"]["playerAIOverrides"].Struct())
+			if(choice.isString() && !choice.String().empty())
+				chosen.insert(choice.String());
+		std::vector<AIPluginInfo> unlisted;
+		for(const auto & plugin : AIPlugins::active())
+			if(plugin.untrusted && chosen.count(plugin.name))
+				unlisted.push_back(plugin);
+		if(!unlisted.empty())
+		{
+			askAboutAIPlugins(unlisted, 0, [this, allowOnlyAI]() { startScenarioGenerator(allowOnlyAI); });
+			return;
+		}
+	}
+	startScenarioGenerator(allowOnlyAI);
+}
+
+void CLobbyScreen::startScenarioGenerator(bool allowOnlyAI)
 {
 	// DMB (K, October 18th: "we should never lock the user out"): a map generator whose code DMB's mod catalog does not vouch for
 	// is a notice with a choice, asked here because the server that runs the generator at Begin has no window. Run it anyway is
@@ -497,9 +540,8 @@ void CLobbyScreen::startScenario(bool allowOnlyAI)
 			if(problem.empty())
 				break;
 			logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", found.name, found.modID, problem);
-			MapGenTab::askRunAnyway(found, problem, [this, allowOnlyAI, found]()
+			MapGenTab::askRunAnyway(found, problem, [this, allowOnlyAI]()
 			{
-				AddonCode::rememberRunAnyway(found.modID, found.codeFolder);
 				startScenarioChecked(allowOnlyAI);
 			}, []() {});
 			return;

@@ -114,6 +114,11 @@ public:
 	/// of the two is called once. Main thread only.
 	static void askRunAnyway(const MapGeneratorInfo & generator, const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel);
 
+	/// The same notice for any addon code (an AI plugin's "ai" folder): textID is the translation of the notice with the name and the reason in it,
+	/// the answer is remembered for the exact code in codeFolder. Main thread only.
+	static void askRunAnywayFor(const std::string & textID, const std::string & name, const std::string & modID, const boost::filesystem::path & codeFolder,
+		const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel);
+
 	const MapGeneratorInfo & getGenerator() const;
 	/// DMB (K, October 9th): the page of the tab shown now, and a way to show one (the guests' lobby follows the host's page); and who is told
 	/// when a page is shown

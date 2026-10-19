@@ -15,6 +15,9 @@
 #include "../filesystem/Filesystem.h"
 #include "../json/JsonNode.h"
 
+#include <map>
+#include <mutex>
+
 VCMI_LIB_NAMESPACE_BEGIN
 
 namespace
@@ -180,6 +183,50 @@ std::string AddonCode::folderHash(const boost::filesystem::path & folder)
 	return total.hex();
 }
 
+namespace
+{
+/// what a folder looks like without reading it: its file count, their total size and the newest write time
+std::string folderSignature(const boost::filesystem::path & folder)
+{
+	boost::system::error_code error;
+	uint64_t count = 0;
+	uint64_t total = 0;
+	std::time_t newest = 0;
+	for(boost::filesystem::recursive_directory_iterator it(folder, error), end; !error && it != end; it.increment(error))
+	{
+		boost::system::error_code fileError;
+		if(!boost::filesystem::is_regular_file(it->path(), fileError))
+			continue;
+		count++;
+		total += boost::filesystem::file_size(it->path(), fileError);
+		newest = std::max(newest, boost::filesystem::last_write_time(it->path(), fileError));
+	}
+	return std::to_string(count) + "/" + std::to_string(total) + "/" + std::to_string(newest);
+}
+
+std::mutex hashCacheMutex;
+std::map<std::string, std::pair<std::string, std::string>> hashCache; // folder -> (signature, hash)
+
+/// folderHash of a folder that looks as it did the last time it was hashed in this run is not read again (hashing a generator takes about half a second)
+std::string cachedFolderHash(const boost::filesystem::path & folder)
+{
+	const std::string signature = folderSignature(folder);
+	{
+		std::lock_guard<std::mutex> guard(hashCacheMutex);
+		const auto found = hashCache.find(folder.string());
+		if(found != hashCache.end() && found->second.first == signature)
+			return found->second.second;
+	}
+	const std::string hash = AddonCode::folderHash(folder);
+	if(!hash.empty())
+	{
+		std::lock_guard<std::mutex> guard(hashCacheMutex);
+		hashCache[folder.string()] = {signature, hash};
+	}
+	return hash;
+}
+}
+
 boost::filesystem::path AddonCode::pinsFile()
 {
 	return VCMIDirs::get().userCachePath() / "downloads" / "dmbCodePins.json";
@@ -197,7 +244,7 @@ boost::filesystem::path AddonCode::runAnywayFile()
 
 void AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder)
 {
-	const std::string hash = folderHash(folder);
+	const std::string hash = cachedFolderHash(folder);
 	if(hash.empty())
 		return;
 	JsonNode all;
@@ -279,7 +326,7 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 	if(accepted.empty() && tested.empty() && remembered.empty())
 		return unlisted();
 
-	const std::string hash = folderHash(folder);
+	const std::string hash = cachedFolderHash(folder);
 	if(hash.empty())
 		return "its code could not be read";
 	if(vstd::contains(accepted, hash))

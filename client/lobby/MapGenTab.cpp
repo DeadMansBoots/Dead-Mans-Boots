@@ -1528,12 +1528,13 @@ void MapGenTab::generate()
 	const boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "extmapgen_log.txt";
 
 	const std::string runningText = tabText("generate.running") + humansNote;
+	// the failure text is looked up here, on the main thread, so the worker's last resort below cannot throw again; and before the busy flag is
+	// set, so a throw here cannot leave the tab busy with nothing running
+	const std::string failedText = tabText("generate.failed");
 	ENGINE->statusbar()->write(runningText);
 	generating = std::make_shared<bool>(true);
 	auto flag = generating;
 
-	// the failure text is looked up here, on the main thread, so the worker's last resort below cannot throw again
-	const std::string failedText = tabText("generate.failed");
 	std::thread([flag, gen = generator, args, outPath, logPath, runningText, failedText]()
 	{
 		const auto failWith = [flag, runningText](const std::string & text)

@@ -286,7 +286,7 @@ std::vector<MenuEra> discover()
 			MenuEra era;
 			era.id = boost::to_lower_copy(it->path().stem().string());
 			era.archive = it->path();
-			if(!seen.insert(era.id).second)
+			if(seen.count(era.id))
 				continue;
 			try
 			{
@@ -298,6 +298,9 @@ std::vector<MenuEra> discover()
 			{
 				continue; // an archive that cannot be read is not an era
 			}
+			// DMB: the name counts as taken once its archive is an era; a damaged or picture-less copy found first hid a good one
+			// of the same name in a later folder
+			seen.insert(era.id);
 			era.title = titleOf(era.id);
 			// the archive's other two title pictures (GamSelB0, GamSelB1), where it holds them, are entries of their own
 			std::vector<MenuEra> pictures = {era};

@@ -659,7 +659,7 @@ void runCrashWindow(const QString & dumpPath)
 		if(!sent && !report.zipPath.isEmpty())
 			text += QObject::tr(" It is saved here: %1").arg(QDir::toNativeSeparators(report.zipPath));
 		if(report.error.isEmpty() && report.dump.isEmpty())
-			text += QObject::tr(" The crash file is not in the report (it could not be read, or is over 120 MB); the logs and settings are.");
+			text += QObject::tr(" The crash file is not in the report (it could not be read, or it made the report too large to send); the logs and settings are.");
 		if(!cause.isEmpty())
 			text = QObject::tr("What happened: %1").arg(cause) + "\n\n" + text;
 		detail->setText(text);

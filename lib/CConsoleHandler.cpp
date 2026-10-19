@@ -337,6 +337,11 @@ static void onAbortSignal(int)
 
 	createMemoryDump(nullptr);
 #endif
+#ifdef USE_UNHANDLED_EXCEPTION_FILTER
+	// DMB: the dump and the crash window are done; abort() would raise SIGABRT into onAbortSignal, which wrote a second dump
+	// under the same name (same second, same thread) over the one the launcher was just given, and opened a second window
+	TerminateProcess(GetCurrentProcess(), 3);
+#endif
 	std::abort();
 }
 #endif

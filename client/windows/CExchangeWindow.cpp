@@ -109,6 +109,14 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 	addSet(artifs[0]);
 	addSet(artifs[1]);
 
+	if(queryID.getNum() > 0)
+	{
+		// Closing sends the query reply, and the server returns a picked artifact when the exchange query ends.
+		// A put-back from the destructor would arrive after that, for an artifact the server has already moved.
+		artifs[0]->disablePutBackOnClose();
+		artifs[1]->disablePutBackOnClose();
+	}
+
 	for(int g=0; g<4; ++g)
 	{
 		primSkillAreas.push_back(std::make_shared<LRClickableAreaWTextComp>());

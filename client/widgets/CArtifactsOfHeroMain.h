@@ -18,8 +18,12 @@ public:
 	~CArtifactsOfHeroMain() override;
 	void keyPressed(EShortcut key) override;
 	void keyReleased(EShortcut key) override;
+	/// For windows whose server query returns the picked artifact when it ends
+	void disablePutBackOnClose();
 
 private:
+	bool putBackOnClose = true;
+
 	static constexpr std::array costumeSaveShortcuts = {
 		EShortcut::HERO_COSTUME_SAVE_0,
 		EShortcut::HERO_COSTUME_SAVE_1,

@@ -652,6 +652,8 @@ void CGameHandler::onPlayerTurnStarted(PlayerColor which)
 
 void CGameHandler::onPlayerTurnEnded(PlayerColor which)
 {
+	// The player's windows close with the turn, and the server takes no requests from the player until the next one
+	returnPickedArtifacts(which);
 	turnTimerHandler->onEndTurn(which);
 	newTurnProcessor->onPlayerTurnEnded(which);
 }
@@ -799,7 +801,12 @@ void CGameHandler::start(bool resume)
 			turnTimerHandler->onGameplayStart(player.first);
 	}
 	else
+	{
 		events::GameResumed::defaultExecute(serverEventBus.get());
+		// No artifact window is open after loading, so nothing can stay picked
+		for(const auto & player : gameState().players)
+			returnPickedArtifacts(player.first);
+	}
 
 	turnOrder->onGameStarted();
 }
@@ -3100,6 +3107,32 @@ bool CGameHandler::eraseArtifactByClient(const ArtifactLocation & al)
 
 	removeArtifact(al);
 	return true;
+}
+
+void CGameHandler::returnPickedArtifact(const CGHeroInstance * hero)
+{
+	const auto * art = hero->getArt(ArtifactPosition::TRANSITION_POS);
+	if(art == nullptr)
+		return;
+
+	const auto slot = ArtifactUtils::getArtAnyPosition(hero, art->getTypeId());
+	if(slot == ArtifactPosition::PRE_FIRST)
+	{
+		// The artifact stays picked and is saved with the hero. Its owner places it after making room.
+		logGlobal->warn("Hero %s has no free slot for the picked artifact %s, it stays picked", hero->getNameTranslated(), art->getType()->getNameTranslated());
+		return;
+	}
+	moveArtifact(hero->getOwner(), ArtifactLocation(hero->id, ArtifactPosition::TRANSITION_POS), ArtifactLocation(hero->id, slot));
+}
+
+void CGameHandler::returnPickedArtifacts(const PlayerColor & player)
+{
+	const auto * playerState = gameInfo().getPlayerState(player, false);
+	if(playerState == nullptr)
+		return;
+
+	for(const auto * hero : playerState->getHeroes())
+		returnPickedArtifact(hero);
 }
 
 bool CGameHandler::buyArtifact(ObjectInstanceID hid, ArtifactID aid)

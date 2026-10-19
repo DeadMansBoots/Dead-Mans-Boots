@@ -71,6 +71,17 @@ CGarrisonDialogQuery::CGarrisonDialogQuery(CGameHandler * owner, const CArmedIns
 	addPlayer(down->tempOwner);
 }
 
+void CGarrisonDialogQuery::onRemoval(PlayerColor color)
+{
+	// The exchange window is closed. An artifact picked in it and not placed goes back to its hero.
+	for(const auto * army : exchangingArmies)
+	{
+		const auto * hero = dynamic_cast<const CGHeroInstance *>(army);
+		if(hero && hero->getOwner() == color)
+			gh->returnPickedArtifact(hero);
+	}
+}
+
 bool CGarrisonDialogQuery::blocksPack(const CPackForServer * pack) const
 {
 	std::set<ObjectInstanceID> ourIds;

@@ -160,6 +160,9 @@ public:
 	bool saveArtifactsCostume(const PlayerColor & player, const ObjectInstanceID & heroID, uint32_t costumeIdx);
 	bool switchArtifactsCostume(const PlayerColor & player, const ObjectInstanceID & heroID, uint32_t costumeIdx);
 	bool eraseArtifactByClient(const ArtifactLocation & al);
+	/// Moves an artifact left in the hero's transition slot (picked in an artifact window and not placed) to a free slot of the same hero
+	void returnPickedArtifact(const CGHeroInstance * hero);
+	void returnPickedArtifacts(const PlayerColor & player);
 
 	void heroVisitCastle(const CGTownInstance * obj, const CGHeroInstance * hero) override;
 	void stopHeroVisitCastle(const CGTownInstance * obj, const CGHeroInstance * hero) override;

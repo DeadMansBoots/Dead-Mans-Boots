@@ -57,6 +57,7 @@ public:
 	CGarrisonDialogQuery(CGameHandler * owner, const CArmedInstance *up, const CArmedInstance *down);
 	void notifyObjectAboutRemoval(const CGObjectInstance * visitedObject, const CGHeroInstance * visitingHero) const override;
 	bool blocksPack(const CPackForServer *pack) const override;
+	void onRemoval(PlayerColor color) override;
 };
 
 //yes/no and component selection dialogs

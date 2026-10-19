@@ -286,12 +286,13 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 		std::ifstream in(runAnywayFile().c_str(), std::ios::binary);
 		if(in)
 		{
-			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-			// read strictly: the lenient parser keeps what it could read of a damaged file, and the rewrite below would then drop the rest without a word
+			// read strictly: the lenient parser keeps what it could read of a damaged file, and the rewrite below would then drop the rest without a word.
+			// The reading is inside the try too: a read error throws (std::ios_base::failure)
 			JsonParsingSettings strict;
 			strict.strict = true;
 			try
 			{
+				const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 				all = JsonNode(text.data(), text.size(), strict, runAnywayFile().string());
 				if(!all.isStruct() && !all.isNull())
 					throw std::runtime_error("it does not hold a JSON object");
@@ -354,14 +355,22 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 	if(answerable)
 		*answerable = true;
 
-	// a pins file as JSON; nothing when it is not there
+	// a pins file as JSON; nothing when it is not there, and no object when it cannot be read (a read error throws std::ios_base::failure)
 	const auto read = [](const boost::filesystem::path & file) -> std::optional<JsonNode>
 	{
 		std::ifstream in(file.c_str(), std::ios::binary);
 		if(!in)
 			return std::nullopt;
-		const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-		return JsonNode(text.data(), text.size(), file.string());
+		try
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			return JsonNode(text.data(), text.size(), file.string());
+		}
+		catch(const std::exception & e)
+		{
+			logMod->warn("%s could not be read: %s", file.string(), e.what());
+			return JsonNode();
+		}
 	};
 	// the hashes a pins file accepts for the mod: one, or a list of them
 	const auto hashesFor = [&modID](const std::optional<JsonNode> & pins)

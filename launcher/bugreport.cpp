@@ -131,10 +131,12 @@ void scrubDump(QByteArray & dump)
 		if(name.size() < 3)
 		{
 			// a short name is overwritten only where it is a user path's folder ("Users\Al\"), in the plain and the wide spelling, as written, lower and upper case
+			// DMB: the Users folder in each case too, as a dump holds the Users folder in more than one case
 			for(const QString & variant : {name, name.toLower(), name.toUpper()})
+				for(const QString & users : {QString("Users"), QString("users"), QString("USERS")})
 				for(const QString & separator : {QString("\\"), QString("/")})
 				{
-					const QString whole = "Users" + separator + variant + separator;
+					const QString whole = users + separator + variant + separator;
 					const int nameAt = 6; // after "Users" and the separator
 					const QByteArray narrow = whole.toUtf8();
 					QByteArray filler = narrow;

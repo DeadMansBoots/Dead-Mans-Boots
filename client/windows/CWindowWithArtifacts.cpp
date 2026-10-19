@@ -51,8 +51,10 @@ const CGHeroInstance * CWindowWithArtifacts::getHeroPickedArtifact() const
 {
 	const CGHeroInstance * hero = nullptr;
 
+	// Only this player's heroes can hold this player's picked artifact.
+	// An ally's hero shown in the same window may hold an artifact the ally picked, and that one is not ours to place.
 	for(const auto & artSet : artSets)
-		if(artSet->getHero()->getArt(ArtifactPosition::TRANSITION_POS) != nullptr)
+		if(artSet->getHero()->getOwner() == GAME->interface()->playerID && artSet->getHero()->getArt(ArtifactPosition::TRANSITION_POS) != nullptr)
 		{
 			hero = artSet->getHero();
 			break;
@@ -62,11 +64,8 @@ const CGHeroInstance * CWindowWithArtifacts::getHeroPickedArtifact() const
 
 const CArtifactInstance * CWindowWithArtifacts::getPickedArtifact() const
 {
-	for(const auto & artSet : artSets)
-		if(const auto pickedArt = artSet->getHero()->getArt(ArtifactPosition::TRANSITION_POS))
-		{
-			return pickedArt;
-		}
+	if(const auto hero = getHeroPickedArtifact())
+		return hero->getArt(ArtifactPosition::TRANSITION_POS);
 	return nullptr;
 }
 

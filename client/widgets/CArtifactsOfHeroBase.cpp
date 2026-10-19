@@ -33,6 +33,9 @@ CArtifactsOfHeroBase::CArtifactsOfHeroBase()
 void CArtifactsOfHeroBase::putBackPickedArtifact()
 {
 	// Artifact located in artifactsTransitionPos should be returned
+	// The server accepts this request only from the hero's owner
+	if(curHero == nullptr || curHero->getOwner() != GAME->interface()->playerID)
+		return;
 	if(const auto art = getPickedArtifact())
 	{
 		auto slot = ArtifactUtils::getArtAnyPosition(curHero, art->getTypeId());

@@ -327,27 +327,23 @@ std::vector<MenuEra> discover()
 			{
 				if(stem == era.id)
 					continue;
-				for(const char * ext : {".lod", ".LOD"})
+				// DMB: found in any case, as the archive itself is ("H3sprite.lod" beside "H3bitmap.lod"); the two spellings tried
+				// before missed it on a case-sensitive filesystem, and the era lost its buttons
+				const auto path = child(it->path().parent_path(), stem + ".lod");
+				if(path.empty())
+					continue;
+				try
 				{
-					const auto path = it->path().parent_path() / (stem + ext);
-					boost::system::error_code exists;
-					if(!boost::filesystem::exists(path, exists))
-						continue;
-					try
+					CArchiveLoader loader("DATA/", path);
+					if(loader.existsResource(ResourcePath("DATA/MMENUNG.DEF")))
 					{
-						CArchiveLoader loader("DATA/", path);
-						if(loader.existsResource(ResourcePath("DATA/MMENUNG.DEF")))
-						{
-							era.sprites = path;
-							break;
-						}
-					}
-					catch(const std::exception &)
-					{
+						era.sprites = path;
+						break;
 					}
 				}
-				if(!era.sprites.empty())
-					break;
+				catch(const std::exception &)
+				{
+				}
 			}
 			for(auto & picture : pictures)
 			{

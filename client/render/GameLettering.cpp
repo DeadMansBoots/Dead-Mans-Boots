@@ -197,7 +197,11 @@ const ButtonFace * buttonFace()
 	face.factor = factor;
 	face.ascent = TTF_FontAscent(face.font.get());
 	if(TTF_GlyphMetrics32(face.font.get(), 'H', &minX, &maxX, &minY, &maxY, &advance) != 0)
+	{
+		// DMB: nothing half made stays cached: the test above took a face with its font set as ready, capital height 0
+		face = ButtonFace();
 		return nullptr;
+	}
 	face.capHeight = maxY;
 	return &face;
 }

@@ -392,10 +392,11 @@ void CSettingsView::loadToggleButtonSettings()
 	ui->sliderScalingCursor->setDisabled(cursorType == "software"); // Not supported
 	ui->labelScalingCursorValue->setDisabled(cursorType == "software"); // Not supported
 
-	int fontScalingPercentage = settings["video"]["fontScalingFactor"].Float() * 100;
+	// DMB: rounded, as the factor the slider writes (1.15) reads back as 114.99...; truncation set 110% and wrote it back on every start
+	int fontScalingPercentage = static_cast<int>(std::lround(settings["video"]["fontScalingFactor"].Float() * 100));
 	ui->sliderScalingFont->setValue(fontScalingPercentage / 5);
 
-	int cursorScalingPercentage = settings["video"]["cursorScalingFactor"].Float() * 100;
+	int cursorScalingPercentage = static_cast<int>(std::lround(settings["video"]["cursorScalingFactor"].Float() * 100));
 	ui->sliderScalingCursor->setValue(cursorScalingPercentage / 5);
 
 }

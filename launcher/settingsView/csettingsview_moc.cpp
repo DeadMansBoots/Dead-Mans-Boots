@@ -127,8 +127,15 @@ void CSettingsView::setDisplayList()
 
 	// DMB: each entry carries its display's index; a stored display that is not connected now is shown as such and kept,
 	// where it used to select no entry and store -1
-	const int displayIndex = settings["video"]["displayIndex"].Integer();
-	const bool storedPresent = displayIndex >= 0 && displayIndex < list.count();
+	int displayIndex = settings["video"]["displayIndex"].Integer();
+	if(displayIndex < 0)
+	{
+		// a negative index names no display (the -1 the old code stored, say): the first display is chosen and stored
+		displayIndex = 0;
+		Settings node = settings.write["video"];
+		node["displayIndex"].Float() = 0;
+	}
+	const bool storedPresent = displayIndex < list.count();
 	if(list.count() < 2 && storedPresent)
 	{
 		ui->comboBoxDisplayIndex->hide();

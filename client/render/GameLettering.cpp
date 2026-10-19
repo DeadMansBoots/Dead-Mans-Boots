@@ -73,7 +73,12 @@ GameLettering::Letters GameLettering::letters(EFonts font, const std::string & t
 		const ui8 * pixels;
 	};
 	std::vector<Placed> placed;
-	int x = 0;
+	// DMB: the spacings come from a font file a mod can supply: each is held to 255 either way, far past any Heroes III font's, and
+	// the line is added up in 64 bits and held to MAX_LETTERING_WIDTH, where an int sum could overflow and the cells allocated below
+	// could run to gigabytes; a font outside these is refused like any other unreadable one
+	constexpr int GLYPH_RANGE = 255;
+	constexpr int64_t MAX_LETTERING_WIDTH = 65536;
+	int64_t x = 0;
 	for(const char character : encoded)
 	{
 		const size_t c = static_cast<ui8>(character);
@@ -81,12 +86,15 @@ GameLettering::Letters GameLettering::letters(EFonts font, const std::string & t
 		const int width = static_cast<int32_t>(read_le_u32(bytes + widthsAt + c * 12 + 4));
 		const int after = static_cast<int32_t>(read_le_u32(bytes + widthsAt + c * 12 + 8));
 		const size_t offset = pixelsAt + read_le_u32(bytes + offsetsAt + c * 4);
-		if(width < 0 || offset + static_cast<size_t>(width) * result.height > size)
+		if(width < 0 || width > GLYPH_RANGE || std::abs(before) > GLYPH_RANGE || std::abs(after) > GLYPH_RANGE
+			|| offset + static_cast<size_t>(width) * result.height > size)
 			return {};
-		placed.push_back({ x + before, width, bytes + offset });
+		placed.push_back({ static_cast<int>(x + before), width, bytes + offset });
 		x += before + width + after;
+		if(std::abs(x) > MAX_LETTERING_WIDTH)
+			return {};
 	}
-	result.width = std::max(0, x);
+	result.width = static_cast<int>(std::max<int64_t>(0, x));
 	result.pixels.assign(result.height, std::vector<bool>(result.width, false));
 	for(const auto & glyph : placed)
 		for(int row = 0; row < result.height; ++row)

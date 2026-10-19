@@ -36,6 +36,10 @@ void CArtifactsOfHeroBase::putBackPickedArtifact()
 	// The server accepts this request only from the hero's owner
 	if(curHero == nullptr || curHero->getOwner() != GAME->interface()->playerID)
 		return;
+	// Windows are closed when the turn ends, after the server stopped taking requests from this player.
+	// The server returns the picked artifact itself at the end of the turn.
+	if(!GAME->interface()->makingTurn)
+		return;
 	if(const auto art = getPickedArtifact())
 	{
 		auto slot = ArtifactUtils::getArtAnyPosition(curHero, art->getTypeId());

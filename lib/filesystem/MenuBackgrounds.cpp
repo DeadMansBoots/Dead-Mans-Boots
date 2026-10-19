@@ -1085,6 +1085,11 @@ std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::
 			put32(out, 0);
 	}
 	const ui8 * palette = d.data() + 16;
+	// DMB: frames may share their bytes (offsets to one frame, rows to one run), so a small file can claim gigabytes of decoded
+	// pixels; the file's frames together are held to DECODED_PIXELS, many times what a menu button's DEF holds (a few frames of
+	// some 200 x 60), and a file past it is refused like any other unreadable one
+	constexpr size_t DECODED_PIXELS = 16 * 1024 * 1024;
+	size_t decoded = 0;
 	for(size_t b = 0; b < parsed.size(); ++b)
 	{
 		struct Frame
@@ -1110,6 +1115,12 @@ std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::
 			f.top = le32(d, at + 28);
 			if(f.w <= 0 || f.h <= 0 || f.w > 4096 || f.h > 4096 || (f.format == 1 && f.w > static_cast<int>(f.fullW) && f.h > static_cast<int>(f.fullH)))
 				return {};
+			decoded += static_cast<size_t>(f.w) * f.h;
+			if(decoded > DECODED_PIXELS)
+			{
+				logGlobal->warn("Menu buttons: %s in %s decodes to more than %d pixels; its buttons are not used", name, era.sprites.string(), static_cast<int>(DECODED_PIXELS));
+				return {};
+			}
 			if(!decodeFrame(d, at, f.w, f.h, f.format, f.pix))
 				return {};
 			f.ring = findGlow(palette, f.pix, f.w, f.h);

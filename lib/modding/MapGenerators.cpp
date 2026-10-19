@@ -101,7 +101,7 @@ void readPhases(const MapGeneratorInfo & generator, const boost::filesystem::pat
 	logGlobal->debug("Map generator %s: stage %d of %d, %s", generator.name, latest->step, latest->total, latest->text);
 	setPhase(*latest);
 	if(progress)
-		progress->set(static_cast<Load::Type>(std::numeric_limits<Load::Type>::max() * (latest->step - 1) / latest->total));
+		progress->set(static_cast<Load::Type>(int64_t{std::numeric_limits<Load::Type>::max()} * (latest->step - 1) / latest->total)); // DMB: in 64 bits, a step past 8 million overflowed int
 }
 }
 

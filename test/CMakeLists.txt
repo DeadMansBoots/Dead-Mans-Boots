@@ -19,6 +19,8 @@ set(test_SRCS
 
 		lobby/TimerStringTest.cpp
 
+		modding/MapGeneratorsTest.cpp
+
  		battle/BattleHexTest.cpp
  		battle/CBattleInfoCallbackTest.cpp
  		battle/CHealthTest.cpp

@@ -78,6 +78,11 @@ namespace MapGenerators
 	DLL_LINKAGE int run(const MapGeneratorInfo & generator, const std::vector<std::string> & args,
 		const boost::filesystem::path & logPath, std::chrono::seconds timeout, Load::Progress * progress = nullptr);
 
+	/// The cmd.exe line that runs a .cmd or .bat generator `script` with `args`: cmd /c ""script" "arg" ...", every argument
+	/// in quotes, so & | < > ^ ( ) in a template name or a folder are text. A quote, a percent sign or a line break cannot be
+	/// given to a batch script through cmd intact; an argument with one throws std::runtime_error naming it.
+	DLL_LINKAGE std::string batchCommandLine(const std::string & script, const std::vector<std::string> & args);
+
 	/// A stage of the generator's work. A generator announces each stage it enters with a line
 	///     [phase] <n>/<total> <id>
 	/// in its output (OmniMapGen writes 23; K, September 27th: the load screen should say what the

@@ -360,14 +360,7 @@ int MapGenerators::run(const MapGeneratorInfo & generator, const std::vector<std
 	// other, the "Error: " line the player is shown included (MapGen's finding)
 	if(ext == ".cmd" || ext == ".bat")
 	{
-		// batch scripts need the shell. cmd /c splits `cmd /c "quoted path" args` at the first space
-		// inside the quotes; the form that parses is one more quote pair around the whole tail:
-		// cmd /c ""path" args", passed verbatim as one string
-		std::string tail = "cmd /c \"\"" + command + "\"";
-		for(const auto & a : args)
-			tail += ' ' + ((a.find_first_of(" \"") == std::string::npos) ? a : "\"" + a + "\"");
-		tail += '"';
-		child = startChild(tail, ec, (boost::process::std_out & boost::process::std_err) > logPath);
+		child = startChild(batchCommandLine(command, args), ec, (boost::process::std_out & boost::process::std_err) > logPath);
 	}
 	else
 		child = startChild(command, args, ec, (boost::process::std_out & boost::process::std_err) > logPath);
@@ -389,6 +382,26 @@ int MapGenerators::run(const MapGeneratorInfo & generator, const std::vector<std
 	}
 	child->wait();
 	return child->exit_code();
+}
+
+std::string MapGenerators::batchCommandLine(const std::string & script, const std::vector<std::string> & args)
+{
+	// batch scripts need the shell. cmd /c splits `cmd /c "quoted path" args` at the first space
+	// inside the quotes; the form that parses is one more quote pair around the whole tail:
+	// cmd /c ""path" args", passed verbatim as one string. DMB: every argument is quoted, where only those
+	// with a space were, so cmd reads & | < > ^ ( ) in one as text; cmd has no escape for a quote or a
+	// percent sign inside quotes, so an argument with one is refused with its name
+	const auto checked = [](const std::string & text) -> const std::string &
+	{
+		if(text.find_first_of("\"%\r\n") != std::string::npos)
+			throw std::runtime_error("a .cmd or .bat map generator cannot be given " + text + ": cmd.exe passes no quote, percent sign or line break intact");
+		return text;
+	};
+	std::string tail = "cmd /c \"\"" + checked(script) + "\"";
+	for(const auto & a : args)
+		tail += " \"" + checked(a) + "\"";
+	tail += '"';
+	return tail;
 }
 
 std::string MapGenerators::errorLine(const boost::filesystem::path & logPath)

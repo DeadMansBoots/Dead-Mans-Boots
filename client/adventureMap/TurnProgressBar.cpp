@@ -9,6 +9,9 @@
 #include "TurnProgressBar.h"
 
 #include "../CPlayerInterface.h"
+#include "../GameEngine.h"
+#include "../gui/WindowHandler.h"
+#include "AdventureMapInterface.h"
 #include "../GameInstance.h"
 #include "../render/Colors.h"
 #include "../render/Graphics.h"
@@ -46,6 +49,11 @@ void TurnProgressBar::startTurn(PlayerColor newPlayer)
 {
 	player = newPlayer;
 	turnEnded = false;
+	takeSnapshot();
+}
+
+void TurnProgressBar::takeSnapshot()
+{
 	heroes.clear();
 	towns.clear();
 	snapshotTaken = false;
@@ -91,13 +99,17 @@ void TurnProgressBar::startTurn(PlayerColor newPlayer)
 				}
 			}
 		}
-		for(const auto & level : town->creatures)
+		for(size_t index = 0; index < town->creatures.size(); ++index)
 		{
+			const auto & level = town->creatures[index];
 			if(level.second.empty() || level.first == 0)
 				continue;
 			const auto * creature = level.second.back().toCreature();
 			if(creature && resources.canAfford(creature->getFullRecruitCost()))
+			{
 				start.recruitable += static_cast<int>(level.first);
+				start.levels.push_back(index);
+			}
 		}
 		towns.push_back(start);
 	}
@@ -172,8 +184,9 @@ int TurnProgressBar::compute() const
 			if(!town)
 				continue;
 			int now = 0;
-			for(const auto & level : town->creatures)
-				now += static_cast<int>(level.first);
+			for(const size_t index : start.levels)
+				if(index < town->creatures.size())
+					now += static_cast<int>(town->creatures[index].first);
 			total += start.recruitable;
 			taken += std::clamp(start.recruitable - now, 0, start.recruitable);
 		}
@@ -230,7 +243,10 @@ void TurnProgressBar::refresh()
 	bevel.push_back(std::make_shared<SimpleLine>(Point(1, 1), Point(barSize.x - 2, 1), dark));
 	bevel.push_back(std::make_shared<SimpleLine>(Point(1, 1), Point(1, barSize.y - 2), dark));
 	label = std::make_shared<CLabel>(barSize.x / 2, barSize.y / 2, FONT_TINY, ETextAlignment::CENTER, Colors::WHITE, std::to_string(percent) + "%");
-	redraw();
+	// painted at once only while the adventure map is the window on top: a town screen or a dialog over the top left is never painted over (the Reviewer, pass 149);
+	// when such a window closes the adventure map is drawn whole again, the bar with it
+	if(adventureInt && ENGINE->windows().isTopWindow(adventureInt.get()))
+		redraw();
 }
 
 void TurnProgressBar::tick(uint32_t msPassed)
@@ -239,7 +255,12 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	if(sinceUpdate < 250)
 		return;
 	sinceUpdate = 0;
+	// a turn loaded from a save has no snapshot (the turn did not start in this run): it is taken now, and the bar reads what is done since
+	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb && GAME->interface()->playerID == player)
+		takeSnapshot();
 	const int now = compute();
+	if(now == percent)
+		return; // nothing to show again: stock's turn timer redraws only when its text changes
 	percent = now;
-	refresh(); // redrawn every time: the bar is there from the first frame of the turn, whatever closed the window that covered it
+	refresh();
 }

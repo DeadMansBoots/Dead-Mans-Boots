@@ -33,6 +33,8 @@ class TurnProgressBar : public CIntObject
 		ObjectInstanceID id;
 		bool canBuild = false;
 		int recruitable = 0;
+		/// the dwelling levels counted in recruitable (the ones whose creature the player could afford at the start): the same levels are summed again later
+		std::vector<size_t> levels;
 	};
 
 	PlayerColor player;
@@ -52,6 +54,8 @@ class TurnProgressBar : public CIntObject
 
 	int compute() const;
 	void refresh();
+	/// the snapshot of what the player's heroes and towns have now, taken when the turn starts, or at the first tick of a turn that was loaded from a save
+	void takeSnapshot();
 	void tick(uint32_t msPassed) override;
 
 public:

@@ -157,9 +157,13 @@ QImage readH3Pcx(const ui8 * pcx, size_t size)
 {
 	if(size < 12)
 		return {};
-	const ui32 bytes = read_le_u32(pcx);
-	const ui32 width = read_le_u32(pcx + 4);
-	const ui32 height = read_le_u32(pcx + 8);
+	// DMB: the sizes are compared in 64 bits, where 32-bit products wrapped and let a 65536 x 65536 header over a 780-byte file
+	// through, and a side past INT_MAX is refused before QImage takes it as an int
+	const uint64_t bytes = read_le_u32(pcx);
+	const uint64_t width = read_le_u32(pcx + 4);
+	const uint64_t height = read_le_u32(pcx + 8);
+	if(width > std::numeric_limits<int>::max() || height > std::numeric_limits<int>::max())
+		return {};
 	if(bytes == width * height && size >= 12 + bytes + 256 * 3)
 	{
 		QImage image(pcx + 12, width, height, width, QImage::Format_Indexed8);
@@ -188,6 +192,9 @@ QPixmap playerLeather()
 		image.loadFromData(bytes, static_cast<int>(data.second));
 	return QPixmap::fromImage(image);
 }
+
+/// the largest side a DEF frame's box may have: Heroes III draws none larger than its 800 x 600 screen, and this leaves room for a mod's
+constexpr int MAX_DEF_FRAME_SIDE = 4096;
 
 /// A frame of a Heroes III sprite (DEF), decoded as the game's own loader decodes one (client
 /// CDefFile): palette index 0 transparent, 1 to 7 the game's shadow, the rest the sprite's palette
@@ -222,14 +229,19 @@ QImage readH3DefFrame(const ui8 * def, size_t size, size_t wanted)
 	const int height = static_cast<int>(read_le_u32(frame + 20));
 	const int left = static_cast<int>(read_le_u32(frame + 24));
 	const int top = static_cast<int>(read_le_u32(frame + 28));
-	if(fullWidth <= 0 || fullHeight <= 0 || width < 0 || height < 0 || left < 0 || top < 0 || left + width > fullWidth || top + height > fullHeight)
+	// DMB: the frame's place is checked without adding two of its fields (left + width overflowed int and passed), the box is held
+	// to MAX_DEF_FRAME_SIDE, and an image Qt could not allocate is refused, where scanLine() of a null image was written through
+	if(fullWidth <= 0 || fullHeight <= 0 || fullWidth > MAX_DEF_FRAME_SIDE || fullHeight > MAX_DEF_FRAME_SIDE || width < 0 || height < 0
+		|| left < 0 || top < 0 || width > fullWidth - left || height > fullHeight - top)
+		return {};
+	if(format > 3 || (format == 2 && !fits(base, 2)))
 		return {};
 
 	QImage image(fullWidth, fullHeight, QImage::Format_Indexed8);
+	if(image.isNull())
+		return {};
 	image.setColorTable(colours);
 	image.fill(0);
-	if(format > 3 || (format == 2 && !fits(base, 2)))
-		return {};
 	size_t following = format == 2 ? base + read_le_u16(def + base) : 0; // format 2's lines follow one another
 	for(int y = 0; y < height; ++y)
 	{

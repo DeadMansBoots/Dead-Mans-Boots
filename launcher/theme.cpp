@@ -741,11 +741,20 @@ void applyCarvedButtonWord(QPushButton * button, bool active)
 {
 	const QVariant stored = button->property("dmbCarvedFrom");
 	QString original = stored.isValid() ? stored.toString() : button->text();
+	// DMB: a button with no word of its own (icon only) is not one to carve, and keeps its icon
+	if(original.isEmpty())
+		return;
 	// a plain setText after the word was carved (a download's progress, a language switch) is the button's new word: the text wins over the stored one
 	if(stored.isValid() && !button->text().isEmpty() && button->text() != original)
 		original = button->text();
 	if(!stored.isValid() || stored.toString() != original)
 		button->setProperty("dmbCarvedFrom", original);
+	// DMB: the button's own icon, kept on first sight, so the plain word gets it back
+	if(!button->property("dmbOwnIcon").isValid() && !button->property("dmbCarvedIcon").toBool())
+	{
+		button->setProperty("dmbOwnIcon", QVariant::fromValue(button->icon()));
+		button->setProperty("dmbOwnIconSize", button->iconSize());
+	}
 	button->setProperty("dmbCarvedWidth", button->width());
 	const double ratio = button->devicePixelRatioF();
 	const double room = button->width() - 2 * (carvedBarEnds() + carvedClear);
@@ -796,24 +805,23 @@ void applyCarvedButtonWord(QPushButton * button, bool active)
 		icon.addPixmap(QPixmap::fromImage(carvedButtonWord(label, ratio, scale, lightLettering, false)), QIcon::Disabled);
 		button->setIcon(icon);
 		button->setIconSize(logicalSize(enabled));
+		button->setProperty("dmbCarvedIcon", true);
 		button->setText(QString());
 		// Qt took the accelerator from the "&" of the text: it stays on the button
 		const QKeySequence mnemonic = QKeySequence::mnemonic(original);
 		if(!mnemonic.isEmpty())
-		{
 			button->setShortcut(mnemonic);
-			button->setProperty("dmbMnemonic", true);
-		}
 	}
-	else if(button->text().isEmpty() && !button->icon().isNull())
+	else if(button->property("dmbCarvedIcon").toBool())
 	{
-		button->setIcon(QIcon());
-		button->setText(original);
-		if(button->property("dmbMnemonic").toBool())
-		{
-			button->setShortcut(QKeySequence());
-			button->setProperty("dmbMnemonic", false);
-		}
+		// DMB: the carved picture goes whenever it is there, also beside a new plain text it could not carve, and the button's own
+		// icon comes back. setText derives the accelerator from the word's "&" itself, so nothing clears it afterwards (that took Alt+P
+		// from "&Play")
+		button->setIcon(button->property("dmbOwnIcon").value<QIcon>());
+		button->setIconSize(button->property("dmbOwnIconSize").toSize());
+		button->setProperty("dmbCarvedIcon", false);
+		if(button->text().isEmpty())
+			button->setText(original);
 	}
 }
 
@@ -1425,7 +1433,7 @@ void LauncherTheme::setButtonText(QPushButton * button, const QString & text)
 		button->setText(text); // never seen by the carving: a plain button
 		return;
 	}
-	const bool carved = button->text().isEmpty() && !button->icon().isNull();
+	const bool carved = button->property("dmbCarvedIcon").toBool();
 	if(carved && stored.toString() == text)
 		return; // the word it already carries
 	button->setProperty("dmbCarvedFrom", text);

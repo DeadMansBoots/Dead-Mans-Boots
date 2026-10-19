@@ -110,12 +110,15 @@ QByteArray redacted(const QByteArray & data)
 QByteArray scrubbedSettings(const QByteArray & data)
 {
 	QString text = QString::fromUtf8(data);
-	text.replace(QRegularExpression("(\"remoteHostname\"\\s*:\\s*)\"[^\"]*\""), "\\1\"<removed>\"");
-	text.replace(QRegularExpression("(\"playerName\"\\s*:\\s*)\"[^\"]*\""), "\\1\"<removed>\"");
-	text.replace(QRegularExpression("(\"multiPlayerNames\"\\s*:\\s*)\\[[^\\]]*\\]"), "\\1[]");
+	// DMB: a JSON string to its real end, past escaped quotes; "[^"]*" stopped at \" and left the rest of a name, and [^\]]* stopped at
+	// a "]" inside a name and left the names after it
+	const QString string = "\"(?:[^\"\\\\]|\\\\.)*\"";
+	text.replace(QRegularExpression("(\"remoteHostname\"\\s*:\\s*)" + string), "\\1\"<removed>\"");
+	text.replace(QRegularExpression("(\"playerName\"\\s*:\\s*)" + string), "\\1\"<removed>\"");
+	text.replace(QRegularExpression("(\"multiPlayerNames\"\\s*:\\s*)\\[\\s*(?:" + string + "\\s*,?\\s*)*\\]"), "\\1[]");
 	// other text a player types or pastes: the autosave/save prefix, the host the game's own server binds to, an extra mod repository address (it can carry a key)
 	for(const char * key : {"savePrefix", "localHostname", "extraRepositoryURL"})
-		text.replace(QRegularExpression(QString("(\"%1\"\\s*:\\s*)\"[^\"]*\"").arg(key)), "\\1\"<removed>\"");
+		text.replace(QRegularExpression(QString("(\"%1\"\\s*:\\s*)").arg(key) + string), "\\1\"<removed>\"");
 	return redacted(text.toUtf8());
 }
 

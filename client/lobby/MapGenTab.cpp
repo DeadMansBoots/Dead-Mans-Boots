@@ -1555,7 +1555,19 @@ void MapGenTab::generate()
 			// generator folder, so it runs here, off the game's main thread; a mismatch is a notice the player
 			// answers on the main thread (check mark: run it anyway and remember this version; cross: cancel),
 			// waited for here for ten minutes at most.
-			const std::string refused = AddonCode::trustProblem(gen.modID, gen.codeFolder);
+			bool answerable = false;
+			const std::string refused = AddonCode::trustProblem(gen.modID, gen.codeFolder, &answerable);
+			if(!refused.empty() && !answerable)
+			{
+				// its code cannot be read: a plain error, as running it anyway could not work
+				logGlobal->error("Map generator %s (mod %s) cannot run: %s", gen.name, gen.modID, refused);
+				MetaString text;
+				text.appendTextID("vcmi.dmb.mapGenerator.generate.refused");
+				text.replaceRawString(gen.name);
+				text.replaceRawString(refused);
+				failWith(text.toString());
+				return;
+			}
 			if(!refused.empty())
 			{
 				logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", gen.name, gen.modID, refused);

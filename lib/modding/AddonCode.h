@@ -61,8 +61,9 @@ namespace AddonCode
 	DLL_LINKAGE std::string rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder);
 
 	/// Why the code in the folder, from the mod modID, is not one the catalog vouches for; empty when it is (or the player
-	/// chose to run it anyway). A reason is for a notice with a choice, not a refusal.
-	DLL_LINKAGE std::string trustProblem(const std::string & modID, const boost::filesystem::path & folder);
+	/// chose to run it anyway). When `answerable` is given, it says whether the reason is for a notice with a choice (the code is not
+	/// listed, or is not the listed code): a folder that cannot be read is a plain error, since running it anyway could not work.
+	DLL_LINKAGE std::string trustProblem(const std::string & modID, const boost::filesystem::path & folder, bool * answerable = nullptr);
 }
 
 VCMI_LIB_NAMESPACE_END

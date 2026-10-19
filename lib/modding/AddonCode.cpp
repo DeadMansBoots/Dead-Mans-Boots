@@ -313,10 +313,19 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 	return {};
 }
 
-std::string AddonCode::trustProblem(const std::string & modID, const boost::filesystem::path & folder)
+std::string AddonCode::trustProblem(const std::string & modID, const boost::filesystem::path & folder, bool * answerable)
 {
+	if(answerable)
+		*answerable = false;
 	if(settings["mods"]["allowUnlistedCode"].Bool())
 		return {};
+
+	// the code is read first: what cannot be read cannot be run, anyway or otherwise
+	const std::string hash = cachedFolderHash(folder);
+	if(hash.empty())
+		return "its code could not be read";
+	if(answerable)
+		*answerable = true;
 
 	// a pins file as JSON; nothing when it is not there
 	const auto read = [](const boost::filesystem::path & file) -> std::optional<JsonNode>
@@ -365,12 +374,6 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 			return "DMB's mod catalog could not be read (the launcher downloads it again)";
 		return "it is not in DMB's mod catalog";
 	};
-	if(accepted.empty() && tested.empty() && remembered.empty())
-		return unlisted();
-
-	const std::string hash = cachedFolderHash(folder);
-	if(hash.empty())
-		return "its code could not be read";
 	if(vstd::contains(accepted, hash))
 		return {};
 	if(vstd::contains(tested, hash))
@@ -384,7 +387,7 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 		return {};
 	}
 	if(accepted.empty() && tested.empty())
-		return unlisted();
+		return unlisted(); // nothing pins the mod, and the player's answers name other code
 	// the numbers are for the log, where a mod's author looks; the player gets a notice with a choice
 	logMod->warn("Mod %s: its code in %s hashes to %s, and DMB's mod catalog pins %s", modID, folder.string(), hash,
 		boost::algorithm::join(accepted, ", "));

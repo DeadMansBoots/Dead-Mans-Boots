@@ -504,9 +504,21 @@ void CLobbyScreen::startScenarioGenerator(bool allowOnlyAI)
 		{
 			if(found.modID != GAME->server().si->mapGenOptions->getExternalGenerator() || !found.problem.empty() || !found.atBegin)
 				continue;
-			const std::string problem = AddonCode::trustProblem(found.modID, found.codeFolder);
+			bool answerable = false;
+			const std::string problem = AddonCode::trustProblem(found.modID, found.codeFolder, &answerable);
 			if(problem.empty())
 				break;
+			if(!answerable)
+			{
+				// its code cannot be read: a plain error, as running it anyway could not work; the lobby stays usable
+				logGlobal->error("Map generator %s (mod %s) cannot run: %s", found.name, found.modID, problem);
+				MetaString text;
+				text.appendTextID("vcmi.dmb.mapGenerator.generate.refused");
+				text.replaceRawString(found.name);
+				text.replaceRawString(problem);
+				CInfoWindow::showInfoDialog(text.toString(), {});
+				return;
+			}
 			logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", found.name, found.modID, problem);
 			MapGenTab::askRunAnyway(found, problem, [this, allowOnlyAI]()
 			{

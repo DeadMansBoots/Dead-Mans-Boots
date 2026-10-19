@@ -64,8 +64,9 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 		info.problem = "its library is missing: ai/" + VCMIDirs::get().libraryName(info.library);
 	else
 	{
-		info.problem = AddonCode::trustProblem(info.modID, *folder / "ai");
-		info.untrusted = !info.problem.empty();
+		bool answerable = false;
+		info.problem = AddonCode::trustProblem(info.modID, *folder / "ai", &answerable);
+		info.untrusted = !info.problem.empty() && answerable;
 	}
 #endif
 	return info;

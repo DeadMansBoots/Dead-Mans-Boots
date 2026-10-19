@@ -234,7 +234,8 @@ public: // public interface for use by client via GAME->interface() access
 	void registerBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
 	void unregisterBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
 
-	void prepareAutoFightingAI(const BattleID &bid, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2, BattleSide side);
+	/// false when the battle AI the settings name cannot run; the player has been told
+	bool prepareAutoFightingAI(const BattleID &bid, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2, BattleSide side);
 
 	CPlayerInterface(PlayerColor Player);
 	~CPlayerInterface();

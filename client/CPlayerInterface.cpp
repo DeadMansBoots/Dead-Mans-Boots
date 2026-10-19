@@ -1975,9 +1975,24 @@ bool CPlayerInterface::capturedAllEvents()
 	return false;
 }
 
-void CPlayerInterface::prepareAutoFightingAI(const BattleID &bid, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2, BattleSide side)
+bool CPlayerInterface::prepareAutoFightingAI(const BattleID &bid, const CCreatureSet *army1, const CCreatureSet *army2, int3 tile, const CGHeroInstance *hero1, const CGHeroInstance *hero2, BattleSide side)
 {
-	autofightingAI = CDynLibHandler::getNewBattleAI(settings["ai"]["combatAlliedAI"].String());
+	// DMB: the loader refuses an AI plugin DMB's mod catalog does not vouch for when nobody answered its notice for this code (a guest is
+	// not asked at the start, and the setting can change during the game); the player is told, and the battle is fought by hand
+	try
+	{
+		autofightingAI = CDynLibHandler::getNewBattleAI(settings["ai"]["combatAlliedAI"].String());
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->error("Auto combat cannot start: %s", e.what());
+		autofightingAI.reset();
+		MetaString text;
+		text.appendTextID("vcmi.dmb.aiPlugin.autoCombatRefused");
+		text.replaceRawString(e.what());
+		showInfoDialog(text.toString());
+		return false;
+	}
 
 	AutocombatPreferences autocombatPreferences = AutocombatPreferences();
 	autocombatPreferences.enableSpellsUsage = settings["battle"]["enableAutocombatSpells"].Bool();
@@ -1986,6 +2001,7 @@ void CPlayerInterface::prepareAutoFightingAI(const BattleID &bid, const CCreatur
 	autofightingAI->battleStart(bid, army1, army2, tile, hero1, hero2, side, false);
 	isAutoFightOn = true;
 	registerBattleInterface(autofightingAI);
+	return true;
 }
 
 void CPlayerInterface::showWorldViewEx(const std::vector<ObjectPosInfo>& objectPositions, bool showTerrain)

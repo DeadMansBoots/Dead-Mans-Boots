@@ -656,7 +656,12 @@ void BattleWindow::bAutofightf()
 		owner.curInt->isAutoFightOn = true;
 		blockUI(true);
 
-		owner.curInt->prepareAutoFightingAI(owner.getBattleID(), owner.army1, owner.army2, int3(0,0,0), owner.attackingHeroInstance, owner.defendingHeroInstance, owner.getBattle()->battleGetMySide());
+		if(!owner.curInt->prepareAutoFightingAI(owner.getBattleID(), owner.army1, owner.army2, int3(0,0,0), owner.attackingHeroInstance, owner.defendingHeroInstance, owner.getBattle()->battleGetMySide()))
+		{
+			owner.curInt->isAutoFightOn = false;
+			blockUI(false);
+			return;
+		}
 		owner.requestAutofightingAIToTakeAction();
 	}
 }
@@ -824,8 +829,9 @@ void BattleWindow::endWithAutocombat()
 		LIBRARY->generaltexth->translate("vcmi.battleWindow.endWithAutocombat"),
 		[this]()
 		{
+			if(!owner.curInt->prepareAutoFightingAI(owner.getBattleID(), owner.army1, owner.army2, int3(0,0,0), owner.attackingHeroInstance, owner.defendingHeroInstance, owner.getBattle()->battleGetMySide()))
+				return;
 			owner.curInt->isAutoFightEndBattle = true;
-			owner.curInt->prepareAutoFightingAI(owner.getBattleID(), owner.army1, owner.army2, int3(0,0,0), owner.attackingHeroInstance, owner.defendingHeroInstance, owner.getBattle()->battleGetMySide());
 
 			owner.requestAutofightingAIToTakeAction();
 

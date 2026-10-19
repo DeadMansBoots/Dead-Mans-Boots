@@ -64,6 +64,7 @@
 #include "windows/CQuestLog.h"
 #include "windows/CSpellWindow.h"
 #include "windows/CTutorialWindow.h"
+#include "windows/CWindowWithArtifacts.h"
 #include "windows/GUIClasses.h"
 #include "windows/InfoWindows.h"
 #include "windows/settings/SettingsMainWindow.h"
@@ -102,6 +103,8 @@
 #include "../lib/mapping/CMap.h"
 #include "../lib/mapping/CMapHeader.h"
 
+#include "../lib/entities/artifact/ArtifactUtils.h"
+#include "../lib/networkPacks/ArtifactLocation.h"
 #include "../lib/networkPacks/PacksForClient.h"
 #include "../lib/networkPacks/PacksForClientBattle.h"
 #include "../lib/networkPacks/PacksForServer.h"
@@ -1337,6 +1340,8 @@ void CPlayerInterface::requestRealized( PackageApplied *pa )
 {
 	// The server sends PackageApplied after the packs that applied the request, so the slots shown are current again
 	pendingArtifactRequests.erase(pa->requestID);
+	if(pendingArtifactRequests.empty() && !putBackOwed.empty())
+		putBackOwedArtifacts();
 
 	if(pa->packType == CTypeList::getInstance().getTypeID<MoveHero>(nullptr))
 		movementController->onMoveHeroApplied();
@@ -1348,6 +1353,36 @@ void CPlayerInterface::requestRealized( PackageApplied *pa )
 bool CPlayerInterface::hasPendingArtifactRequest() const
 {
 	return !pendingArtifactRequests.empty();
+}
+
+void CPlayerInterface::owePutBack(ObjectInstanceID hero)
+{
+	putBackOwed.insert(hero);
+}
+
+void CPlayerInterface::putBackOwedArtifacts()
+{
+	const std::set<ObjectInstanceID> owed = std::move(putBackOwed);
+	putBackOwed.clear();
+	// after the turn the server returns picked artifacts itself; an artifact window open again shows the picked artifact on the cursor,
+	// and puts it back when it closes
+	if(!makingTurn || !ENGINE->windows().findWindows<CWindowWithArtifacts>().empty())
+		return;
+	for(const auto & heroID : owed)
+	{
+		const auto * hero = cb->getHero(heroID);
+		if(hero == nullptr || hero->getOwner() != playerID)
+			continue;
+		const auto * art = hero->getArt(ArtifactPosition::TRANSITION_POS);
+		if(art == nullptr)
+			continue;
+		// the same request the window's put-back sends (CArtifactsOfHeroBase::putBackPickedArtifact)
+		const auto slot = ArtifactUtils::getArtAnyPosition(hero, art->getTypeId());
+		if(slot == ArtifactPosition::PRE_FIRST)
+			cb->eraseArtifactByClient(ArtifactLocation(hero->id, ArtifactPosition::TRANSITION_POS));
+		else
+			cb->swapArtifacts(ArtifactLocation(hero->id, ArtifactPosition::TRANSITION_POS), ArtifactLocation(hero->id, slot));
+	}
 }
 
 void CPlayerInterface::showHeroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)

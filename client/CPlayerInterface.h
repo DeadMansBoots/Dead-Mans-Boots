@@ -73,6 +73,9 @@ class CPlayerInterface : public CGameInterface
 
 	/// Artifact requests sent to the server and not answered yet
 	std::set<int> pendingArtifactRequests;
+	/// Heroes whose artifact window closed while a request was pending: their picked artifact is put back once the answer is in
+	std::set<ObjectInstanceID> putBackOwed;
+	void putBackOwedArtifacts();
 public: // TODO: make private
 	std::unique_ptr<ArtifactsUIController> artifactController;
 	std::shared_ptr<Environment> env;
@@ -225,6 +228,8 @@ public: // public interface for use by client via GAME->interface() access
 	/// True while an artifact request is waiting for the server's answer.
 	/// Artifact windows send the next request only after that answer has updated the slots they show.
 	bool hasPendingArtifactRequest() const;
+	/// An artifact window of this hero closed while a request was pending; the put-back it skipped is sent when the answer is in
+	void owePutBack(ObjectInstanceID hero);
 
 	void registerBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
 	void unregisterBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);

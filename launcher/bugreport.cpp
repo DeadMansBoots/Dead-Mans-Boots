@@ -51,9 +51,11 @@ namespace
 constexpr qint64 LOG_TAIL_BYTES = 4 * 1024 * 1024;
 constexpr qint64 PLAY_LOG_TAIL_BYTES = 6 * 1024 * 1024;
 
-QString userFolder(const std::string & path)
+/// DMB: through the wide path on Windows; path::string() there is the ANSI code page, which QString read as UTF-8, so a user
+/// folder with letters outside it (Jürgen, a Cyrillic or CJK name) named a folder that does not exist
+QString userFolder(const boost::filesystem::path & path)
 {
-	return QString::fromStdString(path);
+	return pathToQString(path);
 }
 
 /// the last `limit` bytes of a file (a log can run to many megabytes; its end is what matters)
@@ -189,7 +191,7 @@ QString systemInfo(const QString & why)
 	ts << "CPU architecture: " << QSysInfo::currentCpuArchitecture() << '\n';
 	// which build the crash addresses belong to: the first 8 characters of the game program's sha256 name the folder of its symbols (build_dmb.py, symbolize.py)
 	{
-		QFile client(QString::fromStdString(VCMIDirs::get().clientPath().string()));
+		QFile client(userFolder(VCMIDirs::get().clientPath()));
 		if(client.open(QIODevice::ReadOnly))
 			ts << "Game program id: " << QCryptographicHash::hash(client.readAll(), QCryptographicHash::Sha256).toHex().left(8) << '\n';
 	}
@@ -253,9 +255,9 @@ Report build(const QString & why, const QString & description, bool includeDump)
 	Report report;
 	try
 	{
-		const QString logs = userFolder(VCMIDirs::get().userLogsPath().string());
-		const QString config = userFolder(VCMIDirs::get().userConfigPath().string());
-		const QString data = userFolder(VCMIDirs::get().userDataPath().string());
+		const QString logs = userFolder(VCMIDirs::get().userLogsPath());
+		const QString config = userFolder(VCMIDirs::get().userConfigPath());
+		const QString data = userFolder(VCMIDirs::get().userDataPath());
 
 		QDir().mkpath(data + "/Reports");
 		const QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
@@ -263,7 +265,7 @@ Report build(const QString & why, const QString & description, bool includeDump)
 		report.zipPath = data + "/Reports/" + name;
 
 		std::shared_ptr<CIOApi> api = std::make_shared<CDefaultIOApi>();
-		CZipSaver saver(api, boost::filesystem::path(report.zipPath.toStdString()));
+		CZipSaver saver(api, qstringToPath(report.zipPath));
 		// a text file goes into the zip and into the list of parts that a one-by-one upload sends
 		const auto add = [&](const std::string & fileName, const QByteArray & bytes)
 		{
@@ -354,7 +356,7 @@ Report build(const QString & why, const QString & description, bool includeDump)
 /// depend on them): the file is the one the game and the launcher write, so a missing key means its default
 QJsonObject launcherSettings()
 {
-	QFile file(userFolder(VCMIDirs::get().userConfigPath().string()) + "/settings.json");
+	QFile file(userFolder(VCMIDirs::get().userConfigPath()) + "/settings.json");
 	if(!file.open(QIODevice::ReadOnly))
 		return {};
 	return QJsonDocument::fromJson(file.readAll()).object()["launcher"].toObject();

@@ -80,7 +80,9 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 	using TGetAIFun = void (*)(std::shared_ptr<rett> &);
 	using TGetNameFun = void (*)(char *);
 
-	// DMB: GetAiName writes a C string of its own length; the buffer is generous and must hold the terminator afterwards
+	// DMB: GetAiName writes a C string of its own length and takes no size, so nothing here can bound it. The buffer is generous, and the check
+	// after the call refuses a name that filled it; a name of 1024 characters or more has already run past it by then, so a plugin's name
+	// must stay under 1024 characters (the old buffer held 149)
 	std::array<char, 1024> temp{};
 
 	TGetAIFun getAI = nullptr;

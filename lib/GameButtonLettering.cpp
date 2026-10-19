@@ -270,6 +270,9 @@ bool lettersOf(const Picture & p, const std::string & word, const std::map<char,
 		groups[a] = joined(groups[a], groups[a + 1]);
 		groups.erase(groups.begin() + a + 1);
 	}
+	// no black piece on the face (art without this lettering, or a face too narrow to hold any): nothing to match
+	if(groups.empty())
+		return false;
 	// letters that touch come out as one piece: the widest is cut along the path of least black down its
 	// rows, a column either way per row, so kerned diagonals (A V) part along their gap. Where one of the
 	// two is known from another button, the cut keeps within three columns of where its width ends: SAVE's

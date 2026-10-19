@@ -320,13 +320,16 @@ void CSettingsView::loadSettings()
 	fillLookSlots();
 
 	// DMB: a stored filter this build does not list (hand-edited, or from another build) is shown as itself and kept
-	const auto showFilter = [](QComboBox * combo, const auto & types, const std::string & stored)
+	// The stored value is taken by value and the box's signals are blocked: removing the current entry would otherwise select another and
+	// store it through the handler, over the value this keeps
+	const auto showFilter = [](QComboBox * combo, const auto & types, const std::string stored)
 	{
+		QSignalBlocker guard(combo);
+		while(combo->count() > static_cast<int>(types.size()))
+			combo->removeItem(combo->count() - 1);
 		int index = vstd::find_pos(types, stored);
 		if(index < 0)
 		{
-			while(combo->count() > static_cast<int>(types.size()))
-				combo->removeItem(combo->count() - 1);
 			combo->addItem(tr("%1 (not known to this version)").arg(QString::fromStdString(stored)));
 			index = combo->count() - 1;
 		}

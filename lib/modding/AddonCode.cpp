@@ -282,39 +282,46 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 	}
 
 	JsonNode all;
+	bool keptAside = false; // the file was damaged and moved to .bad: the new one is written even when it already held this answer
 	{
 		std::ifstream in(runAnywayFile().c_str(), std::ios::binary);
 		if(in)
 		{
-			// read strictly: the lenient parser keeps what it could read of a damaged file, and the rewrite below would then drop the rest without a word.
+			// read strictly first: the lenient parser keeps what it can read of a damaged file, and the rewrite below would then drop the rest without a word.
 			// The reading is inside the try too: a read error throws (std::ios_base::failure)
+			std::string text;
 			JsonParsingSettings strict;
 			strict.strict = true;
 			try
 			{
-				const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+				text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 				all = JsonNode(text.data(), text.size(), strict, runAnywayFile().string());
 				if(!all.isStruct() && !all.isNull())
 					throw std::runtime_error("it does not hold a JSON object");
 			}
 			catch(const std::exception & e)
 			{
-				// a damaged file is kept aside as <name>.bad, for the player or a helper to look at, and started again
+				// a damaged file is kept aside whole as <name>.bad, for the player or a helper to look at; the answers the lenient parser can still read
+				// from it are carried over, so the new file loses none of them
 				in.close();
+				keptAside = true;
 				const boost::filesystem::path aside = runAnywayFile().string() + ".bad";
 				boost::system::error_code renameError;
 				boost::filesystem::rename(runAnywayFile(), aside, renameError);
-				logMod->warn("%s could not be read (%s); it is kept as %s and started again%s", runAnywayFile().string(), e.what(), aside.string(),
-					renameError ? " (it could not be renamed: " + renameError.message() + ")" : std::string());
-				all = JsonNode();
+				logMod->warn("%s could not be read (%s); it is kept as %s and started again with the answers still readable in it%s", runAnywayFile().string(), e.what(),
+					aside.string(), renameError ? " (it could not be renamed: " + renameError.message() + ")" : std::string());
+				all = JsonNode(text.data(), text.size(), runAnywayFile().string());
+				if(!all.isStruct())
+					all = JsonNode();
 			}
 		}
 	}
 	JsonVector & list = all[mod].Vector();
-	for(const auto & entry : list)
-		if(entry.isString() && boost::to_lower_copy(entry.String()) == hash)
-			return {};
-	list.push_back(JsonNode(hash));
+	const bool listed = std::any_of(list.begin(), list.end(), [&hash](const JsonNode & entry) { return entry.isString() && boost::to_lower_copy(entry.String()) == hash; });
+	if(listed && !keptAside)
+		return {};
+	if(!listed)
+		list.push_back(JsonNode(hash));
 	const boost::filesystem::path temporary = runAnywayFile().string() + ".tmp";
 	// why the file did not keep the answer, for the log and the player
 	const auto failed = [&](const std::string & why)

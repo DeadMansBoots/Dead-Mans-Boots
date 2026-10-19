@@ -227,8 +227,8 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 		backpackButtonLeft->setOverlay(std::make_shared<CPicture>(ImagePath::builtin("heroWindow/backpackButtonIcon")));
 		backpackButtonRight->setOverlay(std::make_shared<CPicture>(ImagePath::builtin("heroWindow/backpackButtonIcon")));
 
-		auto leftHeroBlock = heroInst[0]->tempOwner != GAME->interface()->cb->getPlayerID();
-		auto rightHeroBlock = heroInst[1]->tempOwner != GAME->interface()->cb->getPlayerID();
+		auto leftHeroBlock = isHeroBlocked(0);
+		auto rightHeroBlock = isHeroBlocked(1);
 
 		buttonMoveUnitsFromLeftToRight->block(leftHeroBlock);
 		buttonMoveUnitsFromRightToLeft->block(rightHeroBlock);
@@ -305,43 +305,59 @@ void CExchangeWindow::backpackShortcut(bool leftHero)
 
 void CExchangeWindow::keyPressed(EShortcut key)
 {
+	// Same blocks as the buttons: a transfer only takes from a hero this player owns
+	const bool leftHeroBlock = isHeroBlocked(0);
+	const bool rightHeroBlock = isHeroBlocked(1);
+
 	switch (key)
 	{
 		case EShortcut::EXCHANGE_ARMY_TO_LEFT:
-			moveUnitsShortcut(false);
+			if(!rightHeroBlock)
+				moveUnitsShortcut(false);
 		break;
 		case EShortcut::EXCHANGE_ARMY_TO_RIGHT:
-			moveUnitsShortcut(true);
+			if(!leftHeroBlock)
+				moveUnitsShortcut(true);
 		break;
 		case EShortcut::EXCHANGE_ARMY_SWAP:
-			controller.swapArmy();
+			if(!leftHeroBlock && !rightHeroBlock)
+				controller.swapArmy();
 		break;
 		case EShortcut::EXCHANGE_ARTIFACTS_TO_LEFT:
-			controller.moveArtifacts(false, true, true);
+			if(!rightHeroBlock)
+				controller.moveArtifacts(false, true, true);
 		break;
 		case EShortcut::EXCHANGE_ARTIFACTS_TO_RIGHT:
-			controller.moveArtifacts(true, true, true);
+			if(!leftHeroBlock)
+				controller.moveArtifacts(true, true, true);
 		break;
 		case EShortcut::EXCHANGE_ARTIFACTS_SWAP:
-			controller.swapArtifacts(true, true);
+			if(!leftHeroBlock && !rightHeroBlock)
+				controller.swapArtifacts(true, true);
 		break;
 		case EShortcut::EXCHANGE_EQUIPPED_TO_LEFT:
-			controller.moveArtifacts(false, true, false);
+			if(!rightHeroBlock)
+				controller.moveArtifacts(false, true, false);
 		break;
 		case EShortcut::EXCHANGE_EQUIPPED_TO_RIGHT:
-			controller.moveArtifacts(true, true, false);
+			if(!leftHeroBlock)
+				controller.moveArtifacts(true, true, false);
 		break;
 		case EShortcut::EXCHANGE_EQUIPPED_SWAP:
-			controller.swapArtifacts(true, false);
+			if(!leftHeroBlock && !rightHeroBlock)
+				controller.swapArtifacts(true, false);
 		break;
 		case EShortcut::EXCHANGE_BACKPACK_TO_LEFT:
-			controller.moveArtifacts(false, false, true);
+			if(!rightHeroBlock)
+				controller.moveArtifacts(false, false, true);
 		break;
 		case EShortcut::EXCHANGE_BACKPACK_TO_RIGHT:
-			controller.moveArtifacts(true, false, true);
+			if(!leftHeroBlock)
+				controller.moveArtifacts(true, false, true);
 		break;
 		case EShortcut::EXCHANGE_BACKPACK_SWAP:
-			controller.swapArtifacts(false, true);
+			if(!leftHeroBlock && !rightHeroBlock)
+				controller.swapArtifacts(false, true);
 		break;
 		case EShortcut::EXCHANGE_BACKPACK_LEFT:
 			backpackShortcut(true);
@@ -350,6 +366,11 @@ void CExchangeWindow::keyPressed(EShortcut key)
 			backpackShortcut(false);
 		break;
 	}
+}
+
+bool CExchangeWindow::isHeroBlocked(size_t leftRight) const
+{
+	return heroInst.at(leftRight)->tempOwner != GAME->interface()->cb->getPlayerID();
 }
 
 const CGarrisonSlot * CExchangeWindow::getSelectedSlotID() const

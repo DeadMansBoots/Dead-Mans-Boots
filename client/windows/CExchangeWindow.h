@@ -69,6 +69,8 @@ class CExchangeWindow : public CStatusbarWindow, public IGarrisonHolder, public 
 	std::array<std::shared_ptr<CArtifactsOfHeroMain>, 2> artifs;
 
 	const CGarrisonSlot * getSelectedSlotID() const;
+	/// True when this player does not own the hero, so nothing may be taken from it
+	bool isHeroBlocked(size_t leftRight) const;
 
 public:
 	CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID);

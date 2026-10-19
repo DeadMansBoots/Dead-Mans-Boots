@@ -140,6 +140,10 @@ void CWindowWithArtifacts::showQuickBackpackWindow(const CGHeroInstance * hero, 
 	if(!ArtifactUtils::isSlotEquipment(slot))
 		return;
 
+	// The quick backpack swaps artifacts of this hero, which only its owner may do
+	if(hero->getOwner() != GAME->interface()->playerID)
+		return;
+
 	ENGINE->windows().createAndPushWindow<CHeroQuickBackpackWindow>(hero, slot);
 	auto backpackWindow = ENGINE->windows().topWindow<CHeroQuickBackpackWindow>();
 	backpackWindow->moveTo(cursorPosition - Point(1, 1));

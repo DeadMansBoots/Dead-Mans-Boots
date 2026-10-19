@@ -208,6 +208,7 @@ OptionsTabBase::OptionsTabBase(const JsonPath & configPath)
 			{
 				if(auto * tObj = reinterpret_cast<const JsonNode *>(item))
 				{
+					shownTimerMode = tObj;
 					for(auto wname : (*tObj)["hideWidgets"].Vector())
 					{
 						if(auto w = widget<CIntObject>(wname.String()))
@@ -218,7 +219,7 @@ OptionsTabBase::OptionsTabBase(const JsonPath & configPath)
 						if(auto w = widget<CIntObject>(wname.String()))
 							w->setEnabled(true);
 					}
-					if((*tObj)["default"].isVector())
+					if(timerModeSendsDefaults && (*tObj)["default"].isVector())
 					{
 						TurnTimerInfo tinfo;
 						tinfo.baseTimer = (*tObj)["default"].Vector().at(0).Integer() * 1000;
@@ -241,7 +242,9 @@ OptionsTabBase::OptionsTabBase(const JsonPath & configPath)
 			return std::string("");
 		};
 
+		timerModeSendsDefaults = false;
 		w->setItem(0);
+		timerModeSendsDefaults = true;
 	}
 
 	if(auto w = widget<ComboBox>("simturnsPresetSelector"))
@@ -393,11 +396,13 @@ void OptionsTabBase::recreate(bool campaign)
 
 	if(auto w = widget<ComboBox>("timerModeSwitch"))
 	{
-		if(turnTimerRemote.battleTimer || turnTimerRemote.unitTimer || turnTimerRemote.baseTimer)
+		// DMB: the server's timers are in the chess mode while the combo shows another: show it, sending nothing
+		const auto & timerModes = std::as_const(variables)["timers"].Vector();
+		if((turnTimerRemote.battleTimer || turnTimerRemote.unitTimer || turnTimerRemote.baseTimer) && timerModes.size() > 1 && shownTimerMode != &timerModes[1])
 		{
-			if(auto turnSlider = widget<CSlider>("sliderTurnDuration"))
-				if(turnSlider->isActive())
-					w->setItem(1);
+			timerModeSendsDefaults = false;
+			w->setItem(1);
+			timerModeSendsDefaults = true;
 		}
 	}
 

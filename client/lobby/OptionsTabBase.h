@@ -25,6 +25,11 @@ class OptionsTabBase : public InterfaceObjectConfigurable
 	std::vector<TurnTimerInfo> getTimerPresets() const;
 	std::vector<SimturnsInfo> getSimturnsPresets() const;
 
+	/// DMB: the timer mode combo's entry on show, and whether choosing one sends its default timers; recreate() shows
+	/// the mode the server's timers are in without sending anything, so a sync never overwrites them
+	const JsonNode * shownTimerMode = nullptr;
+	bool timerModeSendsDefaults = true;
+
 public:
 	OptionsTabBase(const JsonPath & configPath);
 

@@ -19,6 +19,7 @@
 #include "../render/IFont.h"
 #include "../widgets/TextControls.h"
 
+#include "../../lib/CPlayerState.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/entities/building/CBuilding.h"
 #include "../../lib/entities/faction/CTown.h"
@@ -43,8 +44,7 @@ void TurnProgressBar::startTurn(PlayerColor newPlayer)
 {
 	player = newPlayer;
 	turnEnded = false;
-	remote = false;
-	hidden = false;
+	emptyFrame = false;
 	takeSnapshot();
 }
 
@@ -57,8 +57,13 @@ void TurnProgressBar::takeSnapshot()
 	if(!GAME->interface() || !GAME->interface()->cb)
 		return;
 	const auto & cb = GAME->interface()->cb;
+	// this client's game state holds every player's heroes and towns (stock sends every pack to every client); the callback hands out the state of a player who is not this
+	// client's enemy, so it is the player's own and a teammate's
+	const PlayerState * state = cb->getPlayerState(player, false);
+	if(!state)
+		return;
 
-	for(const CGHeroInstance * hero : cb->getHeroesInfo())
+	for(const CGHeroInstance * hero : state->getHeroes())
 	{
 		HeroStart start;
 		start.id = hero->id;
@@ -79,8 +84,8 @@ void TurnProgressBar::takeSnapshot()
 		heroes.push_back(start);
 	}
 
-	const ResourceSet resources = cb->getResourceAmount();
-	for(const CGTownInstance * town : cb->getTownsInfo())
+	const ResourceSet resources = state->resources;
+	for(const CGTownInstance * town : state->getTowns())
 	{
 		TownStart start;
 		start.id = town->id;
@@ -120,16 +125,24 @@ void TurnProgressBar::endTurn()
 	percent = 100;
 }
 
-/// Whether another human's turn is shown on this client (that player's colour, a travelling band, no percent). On (K decided, October 18th 17:36: the waiting client shows the active human's colour and progress); the percent for another player arrives by a display-only message (not built yet), until then a travelling band.
-static constexpr bool showOtherHumansTurn = true;
-
 void TurnProgressBar::remoteTurn(PlayerColor active, bool human)
 {
-	if(!showOtherHumansTurn)
+	const auto * cb = GAME->interface() ? GAME->interface()->cb.get() : nullptr;
+	// a human who is not this client's enemy (a teammate): tracked, in that player's colour; any other turn, an enemy's or an AI's: the empty frame
+	if(human && cb && cb->getPlayerState(active, false))
+	{
+		player = active;
+		emptyFrame = false;
+		turnEnded = false;
+		takeSnapshot();
 		return;
-	player = active;
-	remote = human;
-	hidden = !human;
+	}
+	emptyFrame = true;
+	snapshotTaken = false;
+	heroes.clear();
+	towns.clear();
+	percent = 0;
+	shown = 0;
 }
 
 int TurnProgressBar::compute() const
@@ -139,6 +152,25 @@ int TurnProgressBar::compute() const
 	if(!snapshotTaken || !GAME->interface() || !GAME->interface()->cb)
 		return 0;
 	const auto & cb = GAME->interface()->cb;
+	const PlayerState * state = cb->getPlayerState(player, false);
+	if(!state)
+		return 0;
+	const auto heroList = state->getHeroes();
+	const auto townList = state->getTowns();
+	const auto findHero = [&heroList](ObjectInstanceID id) -> const CGHeroInstance *
+	{
+		for(const CGHeroInstance * hero : heroList)
+			if(hero->id == id)
+				return hero;
+		return nullptr;
+	};
+	const auto findTown = [&townList](ObjectInstanceID id) -> const CGTownInstance *
+	{
+		for(const CGTownInstance * town : townList)
+			if(town->id == id)
+				return town;
+		return nullptr;
+	};
 
 	std::vector<double> categories;
 
@@ -150,7 +182,7 @@ int TurnProgressBar::compute() const
 		{
 			if(start.movement <= 0)
 				continue;
-			const CGHeroInstance * hero = cb->getHero(start.id);
+			const CGHeroInstance * hero = findHero(start.id);
 			if(!hero)
 				continue;
 			total += start.movement;
@@ -168,7 +200,7 @@ int TurnProgressBar::compute() const
 		{
 			if(!start.canBuild)
 				continue;
-			const CGTownInstance * town = cb->getTown(start.id);
+			const CGTownInstance * town = findTown(start.id);
 			if(!town)
 				continue;
 			possible++;
@@ -187,7 +219,7 @@ int TurnProgressBar::compute() const
 		{
 			if(start.recruitable <= 0)
 				continue;
-			const CGTownInstance * town = cb->getTown(start.id);
+			const CGTownInstance * town = findTown(start.id);
 			if(!town)
 				continue;
 			int now = 0;
@@ -209,7 +241,7 @@ int TurnProgressBar::compute() const
 		{
 			if(!start.canCast || start.mana <= 0)
 				continue;
-			const CGHeroInstance * hero = cb->getHero(start.id);
+			const CGHeroInstance * hero = findHero(start.id);
 			if(!hero)
 				continue;
 			total += start.mana;
@@ -236,10 +268,10 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	if(sinceUpdate < 250)
 		return;
 	sinceUpdate = 0;
-	if(remote || hidden)
+	if(emptyFrame)
 		return;
 	// a turn loaded from a save has no snapshot (the turn did not start in this run): it is taken now, and the bar reads what is done since
-	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb && GAME->interface()->playerID == player)
+	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb)
 		takeSnapshot();
 	percent = compute();
 }
@@ -252,8 +284,6 @@ void TurnProgressBar::show(Canvas & to)
 
 void TurnProgressBar::showAll(Canvas & to)
 {
-	if(hidden)
-		return;
 	ColorRGBA base(150, 150, 150, 255);
 	if(player.getNum() >= 0 && player.getNum() < 8)
 		base = graphics->playerColors[player.getNum()];
@@ -269,22 +299,7 @@ void TurnProgressBar::showAll(Canvas & to)
 	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 95));
 
 	const double t = clockMs / 1000.0;
-	if(remote)
-	{
-		// another human's turn: a band of that player's colour travels across the glass; no percent is known here
-		const int band = inner.w / 3;
-		const int travel = inner.w + band;
-		const int start = static_cast<int>(std::fmod(t * 45.0, static_cast<double>(travel))) - band;
-		for(int x = 0; x < band; ++x)
-		{
-			const int px = start + x;
-			if(px < 0 || px >= inner.w)
-				continue;
-			const double edge = 1.0 - std::abs(2.0 * x / band - 1.0); // soft ends
-			to.drawColorBlended(Rect(inner.x + px, inner.y, 1, inner.h), shade(base, 1.0, static_cast<uint8_t>(40 + 110 * edge)));
-		}
-	}
-	else
+	if(!emptyFrame)
 	{
 		const int width = std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
@@ -327,6 +342,6 @@ void TurnProgressBar::showAll(Canvas & to)
 		to.drawPoint(Point(x, outer.y + outer.h / 2), light);
 	}
 
-	if(!remote)
+	if(!emptyFrame)
 		to.drawText(Point(outer.x + outer.w / 2, outer.y + outer.h / 2), FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, std::to_string(static_cast<int>(std::lround(shown))) + "%");
 }

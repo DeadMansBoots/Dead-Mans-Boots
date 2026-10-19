@@ -41,10 +41,8 @@ class TurnProgressBar : public CIntObject
 	uint32_t sinceUpdate = 0;
 	Point barSize;
 
-	/// another human's turn, on this client: that player's colour, no percent (this client cannot read the other player's heroes and towns)
-	bool remote = false;
-	/// no human's turn (an AI plays): nothing is drawn
-	bool hidden = false;
+	/// the bar shows the empty frame: an enemy's turn or an AI's (no colour, no fill)
+	bool emptyFrame = false;
 	/// the percent as drawn: it eases toward `percent`
 	double shown = 0;
 	uint32_t clockMs = 0;
@@ -63,6 +61,6 @@ public:
 	void startTurn(PlayerColor newPlayer);
 	/// the player ended the turn: the bar shows full
 	void endTurn();
-	/// another player's turn begins on this client: a human's is shown in that player's colour without a percent, an AI's shows nothing
+	/// another player's turn begins on this client: a human teammate's is tracked (their colour, their progress from the game state this client holds), an enemy's or an AI's shows the empty frame
 	void remoteTurn(PlayerColor active, bool human);
 };

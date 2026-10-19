@@ -280,28 +280,6 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	if(sinceUpdate < 250)
 		return;
 	sinceUpdate = 0;
-	// simultaneous turns: a human teammate acts while this client makes its own turn, so onEnemyTurnStarted never ran for them (CPlayerInterface::playerStartsTurn calls it only when
-	// this client is not making a turn). A teammate who is making a turn is tracked, in their colour and with their name; with none, the viewer's own turn
-	if(GAME->interface() && GAME->interface()->cb && GAME->interface()->cb->getPlayerID())
-	{
-		const auto & cb = GAME->interface()->cb;
-		const PlayerColor own = *cb->getPlayerID();
-		std::optional<PlayerColor> acting;
-		for(PlayerColor other = PlayerColor(0); other < PlayerColor::PLAYER_LIMIT; ++other)
-		{
-			if(other == own || !cb->getStartInfo()->playerInfos.count(other) || !cb->getStartInfo()->playerInfos.at(other).isControlledByHuman())
-				continue;
-			if(cb->getPlayerState(other, false) && cb->isPlayerMakingTurn(other)) // not this client's enemy, and acting now
-			{
-				acting = other;
-				break;
-			}
-		}
-		if(acting && (player != *acting || emptyFrame))
-			remoteTurn(*acting, true);
-		else if(!acting && player != own && GAME->interface()->makingTurn)
-			startTurn(own);
-	}
 	if(emptyFrame)
 		return;
 	// a turn loaded from a save has no snapshot (the turn did not start in this run): it is taken now, and the bar reads what is done since

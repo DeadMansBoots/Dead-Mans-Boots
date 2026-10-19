@@ -1414,7 +1414,7 @@ void CSettingsView::on_spinBoxNetworkPortLobby_valueChanged(int arg1)
 void CSettingsView::on_sliderControllerSticksAcceleration_valueChanged(int value)
 {
 	Settings node = settings.write["input"]["controllerAxisScale"];
-	node->Integer() = value / 100.0;
+	node->Float() = value / 100.0; // DMB: a ratio, read back as Float() * 100; Integer() kept 1 of 1.5 and 0 of anything below 1
 }
 
 void CSettingsView::on_sliderControllerSticksSensitivity_valueChanged(int value)

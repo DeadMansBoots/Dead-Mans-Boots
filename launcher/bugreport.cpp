@@ -268,7 +268,7 @@ QByteArray gzipped(const QByteArray & data)
 
 namespace BugReport
 {
-Report build(const QString & why, const QString & description, bool includeDump)
+Report build(const QString & why, const QString & description, bool includeDump, const QString & dumpPath)
 {
 	Report report;
 	try
@@ -332,8 +332,10 @@ Report build(const QString & why, const QString & description, bool includeDump)
 		// report comes out over 40 MB the report is made again without it (the upload takes it as one piece)
 		if(includeDump)
 		{
-			const QFileInfoList dumps = QDir(logs).entryInfoList({"*_crash_*.dmp"}, QDir::Files, QDir::Time);
-			if(!dumps.isEmpty() && dumps.first().lastModified().secsTo(QDateTime::currentDateTime()) < 24 * 3600)
+			// DMB: the crash window's own dump, where it names one; the newest in the folder can be another crash's
+			const QFileInfoList dumps = !dumpPath.isEmpty() ? QFileInfoList{QFileInfo(dumpPath)}
+				: QDir(logs).entryInfoList({"*_crash_*.dmp"}, QDir::Files, QDir::Time);
+			if(!dumps.isEmpty() && (!dumpPath.isEmpty() || dumps.first().lastModified().secsTo(QDateTime::currentDateTime()) < 24 * 3600))
 			{
 				QFile dump(dumps.first().absoluteFilePath());
 				if(dumps.first().size() <= 120 * 1024 * 1024 && dump.open(QIODevice::ReadOnly))
@@ -615,7 +617,7 @@ void runCrashWindow(const QString & dumpPath)
 		detail->setText(automatic ? QObject::tr("Sending a report by itself (the \"General\" button on the \"Settings\" tab switches this off)...") : QObject::tr("Sending..."));
 		detail->show();
 		QApplication::processEvents();
-		const Report report = build("the game crashed", {}, true);
+		const Report report = build("the game crashed", {}, true, dumpPath);
 		QString problem;
 		const bool sent = report.error.isEmpty() && send(report, problem);
 		// the crash text opens with the log's lines ("[2026-Oct-14 08:42:28.739218] ERROR [39436] global - Disaster happened."): the exception line without its stamp says more
@@ -650,6 +652,8 @@ void runCrashWindow(const QString & dumpPath)
 			: QObject::tr("The report could not be sent (%1).").arg(report.error.isEmpty() ? problem : report.error);
 		if(!sent && !report.zipPath.isEmpty())
 			text += QObject::tr(" It is saved here: %1").arg(QDir::toNativeSeparators(report.zipPath));
+		if(report.error.isEmpty() && report.dump.isEmpty())
+			text += QObject::tr(" The crash file is not in the report (it could not be read, or is over 120 MB); the logs and settings are.");
 		if(!cause.isEmpty())
 			text = QObject::tr("What happened: %1").arg(cause) + "\n\n" + text;
 		detail->setText(text);

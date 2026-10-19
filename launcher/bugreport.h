@@ -45,8 +45,9 @@ namespace BugReport
 		QString dumpName;
 	};
 
-	/// `description` is the player's own words (what went wrong), kept in the zip as description.txt
-	Report build(const QString & why, const QString & description = {}, bool includeDump = true);
+	/// `description` is the player's own words (what went wrong), kept in the zip as description.txt. `dumpPath`, when given, is the
+	/// crash dump to attach (the crash window's own); without it, the newest dump of the last day in the logs folder
+	Report build(const QString & why, const QString & description = {}, bool includeDump = true, const QString & dumpPath = {});
 	bool send(const Report & report, QString & message);
 
 	/// Settings, General, "Send crash reports to the developers automatically" (launcher.sendCrashReports in settings.json, off until the player has answered the launcher question, launcher.crashReportsAsked)

@@ -988,6 +988,10 @@ std::vector<MenuBackgrounds::NeutralFrame> MenuBackgrounds::neutralFrames(const 
 	pos += 16 + 13 * static_cast<size_t>(n);
 	if(n == 0 || n > 1000 || pos + 4 * static_cast<size_t>(n) > d.size())
 		return frames;
+	// DMB: every frame is unpacked onto its full canvas, which neutralSprite copies from the file unchecked; frames together are held to
+	// the same 16 million pixels as their decoded boxes there, so a small file whose frames name a 4096 x 4096 canvas cannot claim gigabytes
+	constexpr size_t CANVAS_PIXELS = 16 * 1024 * 1024;
+	size_t canvas = 0;
 	for(ui32 i = 0; i < n; ++i)
 	{
 		const size_t at = le32(d, pos + 4 * i);
@@ -1003,6 +1007,12 @@ std::vector<MenuBackgrounds::NeutralFrame> MenuBackgrounds::neutralFrames(const 
 		if(w <= 0 || h <= 0 || frame.fullWidth <= 0 || frame.fullHeight <= 0 || frame.fullWidth > 4096 || frame.fullHeight > 4096
 			|| at + 32 + static_cast<size_t>(w) * h > d.size())
 			return {};
+		canvas += static_cast<size_t>(frame.fullWidth) * frame.fullHeight;
+		if(canvas > CANVAS_PIXELS)
+		{
+			logGlobal->warn("Menu buttons: the frames of %s in %s span more than %d pixels; its buttons are not used", name, era.sprites.string(), static_cast<int>(CANVAS_PIXELS));
+			return {};
+		}
 		frame.pixels.assign(static_cast<size_t>(frame.fullWidth) * frame.fullHeight, 0);
 		for(int y = 0; y < h; ++y)
 			for(int x = 0; x < w; ++x)

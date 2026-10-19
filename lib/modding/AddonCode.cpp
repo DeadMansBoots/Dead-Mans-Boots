@@ -297,6 +297,7 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 
 	JsonNode all;
 	bool keptAside = false; // the file was damaged and moved to .bad: the new one is written even when it already held this answer
+	std::string notMovedAside; // the file was damaged and could not be moved to .bad: it is left as it is, and the answer holds for this run only
 	{
 		std::ifstream in(runAnywayFile().c_str(), std::ios::binary);
 		if(in)
@@ -318,17 +319,31 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 				// a damaged file is kept aside whole as <name>.bad, for the player or a helper to look at; the answers the lenient parser can still read
 				// from it are carried over, so the new file loses none of them
 				in.close();
-				keptAside = true;
 				const boost::filesystem::path aside = runAnywayFile().string() + ".bad";
 				boost::system::error_code renameError;
 				boost::filesystem::rename(runAnywayFile(), aside, renameError);
-				logMod->warn("%s could not be read (%s); it is kept as %s and started again with the answers still readable in it%s", runAnywayFile().string(), e.what(),
-					aside.string(), renameError ? " (it could not be renamed: " + renameError.message() + ")" : std::string());
-				all = JsonNode(text.data(), text.size(), runAnywayFile().string());
-				if(!all.isStruct())
-					all = JsonNode();
+				if(renameError)
+				{
+					// rewriting it now would lose the damaged file with nothing kept aside
+					notMovedAside = runAnywayFile().string() + " could not be read (" + e.what() + ") and could not be moved aside to " + aside.string() + " ("
+						+ renameError.message() + "), so it is left as it is";
+				}
+				else
+				{
+					keptAside = true;
+					logMod->warn("%s could not be read (%s); it is kept as %s and started again with the answers still readable in it", runAnywayFile().string(), e.what(),
+						aside.string());
+					all = JsonNode(text.data(), text.size(), runAnywayFile().string());
+					if(!all.isStruct())
+						all = JsonNode();
+				}
 			}
 		}
+	}
+	if(!notMovedAside.empty())
+	{
+		logMod->error("Mod %s: the player chose to run its code anyway (%s); it holds until the game quits, since %s", modID, hash, notMovedAside);
+		return notMovedAside;
 	}
 	JsonVector & list = all[mod].Vector();
 	const bool listed = std::any_of(list.begin(), list.end(), [&hash](const JsonNode & entry) { return entry.isString() && boost::to_lower_copy(entry.String()) == hash; });

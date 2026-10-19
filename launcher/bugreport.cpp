@@ -38,6 +38,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QCloseEvent>
+#include <QPointer>
 #include <QRandomGenerator>
 #include <QSysInfo>
 #include <QTimer>
@@ -48,6 +50,17 @@
 
 namespace
 {
+/// DMB: a window-modal note shown while a report is made and sent, which the player cannot close meanwhile; hide() ends it
+class WaitNote : public QDialog
+{
+public:
+	using QDialog::QDialog;
+
+protected:
+	void reject() override {}
+	void closeEvent(QCloseEvent * event) override { event->ignore(); }
+};
+
 constexpr qint64 LOG_TAIL_BYTES = 4 * 1024 * 1024;
 constexpr qint64 PLAY_LOG_TAIL_BYTES = 6 * 1024 * 1024;
 
@@ -514,16 +527,28 @@ void run(QWidget * parent, const QString & why)
 		QString(), &asked);
 	if(!asked)
 		return;
+	// DMB: the upload waits in nested event loops for up to minutes. A window-modal note keeps the launcher from being closed
+	// under it or asked for a second report meanwhile, and the boxes after it take the launcher only while it still exists
+	const QPointer<QWidget> owner(parent);
+	WaitNote waiting(parent, Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+	waiting.setWindowTitle(QObject::tr("Report a bug"));
+	waiting.setWindowModality(Qt::WindowModal);
+	auto * waitingLayout = new QVBoxLayout(&waiting);
+	waitingLayout->addWidget(new QLabel(QObject::tr("Making the report and sending it to the developers...")));
+	waiting.show();
+	QApplication::processEvents();
 	const Report report = build(why, description);
+	QString problem;
+	const bool sent = report.zipPath.isEmpty() || !report.error.isEmpty() ? false : send(report, problem);
+	waiting.hide();
 	if(report.zipPath.isEmpty() || !report.error.isEmpty())
 	{
-		QMessageBox::critical(parent, QObject::tr("Report"), QObject::tr("The report could not be made: %1").arg(report.error));
+		QMessageBox::critical(owner.data(), QObject::tr("Report"), QObject::tr("The report could not be made: %1").arg(report.error));
 		return;
 	}
-	QString problem;
-	if(send(report, problem))
+	if(sent)
 	{
-		QMessageBox::information(parent, QObject::tr("Report sent"), QObject::tr("Your report was sent to the developers. Thank you."));
+		QMessageBox::information(owner.data(), QObject::tr("Report sent"), QObject::tr("Your report was sent to the developers. Thank you."));
 		return;
 	}
 	// no upload (or it failed): the zip is saved, its folder opens, and the repository's new-issue page opens with the summary filled in
@@ -542,7 +567,7 @@ void run(QWidget * parent, const QString & why)
 	query.addQueryItem("extra", QObject::tr("Report file: %1 (drag it into this box)").arg(QFileInfo(report.zipPath).fileName()));
 	issue.setQuery(query);
 	QDesktopServices::openUrl(issue);
-	QMessageBox::information(parent, QObject::tr("Report saved"),
+	QMessageBox::information(owner.data(), QObject::tr("Report saved"),
 		QObject::tr("The report is saved here:\n%1\n\nIts folder is open, and so is a page on GitHub with the details filled in. Drag the zip file into that page's box and press the \"Submit New Issue\" button (this needs a GitHub account).%2")
 			.arg(report.zipPath, problem.isEmpty() ? QString() : QObject::tr("\n\n(The automatic upload did not work: %1)").arg(problem)));
 }

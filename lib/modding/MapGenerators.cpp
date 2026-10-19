@@ -334,6 +334,12 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 
 	const auto logPath = VCMIDirs::get().userLogsPath() / "extmapgen_log.txt";
 	logGlobal->info("Map generator %s (mod %s) makes the game's map: %s -> %s", generator->name, generator->modID, generator->command.string(), outPath.string());
+	// DMB: a map an earlier run left under this name (another template or other factions, same size, players and seed) is not this
+	// game's; it goes first, so only a map this run wrote is taken
+	boost::system::error_code removeError;
+	boost::filesystem::remove(outPath, removeError);
+	if(removeError)
+		throw std::runtime_error(generator->name + ": the map an earlier run left at " + outPath.string() + " could not be removed: " + removeError.message());
 	// a big map takes a minute or two; a generator still running after ten has hung
 	const int exitCode = run(*generator, args, logPath, std::chrono::minutes(10), progress);
 	if(exitCode != 0 || !boost::filesystem::exists(outPath))

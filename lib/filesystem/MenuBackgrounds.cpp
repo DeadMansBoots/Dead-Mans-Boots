@@ -878,13 +878,16 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 		}
 		for(const size_t i : gone)
 			pix[i] = 0;
+		// DMB: the edge is decided on the picture as the removal left it; testing `pix` while writing it let each restored pixel restore
+		// its neighbours in turn, refilling the whole removed band with the outline colour
+		const std::vector<ui8> cleared = pix;
 		for(const size_t i : gone)
 		{
 			const int x = static_cast<int>(i % w);
 			const int y = static_cast<int>(i / w);
 			const std::pair<int, int> around[4] = {{x - 1, y}, {x + 1, y}, {x, y - 1}, {x, y + 1}};
 			for(const auto & [nx, ny] : around)
-				if(nx >= 0 && ny >= 0 && nx < w && ny < h && pix[at(nx, ny)] > 7)
+				if(nx >= 0 && ny >= 0 && nx < w && ny < h && cleared[at(nx, ny)] > 7)
 				{
 					pix[i] = outline;
 					break;

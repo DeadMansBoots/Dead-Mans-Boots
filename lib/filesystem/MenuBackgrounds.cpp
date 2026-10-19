@@ -705,7 +705,7 @@ int glowBrightness(const ui8 * palette, const std::vector<ui8> & pix, const std:
 			total += (palette[pix[i] * 3] + palette[pix[i] * 3 + 1] + palette[pix[i] * 3 + 2]) / 3;
 			++count;
 		}
-	return count ? static_cast<int>(total / count) : 0;
+	return count ? static_cast<int>(total / count) : -1; // DMB: -1, no glow at all, where 0 read as the palest glow there is
 }
 
 /// The glow also fills pockets the flood from outside cannot reach (between and inside the letters, walled in by their dark edge). Those
@@ -1139,8 +1139,10 @@ std::vector<ui8> MenuBackgrounds::neutralSprite(const MenuEra & era, const std::
 		for(auto & f : frames)
 			addEnclosedGlow(palette, f.pix, f.ring, f.w, f.h, inGlow, used);
 		int palest = 1000;
+		// DMB: a frame with no glow (a greyed button) has no brightness to compare; counted as 0, it made every glowing frame a highlight
 		for(const auto & f : frames)
-			palest = std::min(palest, f.brightness);
+			if(f.brightness >= 0)
+				palest = std::min(palest, f.brightness);
 		for(size_t i = 0; i < frames.size(); ++i)
 		{
 			Frame & f = frames[i];

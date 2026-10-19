@@ -84,7 +84,8 @@ AdventureMapInterface::AdventureMapInterface():
 		for(const auto & info : GAME->interface()->cb->getStartInfo()->playerInfos)
 			if(info.second.isControlledByHuman())
 				humans++;
-		if(humans > 1)
+		// a spectator plays no turn of its own (its colour is no player's, and the game holds no state for it): no bar
+		if(humans > 1 && GAME->interface()->playerID.isValidPlayer())
 		{
 			turnBar = std::make_shared<TurnProgressBar>(Point(0, 0), GAME->interface()->playerID);
 			const Point frame = turnBar->frameOffset();

@@ -119,8 +119,22 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 			| MiniDumpWithThreadInfo);
 	}
 
-	MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dfile, dumpType, meinfo, nullptr, nullptr);
+	const BOOL written = MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dfile, dumpType, meinfo, nullptr, nullptr);
+	const DWORD writeError = written ? 0 : GetLastError();
 	CloseHandle(dfile);
+	if(!written)
+	{
+		// DMB: a dump that failed part way (a full disk, no memory left in the crashed process) is no file to send or keep: it is
+		// deleted before pruning can count it against a good one, and the player is told the game crashed without being given it
+		logGlobal->error("Crash info could not be written to %s (error %lu)", dumpPath.string(), static_cast<unsigned long>(writeError));
+		DeleteFileW(dumpPath.c_str());
+		if(settings["session"]["headless"].Bool() || !settings["session"]["testmap"].isNull())
+			return;
+		const std::string failedMessage = "Dead Man's Boots has crashed. Sorry about that.\n\nThe file about the problem could not be saved (Windows error "
+			+ std::to_string(writeError) + "). The game's log is in this folder:\n" + folder.string();
+		MessageBoxA(0, failedMessage.c_str(), "Dead Man's Boots crash report", MB_OK | MB_ICONERROR);
+		return;
+	}
 	pruneOldDumps(folder, prefix, 5);
 	// DMB (K, October 9th: "dmb also reports 'VCMI has crashed' we want to update that"): the game's own name, and where the files are, since
 	// a player is asked to send them

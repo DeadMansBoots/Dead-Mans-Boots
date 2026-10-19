@@ -235,7 +235,21 @@ std::string cachedFolderHash(const boost::filesystem::path & folder)
 			return found->second.second;
 		beingHashed.insert(key);
 	}
-	const std::string hash = AddonCode::folderHash(folder);
+	// the mark is taken off however the hash ends: a throw (out of memory, say) must not leave every later caller for this folder waiting
+	std::string hash;
+	try
+	{
+		hash = AddonCode::folderHash(folder);
+	}
+	catch(...)
+	{
+		{
+			std::lock_guard<std::mutex> guard(hashCacheMutex);
+			beingHashed.erase(key);
+		}
+		hashFinished.notify_all();
+		throw;
+	}
 	{
 		std::lock_guard<std::mutex> guard(hashCacheMutex);
 		if(!hash.empty())

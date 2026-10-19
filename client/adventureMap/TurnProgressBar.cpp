@@ -17,6 +17,7 @@
 #include "../render/Graphics.h"
 #include "../render/Canvas.h"
 #include "../render/IFont.h"
+#include "../widgets/TextControls.h"
 
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/entities/building/CBuilding.h"
@@ -119,8 +120,13 @@ void TurnProgressBar::endTurn()
 	percent = 100;
 }
 
+/// Whether another human's turn is shown on this client (that player's colour, a travelling band, no percent). Off until K decides what a guest should see during another player's turn (lead, October 18th 17:24); the code is ready to switch.
+static constexpr bool showOtherHumansTurn = false;
+
 void TurnProgressBar::remoteTurn(PlayerColor active, bool human)
 {
+	if(!showOtherHumansTurn)
+		return;
 	player = active;
 	remote = human;
 	hidden = !human;

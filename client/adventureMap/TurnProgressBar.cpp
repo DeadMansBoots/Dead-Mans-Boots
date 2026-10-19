@@ -258,9 +258,6 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	// a turn loaded from a save has no snapshot (the turn did not start in this run): it is taken now, and the bar reads what is done since
 	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb && GAME->interface()->playerID == player)
 		takeSnapshot();
-	const int now = compute();
-	if(now == percent)
-		return; // nothing to show again: stock's turn timer redraws only when its text changes
-	percent = now;
-	refresh();
+	percent = compute();
+	refresh(); // every tick, as before: the bar is there from the first frame of the turn (the picture of a turn start showed it missing until some later redraw); refresh() paints only while the adventure map is the top window
 }

@@ -31,6 +31,7 @@
 #include "../render/Colors.h"
 #include "../globalLobby/GlobalLobbyClient.h"
 
+#include "../../lib/AsyncRunner.h"
 #include "../../lib/CConfigHandler.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/campaign/CampaignHandler.h"
@@ -40,8 +41,6 @@
 #include "../../lib/modding/AddonCode.h"
 #include "../../lib/modding/MapGenerators.h"
 #include "../../lib/GameLibrary.h"
-
-#include <thread>
 
 CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 	: CSelectionBase(screenType), bonusSel(nullptr)
@@ -114,9 +113,10 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 				continue;
 			}
 			generatorTabs.push_back(std::make_shared<MapGenTab>(found));
-			// the generator's code hash is worked out in the background now (cached by what the folder looks like), so Begin does not wait for it
+			// the generator's code hash is worked out in the background now (cached by what the folder looks like), so Begin does not wait for it.
+			// On the engine's task pool, which the game waits for before it ends, so the work never outlives what it uses
 			if(found.atBegin)
-				std::thread([folder = found.codeFolder]() { AddonCode::warmFolderHash(folder); }).detach();
+				ENGINE->async().run([folder = found.codeFolder]() { AddonCode::warmFolderHash(folder); });
 			if(found.modID == rememberedMode)
 				randomMode = generatorTabs.size();
 		}

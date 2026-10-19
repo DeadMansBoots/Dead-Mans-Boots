@@ -15,6 +15,7 @@
 #include "../filesystem/Filesystem.h"
 #include "../json/JsonNode.h"
 
+#include <condition_variable>
 #include <map>
 #include <mutex>
 #include <set>
@@ -211,23 +212,31 @@ std::set<std::pair<std::string, std::string>> runAnywayThisRun;
 
 std::mutex hashCacheMutex;
 std::map<std::string, std::pair<std::string, std::string>> hashCache; // folder -> (signature, hash)
+/// the folders a caller is hashing now: another caller for the same folder waits for that hash instead of working it out again
+std::set<std::string> beingHashed;
+std::condition_variable hashFinished;
 
 /// folderHash of a folder that looks as it did the last time it was hashed in this run is not read again (hashing a generator takes about half a second)
 std::string cachedFolderHash(const boost::filesystem::path & folder)
 {
+	const std::string key = folder.string();
 	const std::string signature = folderSignature(folder);
 	{
-		std::lock_guard<std::mutex> guard(hashCacheMutex);
-		const auto found = hashCache.find(folder.string());
+		std::unique_lock<std::mutex> lock(hashCacheMutex);
+		hashFinished.wait(lock, [&key]() { return beingHashed.count(key) == 0; });
+		const auto found = hashCache.find(key);
 		if(found != hashCache.end() && found->second.first == signature)
 			return found->second.second;
+		beingHashed.insert(key);
 	}
 	const std::string hash = AddonCode::folderHash(folder);
-	if(!hash.empty())
 	{
 		std::lock_guard<std::mutex> guard(hashCacheMutex);
-		hashCache[folder.string()] = {signature, hash};
+		if(!hash.empty())
+			hashCache[key] = {signature, hash};
+		beingHashed.erase(key);
 	}
+	hashFinished.notify_all();
 	return hash;
 }
 }

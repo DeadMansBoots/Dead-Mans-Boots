@@ -345,6 +345,12 @@ std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost:
 		logMod->error("Mod %s: the player chose to run its code anyway (%s); it holds until the game quits, since %s", modID, hash, notMovedAside);
 		return notMovedAside;
 	}
+	// a pin may be one hash or a list (trustProblem reads both); a single hash becomes a list holding it, where Vector() would drop it
+	if(all[mod].isString())
+	{
+		const std::string single = all[mod].String();
+		all[mod].Vector().push_back(JsonNode(single));
+	}
 	JsonVector & list = all[mod].Vector();
 	const bool listed = std::any_of(list.begin(), list.end(), [&hash](const JsonNode & entry) { return entry.isString() && boost::to_lower_copy(entry.String()) == hash; });
 	if(listed && !keptAside)

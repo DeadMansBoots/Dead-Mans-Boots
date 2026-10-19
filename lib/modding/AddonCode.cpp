@@ -242,6 +242,11 @@ boost::filesystem::path AddonCode::runAnywayFile()
 	return VCMIDirs::get().userConfigPath() / "dmbRunAnyway.json";
 }
 
+void AddonCode::warmFolderHash(const boost::filesystem::path & folder)
+{
+	cachedFolderHash(folder);
+}
+
 void AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder)
 {
 	const std::string hash = cachedFolderHash(folder);

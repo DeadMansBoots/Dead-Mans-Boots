@@ -117,7 +117,7 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 			generatorTabs.push_back(std::make_shared<MapGenTab>(found));
 			// the generator's code hash is worked out in the background now (cached by what the folder looks like), so Begin does not wait for it
 			if(found.atBegin)
-				std::thread([found]() { AddonCode::trustProblem(found.modID, found.codeFolder); }).detach();
+				std::thread([folder = found.codeFolder]() { AddonCode::warmFolderHash(folder); }).detach();
 			if(found.modID == rememberedMode)
 				randomMode = generatorTabs.size();
 		}

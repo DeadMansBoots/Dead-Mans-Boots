@@ -80,6 +80,14 @@ static void addAIPlugins(QComboBox * comboBox, bool battle)
 			comboBox->addItem(QObject::tr("%1 (from the mod %2)").arg(name, QString::fromStdString(plugin.modID)), name);
 			continue;
 		}
+		if (plugin.untrusted)
+		{
+			// DMB's mod catalog does not list this code (a new or modified version): selectable all the same, the game asks before it runs it (rule 38, K, October 18th)
+			comboBox->addItem(QObject::tr("%1 (from the mod %2, not in DMB's mod catalog)").arg(name, QString::fromStdString(plugin.modID)), name);
+			comboBox->setItemData(comboBox->count() - 1, QObject::tr("DMB's mod catalog does not list this AI's code (%1). It may be a custom or modified version. You can choose it: the game asks before it runs it, and you can run it anyway.")
+				.arg(QString::fromStdString(plugin.problem)), Qt::ToolTipRole);
+			continue;
+		}
 		comboBox->addItem(QObject::tr("%1 (unavailable)").arg(name), name);
 		const int index = comboBox->count() - 1;
 		comboBox->setItemData(index, QString::fromStdString(plugin.problem), Qt::ToolTipRole);

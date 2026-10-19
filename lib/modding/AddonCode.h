@@ -52,6 +52,9 @@ namespace AddonCode
 	/// <user config>/dmbRunAnyway.json. The game writes it (rememberRunAnyway) when the player answers the notice.
 	DLL_LINKAGE boost::filesystem::path runAnywayFile();
 
+	/// Works out the hash of the folder into the cache that trustProblem and rememberRunAnyway use, so a later check does not wait for it. Reads no settings: safe on a worker thread.
+	DLL_LINKAGE void warmFolderHash(const boost::filesystem::path & folder);
+
 	/// Remembers the code now in the folder as one the player chose to run anyway (its exact hash, for the mod modID)
 	DLL_LINKAGE void rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder);
 

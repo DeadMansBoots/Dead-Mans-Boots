@@ -68,8 +68,9 @@ std::string CDynLibHandler::abiProblem(bool hasAbi, int abi, const char * builtF
 		+ ", and this game is AI ABI " + std::to_string(AIAbi::VERSION) + " (DMB " DMB_VERSION_STRING "); rebuild it against the SDK of this DMB";
 }
 
+/// `checkAbi`: an AI library carries the AI ABI number; a scripting module does not, and is not refused for that
 template<typename rett>
-std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
+std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const std::string & methodName, bool checkAbi = true)
 {
 #ifdef STATIC_AI
 	// android currently doesn't support loading libs dynamically, so the access to the known libraries
@@ -137,7 +138,7 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 	}
 
 	// DMB: the library's ABI number is read from the library itself, before anything of it runs
-	if(const std::string problem = CDynLibHandler::abiProblem(getAbi != nullptr, getAbi ? getAbi() : 0, getBuiltFor ? getBuiltFor() : nullptr); !problem.empty())
+	if(const std::string problem = checkAbi ? CDynLibHandler::abiProblem(getAbi != nullptr, getAbi ? getAbi() : 0, getBuiltFor ? getBuiltFor() : nullptr) : std::string(); !problem.empty())
 	{
 		logGlobal->error("%s cannot be used: %s", libpath.string(), problem);
 #ifdef VCMI_WINDOWS
@@ -182,7 +183,7 @@ std::shared_ptr<rett> createAny(const boost::filesystem::path & libpath, const s
 #ifdef STATIC_AI
 
 template<>
-std::shared_ptr<CGlobalAI> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
+std::shared_ptr<CGlobalAI> createAny(const boost::filesystem::path & libpath, const std::string & methodName, bool checkAbi)
 {
 #ifdef ENABLE_NULLKILLER2_AI
 	if(libpath.stem() == "libNullkiller2")
@@ -198,7 +199,7 @@ std::shared_ptr<CGlobalAI> createAny(const boost::filesystem::path & libpath, co
 }
 
 template<>
-std::shared_ptr<CBattleGameInterface> createAny(const boost::filesystem::path & libpath, const std::string & methodName)
+std::shared_ptr<CBattleGameInterface> createAny(const boost::filesystem::path & libpath, const std::string & methodName, bool checkAbi)
 {
 #ifdef ENABLE_BATTLE_AI
 	if(libpath.stem() == "libBattleAI")
@@ -329,7 +330,7 @@ std::shared_ptr<CBattleGameInterface> CDynLibHandler::getNewBattleAI(const std::
 #if SCRIPTING_ENABLED
 std::shared_ptr<scripting::Module> CDynLibHandler::getNewScriptingModule(const boost::filesystem::path & dllname)
 {
-	return createAny<scripting::Module>(dllname, "GetNewModule");
+	return createAny<scripting::Module>(dllname, "GetNewModule", false);
 }
 #endif
 

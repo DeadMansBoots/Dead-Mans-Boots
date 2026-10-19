@@ -296,6 +296,7 @@ set(vcmiclientcommon_HEADERS
 	lobby/ExtraOptionsTab.h
 	lobby/OptionsTab.h
 	lobby/OptionsTabBase.h
+	lobby/TimerString.h
 	lobby/RandomMapTab.h
 	lobby/MapGenTab.h
 	lobby/SelectionTab.h

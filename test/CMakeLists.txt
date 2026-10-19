@@ -17,6 +17,8 @@ set(test_SRCS
  		JsonComparer.cpp
 		VCMIDirsTest.cpp
 
+		lobby/TimerStringTest.cpp
+
  		battle/BattleHexTest.cpp
  		battle/CBattleInfoCallbackTest.cpp
  		battle/CHealthTest.cpp

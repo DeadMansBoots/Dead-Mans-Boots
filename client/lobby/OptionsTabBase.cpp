@@ -11,6 +11,7 @@
 #include "OptionsTabBase.h"
 #include "CSelectionBase.h"
 #include "TurnOptionsTab.h"
+#include "TimerString.h"
 #include "CLobbyScreen.h"
 
 #include "../widgets/ComboBox.h"
@@ -141,91 +142,49 @@ OptionsTabBase::OptionsTabBase(const JsonPath & configPath)
 		GAME->server().setTurnTimerInfo(info);
 	});
 
-	//helper function to parse string containing time to integer reflecting time in seconds
-	//assumed that input string can be modified by user, function shall support user's intention
-	// normal: 2:00, 12:30
-	// adding symbol: 2:005 -> 2:05, 2:305 -> 23:05,
-	// adding symbol (>60 seconds): 12:095 -> 129:05
-	// removing symbol: 129:0 -> 12:09, 2:0 -> 0:20, 0:2 -> 0:02
-	auto parseTimerString = [](const std::string & str) -> int
-	{
-		auto sc = str.find(":");
-		if(sc == std::string::npos)
-			return str.empty() ? 0 : std::stoi(str);
-
-		auto l = str.substr(0, sc);
-		auto r = str.substr(sc + 1, std::string::npos);
-		if(r.length() == 3) //symbol added
+	addCallback("parseAndSetTimer_base", [this](const std::string & str){
+		TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
+		const auto seconds = TimerString::parse(str);
+		if(seconds)
 		{
-			l.push_back(r.front());
-			r.erase(r.begin());
-		}
-		else if(r.length() == 1) //symbol removed
-		{
-			r.insert(r.begin(), l.back());
-			l.pop_back();
-		}
-		else if(r.empty())
-			r = "0";
-
-		int sec = std::stoi(r);
-		if(sec >= 60)
-		{
-			if(l.empty()) //9:00 -> 0:09
-				return sec / 10;
-
-			l.push_back(r.front()); //0:090 -> 9:00
-			r.erase(r.begin());
-		}
-		else if(l.empty())
-			return sec;
-
-		return std::min(24*60, std::stoi(l)) * 60 + std::stoi(r);
-	};
-
-	addCallback("parseAndSetTimer_base", [this, parseTimerString](const std::string & str){
-		int time = parseTimerString(str) * 1000;
-		if(time >= 0)
-		{
-			TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
-			tinfo.baseTimer = time;
+			tinfo.baseTimer = *seconds * 1000;
 			GAME->server().setTurnTimerInfo(tinfo);
-			if(auto ww = widget<CTextInput>("chessFieldBase"))
-				ww->setText(timeToString(time));
 		}
+		if(auto ww = widget<CTextInput>("chessFieldBase"))
+			ww->setText(timeToString(tinfo.baseTimer));
 	});
-	addCallback("parseAndSetTimer_turn", [this, parseTimerString](const std::string & str){
-		int time = parseTimerString(str) * 1000;
-		if(time >= 0)
+	addCallback("parseAndSetTimer_turn", [this](const std::string & str){
+		TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
+		const auto seconds = TimerString::parse(str);
+		if(seconds)
 		{
-			TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
-			tinfo.turnTimer = time;
+			tinfo.turnTimer = *seconds * 1000;
 			GAME->server().setTurnTimerInfo(tinfo);
-			if(auto ww = widget<CTextInput>("chessFieldTurn"))
-				ww->setText(timeToString(time));
 		}
+		if(auto ww = widget<CTextInput>("chessFieldTurn"))
+			ww->setText(timeToString(tinfo.turnTimer));
 	});
-	addCallback("parseAndSetTimer_battle", [this, parseTimerString](const std::string & str){
-		int time = parseTimerString(str) * 1000;
-		if(time >= 0)
+	addCallback("parseAndSetTimer_battle", [this](const std::string & str){
+		TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
+		const auto seconds = TimerString::parse(str);
+		if(seconds)
 		{
-			TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
-			tinfo.battleTimer = time;
+			tinfo.battleTimer = *seconds * 1000;
 			GAME->server().setTurnTimerInfo(tinfo);
-			if(auto ww = widget<CTextInput>("chessFieldBattle"))
-				ww->setText(timeToString(time));
 		}
+		if(auto ww = widget<CTextInput>("chessFieldBattle"))
+			ww->setText(timeToString(tinfo.battleTimer));
 	});
-	addCallback("parseAndSetTimer_unit", [this, parseTimerString](const std::string & str){
-		int time = parseTimerString(str) * 1000;
-		if(time >= 0)
+	addCallback("parseAndSetTimer_unit", [this](const std::string & str){
+		TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
+		const auto seconds = TimerString::parse(str);
+		if(seconds)
 		{
-			TurnTimerInfo tinfo = SEL->getStartInfo()->turnTimerInfo;
-			tinfo.unitTimer = time;
+			tinfo.unitTimer = *seconds * 1000;
 			GAME->server().setTurnTimerInfo(tinfo);
-			if(auto ww = widget<CTextInput>("chessFieldUnit"))
-				ww->setText(timeToString(time));
 		}
+		if(auto ww = widget<CTextInput>("chessFieldUnit"))
+			ww->setText(timeToString(tinfo.unitTimer));
 	});
 
 	const JsonNode config(configPath);

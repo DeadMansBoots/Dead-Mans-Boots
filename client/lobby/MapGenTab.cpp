@@ -385,9 +385,27 @@ void MapGenTab::askRunAnywayFor(const std::string & textID, const std::string & 
 	text.replaceRawString(name);
 	text.replaceRawString(problem);
 	auto answered = std::make_shared<bool>(false);
-	// the answer is remembered the moment it is given (the Generate button's worker stops waiting after ten minutes; a later check mark still counts)
+	// the answer is remembered the moment it is given (the Generate button's worker stops waiting after ten minutes; a later check mark still counts).
+	// It holds for the rest of the run in any case; when the file could not keep it, the player is told so before the code runs
 	CInfoWindow::showYesNoDialog(text.toString(), {},
-		[answered, onRun, modID, codeFolder]() { if(!*answered) { *answered = true; AddonCode::rememberRunAnyway(modID, codeFolder); onRun(); } },
+		[answered, onRun, modID, codeFolder]()
+		{
+			if(*answered)
+				return;
+			*answered = true;
+			const std::string notSaved = AddonCode::rememberRunAnyway(modID, codeFolder);
+			if(notSaved.empty())
+			{
+				onRun();
+				return;
+			}
+			MetaString line;
+			line.appendTextID("vcmi.dmb.runAnyway.notSaved");
+			line.replaceRawString(notSaved);
+			auto window = CInfoWindow::create(line.toString());
+			window->buttons[0]->addCallback(onRun);
+			ENGINE->windows().pushWindow(window);
+		},
 		[answered, onCancel]() { if(!*answered) { *answered = true; onCancel(); } });
 }
 

@@ -1013,6 +1013,7 @@
 	"vcmi.dmb.mapGenerator.generate.refused" : "%s cannot run: %s.",
 	"vcmi.dmb.aiPlugin.notice" : "{%s}\n\nThis AI is not one DMB can vouch for (%s). It may be a custom or modified version.\n\nCheck mark: run it anyway, and DMB remembers this version. Cross: cancel, and the game does not start.",
 	"vcmi.dmb.mapGenerator.notice" : "{%s}\n\nThis map generator is not one DMB can vouch for (%s). It may be a custom or modified version.\n\nCheck mark: run it anyway, and DMB remembers this version. Cross: cancel.",
+	"vcmi.dmb.runAnyway.notSaved" : "DMB could not save this answer: %s. It holds until you quit the game; you are asked again after that.",
 	"vcmi.dmb.mapGenerator.generate.humans" : "%d players are in this lobby, so the map has a human slot for each.",
 	"vcmi.dmb.mapGenerator.generate.atBegin" : "The map is made when the game starts: choose your towns, then press the \"Begin\" button.",
 	"vcmi.dmb.randomMode.vcmi" : "VCMI Random Map",

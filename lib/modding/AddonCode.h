@@ -55,8 +55,10 @@ namespace AddonCode
 	/// Works out the hash of the folder into the cache that trustProblem and rememberRunAnyway use, so a later check does not wait for it. Reads no settings: safe on a worker thread.
 	DLL_LINKAGE void warmFolderHash(const boost::filesystem::path & folder);
 
-	/// Remembers the code now in the folder as one the player chose to run anyway (its exact hash, for the mod modID)
-	DLL_LINKAGE void rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder);
+	/// Remembers the code now in the folder as one the player chose to run anyway (its exact hash, for the mod modID): at once for the rest
+	/// of this run, which trustProblem consults beside the files (the local server runs in this process), and in runAnywayFile for later runs.
+	/// Returns empty when the file kept it, else why it could not (the answer then holds only until the game quits; the caller tells the player)
+	DLL_LINKAGE std::string rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder);
 
 	/// Why the code in the folder, from the mod modID, is not one the catalog vouches for; empty when it is (or the player
 	/// chose to run it anyway). A reason is for a notice with a choice, not a refusal.

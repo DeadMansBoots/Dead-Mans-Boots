@@ -17,6 +17,7 @@
 
 #include <map>
 #include <mutex>
+#include <set>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -204,6 +205,10 @@ std::string folderSignature(const boost::filesystem::path & folder)
 	return std::to_string(count) + "/" + std::to_string(total) + "/" + std::to_string(newest);
 }
 
+/// the answers "Run it anyway" given in this run, by lowercase mod ID and exact hash; they hold even when runAnywayFile could not be written
+std::mutex runAnywayMutex;
+std::set<std::pair<std::string, std::string>> runAnywayThisRun;
+
 std::mutex hashCacheMutex;
 std::map<std::string, std::pair<std::string, std::string>> hashCache; // folder -> (signature, hash)
 
@@ -247,11 +252,20 @@ void AddonCode::warmFolderHash(const boost::filesystem::path & folder)
 	cachedFolderHash(folder);
 }
 
-void AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder)
+std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder)
 {
 	const std::string hash = cachedFolderHash(folder);
 	if(hash.empty())
-		return;
+	{
+		logMod->error("Mod %s: the player chose to run its code anyway, but its code in %s could not be read", modID, folder.string());
+		return "its code could not be read";
+	}
+	const std::string mod = boost::to_lower_copy(modID);
+	{
+		std::lock_guard<std::mutex> guard(runAnywayMutex);
+		runAnywayThisRun.emplace(mod, hash);
+	}
+
 	JsonNode all;
 	{
 		std::ifstream in(runAnywayFile().c_str(), std::ios::binary);
@@ -268,19 +282,35 @@ void AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesy
 			}
 		}
 	}
-	JsonVector & list = all[boost::to_lower_copy(modID)].Vector();
+	JsonVector & list = all[mod].Vector();
 	for(const auto & entry : list)
 		if(entry.isString() && boost::to_lower_copy(entry.String()) == hash)
-			return;
+			return {};
 	list.push_back(JsonNode(hash));
 	const boost::filesystem::path temporary = runAnywayFile().string() + ".tmp";
+	// why the file did not keep the answer, for the log and the player
+	const auto failed = [&](const std::string & why)
 	{
+		logMod->error("Mod %s: the player chose to run its code anyway (%s); it holds until the game quits, since %s", modID, hash, why);
+		boost::system::error_code ignored;
+		boost::filesystem::remove(temporary, ignored);
+		return why;
+	};
+	{
+		boost::system::error_code folderError;
+		boost::filesystem::create_directories(runAnywayFile().parent_path(), folderError);
 		std::ofstream out(temporary.c_str(), std::ios::binary | std::ios::trunc);
 		out << all.toString();
+		out.close();
+		if(!out)
+			return failed(temporary.string() + " could not be written");
 	}
-	boost::system::error_code ignored;
-	boost::filesystem::rename(temporary, runAnywayFile(), ignored);
+	boost::system::error_code renameError;
+	boost::filesystem::rename(temporary, runAnywayFile(), renameError);
+	if(renameError)
+		return failed(runAnywayFile().string() + " could not be replaced (" + renameError.message() + ")");
 	logMod->info("Mod %s: the player chose to run its code anyway (%s), remembered in %s", modID, hash, runAnywayFile().string());
+	return {};
 }
 
 std::string AddonCode::trustProblem(const std::string & modID, const boost::filesystem::path & folder)
@@ -318,7 +348,14 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 	// builds a tester runs before the catalog lists them, each approved on this PC by its exact hash
 	const std::vector<std::string> tested = hashesFor(read(testedPinsFile()));
 	// versions the player answered "Run it anyway" for (K, October 18th), by exact hash
-	const std::vector<std::string> remembered = hashesFor(read(runAnywayFile()));
+	std::vector<std::string> remembered = hashesFor(read(runAnywayFile()));
+	// and those answered in this run, which hold even when the file could not keep them
+	{
+		std::lock_guard<std::mutex> guard(runAnywayMutex);
+		for(const auto & [mod, answered] : runAnywayThisRun)
+			if(mod == boost::to_lower_copy(modID))
+				remembered.push_back(answered);
+	}
 	// why the catalog does not vouch for the mod at all
 	const auto unlisted = [&catalog]() -> std::string
 	{

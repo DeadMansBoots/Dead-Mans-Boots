@@ -293,6 +293,10 @@ std::vector<MenuEra> discover()
 				CArchiveLoader loader("DATA/", era.archive);
 				if(!loader.existsResource(ResourcePath(PICTURE)))
 					continue;
+				// the picture itself is read too: a copy cut off after its index still lists it, and would take the name from a good copy
+				// in a later folder only to be dropped when its bytes come back empty
+				if(readAll(loader, era.entry).empty())
+					continue;
 			}
 			catch(const std::exception &)
 			{

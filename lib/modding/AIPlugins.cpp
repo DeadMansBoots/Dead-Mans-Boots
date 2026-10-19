@@ -65,8 +65,14 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 			+ "; a plugin built against DMB's AI SDK names its \"abi\" and then loads in every DMB with the same AI ABI";
 	else if(!folder)
 		info.problem = "its folder was not found";
-	else if(!boost::filesystem::exists(info.path))
-		info.problem = "its library is missing: ai/" + VCMIDirs::get().libraryName(info.library);
+	else if(boost::system::error_code ec; !boost::filesystem::is_regular_file(info.path, ec))
+	{
+		// DMB: a folder that cannot be read is this plugin's problem, where the throwing exists() ended the whole list
+		if(ec && ec != boost::system::errc::no_such_file_or_directory)
+			info.problem = "its library could not be checked: ai/" + VCMIDirs::get().libraryName(info.library) + ": " + ec.message();
+		else
+			info.problem = "its library is missing: ai/" + VCMIDirs::get().libraryName(info.library);
+	}
 	else
 	{
 		bool answerable = false;

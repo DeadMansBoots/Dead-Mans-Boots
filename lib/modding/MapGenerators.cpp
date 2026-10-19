@@ -408,7 +408,7 @@ std::string MapGenerators::errorLine(const boost::filesystem::path & logPath)
 {
 	// a generator that refuses a combination says why on a line starting "Error: "
 	std::string reason;
-	std::ifstream log(logPath.string());
+	std::ifstream log(logPath.c_str()); // DMB: the wide path on Windows, as readPhases opens it; string() lost letters outside the code page
 	std::string line;
 	while(std::getline(log, line))
 		if(boost::algorithm::starts_with(line, "Error: "))

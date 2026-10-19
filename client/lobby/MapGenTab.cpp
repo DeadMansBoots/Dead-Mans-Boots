@@ -1532,7 +1532,9 @@ void MapGenTab::generate()
 	generating = std::make_shared<bool>(true);
 	auto flag = generating;
 
-	std::thread([flag, gen = generator, args, outPath, logPath, runningText]()
+	// the failure text is looked up here, on the main thread, so the worker's last resort below cannot throw again
+	const std::string failedText = tabText("generate.failed");
+	std::thread([flag, gen = generator, args, outPath, logPath, runningText, failedText]()
 	{
 		const auto failWith = [flag, runningText](const std::string & text)
 		{
@@ -1543,68 +1545,83 @@ void MapGenTab::generate()
 				ENGINE->windows().pushWindow(CInfoWindow::create(text, PlayerColor(0), {}));
 			});
 		};
-		const std::string title = "{" + tabText("generate.hover") + "}\n\n";
-
-		// DMB's mod catalog is asked first (K, October 18th: never a refusal). The check hashes the whole
-		// generator folder, so it runs here, off the game's main thread; a mismatch is a notice the player
-		// answers on the main thread (check mark: run it anyway and remember this version; cross: cancel),
-		// waited for here for ten minutes at most.
-		const std::string refused = AddonCode::trustProblem(gen.modID, gen.codeFolder);
-		if(!refused.empty())
-		{
-			logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", gen.name, gen.modID, refused);
-			auto answer = std::make_shared<std::promise<bool>>();
-			auto reply = answer->get_future();
-			ENGINE->dispatchMainThread([gen, refused, answer]()
-			{
-				MapGenTab::askRunAnyway(gen, refused, [answer]() { answer->set_value(true); }, [answer]() { answer->set_value(false); });
-			});
-			if(reply.wait_for(std::chrono::minutes(10)) != std::future_status::ready || !reply.get())
-			{
-				ENGINE->dispatchMainThread([flag, runningText]()
-				{
-					*flag = false;
-					ENGINE->statusbar()->clearIfMatching(runningText);
-				});
-				return;
-			}
-		}
-
-		logGlobal->info("Map generator %s (mod %s) running: %s -> %s", gen.name, gen.modID, gen.command.string(), outPath.string());
-		int exitCode = -1;
+		// the whole worker is under one try: an exception leaving a detached thread ends the game, and the catalog check, the file system and the
+		// generator's log can all throw. Whatever throws ends as a generator that failed does
 		try
 		{
-			exitCode = MapGenerators::run(gen, args, logPath, std::chrono::minutes(10));
+			const std::string title = "{" + tabText("generate.hover") + "}\n\n";
+
+			// DMB's mod catalog is asked first (K, October 18th: never a refusal). The check hashes the whole
+			// generator folder, so it runs here, off the game's main thread; a mismatch is a notice the player
+			// answers on the main thread (check mark: run it anyway and remember this version; cross: cancel),
+			// waited for here for ten minutes at most.
+			const std::string refused = AddonCode::trustProblem(gen.modID, gen.codeFolder);
+			if(!refused.empty())
+			{
+				logGlobal->warn("Map generator %s (mod %s) is not one the catalog vouches for: %s; asking the player", gen.name, gen.modID, refused);
+				auto answer = std::make_shared<std::promise<bool>>();
+				auto reply = answer->get_future();
+				ENGINE->dispatchMainThread([gen, refused, answer]()
+				{
+					MapGenTab::askRunAnyway(gen, refused, [answer]() { answer->set_value(true); }, [answer]() { answer->set_value(false); });
+				});
+				if(reply.wait_for(std::chrono::minutes(10)) != std::future_status::ready || !reply.get())
+				{
+					ENGINE->dispatchMainThread([flag, runningText]()
+					{
+						*flag = false;
+						ENGINE->statusbar()->clearIfMatching(runningText);
+					});
+					return;
+				}
+			}
+
+			logGlobal->info("Map generator %s (mod %s) running: %s -> %s", gen.name, gen.modID, gen.command.string(), outPath.string());
+			int exitCode = -1;
+			try
+			{
+				exitCode = MapGenerators::run(gen, args, logPath, std::chrono::minutes(10));
+			}
+			catch(const std::exception & e)
+			{
+				logGlobal->error("Map generator %s: %s", gen.name, e.what());
+				failWith(tabText("generate.failed"));
+				return;
+			}
+			if(exitCode != 0 || !boost::filesystem::exists(outPath))
+			{
+				// A generator that refuses a combination says why on a line starting "Error: ", such as
+				// water that does not fit the chosen template. That line beats the bare failure text.
+				const std::string reason = MapGenerators::errorLine(logPath);
+				failWith(reason.empty() ? tabText("generate.failed") : title + reason);
+				return;
+			}
+
+			ENGINE->dispatchMainThread([flag, runningText]()
+			{
+				*flag = false;
+				ENGINE->statusbar()->clearIfMatching(runningText);
+				auto lobbies = ENGINE->windows().findWindows<CLobbyScreen>();
+				if(lobbies.empty())
+					return; // left the lobby mid-generation; the file is still on disk
+				auto lobby = lobbies.back();
+				lobby->toggleTab(lobby->tabSel);
+				lobby->tabSel->showRandom = true;
+				// the list was read when the lobby opened, so it is read again for the new map to be in it
+				lobby->tabSel->toggleMode();
+				lobby->tabSel->filter(0, true);
+				lobby->tabSel->selectNewestFile();
+			});
 		}
 		catch(const std::exception & e)
 		{
 			logGlobal->error("Map generator %s: %s", gen.name, e.what());
-			failWith(tabText("generate.failed"));
-			return;
+			failWith(failedText);
 		}
-		if(exitCode != 0 || !boost::filesystem::exists(outPath))
+		catch(...)
 		{
-			// A generator that refuses a combination says why on a line starting "Error: ", such as
-			// water that does not fit the chosen template. That line beats the bare failure text.
-			const std::string reason = MapGenerators::errorLine(logPath);
-			failWith(reason.empty() ? tabText("generate.failed") : title + reason);
-			return;
+			logGlobal->error("Map generator %s: an unknown error", gen.name);
+			failWith(failedText);
 		}
-
-		ENGINE->dispatchMainThread([flag, runningText]()
-		{
-			*flag = false;
-			ENGINE->statusbar()->clearIfMatching(runningText);
-			auto lobbies = ENGINE->windows().findWindows<CLobbyScreen>();
-			if(lobbies.empty())
-				return; // left the lobby mid-generation; the file is still on disk
-			auto lobby = lobbies.back();
-			lobby->toggleTab(lobby->tabSel);
-			lobby->tabSel->showRandom = true;
-			// the list was read when the lobby opened, so it is read again for the new map to be in it
-			lobby->tabSel->toggleMode();
-			lobby->tabSel->filter(0, true);
-			lobby->tabSel->selectNewestFile();
-		});
 	}).detach();
 }

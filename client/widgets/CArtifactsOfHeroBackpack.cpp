@@ -205,6 +205,6 @@ void CArtifactsOfHeroQuickBackpack::swapSelected()
 			backpackLoc.slot = artPlace->slot;
 			break;
 		}
-	if(backpackLoc.slot != ArtifactPosition::PRE_FIRST && filterBySlot != ArtifactPosition::PRE_FIRST && curHero)
+	if(backpackLoc.slot != ArtifactPosition::PRE_FIRST && filterBySlot != ArtifactPosition::PRE_FIRST && curHero && !GAME->interface()->hasPendingArtifactRequest())
 		GAME->interface()->cb->swapArtifacts(backpackLoc, ArtifactLocation(curHero->id, filterBySlot));
 }

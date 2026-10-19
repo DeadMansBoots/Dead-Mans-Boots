@@ -70,6 +70,9 @@ class CPlayerInterface : public CGameInterface
 
 	std::unique_ptr<HeroMovementController> movementController;
 	std::unique_ptr<PathfinderCache> pathfinderCache;
+
+	/// Artifact requests sent to the server and not answered yet
+	std::set<int> pendingArtifactRequests;
 public: // TODO: make private
 	std::unique_ptr<ArtifactsUIController> artifactController;
 	std::shared_ptr<Environment> env;
@@ -140,6 +143,7 @@ protected: // Call-ins from server, should not be called directly, but only via 
 	void availableCreaturesChanged(const CGDwelling *town) override;
 	void heroBonusChanged(const CGHeroInstance *hero, const Bonus &bonus, bool gain) override;//if gain hero received bonus, else he lost it
 	void playerBonusChanged(const Bonus &bonus, bool gain) override;
+	void requestSent(const CPackForServer *pack, int requestID) override;
 	void requestRealized(PackageApplied *pa) override;
 	void heroExchangeStarted(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID query) override;
 	void centerView (int3 pos, int focusTime) override;
@@ -217,6 +221,10 @@ public: // public interface for use by client via GAME->interface() access
 
 	///returns true if all events are processed internally
 	bool capturedAllEvents();
+
+	/// True while an artifact request is waiting for the server's answer.
+	/// Artifact windows send the next request only after that answer has updated the slots they show.
+	bool hasPendingArtifactRequest() const;
 
 	void registerBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);
 	void unregisterBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents);

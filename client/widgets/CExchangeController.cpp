@@ -138,11 +138,17 @@ void CExchangeController::moveSingleStackCreature(bool leftToRight, SlotID sourc
 
 void CExchangeController::swapArtifacts(bool equipped, bool baclpack)
 {
+	if(GAME->interface()->hasPendingArtifactRequest())
+		return;
+
 	GAME->interface()->cb->bulkMoveArtifacts(left->id, right->id, true, equipped, baclpack);
 }
 
 void CExchangeController::moveArtifacts(bool leftToRight, bool equipped, bool baclpack)
 {
+	if(GAME->interface()->hasPendingArtifactRequest())
+		return;
+
 	const auto source = leftToRight ? left : right;
 	const auto target = leftToRight ? right : left;
 

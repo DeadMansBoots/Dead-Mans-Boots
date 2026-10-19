@@ -40,6 +40,10 @@ void CArtifactsOfHeroBase::putBackPickedArtifact()
 	// The server returns the picked artifact itself at the end of the turn.
 	if(!GAME->interface()->makingTurn)
 		return;
+	// A request in flight may still change what the transition slot holds.
+	// Whatever is left there is shown on the cursor when an artifact window opens again, and the server returns it when the exchange or the turn ends.
+	if(GAME->interface()->hasPendingArtifactRequest())
+		return;
 	if(const auto art = getPickedArtifact())
 	{
 		auto slot = ArtifactUtils::getArtAnyPosition(curHero, art->getTypeId());

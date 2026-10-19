@@ -1321,13 +1321,33 @@ void CPlayerInterface::showGarrisonDialog(const CArmedInstance * up, const CGHer
 	ENGINE->windows().pushWindow(cgw);
 }
 
+void CPlayerInterface::requestSent(const CPackForServer * pack, int requestID)
+{
+	// These requests name artifacts by slot. A slot read before the previous answer arrived may already hold something else on the server.
+	if(dynamic_cast<const ExchangeArtifacts *>(pack)
+		|| dynamic_cast<const BulkExchangeArtifacts *>(pack)
+		|| dynamic_cast<const ManageBackpackArtifacts *>(pack)
+		|| dynamic_cast<const ManageEquippedArtifacts *>(pack)
+		|| dynamic_cast<const AssembleArtifacts *>(pack)
+		|| dynamic_cast<const EraseArtifactByClient *>(pack))
+		pendingArtifactRequests.insert(requestID);
+}
+
 void CPlayerInterface::requestRealized( PackageApplied *pa )
 {
+	// The server sends PackageApplied after the packs that applied the request, so the slots shown are current again
+	pendingArtifactRequests.erase(pa->requestID);
+
 	if(pa->packType == CTypeList::getInstance().getTypeID<MoveHero>(nullptr))
 		movementController->onMoveHeroApplied();
 
 	if(pa->packType == CTypeList::getInstance().getTypeID<QueryReply>(nullptr))
 		movementController->onQueryReplyApplied();
+}
+
+bool CPlayerInterface::hasPendingArtifactRequest() const
+{
+	return !pendingArtifactRequests.empty();
 }
 
 void CPlayerInterface::showHeroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)

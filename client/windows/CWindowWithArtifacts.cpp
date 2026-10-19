@@ -76,6 +76,9 @@ void CWindowWithArtifacts::clickPressedOnArtPlace(const CGHeroInstance * hero, c
 		return;
 	if(hero == nullptr)
 		return;
+	// The slots shown here are updated when the answer to the previous request arrives
+	if(GAME->interface()->hasPendingArtifactRequest())
+		return;
 
 	if(const auto heroArtOwner = getHeroPickedArtifact())
 	{
@@ -108,7 +111,8 @@ void CWindowWithArtifacts::clickPressedOnArtPlace(const CGHeroInstance * hero, c
 void CWindowWithArtifacts::swapArtifactAndClose(const CArtifactsOfHeroBase & artsInst, const ArtifactPosition & slot,
 	const ArtifactLocation & dstLoc)
 {
-	GAME->interface()->cb->swapArtifacts(ArtifactLocation(artsInst.getHero()->id, slot), dstLoc);
+	if(!GAME->interface()->hasPendingArtifactRequest())
+		GAME->interface()->cb->swapArtifacts(ArtifactLocation(artsInst.getHero()->id, slot), dstLoc);
 	close();
 }
 

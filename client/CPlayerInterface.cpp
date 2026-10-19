@@ -311,6 +311,12 @@ void CPlayerInterface::gamePause(bool pause)
 
 void CPlayerInterface::yourTurn(QueryID queryID)
 {
+	{
+		// an answer that came before its request was recorded would leave the artifact windows blocked for good: the start of the turn clears what no answer can still be coming for
+		std::lock_guard guard(pendingArtifactMutex);
+		pendingArtifactRequests.clear();
+	}
+	swapOwed.reset();
 	PlayRecorder::get().snapshot(playerID, "start of turn");
 	closeAllDialogs();
 	CTutorialWindow::openWindowFirstTime(TutorialMode::TOUCH_ADVENTUREMAP);
@@ -1335,15 +1341,29 @@ void CPlayerInterface::requestSent(const CPackForServer * pack, int requestID)
 		|| dynamic_cast<const ManageEquippedArtifacts *>(pack)
 		|| dynamic_cast<const AssembleArtifacts *>(pack)
 		|| dynamic_cast<const EraseArtifactByClient *>(pack))
+	{
+		std::lock_guard guard(pendingArtifactMutex);
 		pendingArtifactRequests.insert(requestID);
+	}
 }
 
 void CPlayerInterface::requestRealized( PackageApplied *pa )
 {
 	// The server sends PackageApplied after the packs that applied the request, so the slots shown are current again
-	pendingArtifactRequests.erase(pa->requestID);
-	if(pendingArtifactRequests.empty() && !putBackOwed.empty())
+	bool idle = false;
+	{
+		std::lock_guard guard(pendingArtifactMutex);
+		pendingArtifactRequests.erase(pa->requestID);
+		idle = pendingArtifactRequests.empty();
+	}
+	if(idle && !putBackOwed.empty())
 		putBackOwedArtifacts();
+	if(idle && swapOwed)
+	{
+		const auto owed = *swapOwed;
+		swapOwed.reset();
+		cb->swapArtifacts(owed.first, owed.second);
+	}
 
 	if(pa->packType == CTypeList::getInstance().getTypeID<MoveHero>(nullptr))
 		movementController->onMoveHeroApplied();
@@ -1354,7 +1374,13 @@ void CPlayerInterface::requestRealized( PackageApplied *pa )
 
 bool CPlayerInterface::hasPendingArtifactRequest() const
 {
+	std::lock_guard guard(pendingArtifactMutex);
 	return !pendingArtifactRequests.empty();
+}
+
+void CPlayerInterface::oweSwap(const ArtifactLocation & from, const ArtifactLocation & to)
+{
+	swapOwed = std::make_pair(from, to);
 }
 
 void CPlayerInterface::owePutBack(ObjectInstanceID hero)

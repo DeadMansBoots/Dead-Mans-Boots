@@ -772,10 +772,14 @@ void applyCarvedButtonWord(QPushButton * button, bool active)
 {
 	const QVariant stored = button->property("dmbCarvedFrom");
 	QString original = stored.isValid() ? stored.toString() : button->text();
-	// DMB: a button with no word of its own (icon only) is not one to carve, and keeps its icon; one carved before whose word is now empty goes on
-	// below, where its carved picture is taken off and its own icon put back
-	if(original.isEmpty() && !button->property("dmbCarvedIcon").toBool())
+	// DMB: a button with no word of its own (icon only) is not one to carve, and keeps its icon; it is still marked, so a word it is given later is carved. One carved before
+	// whose word is now empty goes on below, where its carved picture is taken off and its own icon put back
+	if(original.isEmpty() && button->text().isEmpty() && !button->property("dmbCarvedIcon").toBool())
+	{
+		if(!stored.isValid())
+			button->setProperty("dmbCarvedFrom", QString());
 		return;
+	}
 	// a plain setText after the word was carved (a download's progress, a language switch) is the button's new word: the text wins over the stored one
 	if(stored.isValid() && !button->text().isEmpty() && button->text() != original)
 		original = button->text();

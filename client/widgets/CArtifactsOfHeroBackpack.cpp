@@ -205,6 +205,12 @@ void CArtifactsOfHeroQuickBackpack::swapSelected()
 			backpackLoc.slot = artPlace->slot;
 			break;
 		}
-	if(backpackLoc.slot != ArtifactPosition::PRE_FIRST && filterBySlot != ArtifactPosition::PRE_FIRST && curHero && !GAME->interface()->hasPendingArtifactRequest())
-		GAME->interface()->cb->swapArtifacts(backpackLoc, ArtifactLocation(curHero->id, filterBySlot));
+	if(backpackLoc.slot != ArtifactPosition::PRE_FIRST && filterBySlot != ArtifactPosition::PRE_FIRST && curHero)
+	{
+		// the slots named here were read before the answer to a request still in flight: the choice is sent once that answer is in, not dropped
+		if(GAME->interface()->hasPendingArtifactRequest())
+			GAME->interface()->oweSwap(backpackLoc, ArtifactLocation(curHero->id, filterBySlot));
+		else
+			GAME->interface()->cb->swapArtifacts(backpackLoc, ArtifactLocation(curHero->id, filterBySlot));
+	}
 }

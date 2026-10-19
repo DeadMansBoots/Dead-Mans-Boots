@@ -330,7 +330,7 @@ void CSettingsView::loadSettings()
 		int index = vstd::find_pos(types, stored);
 		if(index < 0)
 		{
-			combo->addItem(tr("%1 (not known to this version)").arg(QString::fromStdString(stored)));
+			combo->addItem(tr("%1 (not known to this version)").arg(QString::fromStdString(stored)), QString::fromStdString(stored)); // the stored value is the entry's data
 			index = combo->count() - 1;
 		}
 		combo->setCurrentIndex(index);
@@ -347,7 +347,7 @@ void CSettingsView::loadSettings()
 	ui->sliderToleranceDistanceTouch->setValue(settings["input"]["touchToleranceDistance"].Integer());
 	ui->sliderToleranceDistanceController->setValue(settings["input"]["shortcutToleranceDistance"].Integer());
 	ui->sliderControllerSticksSensitivity->setValue(settings["input"]["controllerAxisSpeed"].Integer());
-	ui->sliderControllerSticksAcceleration->setValue(settings["input"]["controllerAxisScale"].Float() * 100);
+	ui->sliderControllerSticksAcceleration->setValue(static_cast<int>(std::lround(settings["input"]["controllerAxisScale"].Float() * 100))); // rounded: 1.15 * 100 is 114.99 and truncating crept the setting down at every launch
 	ui->lineEditGameLobbyHost->setText(QString::fromStdString(settings["lobby"]["hostname"].String()));
 	ui->spinBoxNetworkPortLobby->setValue(settings["lobby"]["port"].Integer());
 	ui->buttonVSync->setChecked(settings["video"]["vsync"].Bool());
@@ -1342,19 +1342,19 @@ void CSettingsView::on_buttonIgnoreSslErrors_clicked(bool checked)
 
 void CSettingsView::on_comboBoxUpscalingFilter_currentIndexChanged(int index)
 {
-	// the entry for a stored filter this build does not list keeps the stored value
-	if(index < 0 || index >= static_cast<int>(upscalingFilterTypes.size()))
+	// the entry for a stored filter this build does not list carries the stored value as its data, so choosing it again writes it back
+	if(index < 0)
 		return;
 	Settings node = settings.write["video"]["upscalingFilter"];
-	node->String() = upscalingFilterTypes[index];
+	node->String() = index < static_cast<int>(upscalingFilterTypes.size()) ? upscalingFilterTypes[index] : ui->comboBoxUpscalingFilter->itemData(index).toString().toStdString();
 }
 
 void CSettingsView::on_comboBoxDownscalingFilter_currentIndexChanged(int index)
 {
-	if(index < 0 || index >= static_cast<int>(downscalingFilterTypes.size()))
+	if(index < 0)
 		return;
 	Settings node = settings.write["video"]["downscalingFilter"];
-	node->String() = downscalingFilterTypes[index];
+	node->String() = index < static_cast<int>(downscalingFilterTypes.size()) ? downscalingFilterTypes[index] : ui->comboBoxDownscalingFilter->itemData(index).toString().toStdString();
 }
 
 void CSettingsView::on_sliderMusicVolume_valueChanged(int value)

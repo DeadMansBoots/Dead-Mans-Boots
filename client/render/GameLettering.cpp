@@ -86,7 +86,9 @@ GameLettering::Letters GameLettering::letters(EFonts font, const std::string & t
 		const int width = static_cast<int32_t>(read_le_u32(bytes + widthsAt + c * 12 + 4));
 		const int after = static_cast<int32_t>(read_le_u32(bytes + widthsAt + c * 12 + 8));
 		const size_t offset = pixelsAt + read_le_u32(bytes + offsetsAt + c * 4);
-		if(width < 0 || width > GLYPH_RANGE || std::abs(before) > GLYPH_RANGE || std::abs(after) > GLYPH_RANGE
+		// compared as a range: a spacing of INT_MIN has no absolute value in an int (std::abs of it is undefined)
+		const auto inRange = [](int value) { return value >= -GLYPH_RANGE && value <= GLYPH_RANGE; };
+		if(width < 0 || width > GLYPH_RANGE || !inRange(before) || !inRange(after)
 			|| offset + static_cast<size_t>(width) * result.height > size)
 			return {};
 		placed.push_back({ static_cast<int>(x + before), width, bytes + offset });

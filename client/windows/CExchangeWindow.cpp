@@ -257,7 +257,8 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 					AnimationPath::builtin("quick-exchange/unitLeft.DEF"),
 					CButton::tooltip(LIBRARY->generaltexth->translate("vcmi.quickExchange.moveUnit")),
 					[this, i]() { creatureArrowButtonCallback(false, SlotID(i)); }));
-			moveUnitFromRightToLeftButtons.back()->block(leftHeroBlock);
+			// blocked by the hero the stack is taken from, as the bulk buttons above
+			moveUnitFromRightToLeftButtons.back()->block(rightHeroBlock);
 
 			moveUnitFromLeftToRightButtons.push_back(
 				std::make_shared<CButton>(
@@ -265,7 +266,7 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 					AnimationPath::builtin("quick-exchange/unitRight.DEF"),
 					CButton::tooltip(LIBRARY->generaltexth->translate("vcmi.quickExchange.moveUnit")),
 					[this, i]() { creatureArrowButtonCallback(true, SlotID(i)); }));
-			moveUnitFromLeftToRightButtons.back()->block(rightHeroBlock);
+			moveUnitFromLeftToRightButtons.back()->block(leftHeroBlock);
 		}
 	}
 
@@ -274,6 +275,9 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 
 void CExchangeWindow::creatureArrowButtonCallback(bool leftToRight, SlotID slotId)
 {
+	// the server takes a stack only from a hero the player owns
+	if(isHeroBlocked(leftToRight ? 0 : 1))
+		return;
 	if (ENGINE->isKeyboardAltDown())
 		controller.moveArmy(leftToRight, slotId);
 	else if (ENGINE->isKeyboardCtrlDown())

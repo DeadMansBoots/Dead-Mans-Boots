@@ -117,6 +117,7 @@ void TurnProgressBar::takeSnapshot()
 	snapshotTaken = true;
 	percent = 0;
 	shown = 0;
+	playerName = state->name.empty() ? player.toString() : state->name;
 }
 
 void TurnProgressBar::endTurn()
@@ -276,13 +277,26 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	percent = compute();
 }
 
-void TurnProgressBar::show(Canvas & to)
+void TurnProgressBar::showAll(Canvas & to)
 {
-	// the map under the top left corner is repainted every frame, so the bar is too: a window over it (a town screen, a dialog) is the top window and the adventure map is not shown at all then
-	showAll(to);
+	// a full redraw: the parent has just painted the map fresh, so the copy of the terrain under the bar is taken again
+	glass.reset();
+	show(to);
 }
 
-void TurnProgressBar::showAll(Canvas & to)
+void TurnProgressBar::captureGlass(Canvas & to)
+{
+	// the terrain under the whole bar, its end pieces and the name above it, as it is now (fresh)
+	const Rect area(pos.x - 8, pos.y - 14, pos.w + 16, pos.h + 16);
+	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
+	glass = std::make_shared<Canvas>(Point(area.w, area.h), CanvasScalingPolicy::AUTO);
+	Canvas source(to, area);
+	glass->draw(source, Point(0, 0));
+	// a real blend on the off-screen copy (its surface has an alpha channel): the glass 30 percent dark, so 70 percent of the terrain shows
+	glass->drawColorBlended(Rect(inner.x - area.x, inner.y - area.y, inner.w, inner.h), ColorRGBA(0, 0, 0, 77));
+}
+
+void TurnProgressBar::show(Canvas & to)
 {
 	ColorRGBA base(150, 150, 150, 255);
 	if(player.getNum() >= 0 && player.getNum() < 8)
@@ -295,10 +309,11 @@ void TurnProgressBar::showAll(Canvas & to)
 	const Rect outer(pos.x, pos.y, pos.w, pos.h);
 	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
 
-	// the empty part: dark glass you see through. Not blended: the map tiles under the bar are repainted only where they change, so a translucent patch drawn over them every frame piles up to black.
-	// Dark lines on every third row instead (a third covered, 70 percent see-through), the map showing in the rows between
-	for(int row = 0; row < inner.h; row += 3)
-		to.drawColor(Rect(inner.x, inner.y + row, inner.w, 1), ColorRGBA(6, 4, 2, 255));
+	// every frame starts from the kept copy of the terrain (the glass already darkened in it): nothing drawn on an earlier frame piles up
+	if(!glass)
+		captureGlass(to);
+	if(glass)
+		to.draw(*glass, Point(pos.x - 8, pos.y - 14));
 
 	const double t = clockMs / 1000.0;
 	if(!emptyFrame)
@@ -376,11 +391,17 @@ void TurnProgressBar::showAll(Canvas & to)
 
 	if(!emptyFrame)
 	{
-		// the percent, with a dark shadow so it reads over the terrain showing through the glass
-		const std::string text = std::to_string(static_cast<int>(std::lround(shown))) + "%";
-		const Point middle(outer.x + outer.w / 2, outer.y + outer.h / 2);
-		to.drawText(Point(middle.x + 1, middle.y + 1), FONT_TINY, Colors::BLACK, ETextAlignment::CENTER, text);
-		to.drawText(Point(middle.x + 1, middle.y), FONT_TINY, Colors::BLACK, ETextAlignment::CENTER, text);
-		to.drawText(middle, FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, text);
+		// the percent and the player's name, white with a solid black outline so they read over any terrain
+		const auto outlined = [&to](const Point & at, const std::string & text)
+		{
+			for(int dx = -1; dx <= 1; ++dx)
+				for(int dy = -1; dy <= 1; ++dy)
+					if(dx != 0 || dy != 0)
+						to.drawText(Point(at.x + dx, at.y + dy), FONT_TINY, Colors::BLACK, ETextAlignment::CENTER, text);
+			to.drawText(at, FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, text);
+		};
+		outlined(Point(outer.x + outer.w / 2, outer.y + outer.h / 2), std::to_string(static_cast<int>(std::lround(shown))) + "%");
+		if(!playerName.empty())
+			outlined(Point(outer.x + outer.w / 2, outer.y - 6), playerName);
 	}
 }

@@ -46,8 +46,13 @@ class TurnProgressBar : public CIntObject
 	/// the percent as drawn: it eases toward `percent`
 	double shown = 0;
 	uint32_t clockMs = 0;
+	/// the terrain under the glass, darkened once (taken in showAll, when the map has just been painted fresh)
+	std::shared_ptr<Canvas> glass;
+	/// the name of the tracked player, drawn above the bar
+	std::string playerName;
 
 	int compute() const;
+	void captureGlass(Canvas & to);
 	/// the snapshot of what the player's heroes and towns have now, taken when the turn starts, or at the first tick of a turn that was loaded from a save
 	void takeSnapshot();
 	void tick(uint32_t msPassed) override;

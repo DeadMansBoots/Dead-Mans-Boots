@@ -43,6 +43,9 @@ public:
 	void tick(uint32_t msPassed) override;
 	void show(Canvas & to) override;
 	void showAll(Canvas & to) override;
+
+	/// DMB: the tiles under this screen area are drawn at the next frame even when they did not change (MapViewCache::repaintArea)
+	void repaintArea(const Rect & screenArea);
 };
 
 /// Main class that represents visible section of adventure map

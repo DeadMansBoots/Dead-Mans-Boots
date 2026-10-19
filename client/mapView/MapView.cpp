@@ -87,6 +87,11 @@ void BasicMapView::showAll(Canvas & to)
 	render(to, true);
 }
 
+void BasicMapView::repaintArea(const Rect & screenArea)
+{
+	tilesCache->repaintArea(screenArea - pos.topLeft());
+}
+
 void MapView::tick(uint32_t msPassed)
 {
 	if(settings["adventure"]["smoothDragging"].Bool())

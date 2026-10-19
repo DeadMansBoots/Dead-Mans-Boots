@@ -76,14 +76,20 @@ AdventureMapInterface::AdventureMapInterface():
 	if(GAME->interface()->cb->getStartInfo()->turnTimerInfo.turnTimer != 0)
 		watches = std::make_shared<TurnTimerWidget>(Point(24, 24));
 
-	// DMB (K, October 16th and 17th): the turn progress bar of a game with more than one human player, top left of the map; below the turn timer when there is one
+	// DMB (K, October 16th and 17th): the turn progress bar of a game with more than one human player, top left of the map; below the turn timer when there is one.
+	// It is placed by all it draws (its pos, the name above the frame included): with the timer, its top is 6 pixels below the timer's bottom and its frame
+	// lines up with the timer's left edge; without one, its frame is where the timer would be
 	{
 		int humans = 0;
 		for(const auto & info : GAME->interface()->cb->getStartInfo()->playerInfos)
 			if(info.second.isControlledByHuman())
 				humans++;
 		if(humans > 1)
-			turnBar = std::make_shared<TurnProgressBar>(Point(24, watches ? 24 + watches->pos.h + 6 : 24), GAME->interface()->playerID);
+		{
+			turnBar = std::make_shared<TurnProgressBar>(Point(0, 0), GAME->interface()->playerID);
+			const Point frame = turnBar->frameOffset();
+			turnBar->moveTo(watches ? Point(watches->pos.x - frame.x, watches->pos.y + watches->pos.h + 6) : Point(24, 24) - frame);
+		}
 	}
 	
 	addUsedEvents(KEYBOARD | TIME);
@@ -92,8 +98,6 @@ AdventureMapInterface::AdventureMapInterface():
 void AdventureMapInterface::onMapViewMoved(const Rect & visibleArea, int mapLevel)
 {
 	shortcuts->onMapViewMoved(visibleArea, mapLevel);
-	if(turnBar)
-		turnBar->invalidate(); // the kept copy of the terrain under the bar is stale
 	widget->getMinimap()->onMapViewMoved(visibleArea, mapLevel);
 	widget->onMapViewMoved(visibleArea, mapLevel);
 }
@@ -179,6 +183,9 @@ void AdventureMapInterface::showAll(Canvas & to)
 
 void AdventureMapInterface::show(Canvas & to)
 {
+	// DMB: the map paints the terrain under the turn bar fresh in this frame, and the bar, drawn after it, darkens and decorates that (TurnProgressBar.h)
+	if(turnBar)
+		widget->getMapView()->repaintArea(turnBar->pos);
 	CIntObject::show(to);
 	dim(to);
 	GAME->interface()->cingconsole->show(to);

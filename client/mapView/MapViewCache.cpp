@@ -137,6 +137,11 @@ void MapViewCache::update(const std::shared_ptr<IMapRendererContext> & context)
 	cachedLevel = model->getLevel();
 }
 
+void MapViewCache::repaintArea(const Rect & area)
+{
+	repaintAreas.push_back(area);
+}
+
 void MapViewCache::render(const std::shared_ptr<IMapRendererContext> & context, Canvas & target, bool fullRedraw)
 {
 	bool mapMoved = (cachedPosition != model->getMapViewCenter());
@@ -153,12 +158,19 @@ void MapViewCache::render(const std::shared_ptr<IMapRendererContext> & context, 
 			int cacheX = (terrainChecksum.shape()[0] + x) % terrainChecksum.shape()[0];
 			int cacheY = (terrainChecksum.shape()[1] + y) % terrainChecksum.shape()[1];
 			int3 tile(x, y, model->getLevel());
+			Rect targetRect = model->getTargetTileArea(tile);
 
-			if(lazyUpdate && tilesUpToDate[cacheX][cacheY])
+			const auto repaintRequested = [&]()
+			{
+				for(const auto & area : repaintAreas)
+					if(area.intersectionTest(targetRect))
+						return true;
+				return false;
+			};
+			if(lazyUpdate && tilesUpToDate[cacheX][cacheY] && !repaintRequested())
 				continue;
 
 			Canvas source = getTile(tile);
-			Rect targetRect = model->getTargetTileArea(tile);
 			target.draw(source, targetRect.topLeft());
 
 			if (!fullRedraw)
@@ -221,6 +233,7 @@ void MapViewCache::render(const std::shared_ptr<IMapRendererContext> & context, 
 
 	cachedPosition = model->getMapViewCenter();
 	overlayWasVisible = overlayVisible;
+	repaintAreas.clear();
 }
 
 void MapViewCache::createTransitionSnapshot(const std::shared_ptr<IMapRendererContext> & context)

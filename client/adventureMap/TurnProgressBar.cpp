@@ -17,6 +17,7 @@
 #include "../render/Graphics.h"
 #include "../render/Canvas.h"
 #include "../render/IFont.h"
+#include "../render/IRenderHandler.h"
 #include "../widgets/TextControls.h"
 
 #include "../../lib/CPlayerState.h"
@@ -30,15 +31,41 @@
 
 #include <algorithm>
 
+namespace
+{
+/// the frame's size, and how far the diamond end pieces reach past its left and right sides
+const Point FRAME_SIZE(120, 18);
+const int END_PIECE = 9;
+/// the player's name is centred this far above the frame's top
+const int NAME_ABOVE = 6;
+}
+
 TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
 	: CIntObject(TIME)
 	, player(player)
-	, barSize(120, 18)
 {
+	// the name line above the frame: its centre NAME_ABOVE over the frame, half a line and the outline above that
+	const int nameHeight = static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getLineHeight());
+	const int above = std::max(14, NAME_ABOVE + nameHeight / 2 + 2);
 	pos += position;
-	pos.w = barSize.x;
-	pos.h = barSize.y;
+	frame = Rect(END_PIECE, above, FRAME_SIZE.x, FRAME_SIZE.y);
+	pos.w = FRAME_SIZE.x + 2 * END_PIECE;
+	pos.h = above + FRAME_SIZE.y;
 	recActions &= ~DEACTIVATE;
+}
+
+Point TurnProgressBar::frameOffset() const
+{
+	return frame.topLeft();
+}
+
+void TurnProgressBar::fitName()
+{
+	// the name is centred over the frame; a wider one starts at pos's left edge and pos reaches as far right as it does, with its outline
+	const int nameWidth = playerName.empty() ? 0 : static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getStringWidth(playerName)) + 2;
+	const int frameReach = frame.x + frame.w + END_PIECE;
+	const int nameReach = std::max(frame.x + frame.w / 2 + nameWidth / 2, nameWidth) + 1;
+	pos.w = std::max(frameReach, nameReach);
 }
 
 void TurnProgressBar::startTurn(PlayerColor newPlayer)
@@ -124,11 +151,7 @@ void TurnProgressBar::takeSnapshot()
 		const auto found = infos.find(player);
 		playerName = found != infos.end() && !found->second.name.empty() ? found->second.name : player.toString();
 	}
-}
-
-void TurnProgressBar::invalidate()
-{
-	glassStale = true;
+	fitName();
 }
 
 void TurnProgressBar::endTurn()
@@ -290,21 +313,7 @@ void TurnProgressBar::tick(uint32_t msPassed)
 
 void TurnProgressBar::showAll(Canvas & to)
 {
-	// a full redraw: the parent has just painted the map fresh, so the copy of the terrain under the bar is taken again
-	glass.reset();
 	show(to);
-}
-
-void TurnProgressBar::captureGlass(Canvas & to)
-{
-	// the terrain under the whole bar, its end pieces and the name above it, as it is now (fresh)
-	const Rect area(pos.x - 8, pos.y - 14, pos.w + 16, pos.h + 16);
-	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
-	glass = std::make_shared<Canvas>(Point(area.w, area.h), CanvasScalingPolicy::AUTO);
-	Canvas source(to, area);
-	glass->draw(source, Point(0, 0));
-	// a real blend on the off-screen copy (its surface has an alpha channel): the glass 30 percent dark, so 70 percent of the terrain shows
-	glass->drawColorBlended(Rect(inner.x - area.x, inner.y - area.y, inner.w, inner.h), ColorRGBA(0, 0, 0, 77));
 }
 
 void TurnProgressBar::show(Canvas & to)
@@ -317,24 +326,11 @@ void TurnProgressBar::show(Canvas & to)
 		return ColorRGBA(static_cast<uint8_t>(std::clamp(c.r * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.g * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.b * factor, 0.0, 255.0)), alpha);
 	};
 
-	const Rect outer(pos.x, pos.y, pos.w, pos.h);
-	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
+	const Rect outer = frame + pos.topLeft();
+	const Rect inner(outer.x + 3, outer.y + 3, outer.w - 6, outer.h - 6);
 
-	// every frame starts from the kept copy of the terrain (the glass already darkened in it): nothing drawn on an earlier frame piles up
-	if(glassStale.exchange(false))
-	{
-		glass.reset();
-		captureDelay = 1;
-	}
-	if(!glass && captureDelay > 0)
-	{
-		--captureDelay;
-		return;
-	}
-	if(!glass)
-		captureGlass(to);
-	if(glass)
-		to.draw(*glass, Point(pos.x - 8, pos.y - 14));
+	// the map has painted the terrain under pos fresh in this frame (AdventureMapInterface::show): the glass darkens it 30 percent, so 70 percent of the terrain shows
+	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 77));
 
 	const double t = clockMs / 1000.0;
 	if(!emptyFrame)
@@ -423,6 +419,10 @@ void TurnProgressBar::show(Canvas & to)
 		};
 		outlined(Point(outer.x + outer.w / 2, outer.y + outer.h / 2), std::to_string(static_cast<int>(std::lround(shown))) + "%");
 		if(!playerName.empty())
-			outlined(Point(outer.x + outer.w / 2, outer.y - 6), playerName);
+		{
+			// centred over the frame, or from pos's left edge when wider (fitName)
+			const int nameWidth = static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getStringWidth(playerName)) + 2;
+			outlined(Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE), playerName);
+		}
 	}
 }

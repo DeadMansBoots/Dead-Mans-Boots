@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include "../../lib/Point.h"
+#include "../../lib/Rect.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 class ObjectInstanceID;
@@ -40,6 +40,8 @@ class MapViewCache
 
 	boost::multi_array<TileChecksum, 2> terrainChecksum;
 	boost::multi_array<bool, 2> tilesUpToDate;
+	/// DMB: areas, in the view's own coordinates, whose tiles the next render draws even when they did not change (repaintArea)
+	std::vector<Rect> repaintAreas;
 
 	Point cachedSize;
 	Point cachedPosition;
@@ -69,6 +71,10 @@ public:
 
 	/// updates internal terrain cache according to provided time delta
 	void update(const std::shared_ptr<IMapRendererContext> & context);
+
+	/// DMB: the tiles meeting this area (in the view's own coordinates) are drawn at the next render even when they did not change, so a widget
+	/// drawn over the map there every frame (the turn progress bar) starts from the map as it is in that frame
+	void repaintArea(const Rect & area);
 
 	/// renders updated terrain cache onto provided canvas
 	void render(const std::shared_ptr<IMapRendererContext> & context, Canvas & target, bool fullRedraw);

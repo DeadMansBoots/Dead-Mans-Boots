@@ -9,13 +9,14 @@
 
 #include "../gui/CIntObject.h"
 
-#include <atomic>
 #include "../../lib/constants/EntityIdentifiers.h"
 
 /// DMB (K, October 16th and 17th): a bar at the top left of the adventure map showing how much of the player's turn is done, in the player's colour over the game's
 /// own marble texture. Display only: it reads the game state the client already holds and changes no rule, timer or AI. Measured against a snapshot taken when the
 /// player's turn starts: hero movement spent, a structure built in each town that can build one, creatures recruited where some can be, mana spent by heroes who can
 /// cast an adventure spell. The mean of the categories that apply; empty when none does; full when the player has ended the turn.
+/// Its pos is everything it draws: the frame, the end pieces either side and the player's name above. The map view paints the tiles under pos fresh every frame
+/// (AdventureMapInterface::show asks it to), and the bar is drawn over them: the glass darkens the terrain as it is in that frame, and nothing drawn earlier stays.
 class TurnProgressBar : public CIntObject
 {
 	struct HeroStart
@@ -41,24 +42,20 @@ class TurnProgressBar : public CIntObject
 	bool snapshotTaken = false;
 	int percent = 0;
 	uint32_t sinceUpdate = 0;
-	Point barSize;
+	/// the gold frame and what it holds, relative to pos: the end pieces reach past its sides and the name sits above it
+	Rect frame;
 
 	/// the bar shows the empty frame: an enemy's turn or an AI's (no colour, no fill)
 	bool emptyFrame = false;
 	/// the percent as drawn: it eases toward `percent`
 	double shown = 0;
 	uint32_t clockMs = 0;
-	/// the terrain under the glass, darkened once (taken in showAll, when the map has just been painted fresh)
-	std::shared_ptr<Canvas> glass;
-	/// the map moved under the bar: the copy is taken again at the next frame (set from any thread)
-	std::atomic<bool> glassStale{false};
-	/// frames to wait before the copy is taken again after the map moved: the map repaints the tiles under the bar in the frame after the move, and a copy taken at once would hold the old bar
-	int captureDelay = 0;
 	/// the name of the tracked player, drawn above the bar
 	std::string playerName;
 
 	int compute() const;
-	void captureGlass(Canvas & to);
+	/// pos widens to the right for a name wider than the frame and its end pieces, so pos stays all the bar draws
+	void fitName();
 	/// the snapshot of what the player's heroes and towns have now, taken when the turn starts, or at the first tick of a turn that was loaded from a save
 	void takeSnapshot();
 	void tick(uint32_t msPassed) override;
@@ -66,14 +63,16 @@ class TurnProgressBar : public CIntObject
 	void show(Canvas & to) override;
 
 public:
+	/// position is the top left of all the bar draws (its pos)
 	TurnProgressBar(const Point & position, PlayerColor player);
+
+	/// where the frame sits inside pos
+	Point frameOffset() const;
 
 	/// the player's turn starts: the snapshot is taken and the bar is empty
 	void startTurn(PlayerColor newPlayer);
 	/// the player ended the turn: the bar shows full
 	void endTurn();
-	/// the map moved under the bar (a scroll, a centring, a hero followed): the kept copy of the terrain under it is stale
-	void invalidate();
 	/// another player's turn begins on this client: a human teammate's is tracked (their colour, their progress from the game state this client holds), an enemy's or an AI's shows the empty frame
 	void remoteTurn(PlayerColor active, bool human);
 };

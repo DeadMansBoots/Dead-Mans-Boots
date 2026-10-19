@@ -15,9 +15,8 @@
 #include "../GameInstance.h"
 #include "../render/Colors.h"
 #include "../render/Graphics.h"
-#include "../widgets/GraphicalPrimitiveCanvas.h"
-#include "../widgets/Images.h"
-#include "../widgets/TextControls.h"
+#include "../render/Canvas.h"
+#include "../render/IFont.h"
 
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/entities/building/CBuilding.h"
@@ -31,24 +30,20 @@
 TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
 	: CIntObject(TIME)
 	, player(player)
-	, barSize(110, 16)
+	, barSize(120, 18)
 {
-	OBJECT_CONSTRUCTION;
 	pos += position;
 	pos.w = barSize.x;
 	pos.h = barSize.y;
 	recActions &= ~DEACTIVATE;
-	// the game's own marble (the player coloured box texture the other panels use), harvested at run time from the player's files
-	background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, barSize.x, barSize.y));
-	background->setPlayerColor(player);
-	shade = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, barSize.x, barSize.y), ColorRGBA(0, 0, 0, 170)); // the empty part: the same marble, darkened
-	refresh();
 }
 
 void TurnProgressBar::startTurn(PlayerColor newPlayer)
 {
 	player = newPlayer;
 	turnEnded = false;
+	remote = false;
+	hidden = false;
 	takeSnapshot();
 }
 
@@ -115,14 +110,20 @@ void TurnProgressBar::takeSnapshot()
 	}
 	snapshotTaken = true;
 	percent = 0;
-	refresh();
+	shown = 0;
 }
 
 void TurnProgressBar::endTurn()
 {
 	turnEnded = true;
 	percent = 100;
-	refresh();
+}
+
+void TurnProgressBar::remoteTurn(PlayerColor active, bool human)
+{
+	player = active;
+	remote = human;
+	hidden = !human;
 }
 
 int TurnProgressBar::compute() const
@@ -220,44 +221,106 @@ int TurnProgressBar::compute() const
 	return std::clamp(static_cast<int>(100.0 * sum / categories.size() + 0.5), 0, 100);
 }
 
-void TurnProgressBar::refresh()
-{
-	OBJECT_CONSTRUCTION;
-	fill.reset();
-	bevel.clear();
-	label.reset();
-	background->setPlayerColor(player);
-	const int width = ((barSize.x - 4) * percent) / 100;
-	if(width > 0)
-	{
-		// the marble, tinted with the player's colour, over the darkened marble; it keeps its own origin so it grows like a reveal
-		fill = std::make_shared<FilledTexturePlayerColored>(Rect(2, 2, width, barSize.y - 4));
-		fill->setPlayerColor(player);
-	}
-	// a bevelled frame: gold light on the top and left, dark brown on the bottom and right
-	const ColorRGBA light(240, 205, 110, 255), dark(60, 40, 10, 255);
-	bevel.push_back(std::make_shared<SimpleLine>(Point(0, 0), Point(barSize.x - 1, 0), light));
-	bevel.push_back(std::make_shared<SimpleLine>(Point(0, 0), Point(0, barSize.y - 1), light));
-	bevel.push_back(std::make_shared<SimpleLine>(Point(0, barSize.y - 1), Point(barSize.x - 1, barSize.y - 1), dark));
-	bevel.push_back(std::make_shared<SimpleLine>(Point(barSize.x - 1, 0), Point(barSize.x - 1, barSize.y - 1), dark));
-	bevel.push_back(std::make_shared<SimpleLine>(Point(1, 1), Point(barSize.x - 2, 1), dark));
-	bevel.push_back(std::make_shared<SimpleLine>(Point(1, 1), Point(1, barSize.y - 2), dark));
-	label = std::make_shared<CLabel>(barSize.x / 2, barSize.y / 2, FONT_TINY, ETextAlignment::CENTER, Colors::WHITE, std::to_string(percent) + "%");
-	// painted at once only while the adventure map is the window on top: a town screen or a dialog over the top left is never painted over (the Reviewer, pass 149);
-	// when such a window closes the adventure map is drawn whole again, the bar with it
-	if(adventureInt && ENGINE->windows().isTopWindow(adventureInt.get()))
-		redraw();
-}
-
 void TurnProgressBar::tick(uint32_t msPassed)
 {
+	clockMs += msPassed;
 	sinceUpdate += msPassed;
+	// the drawn percent eases toward the real one: the liquid rises instead of jumping
+	shown += (percent - shown) * std::min(1.0, msPassed / 180.0);
 	if(sinceUpdate < 250)
 		return;
 	sinceUpdate = 0;
+	if(remote || hidden)
+		return;
 	// a turn loaded from a save has no snapshot (the turn did not start in this run): it is taken now, and the bar reads what is done since
 	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb && GAME->interface()->playerID == player)
 		takeSnapshot();
 	percent = compute();
-	refresh(); // every tick, as before: the bar is there from the first frame of the turn (the picture of a turn start showed it missing until some later redraw); refresh() paints only while the adventure map is the top window
+}
+
+void TurnProgressBar::show(Canvas & to)
+{
+	// the map under the top left corner is repainted every frame, so the bar is too: a window over it (a town screen, a dialog) is the top window and the adventure map is not shown at all then
+	showAll(to);
+}
+
+void TurnProgressBar::showAll(Canvas & to)
+{
+	if(hidden)
+		return;
+	ColorRGBA base(150, 150, 150, 255);
+	if(player.getNum() >= 0 && player.getNum() < 8)
+		base = graphics->playerColors[player.getNum()];
+	const auto shade = [](const ColorRGBA & c, double factor, uint8_t alpha)
+	{
+		return ColorRGBA(static_cast<uint8_t>(std::clamp(c.r * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.g * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.b * factor, 0.0, 255.0)), alpha);
+	};
+
+	const Rect outer(pos.x, pos.y, pos.w, pos.h);
+	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
+
+	// the empty part: a dark glass, semi-transparent, the map or the marble shows through
+	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 95));
+
+	const double t = clockMs / 1000.0;
+	if(remote)
+	{
+		// another human's turn: a band of that player's colour travels across the glass; no percent is known here
+		const int band = inner.w / 3;
+		const int travel = inner.w + band;
+		const int start = static_cast<int>(std::fmod(t * 45.0, static_cast<double>(travel))) - band;
+		for(int x = 0; x < band; ++x)
+		{
+			const int px = start + x;
+			if(px < 0 || px >= inner.w)
+				continue;
+			const double edge = 1.0 - std::abs(2.0 * x / band - 1.0); // soft ends
+			to.drawColorBlended(Rect(inner.x + px, inner.y, 1, inner.h), shade(base, 1.0, static_cast<uint8_t>(40 + 110 * edge)));
+		}
+	}
+	else
+	{
+		const int width = std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
+		if(width > 0)
+		{
+			// the liquid: lighter at the top, darker at the bottom, a bright thin highlight under the top edge
+			for(int row = 0; row < inner.h; ++row)
+			{
+				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
+				to.drawColorBlended(Rect(inner.x, inner.y + row, width, 1), shade(base, 1.30 - 0.85 * depth, 235));
+			}
+			to.drawColorBlended(Rect(inner.x, inner.y + 1, width, 1), ColorRGBA(255, 255, 255, 80));
+			// the leading edge: a few columns that ripple, the surface of the liquid shimmering
+			const int ripple = std::min(width, 5);
+			for(int i = 0; i < ripple; ++i)
+			{
+				const int x = inner.x + width - 1 - i;
+				const double lift = 1.6 * std::sin(t * 4.0 + i * 1.1) * (1.0 + i * 0.25);
+				const int top = std::clamp(static_cast<int>(std::lround(i * 0.7 + lift)), 0, inner.h - 2);
+				to.drawColorBlended(Rect(x, inner.y, 1, top), ColorRGBA(0, 0, 0, 95)); // the glass shows above the ripple
+				to.drawColorBlended(Rect(x, inner.y + top, 1, 1), ColorRGBA(255, 255, 255, 110));
+			}
+		}
+	}
+
+	// the trim: a gold frame with a dark outer line, a light inner line and small ornaments at the corners and the middle of each end
+	const ColorRGBA dark(45, 28, 8, 255), gold(214, 170, 70, 255), light(250, 222, 140, 255), deep(120, 82, 22, 255);
+	to.drawBorder(outer, dark, 1);
+	to.drawBorder(Rect(outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2), gold, 1);
+	to.drawBorder(Rect(outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4), deep, 1);
+	to.drawLine(Point(outer.x + 2, outer.y + 1), Point(outer.x + outer.w - 3, outer.y + 1), light, light);
+	to.drawLine(Point(outer.x + 1, outer.y + 2), Point(outer.x + 1, outer.y + outer.h - 3), light, light);
+	for(const Point & corner : {Point(outer.x, outer.y), Point(outer.x + outer.w - 3, outer.y), Point(outer.x, outer.y + outer.h - 3), Point(outer.x + outer.w - 3, outer.y + outer.h - 3)})
+	{
+		to.drawColor(Rect(corner.x, corner.y, 3, 3), gold);
+		to.drawPoint(Point(corner.x + 1, corner.y + 1), light);
+	}
+	for(const int x : {outer.x - 2, outer.x + outer.w + 1})
+	{
+		to.drawColor(Rect(x, outer.y + outer.h / 2 - 2, 2, 5), gold);
+		to.drawPoint(Point(x, outer.y + outer.h / 2), light);
+	}
+
+	if(!remote)
+		to.drawText(Point(outer.x + outer.w / 2, outer.y + outer.h / 2), FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, std::to_string(static_cast<int>(std::lround(shown))) + "%");
 }

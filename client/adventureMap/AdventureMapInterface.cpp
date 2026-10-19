@@ -386,6 +386,8 @@ void AdventureMapInterface::onEnemyTurnStarted(PlayerColor playerID, bool isHuma
 		return;
 
 	mapAudio->onEnemyTurnStarted();
+	if(turnBar)
+		turnBar->remoteTurn(playerID, isHuman); // another human's turn: that player's colour without a percent; an AI's turn: nothing
 	widget->getMinimap()->setAIRadar(!isHuman);
 	widget->getInfoBar()->startEnemyTurn(playerID);
 	setState(isHuman ? EAdventureState::MAKING_TURN : EAdventureState::AI_PLAYER_TURN);

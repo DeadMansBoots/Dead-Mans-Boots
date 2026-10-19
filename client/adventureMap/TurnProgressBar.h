@@ -10,11 +10,6 @@
 #include "../gui/CIntObject.h"
 #include "../../lib/constants/EntityIdentifiers.h"
 
-class CLabel;
-class FilledTexturePlayerColored;
-class TransparentFilledRectangle;
-class SimpleLine;
-
 /// DMB (K, October 16th and 17th): a bar at the top left of the adventure map showing how much of the player's turn is done, in the player's colour over the game's
 /// own marble texture. Display only: it reads the game state the client already holds and changes no rule, timer or AI. Measured against a snapshot taken when the
 /// player's turn starts: hero movement spent, a structure built in each town that can build one, creatures recruited where some can be, mana spent by heroes who can
@@ -46,17 +41,20 @@ class TurnProgressBar : public CIntObject
 	uint32_t sinceUpdate = 0;
 	Point barSize;
 
-	std::shared_ptr<FilledTexturePlayerColored> background;
-	std::shared_ptr<TransparentFilledRectangle> shade;
-	std::shared_ptr<FilledTexturePlayerColored> fill;
-	std::vector<std::shared_ptr<SimpleLine>> bevel;
-	std::shared_ptr<CLabel> label;
+	/// another human's turn, on this client: that player's colour, no percent (this client cannot read the other player's heroes and towns)
+	bool remote = false;
+	/// no human's turn (an AI plays): nothing is drawn
+	bool hidden = false;
+	/// the percent as drawn: it eases toward `percent`
+	double shown = 0;
+	uint32_t clockMs = 0;
 
 	int compute() const;
-	void refresh();
 	/// the snapshot of what the player's heroes and towns have now, taken when the turn starts, or at the first tick of a turn that was loaded from a save
 	void takeSnapshot();
 	void tick(uint32_t msPassed) override;
+	void showAll(Canvas & to) override;
+	void show(Canvas & to) override;
 
 public:
 	TurnProgressBar(const Point & position, PlayerColor player);
@@ -65,4 +63,6 @@ public:
 	void startTurn(PlayerColor newPlayer);
 	/// the player ended the turn: the bar shows full
 	void endTurn();
+	/// another player's turn begins on this client: a human's is shown in that player's colour without a percent, an AI's shows nothing
+	void remoteTurn(PlayerColor active, bool human);
 };

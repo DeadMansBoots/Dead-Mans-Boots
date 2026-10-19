@@ -65,7 +65,9 @@ void TurnProgressBar::fitName()
 	const int nameWidth = playerName.empty() ? 0 : static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getStringWidth(playerName)) + 2;
 	const int frameReach = frame.x + frame.w + END_PIECE;
 	const int nameReach = std::max(frame.x + frame.w / 2 + nameWidth / 2, nameWidth) + 1;
-	pos.w = std::max(frameReach, nameReach);
+	// pos never narrows: the map paints fresh only the tiles under pos, so a longer name drawn before (a teammate's) would stay on the map
+	// past a narrower pos until those tiles changed
+	pos.w = std::max({pos.w, frameReach, nameReach});
 }
 
 void TurnProgressBar::startTurn(PlayerColor newPlayer)

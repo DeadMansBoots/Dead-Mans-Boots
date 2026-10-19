@@ -52,6 +52,17 @@ class TurnProgressBar : public CIntObject
 	uint32_t clockMs = 0;
 	/// the name of the tracked player, drawn above the bar
 	std::string playerName;
+	/// a text drawn white with a black outline, kept as an image until it changes: the outline is the text drawn nine times, laid out glyph by glyph
+	struct OutlinedText
+	{
+		std::string text;
+		std::shared_ptr<Canvas> image;
+		Point size;
+	};
+	OutlinedText percentText;
+	OutlinedText nameText;
+	/// draws `text` centred on `centre`, from the kept image when it is the same text as last time
+	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre);
 
 	int compute() const;
 	/// pos widens to the right for a name wider than the frame and its end pieces, so pos stays all the bar draws

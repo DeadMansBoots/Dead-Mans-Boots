@@ -311,6 +311,24 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	percent = compute();
 }
 
+void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre)
+{
+	if(!kept.image || kept.text != text)
+	{
+		const auto & font = ENGINE->renderHandler().loadFont(FONT_TINY);
+		kept.text = text;
+		kept.size = Point(static_cast<int>(font->getStringWidth(text)) + 2, static_cast<int>(font->getLineHeight()) + 2);
+		kept.image = std::make_shared<Canvas>(kept.size, CanvasScalingPolicy::AUTO);
+		for(int dx = -1; dx <= 1; ++dx)
+			for(int dy = -1; dy <= 1; ++dy)
+				if(dx != 0 || dy != 0)
+					kept.image->drawText(Point(1 + dx, 1 + dy), FONT_TINY, Colors::BLACK, ETextAlignment::TOPLEFT, text);
+		kept.image->drawText(Point(1, 1), FONT_TINY, Colors::WHITE, ETextAlignment::TOPLEFT, text);
+		kept.image->applyTransparency(true);
+	}
+	to.draw(*kept.image, centre - kept.size / 2);
+}
+
 void TurnProgressBar::showAll(Canvas & to)
 {
 	show(to);
@@ -409,20 +427,12 @@ void TurnProgressBar::show(Canvas & to)
 	if(!emptyFrame)
 	{
 		// the percent and the player's name, white with a solid black outline so they read over any terrain
-		const auto outlined = [&to](const Point & at, const std::string & text)
-		{
-			for(int dx = -1; dx <= 1; ++dx)
-				for(int dy = -1; dy <= 1; ++dy)
-					if(dx != 0 || dy != 0)
-						to.drawText(Point(at.x + dx, at.y + dy), FONT_TINY, Colors::BLACK, ETextAlignment::CENTER, text);
-			to.drawText(at, FONT_TINY, Colors::WHITE, ETextAlignment::CENTER, text);
-		};
-		outlined(Point(outer.x + outer.w / 2, outer.y + outer.h / 2), std::to_string(static_cast<int>(std::lround(shown))) + "%");
+		drawOutlined(to, percentText, std::to_string(static_cast<int>(std::lround(shown))) + "%", Point(outer.x + outer.w / 2, outer.y + outer.h / 2));
 		if(!playerName.empty())
 		{
 			// centred over the frame, or from pos's left edge when wider (fitName)
 			const int nameWidth = static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getStringWidth(playerName)) + 2;
-			outlined(Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE), playerName);
+			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE));
 		}
 	}
 }

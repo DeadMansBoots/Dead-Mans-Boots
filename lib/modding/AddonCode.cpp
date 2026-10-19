@@ -187,23 +187,29 @@ std::string AddonCode::folderHash(const boost::filesystem::path & folder)
 
 namespace
 {
-/// what a folder looks like without reading it: its file count, their total size and the newest write time
+/// what a folder looks like without reading it: each file's path relative to the folder, its size and its write time, sorted by path (the same
+/// walk folderHash makes), so replacing any one file with another of the same size and an older time still changes it
 std::string folderSignature(const boost::filesystem::path & folder)
 {
 	boost::system::error_code error;
-	uint64_t count = 0;
-	uint64_t total = 0;
-	std::time_t newest = 0;
+	std::vector<std::string> files;
 	for(boost::filesystem::recursive_directory_iterator it(folder, error), end; !error && it != end; it.increment(error))
 	{
 		boost::system::error_code fileError;
 		if(!boost::filesystem::is_regular_file(it->path(), fileError))
 			continue;
-		count++;
-		total += boost::filesystem::file_size(it->path(), fileError);
-		newest = std::max(newest, boost::filesystem::last_write_time(it->path(), fileError));
+		const auto size = boost::filesystem::file_size(it->path(), fileError);
+		const auto written = boost::filesystem::last_write_time(it->path(), fileError);
+		files.push_back(it->path().lexically_relative(folder).generic_string() + "\n" + std::to_string(size) + "\n" + std::to_string(written));
 	}
-	return std::to_string(count) + "/" + std::to_string(total) + "/" + std::to_string(newest);
+	std::sort(files.begin(), files.end());
+	Sha256 signature;
+	for(const auto & file : files)
+	{
+		signature.update(reinterpret_cast<const uint8_t *>(file.data()), file.size());
+		signature.update(reinterpret_cast<const uint8_t *>("\n"), 1);
+	}
+	return signature.hex();
 }
 
 /// the answers "Run it anyway" given in this run, by lowercase mod ID and exact hash; they hold even when runAnywayFile could not be written

@@ -117,7 +117,12 @@ void TurnProgressBar::takeSnapshot()
 	snapshotTaken = true;
 	percent = 0;
 	shown = 0;
-	playerName = state->name.empty() ? player.toString() : state->name;
+	{
+		// the name the lobby shows for this player
+		const auto & infos = cb->getStartInfo()->playerInfos;
+		const auto found = infos.find(player);
+		playerName = found != infos.end() && !found->second.name.empty() ? found->second.name : player.toString();
+	}
 }
 
 void TurnProgressBar::endTurn()

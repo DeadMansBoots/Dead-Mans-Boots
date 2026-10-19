@@ -292,21 +292,13 @@ void TurnProgressBar::showAll(Canvas & to)
 		return ColorRGBA(static_cast<uint8_t>(std::clamp(c.r * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.g * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.b * factor, 0.0, 255.0)), alpha);
 	};
 
-	// a patch of colour laid over what is there with real transparency: drawColorBlended on the screen canvas draws opaque (its surface has no alpha channel)
-	const auto blend = [&to](const Rect & area, const ColorRGBA & color)
-	{
-		if(area.w <= 0 || area.h <= 0)
-			return;
-		Canvas patch(Point(area.w, area.h), CanvasScalingPolicy::AUTO);
-		patch.drawColor(Rect(0, 0, area.w, area.h), ColorRGBA(color.r, color.g, color.b, 255));
-		to.drawTransparent(patch, Point(area.x, area.y), color.a / 255.0);
-	};
-
 	const Rect outer(pos.x, pos.y, pos.w, pos.h);
 	const Rect inner(pos.x + 3, pos.y + 3, pos.w - 6, pos.h - 6);
 
-	// the empty part: a dark glass, semi-transparent, the map or the marble shows through
-	blend(inner, ColorRGBA(0, 0, 0, 105));
+	// the empty part: dark glass you see through. Not blended: the map tiles under the bar are repainted only where they change, so a translucent patch drawn over them every frame piles up to black.
+	// Dark lines on every other row instead, the map showing in the rows between
+	for(int row = 0; row < inner.h; row += 2)
+		to.drawColor(Rect(inner.x, inner.y + row, inner.w, 1), ColorRGBA(10, 7, 4, 255));
 
 	const double t = clockMs / 1000.0;
 	if(!emptyFrame)
@@ -330,7 +322,7 @@ void TurnProgressBar::showAll(Canvas & to)
 						to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), tone);
 				}
 			}
-			blend(Rect(inner.x, inner.y + 1, body, 1), ColorRGBA(255, 255, 255, 90)); // the soft highlight under the surface
+			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), shade(base, 1.75, 255)); // the soft highlight under the surface
 		}
 	}
 

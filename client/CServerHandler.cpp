@@ -684,7 +684,10 @@ bool CServerHandler::aiPluginsAnswered(const std::function<void()> & then) const
 	auto cancel = [this, stillCurrent]()
 	{
 		if(stillCurrent() && aiQuestionDeclined)
+		{
+			DmbIssueReport::send("ai-plugin-declined", "The player declined to run an AI plugin the mod catalog does not vouch for; the start was cancelled");
 			aiQuestionDeclined();
+		}
 	};
 	ENGINE->dispatchMainThread([unanswered, proceed, cancel, stillCurrent]() { askAboutAIPlugins(unanswered, 0, proceed, cancel, stillCurrent); });
 	return false;

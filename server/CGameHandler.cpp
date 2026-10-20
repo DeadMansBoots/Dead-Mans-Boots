@@ -1701,6 +1701,7 @@ void CGameHandler::save(const std::string & filename, PlayerColor playerToNotify
 			sendAndApply(iw);
 		}
 		logGlobal->error("Failed to save game: %s", e.what());
+		DmbIssueReport::send("save-failed", std::string("The game could not be saved: ") + e.what());
 	}
 }
 

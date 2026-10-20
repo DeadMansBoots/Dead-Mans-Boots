@@ -343,6 +343,7 @@ bool CVCMIServer::prepareToStartGame()
 	catch(const std::exception & e)
 	{
 		logGlobal->error("Failed to launch game: %s", e.what());
+		DmbIssueReport::send("game-start-failed", std::string("The game could not start (a map generator failure is reported here too): ") + e.what());
 		auto str = MetaString::createFromTextID("vcmi.broadcast.failedLoadGame");
 		str.appendRawString(":\n");
 		str.appendRawString(e.what());
@@ -1335,6 +1336,7 @@ bool CVCMIServer::loadSavedGame(CGameHandler & handler, const StartInfo & info)
 	catch(const std::exception & e)
 	{
 		logGlobal->error("Failed to load game: %s", e.what());
+		DmbIssueReport::send("load-failed", std::string("A saved game could not be loaded: ") + e.what());
 		auto str = MetaString::createFromTextID("vcmi.broadcast.failedLoadGame");
 		str.appendRawString(": ");
 		str.appendRawString(e.what());

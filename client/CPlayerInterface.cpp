@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CPlayerInterface.h"
+#include "../lib/DmbIssueReport.h"
 
 #include <vcmi/Artifact.h>
 
@@ -2014,6 +2015,7 @@ bool CPlayerInterface::prepareAutoFightingAI(const BattleID &bid, const CCreatur
 	catch(const std::exception & e)
 	{
 		logGlobal->error("Auto combat cannot start: %s", e.what());
+		DmbIssueReport::send("ai-plugin-refused", std::string("The auto combat AI plugin was refused: ") + e.what());
 		autofightingAI.reset();
 		MetaString text;
 		text.appendTextID("vcmi.dmb.aiPlugin.autoCombatRefused");

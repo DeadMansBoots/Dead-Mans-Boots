@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "BattleAI.h"
+#include "../../lib/DmbIssueReport.h"
 #include "BattleEvaluator.h"
 #include "BattleExchangeVariant.h"
 
@@ -168,6 +169,7 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 	{
 		// six offers in a row with nothing changed: the decisions are being refused, the turn is ended with the one action that always stands
 		logAi->warn("BattleAI: %s was offered %d times with the battle unchanged: defending", stack->nodeName(), unchangedOffers);
+		DmbIssueReport::send("battle-ai-guard", "The battle AI forced a defend: " + stack->nodeName() + " was offered " + std::to_string(unchangedOffers) + " times with nothing changed");
 		cb->battleMakeUnitAction(battleID, result);
 		return;
 	}

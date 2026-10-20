@@ -20,6 +20,7 @@ set(test_SRCS
 		lobby/TimerStringTest.cpp
 
 		modding/MapGeneratorsTest.cpp
+		modding/DmbIssueReportLimitTest.cpp
 
  		battle/BattleHexTest.cpp
  		battle/CBattleInfoCallbackTest.cpp

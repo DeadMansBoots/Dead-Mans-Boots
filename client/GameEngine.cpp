@@ -123,6 +123,9 @@ void GameEngine::fakeMouseMove()
 	// and every 10 seconds the busy time of the frames in them (the time to draw one, without the wait that holds the frame rate), when the slowest
 	// twentieth of them took over 25 ms: a hero step takes the animation plus about one frame at each end, so slow drawing shows as slow steps
 	std::vector<double> frameBusy;
+	// what the issue report measures: the drawing and presenting of each frame only. The event pump is left out, since dragging or resizing the window (or a native dialog)
+	// runs a modal loop inside it, and a long drag is not a game that drew slowly
+	std::vector<double> drawBusy;
 	int choppyWindows = 0;
 	Clock::time_point lastStats = Clock::now();
 	for (;;)
@@ -147,6 +150,7 @@ void GameEngine::fakeMouseMove()
 				++slowSkipped;
 		}
 		frameBusy.push_back(millis(start, presented));
+		drawBusy.push_back(millis(fetched, presented));
 		if(presented - lastStats >= std::chrono::seconds(10))
 		{
 			std::sort(frameBusy.begin(), frameBusy.end());
@@ -160,19 +164,22 @@ void GameEngine::fakeMouseMove()
 					frameBusy.back(), screenDimensions().x, screenDimensions().y);
 			}
 			// DMB: a stall or sustained choppiness is also sent to the developers (DmbIssueReport: consent keys, redaction and the rate limit are its own): one frame
-			// that took over 3 seconds, or the 95th percentile over 50 ms in three 10-second windows in a row
-			choppyWindows = p95 > 50.0 ? choppyWindows + 1 : 0;
-			if(frameBusy.back() > 3000.0 || choppyWindows >= 3)
+			// whose drawing and presenting took over 3 seconds, or the 95th percentile of that over 50 ms in three 10-second windows in a row
+			std::sort(drawBusy.begin(), drawBusy.end());
+			const double drawP95 = drawBusy[static_cast<size_t>(drawBusy.size() * 0.95)];
+			choppyWindows = drawP95 > 50.0 ? choppyWindows + 1 : 0;
+			if(drawBusy.back() > 3000.0 || choppyWindows >= 3)
 			{
-				double sum = 0;
-				for(double ms : frameBusy)
-					sum += ms;
-				DmbIssueReport::send("slow-frame", "Frames in the last 10 s: " + std::to_string(frameBusy.size()) + ", drawing took " + std::to_string(static_cast<int>(sum / frameBusy.size()))
-					+ " ms on average, 95% under " + std::to_string(static_cast<int>(p95)) + " ms, slowest " + std::to_string(static_cast<int>(frameBusy.back())) + " ms (screen "
+				double drawSum = 0;
+				for(double ms : drawBusy)
+					drawSum += ms;
+				DmbIssueReport::send("slow-frame", "Frames in the last 10 s: " + std::to_string(drawBusy.size()) + ", drawing and presenting took " + std::to_string(static_cast<int>(drawSum / drawBusy.size()))
+					+ " ms on average, 95% under " + std::to_string(static_cast<int>(drawP95)) + " ms, slowest " + std::to_string(static_cast<int>(drawBusy.back())) + " ms (screen "
 					+ std::to_string(screenDimensions().x) + "x" + std::to_string(screenDimensions().y) + "), windows in a row over 50 ms: " + std::to_string(choppyWindows));
 				choppyWindows = 0;
 			}
 			frameBusy.clear();
+			drawBusy.clear();
 			lastStats = presented;
 		}
 		framerate().framerateDelay(); // holds a constant FPS

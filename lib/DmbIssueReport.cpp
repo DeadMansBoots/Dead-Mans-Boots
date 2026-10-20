@@ -5,6 +5,7 @@
  */
 #include "StdInc.h"
 #include "DmbIssueReport.h"
+#include "DmbIssueReportLimit.h"
 
 #include "CConfigHandler.h"
 #include "VCMIDirs.h"
@@ -33,19 +34,11 @@ void send(const std::string & kind, const std::string & reason) noexcept
 			return;
 
 		static std::mutex limitMutex;
-		static std::map<std::string, std::chrono::steady_clock::time_point> lastByKind;
-		static std::vector<std::chrono::steady_clock::time_point> sentTimes;
+		static DmbIssueReportLimit limit;
 		{
 			std::lock_guard guard(limitMutex);
-			const auto now = std::chrono::steady_clock::now();
-			const auto last = lastByKind.find(kind);
-			if(last != lastByKind.end() && now - last->second < std::chrono::minutes(10))
+			if(!limit.allow(kind, DmbIssueReportLimit::Clock::now()))
 				return;
-			std::erase_if(sentTimes, [&](const auto & t) { return now - t > std::chrono::hours(1); });
-			if(sentTimes.size() >= 8)
-				return;
-			lastByKind[kind] = now;
-			sentTimes.push_back(now);
 		}
 
 		const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();

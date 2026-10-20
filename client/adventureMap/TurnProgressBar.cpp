@@ -316,6 +316,11 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb)
 		takeSnapshot();
 	percent = compute();
+	if(percent != loggedPercent)
+	{
+		loggedPercent = percent;
+		logGlobal->info("BARPERCENT player=%s name=%s day=%d percent=%d", player.toString(), playerName, GAME->interface()->cb->getDate(Date::DAY), percent);
+	}
 }
 
 void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre)

@@ -41,6 +41,8 @@ class TurnProgressBar : public CIntObject
 	bool turnEnded = false;
 	bool snapshotTaken = false;
 	int percent = 0;
+	/// the last percent written to the log (BARPERCENT lines: the same player on the same day must read the same on every client)
+	int loggedPercent = -1;
 	uint32_t sinceUpdate = 0;
 	/// the gold frame and what it holds, relative to pos: the end pieces reach past its sides and the name sits above it
 	Rect frame;

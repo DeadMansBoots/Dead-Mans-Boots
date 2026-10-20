@@ -1153,7 +1153,20 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 
 	logNetwork->error("Lost connection to server! Connection has been closed");
 	// DMB (K, October 19th: M3G's connection to his host died, "The semaphore timeout period has expired"): the developers hear of a lost connection
-	DmbIssueReport::send("connection-lost", std::string("This client lost its connection to the server (") + (isHost() ? "it is the host" : "it is a guest") + (client ? ", in a game" : ", in the lobby") + "): " + errorMessage);
+	{
+		// what the developers need to place it: who was in the game and how its turns were set (in a game; the lobby has no game state)
+		std::string context;
+		if(client)
+		{
+			const auto * startInfo = client->gameState().getStartInfo();
+			context += " Players:";
+			for(const auto & [color, player] : startInfo->playerInfos)
+				context += " " + color.toString() + "=" + (player.isControlledByHuman() ? "human " + player.name : "AI");
+			context += "; simultaneous turns " + std::to_string(startInfo->simturnsInfo.requiredTurns) + " required, " + std::to_string(startInfo->simturnsInfo.optionalTurns) + " optional; timers (ms) turn "
+				+ std::to_string(startInfo->turnTimerInfo.turnTimer) + ", base " + std::to_string(startInfo->turnTimerInfo.baseTimer) + ", battle " + std::to_string(startInfo->turnTimerInfo.battleTimer) + ".";
+		}
+		DmbIssueReport::send("connection-lost", std::string("This client lost its connection to the server (") + (isHost() ? "it is the host" : "it is a guest") + (client ? ", in a game" : ", in the lobby") + "): " + errorMessage + "." + context);
+	}
 
 	if(client)
 	{

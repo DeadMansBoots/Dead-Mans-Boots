@@ -1130,6 +1130,46 @@ std::vector<std::string> MapGenTab::approvedNames() const
 	return names;
 }
 
+std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
+{
+	// DMB (OmniMapGen 0.3.15, MapGen Dev's roster\OPEN-ENTRY-NAMES.md): Throwback (the open layout) and Random are entries of the module's template list, named in
+	// template-info.json (openLayout / randomEntry) and approved in approved-templates.json; they are not template files, so the template handler does not know them
+	std::vector<std::pair<std::string, bool>> entries;
+	const auto folder = AddonCode::modFolder(generator.modID);
+	if(!folder)
+		return entries;
+	const auto read = [&folder](const char * name) -> std::optional<JsonNode>
+	{
+		std::ifstream in((*folder / name).c_str(), std::ios::binary);
+		if(!in)
+			return std::nullopt;
+		const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+		return JsonNode(text.data(), text.size(), name);
+	};
+	const auto approvedFile = read("approved-templates.json");
+	const auto infoFile = read("template-info.json");
+	if(!approvedFile || !infoFile || !(*approvedFile)["approved"].isStruct() || !(*infoFile)["templates"].isStruct())
+		return entries;
+	std::optional<std::string> random;
+	std::optional<std::string> open;
+	for(const auto & entry : (*infoFile)["templates"].Struct())
+	{
+		const bool isApproved = std::any_of((*approvedFile)["approved"].Struct().begin(), (*approvedFile)["approved"].Struct().end(),
+			[&entry](const auto & item) { return boost::iequals(item.first, entry.first); });
+		if(!isApproved)
+			continue;
+		if(entry.second["randomEntry"].isBool() && entry.second["randomEntry"].Bool())
+			random = entry.first;
+		else if(entry.second["openLayout"].isBool() && entry.second["openLayout"].Bool())
+			open = entry.first;
+	}
+	if(random)
+		entries.emplace_back(*random, true);
+	if(open)
+		entries.emplace_back(*open, false);
+	return entries;
+}
+
 void MapGenTab::dropUnapprovedTemplate() const
 {
 	// the template the tab stands on is written back where it differs from what is stored: an unapproved choice cleared, and,
@@ -1159,7 +1199,7 @@ std::string MapGenTab::templateName() const
 		chosen = found == approved.end() ? std::string() : *found;
 	}
 	// with one template approved there is nothing to choose between: an empty store, or Random, is that one
-	if(approved.size() == 1 && (chosen.empty() || chosen == RANDOM_TEMPLATE) && !(persistentStorage["mapGen"]["map"]["openLayout"].isNumber() && persistentStorage["mapGen"]["map"]["openLayout"].Integer() != 0))
+	if(approved.size() == 1 && listEntries().empty() && (chosen.empty() || chosen == RANDOM_TEMPLATE) && !(persistentStorage["mapGen"]["map"]["openLayout"].isNumber() && persistentStorage["mapGen"]["map"]["openLayout"].Integer() != 0))
 		chosen = approved.front();
 	return chosen;
 }
@@ -1167,6 +1207,9 @@ std::string MapGenTab::templateName() const
 std::string MapGenTab::templateLabel() const
 {
 	const std::string chosen = templateName();
+	for(const auto & [name, isRandom] : listEntries())
+		if((isRandom && chosen == RANDOM_TEMPLATE) || (!isRandom && chosen.empty()))
+			return name;
 	if(chosen.empty())
 		return tabText("template.none");
 	return chosen == RANDOM_TEMPLATE ? tabText("template.random") : chosen;
@@ -1258,7 +1301,20 @@ public:
 			setBody(44, "");
 			return;
 		}
-		const std::string value = values[id];
+		std::string value = values[id];
+		// the module's own entries for the open layout and Random (OmniMapGen 0.3.15) have their own text and facts in template-info.json
+		if(value.empty() || value == RANDOM_TEMPLATE)
+		{
+			for(const auto & item : info["templates"].Struct())
+			{
+				const JsonNode & flag = item.second[value.empty() ? "openLayout" : "randomEntry"];
+				if(flag.isBool() && flag.Bool())
+				{
+					value = item.first;
+					break;
+				}
+			}
+		}
 		if(value.empty())
 		{
 			// the entry in the list is cut to the list's width: the whole line is the first line here
@@ -1398,13 +1454,25 @@ void MapGenTab::chooseTemplate()
 	const auto approved = approvedNames();
 	std::vector<std::string> names;
 	std::vector<std::string> values; // what each entry stores
-	if(approved.size() != 1)
+	const auto entries = listEntries();
+	if(!entries.empty())
+	{
+		// the module names its own first rows (Random, Throwback): their stored values stay the ones older saves hold (random, and empty for the open layout)
+		for(const auto & [name, isRandom] : entries)
+		{
+			names.push_back(name);
+			values.push_back(isRandom ? RANDOM_TEMPLATE : std::string());
+		}
+	}
+	else if(approved.size() != 1)
 	{
 		names = { tabText("template.none"), tabText("template.random") };
 		values = { "", RANDOM_TEMPLATE };
 	}
 	for(const auto & name : approved)
 	{
+		if(std::any_of(entries.begin(), entries.end(), [&name](const auto & entry) { return boost::iequals(entry.first, name); }))
+			continue; // a list entry of the module, already the first rows
 		names.push_back(name);
 		values.push_back(name);
 	}

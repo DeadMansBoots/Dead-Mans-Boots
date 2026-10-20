@@ -84,6 +84,9 @@ class MapGenTab : public InterfaceObjectConfigurable
 	void chooseTemplate();
 	/// the templates the generator's module lists as approved (its approved-templates.json), in lower case
 	std::vector<std::string> approvedNames() const;
+	/// the module's own list entries that are not template files (template-info.json: openLayout, randomEntry; approved in approved-templates.json), Random first:
+	/// {name, true for Random}. The Template list shows them as its first rows; empty for a module that has none
+	std::vector<std::pair<std::string, bool>> listEntries() const;
 	/// a stored template choice that is no longer approved is cleared (a stale preset cannot make a hidden template)
 	void dropUnapprovedTemplate() const;
 	/// VCMI's team grid (callback chooseMapGenTeams), stored as map/teams

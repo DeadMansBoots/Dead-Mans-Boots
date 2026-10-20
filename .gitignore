@@ -71,3 +71,4 @@ fuzzylite.pc
 
 # CLion
 .idea/
+/lib/DmbBuildId.h

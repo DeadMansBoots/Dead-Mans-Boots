@@ -340,6 +340,7 @@ set(lib_MAIN_SRCS
 	TerrainHandler.cpp
 	TurnTimerInfo.cpp
 	GameLibrary.cpp
+	DmbIssueReport.cpp
 	GameButtonLettering.cpp
 )
 
@@ -806,6 +807,7 @@ set(lib_MAIN_HEADERS
 	CCreatureHandler.h
 	ConditionalWait.h
 	Color.h
+	DmbIssueReport.h
 	GameButtonLettering.h
 	CPlayerState.h
 	CRandomGenerator.h

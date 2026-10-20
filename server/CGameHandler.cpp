@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CGameHandler.h"
+#include "../lib/DmbIssueReport.h"
 
 #include "CVCMIServer.h"
 #include "TurnTimerHandler.h"
@@ -534,8 +535,12 @@ void CGameHandler::handleReceivedPack(GameConnectionID connection, CPackForServe
 		if(result)
 			logGlobal->trace("Message %s successfully applied!", typeid(pack).name());
 		else
+		{
 			complain((boost::format("Got false in applying %s... that request must have been fishy!")
 				% typeid(pack).name()).str());
+			// DMB: the pack type and the player; the reason line the refusal logged just before is in the report's logs
+			DmbIssueReport::send("request-refused", std::string("The server refused a request as fishy: ") + typeid(pack).name() + " from " + pack.player.toString());
+		}
 
 		sendPackageResponse(true);
 	}

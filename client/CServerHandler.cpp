@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CServerHandler.h"
+#include "../lib/DmbIssueReport.h"
 
 #include "CPlayerInterface.h"
 #include "Client.h"
@@ -1151,6 +1152,8 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 	}
 
 	logNetwork->error("Lost connection to server! Connection has been closed");
+	// DMB (K, October 19th: M3G's connection to his host died, "The semaphore timeout period has expired"): the developers hear of a lost connection
+	DmbIssueReport::send("connection-lost", std::string("This client lost its connection to the server (") + (isHost() ? "it is the host" : "it is a guest") + (client ? ", in a game" : ", in the lobby") + "): " + errorMessage);
 
 	if(client)
 	{

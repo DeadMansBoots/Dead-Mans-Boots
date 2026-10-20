@@ -122,6 +122,19 @@ int MAIN_EXPORT main(int argc, char * argv[])
 		return 0;
 	}
 
+	// "VCMI_launcher.exe --report-event KIND REASON" is started by the game (lib/DmbIssueReport.h) when it detects an anomaly that is no crash: a lost connection, a
+	// request the server refused. The same report as for a crash (without a dump), under the same consent (K, October 19th: "VERBOSE, AND COMPLETE ISSUE REPORTING. AUTOMATICALLY")
+	const int eventAt = vcmilauncher.arguments().indexOf("--report-event");
+	if(eventAt >= 0 && eventAt + 2 < vcmilauncher.arguments().size())
+	{
+		if(!BugReport::crashReportsEnabled())
+			return 0;
+		const BugReport::Report report = BugReport::build("event: " + vcmilauncher.arguments().at(eventAt + 1), vcmilauncher.arguments().at(eventAt + 2), false);
+		QString problem;
+		if(report.error.isEmpty())
+			BugReport::send(report, problem);
+		return 0;
+	}
 	// "--report-dry FILE [--send]" is for tests: builds the report, writes where it is, the upload result and the crash summary to FILE, and shows and sends nothing
 	const int dry = vcmilauncher.arguments().indexOf("--report-dry");
 	if(dry >= 0 && dry + 1 < vcmilauncher.arguments().size())

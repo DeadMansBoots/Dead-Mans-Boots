@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CVCMIServer.h"
+#include "../lib/DmbIssueReport.h"
 
 #include "CGameHandler.h"
 #include "GlobalLobbyProcessor.h"
@@ -406,6 +407,9 @@ void CVCMIServer::startGameImmediately()
 void CVCMIServer::onDisconnected(const std::shared_ptr<INetworkConnection> & connection, const std::string & errorMessage)
 {
 	logNetwork->error("Network error receiving a pack. Connection has been closed");
+	// DMB: a connection that ends with an error (not the plain end of file of a player leaving) is reported; the guest's own client reports its side
+	if(!errorMessage.empty() && errorMessage.find("End of file") == std::string::npos)
+		DmbIssueReport::send("connection-lost", "The server lost a client's connection: " + errorMessage);
 
 	std::shared_ptr<GameConnection> c = findConnection(connection);
 

@@ -355,7 +355,8 @@ Report build(const QString & why, const QString & description, bool includeDump,
 		add("report-info.txt", redacted(info.toUtf8()));
 
 		report.summary = info;
-		report.description = description;
+		// DMB: the text goes out as the report's summary too, so it is redacted like the files (an event report names players and a reason line)
+		report.description = QString::fromUtf8(redacted(description.toUtf8()));
 		report.crash = QString::fromUtf8(redacted(crash.toUtf8()));
 	}
 	catch(const std::exception & e)

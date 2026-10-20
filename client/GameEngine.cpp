@@ -37,6 +37,7 @@
 
 #include "../lib/AsyncRunner.h"
 #include "../lib/CConfigHandler.h"
+#include "../lib/DmbIssueReport.h"
 #include "../lib/texts/TextOperations.h"
 #include "../lib/texts/CGeneralTextHandler.h"
 
@@ -122,6 +123,7 @@ void GameEngine::fakeMouseMove()
 	// and every 10 seconds the busy time of the frames in them (the time to draw one, without the wait that holds the frame rate), when the slowest
 	// twentieth of them took over 25 ms: a hero step takes the animation plus about one frame at each end, so slow drawing shows as slow steps
 	std::vector<double> frameBusy;
+	int choppyWindows = 0;
 	Clock::time_point lastStats = Clock::now();
 	for (;;)
 	{
@@ -156,6 +158,19 @@ void GameEngine::fakeMouseMove()
 					sum += ms;
 				logGlobal->warn("Frames in the last 10 s: %d, drawing took %.1f ms on average, 95%% under %.0f ms, slowest %.0f ms (screen %dx%d)", frameBusy.size(), sum / frameBusy.size(), p95,
 					frameBusy.back(), screenDimensions().x, screenDimensions().y);
+			}
+			// DMB: a stall or sustained choppiness is also sent to the developers (DmbIssueReport: consent keys, redaction and the rate limit are its own): one frame
+			// that took over 3 seconds, or the 95th percentile over 50 ms in three 10-second windows in a row
+			choppyWindows = p95 > 50.0 ? choppyWindows + 1 : 0;
+			if(frameBusy.back() > 3000.0 || choppyWindows >= 3)
+			{
+				double sum = 0;
+				for(double ms : frameBusy)
+					sum += ms;
+				DmbIssueReport::send("slow-frame", "Frames in the last 10 s: " + std::to_string(frameBusy.size()) + ", drawing took " + std::to_string(static_cast<int>(sum / frameBusy.size()))
+					+ " ms on average, 95% under " + std::to_string(static_cast<int>(p95)) + " ms, slowest " + std::to_string(static_cast<int>(frameBusy.back())) + " ms (screen "
+					+ std::to_string(screenDimensions().x) + "x" + std::to_string(screenDimensions().y) + "), windows in a row over 50 ms: " + std::to_string(choppyWindows));
+				choppyWindows = 0;
 			}
 			frameBusy.clear();
 			lastStats = presented;

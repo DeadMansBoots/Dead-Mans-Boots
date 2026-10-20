@@ -144,12 +144,14 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 	// Mechanics::canBeCastAt), so the loop means the client's and the server's picture of some unit differ; the cause is on the queue. Diagnostics (DMBDIAG lines: the
 	// server's per-unit dump when it refuses a hero spell, the AI's dump when it repeats a cast) ran 28 games of the lane game's setup on October 17th and caught no refusal.
 	// The guard below only ends a turn that would otherwise never end.
-	// DMB: what the battle looks like now (every stack: id, hex, count, hit points of the top creature). A stack that is offered again while
-	// this is the same as at its last offer had nothing it did accepted: a refused spell cast is the known case (see the members in BattleAI.h)
+	// DMB: what the battle looks like now (every stack: id, hex, count, hit points of the top creature, and its turn state: moved, waited, defended, still to move). A stack that is
+	// offered again while this is the same as at its last offer had nothing it did accepted: a refused spell cast is the known case (see the members in BattleAI.h). The turn state
+	// is part of it so that an accepted wait or defend, which changes no hex, count or hit point, is not taken for a refusal (a standoff of two stacks that both defend)
 	uint64_t signature = 1469598103934665603ULL;
 	for(const auto * unit : cb->getBattle(battleID)->battleGetAllStacks())
 	{
-		for(const uint64_t part : {static_cast<uint64_t>(unit->unitId()), static_cast<uint64_t>(unit->getPosition().toInt() + 2), static_cast<uint64_t>(unit->getCount()), static_cast<uint64_t>(unit->getFirstHPleft())})
+		const uint64_t turnState = (unit->defended() ? 1 : 0) | (unit->moved() ? 2 : 0) | (unit->waited() ? 4 : 0) | (unit->willMove() ? 8 : 0);
+		for(const uint64_t part : {static_cast<uint64_t>(unit->unitId()), static_cast<uint64_t>(unit->getPosition().toInt() + 2), static_cast<uint64_t>(unit->getCount()), static_cast<uint64_t>(unit->getFirstHPleft()), turnState})
 			signature = (signature ^ part) * 1099511628211ULL;
 	}
 	if(battleID.getNum() == lastOfferedBattle && stack->unitId() == lastOfferedStack && signature == lastOfferedSignature)

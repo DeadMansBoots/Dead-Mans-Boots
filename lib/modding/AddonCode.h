@@ -60,6 +60,10 @@ namespace AddonCode
 	/// Returns empty when the file kept it, else why it could not (the answer then holds only until the game quits; the caller tells the player)
 	DLL_LINKAGE std::string rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder);
 
+	/// The reason trustProblem and rememberRunAnyway give for a folder whose code cannot be read (not an answer that could not be saved): a caller compares with it to tell
+	/// the two apart, since nothing was held for this run and running it would be refused
+	DLL_LINKAGE const std::string & unreadableCodeReason();
+
 	/// Why the code in the folder, from the mod modID, is not one the catalog vouches for; empty when it is (or the player
 	/// chose to run it anyway). When `answerable` is given, it says whether the reason is for a notice with a choice (the code is not
 	/// listed, or is not the listed code): a folder that cannot be read is a plain error, since running it anyway could not work.

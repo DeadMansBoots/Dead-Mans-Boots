@@ -388,7 +388,7 @@ void MapGenTab::askRunAnywayFor(const std::string & textID, const std::string & 
 	// the answer is remembered the moment it is given (the Generate button's worker stops waiting after ten minutes; a later check mark still counts).
 	// It holds for the rest of the run in any case; when the file could not keep it, the player is told so before the code runs
 	CInfoWindow::showYesNoDialog(text.toString(), {},
-		[answered, onRun, modID, codeFolder]()
+		[answered, onRun, onCancel, name, modID, codeFolder]()
 		{
 			if(*answered)
 				return;
@@ -397,6 +397,19 @@ void MapGenTab::askRunAnywayFor(const std::string & textID, const std::string & 
 			if(notSaved.empty())
 			{
 				onRun();
+				return;
+			}
+			if(notSaved == AddonCode::unreadableCodeReason())
+			{
+				// the code became unreadable after the notice came up (a file locked by a scan, a permission): nothing was held for this run and running it would be refused,
+				// so the player is told that, not that the answer "holds until you quit", and the run is cancelled (it can be tried again)
+				MetaString refusedLine;
+				refusedLine.appendTextID("vcmi.dmb.mapGenerator.generate.refused");
+				refusedLine.replaceRawString(name);
+				refusedLine.replaceRawString(notSaved);
+				auto refusedWindow = CInfoWindow::create(refusedLine.toString());
+				refusedWindow->buttons[0]->addCallback(onCancel);
+				ENGINE->windows().pushWindow(refusedWindow);
 				return;
 			}
 			MetaString line;

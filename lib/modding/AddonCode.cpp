@@ -281,13 +281,19 @@ void AddonCode::warmFolderHash(const boost::filesystem::path & folder)
 	cachedFolderHash(folder);
 }
 
+const std::string & AddonCode::unreadableCodeReason()
+{
+	static const std::string reason = "its code could not be read";
+	return reason;
+}
+
 std::string AddonCode::rememberRunAnyway(const std::string & modID, const boost::filesystem::path & folder)
 {
 	const std::string hash = cachedFolderHash(folder);
 	if(hash.empty())
 	{
 		logMod->error("Mod %s: the player chose to run its code anyway, but its code in %s could not be read", modID, folder.string());
-		return "its code could not be read";
+		return unreadableCodeReason();
 	}
 	const std::string mod = boost::to_lower_copy(modID);
 	{
@@ -393,7 +399,7 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 	// the code is read first: what cannot be read cannot be run, anyway or otherwise
 	const std::string hash = cachedFolderHash(folder);
 	if(hash.empty())
-		return "its code could not be read";
+		return unreadableCodeReason();
 	if(answerable)
 		*answerable = true;
 

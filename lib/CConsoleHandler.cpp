@@ -99,7 +99,15 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	HANDLE dfile = CreateFileW(dumpPath.c_str(), GENERIC_READ|GENERIC_WRITE, FILE_SHARE_WRITE|FILE_SHARE_READ, 0, CREATE_ALWAYS, 0, 0);
 	if(dfile == INVALID_HANDLE_VALUE)
 	{
-		logGlobal->error("Crash info could not be written to %s (error %lu)", dumpPath.string(), static_cast<unsigned long>(GetLastError()));
+		const DWORD openError = GetLastError();
+		logGlobal->error("Crash info could not be written to %s (error %lu)", dumpPath.string(), static_cast<unsigned long>(openError));
+		// DMB: the same message as for a dump that failed part way (below): without it a crash whose dump file cannot even be created (a logs folder that is not
+		// writable, a full disk) closed the game with nothing said
+		if(settings["session"]["headless"].Bool() || !settings["session"]["testmap"].isNull())
+			return;
+		const std::string openMessage = "Dead Man's Boots has crashed. Sorry about that.\n\nThe file about the problem could not be saved (Windows error "
+			+ std::to_string(openError) + "). The game's log is in this folder:\n" + folder.string();
+		MessageBoxA(0, openMessage.c_str(), "Dead Man's Boots crash report", MB_OK | MB_ICONERROR);
 		return;
 	}
 	logGlobal->error("Crash info will be put in %s", dumpPath.string());

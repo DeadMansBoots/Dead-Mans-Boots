@@ -95,8 +95,8 @@ void TurnProgressBar::takeSnapshot()
 
 	for(const CGHeroInstance * hero : state->getHeroes())
 	{
-		HeroStart start;
-		start.id = hero->id;
+		TurnProgressMath::HeroStart start;
+		start.id = hero->id.getNum();
 		start.movement = hero->movementPointsRemaining();
 		start.mana = hero->mana;
 		if(hero->hasSpellbook())
@@ -117,8 +117,8 @@ void TurnProgressBar::takeSnapshot()
 	const ResourceSet resources = state->resources;
 	for(const CGTownInstance * town : state->getTowns())
 	{
-		TownStart start;
-		start.id = town->id;
+		TurnProgressMath::TownStart start;
+		start.id = town->id.getNum();
 		if(town->built == 0)
 		{
 			for(const auto & building : town->getTown()->buildings)
@@ -197,108 +197,20 @@ int TurnProgressBar::compute() const
 	const PlayerState * state = cb->getPlayerState(player, false);
 	if(!state)
 		return 0;
-	const auto heroList = state->getHeroes();
-	const auto townList = state->getTowns();
-	const auto findHero = [&heroList](ObjectInstanceID id) -> const CGHeroInstance *
+	std::vector<TurnProgressMath::HeroNow> heroesNow;
+	for(const CGHeroInstance * hero : state->getHeroes())
+		heroesNow.push_back({hero->id.getNum(), hero->movementPointsRemaining(), static_cast<int>(hero->mana)});
+	std::vector<TurnProgressMath::TownNow> townsNow;
+	for(const CGTownInstance * town : state->getTowns())
 	{
-		for(const CGHeroInstance * hero : heroList)
-			if(hero->id == id)
-				return hero;
-		return nullptr;
-	};
-	const auto findTown = [&townList](ObjectInstanceID id) -> const CGTownInstance *
-	{
-		for(const CGTownInstance * town : townList)
-			if(town->id == id)
-				return town;
-		return nullptr;
-	};
-
-	std::vector<double> categories;
-
-	// hero movement: points spent over the points the heroes had when the turn started
-	{
-		int total = 0;
-		int spent = 0;
-		for(const auto & start : heroes)
-		{
-			if(start.movement <= 0)
-				continue;
-			const CGHeroInstance * hero = findHero(start.id);
-			if(!hero)
-				continue;
-			total += start.movement;
-			spent += std::clamp(start.movement - hero->movementPointsRemaining(), 0, start.movement);
-		}
-		if(total > 0)
-			categories.push_back(static_cast<double>(spent) / total);
+		TurnProgressMath::TownNow now;
+		now.id = town->id.getNum();
+		now.built = town->built;
+		for(const auto & level : town->creatures)
+			now.available.push_back(static_cast<int>(level.first));
+		townsNow.push_back(now);
 	}
-
-	// building: one structure a turn in each town that could build one
-	{
-		int possible = 0;
-		int done = 0;
-		for(const auto & start : towns)
-		{
-			if(!start.canBuild)
-				continue;
-			const CGTownInstance * town = findTown(start.id);
-			if(!town)
-				continue;
-			possible++;
-			if(town->built > 0)
-				done++;
-		}
-		if(possible > 0)
-			categories.push_back(static_cast<double>(done) / possible);
-	}
-
-	// recruiting: creatures taken out of the dwellings the player could afford at the start
-	{
-		int total = 0;
-		int taken = 0;
-		for(const auto & start : towns)
-		{
-			if(start.recruitable <= 0)
-				continue;
-			const CGTownInstance * town = findTown(start.id);
-			if(!town)
-				continue;
-			int now = 0;
-			for(const size_t index : start.levels)
-				if(index < town->creatures.size())
-					now += static_cast<int>(town->creatures[index].first);
-			total += start.recruitable;
-			taken += std::clamp(start.recruitable - now, 0, start.recruitable);
-		}
-		if(total > 0)
-			categories.push_back(static_cast<double>(taken) / total);
-	}
-
-	// spells: mana spent by the heroes who could cast an adventure spell
-	{
-		int total = 0;
-		int spent = 0;
-		for(const auto & start : heroes)
-		{
-			if(!start.canCast || start.mana <= 0)
-				continue;
-			const CGHeroInstance * hero = findHero(start.id);
-			if(!hero)
-				continue;
-			total += start.mana;
-			spent += std::clamp(start.mana - static_cast<int>(hero->mana), 0, start.mana);
-		}
-		if(total > 0)
-			categories.push_back(static_cast<double>(spent) / total);
-	}
-
-	if(categories.empty())
-		return 0;
-	double sum = 0;
-	for(double value : categories)
-		sum += value;
-	return std::clamp(static_cast<int>(100.0 * sum / categories.size() + 0.5), 0, 100);
+	return TurnProgressMath::percent(heroes, towns, heroesNow, townsNow);
 }
 
 void TurnProgressBar::tick(uint32_t msPassed)

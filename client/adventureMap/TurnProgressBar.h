@@ -11,6 +11,8 @@
 
 #include "../../lib/constants/EntityIdentifiers.h"
 
+#include "TurnProgressMath.h"
+
 /// DMB (K, October 16th and 17th): a bar at the top left of the adventure map showing how much of the player's turn is done, in the player's colour over the game's
 /// own marble texture. Display only: it reads the game state the client already holds and changes no rule, timer or AI. Measured against a snapshot taken when the
 /// player's turn starts: hero movement spent, a structure built in each town that can build one, creatures recruited where some can be, mana spent by heroes who can
@@ -19,25 +21,9 @@
 /// (AdventureMapInterface::show asks it to), and the bar is drawn over them: the glass darkens the terrain as it is in that frame, and nothing drawn earlier stays.
 class TurnProgressBar : public CIntObject
 {
-	struct HeroStart
-	{
-		ObjectInstanceID id;
-		int movement = 0;
-		int mana = 0;
-		bool canCast = false;
-	};
-	struct TownStart
-	{
-		ObjectInstanceID id;
-		bool canBuild = false;
-		int recruitable = 0;
-		/// the dwelling levels counted in recruitable (the ones with a creature, basic or upgraded, the player could afford at the start): the same levels are summed again later
-		std::vector<size_t> levels;
-	};
-
 	PlayerColor player;
-	std::vector<HeroStart> heroes;
-	std::vector<TownStart> towns;
+	std::vector<TurnProgressMath::HeroStart> heroes;
+	std::vector<TurnProgressMath::TownStart> towns;
 	bool turnEnded = false;
 	bool snapshotTaken = false;
 	int percent = 0;
@@ -66,6 +52,7 @@ class TurnProgressBar : public CIntObject
 	/// draws `text` centred on `centre`, from the kept image when it is the same text as last time
 	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre);
 
+	/// reads the player's heroes and towns as they are now and hands them, with the snapshot, to TurnProgressMath::percent
 	int compute() const;
 	/// pos widens to the right for a name wider than the frame and its end pieces, so pos stays all the bar draws
 	void fitName();

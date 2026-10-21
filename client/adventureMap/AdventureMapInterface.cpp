@@ -577,6 +577,7 @@ void AdventureMapInterface::onTileLeftClicked(const int3 &targetPosition)
 	// DMB observer mode: a watcher selects and moves nothing; a click on a hero or a town opens its window (read-only: the actions in those windows check the owner)
 	if(settings["session"]["spectate"].Bool())
 	{
+		logGlobal->debug("Observer click on tile %s, object %s", targetPosition.toString(), topBlocking ? topBlocking->getObjectName() : std::string("none"));
 		if(topBlocking && topBlocking->ID == Obj::HERO)
 			GAME->interface()->openHeroWindow(static_cast<const CGHeroInstance *>(topBlocking));
 		else if(topBlocking && topBlocking->ID == Obj::TOWN)

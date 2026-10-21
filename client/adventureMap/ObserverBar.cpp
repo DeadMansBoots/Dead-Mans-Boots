@@ -85,6 +85,7 @@ void ObserverBar::show(Canvas & to)
 void ObserverBar::clickPressed(const Point & cursorPosition)
 {
 	const Point local = cursorPosition - pos.topLeft();
+	logGlobal->debug("Observer bar clicked at %d,%d (bar at %d,%d)", cursorPosition.x, cursorPosition.y, pos.x, pos.y);
 	boost::system::error_code ignored;
 	boost::filesystem::create_directories(flagFolder(), ignored);
 	if(pauseArea.isInside(local))

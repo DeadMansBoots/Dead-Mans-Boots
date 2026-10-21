@@ -356,6 +356,9 @@ void BattleInterface::battleFinished(const BattleResult& br, QueryID queryID)
 	{
 		curInt->cb->selectionMade(0, queryID);
 		windowObject->close();
+		// as the end of this function does: the next battle's interface is assigned over this one, and this destructor sets battleInt to nullptr, which would then
+		// destroy the new interface under its own window (a watched game crashed in the second battle's first frames)
+		CPlayerInterface::battleInt.reset();
 		return;
 	}
 

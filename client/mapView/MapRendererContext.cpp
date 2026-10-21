@@ -95,8 +95,15 @@ int MapRendererBaseContext::attackedMonsterDirection(const CGObjectInstance * wa
 		return -1;
 		
 	for(const auto & battle : GAME->interface()->cb->getActiveBattles())
-		if(wanderingMonster->pos == battle.second->getBattle()->getLocation())
-			return battle.second->getBattle()->getSideHero(BattleSide::ATTACKER)->moveDir;
+	{
+		// a watched game (spectator) lists every battle, and the attacking side may have no hero (a monster, or a hero already removed after losing)
+		const auto * info = battle.second->getBattle();
+		if(info && wanderingMonster->pos == info->getLocation())
+		{
+			const auto * attacker = info->getSideHero(BattleSide::ATTACKER);
+			return attacker ? attacker->moveDir : -1;
+		}
+	}
 
 	return -1;
 }

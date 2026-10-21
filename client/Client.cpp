@@ -543,7 +543,15 @@ void CClient::battleFinished(const BattleID & battleID)
 	}
 
 	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+	{
 		battleCallbacks[PlayerColor::SPECTATOR]->onBattleEnded(battleID);
+
+		// the spectator interface's own callback was given the battle in battleStarted (a different object from battleCallbacks[SPECTATOR]) and, left engaged, kept
+		// a pointer to a battle the game state had deleted: the map renderer read it (attackedMonsterDirection) on the next redraw and crashed a watched game
+		const auto spectatorInt = std::dynamic_pointer_cast<CPlayerInterface>(playerint[PlayerColor::SPECTATOR]);
+		if(spectatorInt && spectatorInt->cb && spectatorInt->cb->getActiveBattles().count(battleID))
+			spectatorInt->cb->onBattleEnded(battleID);
+	}
 }
 
 void CClient::startPlayerBattleAction(const BattleID & battleID, PlayerColor color)

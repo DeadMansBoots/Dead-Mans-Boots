@@ -1374,6 +1374,35 @@ void CVCMIServer::applyPack(CPackForClient & pack)
 	logNetwork->trace("\tApplied on gameState(): %s", typeid(pack).name());
 }
 
+void CVCMIServer::sendChatMessage(PlayerMessageClient & pack, GameConnectionID senderConnection, EChatChannel requested)
+{
+	const auto teamOf = [this](const PlayerColor & color)
+	{
+		const auto * team = color.isValidPlayer() ? gh->gameState().getPlayerTeam(color) : nullptr;
+		return team ? static_cast<int>(team->id.getNum()) : -1;
+	};
+
+	std::vector<DmbChatConnection> connections;
+	for(const auto & c : activeConnections)
+	{
+		DmbChatConnection entry;
+		entry.id = static_cast<int>(c->connectionID);
+		// only a real player colour counts: a connection that controls none has no slot, which makes it a spectator
+		for(const PlayerColor & color : getAllClientPlayers(c->connectionID))
+			if(color.isValidPlayer())
+				entry.playerTeams.push_back(teamOf(color));
+		connections.push_back(std::move(entry));
+	}
+
+	const int senderTeam = pack.player.isValidPlayer() ? teamOf(pack.player) : -1;
+	const auto route = dmbChatRoute(connections, static_cast<int>(senderConnection), pack.player.isSpectator(), senderTeam, requested);
+	pack.channel = route.channel;
+	logNetwork->trace("	Chat line on channel %d to %d connections", static_cast<int>(route.channel), route.recipients.size());
+	for(const auto & c : activeConnections)
+		if(std::find(route.recipients.begin(), route.recipients.end(), static_cast<int>(c->connectionID)) != route.recipients.end())
+			c->sendPack(pack);
+}
+
 void CVCMIServer::sendPack(CPackForClient & pack, GameConnectionID connectionID)
 {
 	for (const auto & c : activeConnections)

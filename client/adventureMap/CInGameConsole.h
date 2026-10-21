@@ -11,6 +11,8 @@
 
 #include "../gui/CIntObject.h"
 
+#include "../../lib/DmbChatRouting.h"
+
 class CInGameConsole : public CIntObject
 {
 private:
@@ -18,7 +20,14 @@ private:
 	{
 		std::string text;
 		uint32_t timeOnScreen;
+		EChatChannel channel = EChatChannel::ALL; // DMB: the colour of the line
 	};
+
+	/// DMB (K, October 21st: a team chat mode): the channel the next line goes to; Tab with nothing typed yet cycles it, a prefix a: t: s: picks it for one line and keeps it
+	EChatChannel currentChannel = EChatChannel::ALL;
+
+	static std::string channelLabel(EChatChannel channel);
+	std::string shownEnteredText() const;
 
 	/// Currently visible texts in the overlay
 	std::vector<TextState> texts;
@@ -42,9 +51,9 @@ private:
 	bool isEnteringText() const;
 
 	void showRecentChatHistory();
-	void addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText);
+	void addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 public:
-	void addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText);
+	void addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 
 	void tick(uint32_t msPassed) override;
 	void show(Canvas & to) override;

@@ -808,6 +808,7 @@ set(lib_MAIN_HEADERS
 	ConditionalWait.h
 	Color.h
 	DmbIssueReport.h
+	DmbChatRouting.h
 	DmbIssueReportLimit.h
 	GameButtonLettering.h
 	CPlayerState.h

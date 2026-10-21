@@ -479,6 +479,6 @@ void ApplyGhNetPackVisitor::visitPlayerMessage(PlayerMessage & pack)
 	if(!pack.player.isSpectator()) // TODO: clearly not a great way to verify permissions
 		gh.throwIfWrongPlayer(connection, &pack, pack.player);
 	
-	gh.playerMessages->playerMessage(pack.player, pack.text, pack.currObj);
+	gh.playerMessages->playerMessage(pack.player, pack.text, pack.currObj, pack.channel, connection);
 	result = true;
 }

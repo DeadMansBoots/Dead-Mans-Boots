@@ -10,6 +10,7 @@
 #pragma once
 
 #include "../../lib/GameConstants.h"
+#include "../../lib/DmbChatRouting.h"
 #include "../../lib/serializer/GameConnectionID.h"
 #include "../../lib/json/JsonNode.h"
 
@@ -81,7 +82,7 @@ public:
 	PlayerMessageProcessor(CGameHandler * gameHandler);
 
 	/// incoming NetPack handling
-	void playerMessage(PlayerColor player, const std::string & message, ObjectInstanceID currObj);
+	void playerMessage(PlayerColor player, const std::string & message, ObjectInstanceID currObj, EChatChannel channel = EChatChannel::ALL, GameConnectionID senderConnection = GameConnectionID::INVALID);
 
 	/// Send message to specific client with "System" as sender
 	void sendSystemMessage(GameConnectionID connectionID, const MetaString & message);
@@ -93,6 +94,9 @@ public:
 
 	/// Send message from specific player to all other players
 	void broadcastMessage(PlayerColor playerSender, const std::string & message);
+
+	/// DMB: a chat line on its channel (all goes to everyone as before; team and spectators go only where DmbChatRouting.h says)
+	void routeMessage(PlayerColor playerSender, const std::string & message, EChatChannel channel, GameConnectionID senderConnection);
 
 	template <typename Handler> void serialize(Handler &h)
 	{

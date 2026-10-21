@@ -950,7 +950,7 @@ void ApplyClientNetPackVisitor::visitPlayerMessageClient(PlayerMessageClient & p
 {
 	logNetwork->debug("pack.player %s sends a message: %s", pack.player.toString(), pack.text);
 
-	GAME->server().getGameChat().onNewGameMessageReceived(pack.player, pack.text);
+	GAME->server().getGameChat().onNewGameMessageReceived(pack.player, pack.text, pack.channel);
 }
 
 void ApplyClientNetPackVisitor::visitAdvmapSpellCast(AdvmapSpellCast & pack)

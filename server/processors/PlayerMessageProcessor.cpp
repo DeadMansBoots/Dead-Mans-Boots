@@ -44,7 +44,7 @@ PlayerMessageProcessor::PlayerMessageProcessor(CGameHandler * gameHandler)
 {
 }
 
-void PlayerMessageProcessor::playerMessage(PlayerColor player, const std::string & message, ObjectInstanceID currObj)
+void PlayerMessageProcessor::playerMessage(PlayerColor player, const std::string & message, ObjectInstanceID currObj, EChatChannel channel, GameConnectionID senderConnection)
 {
 	if(!message.empty() && message[0] == '!')
 	{
@@ -68,7 +68,7 @@ void PlayerMessageProcessor::playerMessage(PlayerColor player, const std::string
 		return;
 	}
 
-	broadcastMessage(player, message);
+	routeMessage(player, message, channel, senderConnection);
 }
 
 void PlayerMessageProcessor::commandExit(PlayerColor player, const std::vector<std::string> & words)
@@ -985,6 +985,19 @@ void PlayerMessageProcessor::broadcastSystemMessage(const std::string & message)
 	MetaString str;
 	str.appendRawString(message);
 	broadcastSystemMessage(str);
+}
+
+void PlayerMessageProcessor::routeMessage(PlayerColor playerSender, const std::string & message, EChatChannel channel, GameConnectionID senderConnection)
+{
+	auto * server = dynamic_cast<CVCMIServer *>(&gameHandler->gameServer());
+	if(channel == EChatChannel::ALL || !server)
+	{
+		broadcastMessage(playerSender, message);
+		return;
+	}
+
+	PlayerMessageClient line(playerSender, message, channel);
+	server->sendChatMessage(line, senderConnection, channel);
 }
 
 void PlayerMessageProcessor::broadcastMessage(PlayerColor playerSender, const std::string & message)

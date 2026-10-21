@@ -13,6 +13,8 @@
 #include "CBattleCallback.h"
 #include "IGameActionCallback.h"
 
+#include "../DmbChatRouting.h"
+
 // in static AI build this file gets included into libvcmi
 #ifdef STATIC_AI
 VCMI_LIB_USING_NAMESPACE
@@ -81,6 +83,8 @@ public:
 	void recruitHero(const CGObjectInstance *townOrTavern, const CGHeroInstance *hero, const HeroTypeID & nextHero=HeroTypeID::NONE) override;
 	void save(const std::string &fname, bool notifySuccess) override;
 	void sendMessage(const std::string &mess, const CGObjectInstance * currentObject = nullptr) override;
+	/// DMB: the same on a chat channel (DmbChatRouting.h)
+	void sendChatMessage(const std::string & mess, const CGObjectInstance * currentObject, EChatChannel channel);
 	void gamePause(bool pause) override;
 	void buildBoat(const IShipyard *obj) override;
 	void dig(const CGObjectInstance *hero) override;

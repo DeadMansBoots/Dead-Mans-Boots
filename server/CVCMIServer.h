@@ -13,6 +13,7 @@
 
 #include "../lib/network/NetworkInterface.h"
 #include "../lib/StartInfo.h"
+#include "../lib/DmbChatRouting.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -27,6 +28,7 @@ struct LobbyInfo;
 struct PlayerSettings;
 class PlayerColor;
 class MetaString;
+struct PlayerMessageClient;
 
 VCMI_LIB_NAMESPACE_END
 
@@ -75,6 +77,9 @@ public:
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const override;
 	void applyPack(CPackForClient & pack) override;
 	void sendPack(CPackForClient & pack, GameConnectionID connectionID) override;
+
+	/// DMB: a chat line goes only where its channel reaches (DmbChatRouting.h); the line is stamped with the channel it went out on
+	void sendChatMessage(PlayerMessageClient & pack, GameConnectionID senderConnection, EChatChannel requested);
 
 	/// List of all active connections
 	std::vector<std::shared_ptr<GameConnection>> activeConnections;

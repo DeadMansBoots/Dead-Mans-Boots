@@ -10,12 +10,14 @@
 #pragma once
 
 #include "../lib/constants/EntityIdentifiers.h"
+#include "../lib/DmbChatRouting.h"
 
 struct GameChatMessage
 {
 	std::string senderName;
 	std::string messageText;
 	std::string dateFormatted;
+	EChatChannel channel = EChatChannel::ALL; // DMB: the channel the line arrived on
 };
 
 /// Class that manages game chat for current game match
@@ -31,7 +33,8 @@ public:
 	void resetMatchState();
 
 	/// Must be called when local player sends new message into chat from gameplay mode (adventure map)
-	void sendMessageGameplay(const std::string & messageText);
+	/// DMB: on a channel; only the all channel is also given to the global lobby (a team or spectator line must not leave the game)
+	void sendMessageGameplay(const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 
 	/// Must be called when local player sends new message into chat from pregame mode (match lobby)
 	void sendMessageLobby(const std::string & senderName, const std::string & messageText);
@@ -40,7 +43,7 @@ public:
 	void onNewLobbyMessageReceived(const std::string & senderName, const std::string & messageText);
 
 	/// Must be called when client receives new chat message from server
-	void onNewGameMessageReceived(PlayerColor sender, const std::string & messageText);
+	void onNewGameMessageReceived(PlayerColor sender, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 
 	/// Must be called when client receives new message from "System" sender
 	void onNewSystemMessageReceived(const std::string & messageText);

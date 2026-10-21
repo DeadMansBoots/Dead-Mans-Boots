@@ -37,10 +37,11 @@ void GameChatHandler::resetMatchState()
 	chatHistory.clear();
 }
 
-void GameChatHandler::sendMessageGameplay(const std::string & messageText)
+void GameChatHandler::sendMessageGameplay(const std::string & messageText, EChatChannel channel)
 {
-	GAME->interface()->cb->sendMessage(messageText, GAME->interface()->localState->getCurrentArmy());
-	GAME->server().getGlobalLobby().sendMatchChatMessage(messageText);
+	GAME->interface()->cb->sendChatMessage(messageText, GAME->interface()->localState->getCurrentArmy(), channel);
+	if(channel == EChatChannel::ALL)
+		GAME->server().getGlobalLobby().sendMatchChatMessage(messageText);
 }
 
 void GameChatHandler::sendMessageLobby(const std::string & senderName, const std::string & messageText)
@@ -83,7 +84,7 @@ void GameChatHandler::onNewLobbyMessageReceived(const std::string & senderName, 
 	chatHistory.push_back({senderName, messageText, TextOperations::getCurrentFormattedTimeLocal()});
 }
 
-void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::string & messageText)
+void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::string & messageText, EChatChannel channel)
 {
 
 	std::string timeFormatted = TextOperations::getCurrentFormattedTimeLocal();
@@ -95,9 +96,9 @@ void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::st
 	if (sender.isSpectator())
 		playerName = LIBRARY->generaltexth->translate("vcmi.lobby.login.spectator");
 
-	chatHistory.push_back({playerName, messageText, timeFormatted});
+	chatHistory.push_back({playerName, messageText, timeFormatted, channel});
 
-	GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText);
+	GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText, channel);
 }
 
 void GameChatHandler::onNewSystemMessageReceived(const std::string & messageText)

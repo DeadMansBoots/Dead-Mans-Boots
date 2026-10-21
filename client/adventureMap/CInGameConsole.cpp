@@ -28,6 +28,8 @@
 #include "../windows/CMessage.h"
 
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/GameLibrary.h"
+#include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/CThreadHelper.h"
 #include "../../lib/texts/MetaString.h"
 #include "../../lib/texts/TextOperations.h"
@@ -56,7 +58,9 @@ void CInGameConsole::show(Canvas & to)
 		Point leftBottomCorner(0, pos.h);
 		Point textPosition(leftBottomCorner.x + 50, leftBottomCorner.y - texts.size() * 20 - 80 + number * 20);
 
-		to.drawText(pos.topLeft() + textPosition, FONT_MEDIUM, Colors::GREEN, ETextAlignment::TOPLEFT, text.text);
+		// DMB: each channel has its own colour: all green as before, team cyan, spectators grey
+		const ColorRGBA colour = text.channel == EChatChannel::TEAM ? ColorRGBA(100, 210, 255) : text.channel == EChatChannel::SPECTATORS ? ColorRGBA(200, 200, 200) : Colors::GREEN;
+		to.drawText(pos.topLeft() + textPosition, FONT_MEDIUM, colour, ETextAlignment::TOPLEFT, text.text);
 		number++;
 	}
 }
@@ -84,11 +88,30 @@ void CInGameConsole::tick(uint32_t msPassed)
 		ENGINE->windows().totalRedraw(); // FIXME: ingame console has no parent widget set
 }
 
-void CInGameConsole::addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText)
+std::string CInGameConsole::channelLabel(EChatChannel channel)
+{
+	switch(channel)
+	{
+		case EChatChannel::TEAM:
+			return LIBRARY->generaltexth->translate("vcmi.chat.channel.team");
+		case EChatChannel::SPECTATORS:
+			return LIBRARY->generaltexth->translate("vcmi.chat.channel.spectators");
+		default:
+			return LIBRARY->generaltexth->translate("vcmi.chat.channel.all");
+	}
+}
+
+std::string CInGameConsole::shownEnteredText() const
+{
+	// the line being typed names its channel, so the player always knows who will read it; all is the plain case and needs no label
+	return currentChannel == EChatChannel::ALL ? enteredText : "[" + channelLabel(currentChannel) + "] " + enteredText;
+}
+
+void CInGameConsole::addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel)
 {
 	MetaString formatted = MetaString::createFromRawString("[%s] %s: %s");
 	formatted.replaceRawString(timeFormatted);
-	formatted.replaceRawString(senderName);
+	formatted.replaceRawString(channel == EChatChannel::ALL ? senderName : "[" + channelLabel(channel) + "] " + senderName);
 	formatted.replaceRawString(messageText);
 
 	// Maximum width for a text line is limited by:
@@ -100,15 +123,15 @@ void CInGameConsole::addMessageSilent(const std::string & timeFormatted, const s
 	auto splitText = CMessage::breakText(formatted.toString(), maxWidth, FONT_MEDIUM);
 
 	for(const auto & entry : splitText)
-		texts.push_back({entry, 0});
+		texts.push_back({entry, 0, channel});
 
 	while(texts.size() > maxDisplayedTexts)
 		texts.erase(texts.begin());
 }
 
-void CInGameConsole::addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText)
+void CInGameConsole::addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel)
 {
-	addMessageSilent(timeFormatted, senderName, messageText);
+	addMessageSilent(timeFormatted, senderName, messageText, channel);
 
 	ENGINE->windows().totalRedraw(); // FIXME: ingame console has no parent widget set
 
@@ -156,7 +179,13 @@ void CInGameConsole::keyPressed (EShortcut key)
 		break;
 
 	case EShortcut::GAME_ACTIVATE_CONSOLE:
-		if(!enteredText.empty())
+		if(enteredText == "_")
+		{
+			// DMB: Tab with nothing typed yet switches the channel (all, team, spectators) instead of closing the line, as OpenRA's Tab does; Escape closes it
+			currentChannel = static_cast<EChatChannel>((static_cast<int>(currentChannel) + 1) % 3);
+			refreshEnteredText();
+		}
+		else if(!enteredText.empty())
 			endEnteringText(false);
 		else
 			startEnteringText();
@@ -250,7 +279,7 @@ void CInGameConsole::showRecentChatHistory()
 	int firstEntryToShow = history.size() - entriesToShow;
 
 	for (int i = firstEntryToShow; i < history.size(); ++i)
-		addMessageSilent(history[i].dateFormatted, history[i].senderName, history[i].messageText);
+		addMessageSilent(history[i].dateFormatted, history[i].senderName, history[i].messageText, history[i].channel);
 
 	ENGINE->windows().totalRedraw();
 }
@@ -265,7 +294,7 @@ void CInGameConsole::startEnteringText()
 		// force-reset text input to re-show on-screen keyboard
 		ENGINE->statusbar()->setEnteringMode(false);
 		ENGINE->statusbar()->setEnteringMode(true);
-		ENGINE->statusbar()->setEnteredText(enteredText);
+		ENGINE->statusbar()->setEnteredText(shownEnteredText());
 		return;
 	}
 		
@@ -276,7 +305,7 @@ void CInGameConsole::startEnteringText()
 	enteredText = "_";
 
 	ENGINE->statusbar()->setEnteringMode(true);
-	ENGINE->statusbar()->setEnteredText(enteredText);
+	ENGINE->statusbar()->setEnteredText(shownEnteredText());
 
 	showRecentChatHistory();
 }
@@ -303,7 +332,22 @@ void CInGameConsole::endEnteringText(bool processEnteredText)
 			clientCommandThread.detach();
 		}
 		else
-			GAME->server().getGameChat().sendMessageGameplay(txt);
+		{
+			// DMB: a prefix a: (all), t: (team) or s: (spectators) names the channel of this line and the lines after it
+			if(txt.size() >= 2 && txt[1] == ':')
+			{
+				const char prefix = static_cast<char>(std::tolower(static_cast<unsigned char>(txt[0])));
+				if(prefix == 'a' || prefix == 't' || prefix == 's')
+				{
+					currentChannel = prefix == 'a' ? EChatChannel::ALL : prefix == 't' ? EChatChannel::TEAM : EChatChannel::SPECTATORS;
+					txt = txt.substr(2);
+					while(!txt.empty() && txt.front() == ' ')
+						txt.erase(txt.begin());
+				}
+			}
+			if(!txt.empty())
+				GAME->server().getGameChat().sendMessageGameplay(txt, currentChannel);
+		}
 	}
 	enteredText.clear();
 
@@ -322,7 +366,7 @@ void CInGameConsole::refreshEnteredText()
 	assert(statusbar);
 
 	if (statusbar)
-		statusbar->setEnteredText(enteredText);
+		statusbar->setEnteredText(shownEnteredText());
 }
 
 bool CInGameConsole::isEnteringText() const

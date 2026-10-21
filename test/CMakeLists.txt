@@ -21,6 +21,7 @@ set(test_SRCS
 
 		modding/MapGeneratorsTest.cpp
 		modding/DmbIssueReportLimitTest.cpp
+		modding/DmbChatRoutingTest.cpp
 
  		battle/BattleHexTest.cpp
  		battle/CBattleInfoCallbackTest.cpp

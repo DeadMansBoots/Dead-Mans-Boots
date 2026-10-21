@@ -17,6 +17,7 @@
 #include "NetPacksBase.h"
 #include "ObjProperty.h"
 
+#include "../DmbChatRouting.h"
 #include "../ResourceSet.h"
 #include "../TurnTimerInfo.h"
 #include "../bonuses/Bonus.h"
@@ -26,6 +27,7 @@
 #include "../gameState/TavernSlot.h"
 #include "../gameState/GameStatistics.h"
 #include "../int3.h"
+#include "../DmbChatRouting.h"
 #include "../mapObjects/army/CSimpleArmy.h"
 #include "../spells/ViewSpellInt.h"
 
@@ -1507,20 +1509,26 @@ protected:
 struct DLL_LINKAGE PlayerMessageClient : public CPackForClient
 {
 	PlayerMessageClient() = default;
-	PlayerMessageClient(const PlayerColor & Player, std::string Text)
+	PlayerMessageClient(const PlayerColor & Player, std::string Text, EChatChannel Channel = EChatChannel::ALL)
 		: player(Player)
 		, text(std::move(Text))
+		, channel(Channel)
 	{
 	}
 	void visitTyped(ICPackVisitor & visitor) override;
 
 	PlayerColor player;
 	std::string text;
+	EChatChannel channel = EChatChannel::ALL; // DMB: the channel the server sent the line on (a spectator's team line arrives as a spectator line)
 
 	template <typename Handler> void serialize(Handler & h)
 	{
 		h & player;
 		h & text;
+		if(h.version >= Handler::Version::DMB_CHAT_CHANNELS)
+			h & channel;
+		else
+			channel = EChatChannel::ALL;
 	}
 };
 

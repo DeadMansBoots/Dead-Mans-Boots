@@ -14,6 +14,7 @@
 #include "TradeItem.h"
 
 #include "../int3.h"
+#include "../DmbChatRouting.h"
 #include "../battle/BattleAction.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -784,9 +785,10 @@ struct DLL_LINKAGE SaveGame : public CPackForServer
 struct DLL_LINKAGE PlayerMessage : public CPackForServer
 {
 	PlayerMessage() = default;
-	PlayerMessage(std::string Text, const ObjectInstanceID & obj)
+	PlayerMessage(std::string Text, const ObjectInstanceID & obj, EChatChannel Channel = EChatChannel::ALL)
 		: text(std::move(Text))
 		, currObj(obj)
+		, channel(Channel)
 	{
 	}
 
@@ -794,12 +796,17 @@ struct DLL_LINKAGE PlayerMessage : public CPackForServer
 
 	std::string text;
 	ObjectInstanceID currObj; // optional parameter that specifies current object. For cheats :)
+	EChatChannel channel = EChatChannel::ALL; // DMB: what the sender asks for; the server decides who receives (DmbChatRouting.h)
 
 	template <typename Handler> void serialize(Handler & h)
 	{
 		h & static_cast<CPackForServer &>(*this);
 		h & text;
 		h & currObj;
+		if(h.version >= Handler::Version::DMB_CHAT_CHANNELS)
+			h & channel;
+		else
+			channel = EChatChannel::ALL;
 	}
 };
 

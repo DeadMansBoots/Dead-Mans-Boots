@@ -339,8 +339,13 @@ void CCallback::gamePause(bool pause)
 
 void CCallback::sendMessage(const std::string &mess, const CGObjectInstance * currentObject)
 {
+	sendChatMessage(mess, currentObject, EChatChannel::ALL);
+}
+
+void CCallback::sendChatMessage(const std::string & mess, const CGObjectInstance * currentObject, EChatChannel channel)
+{
 	ASSERT_IF_CALLED_WITH_PLAYER
-	PlayerMessage pm(mess, currentObject? currentObject->id : ObjectInstanceID(-1));
+	PlayerMessage pm(mess, currentObject? currentObject->id : ObjectInstanceID(-1), channel);
 	if(getPlayerID())
 		pm.player = *getPlayerID();
 	sendRequest(pm);

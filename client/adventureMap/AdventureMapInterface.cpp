@@ -38,6 +38,7 @@
 #include "../PlayerLocalState.h"
 #include "../CPlayerInterface.h"
 
+#include "ObserverBar.h"
 #include "../../lib/mapping/CMap.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/IGameSettings.h"
@@ -87,6 +88,10 @@ AdventureMapInterface::AdventureMapInterface():
 		turnBars = std::make_shared<TurnProgressBars>(watches ? std::optional<Rect>(watches->pos) : std::nullopt, widget->getMapView()->pos, humans);
 	}
 	
+	// DMB observer mode (K, October 20th): in a game the client only watches, the bar with Pause, Step and the day, at the top of the map view
+	if(settings["session"]["spectate"].Bool())
+		observerBar = std::make_shared<ObserverBar>(widget->getMapView()->pos);
+
 	addUsedEvents(KEYBOARD | TIME);
 }
 
@@ -183,6 +188,8 @@ void AdventureMapInterface::show(Canvas & to)
 	if(turnBars)
 		for(const Rect & area : turnBars->takeRepaintAreas())
 			widget->getMapView()->repaintArea(area);
+	if(observerBar)
+		widget->getMapView()->repaintArea(observerBar->pos);
 	CIntObject::show(to);
 	dim(to);
 	GAME->interface()->cingconsole->show(to);
@@ -557,6 +564,16 @@ void AdventureMapInterface::onTileLeftClicked(const int3 &targetPosition)
 
 	if(!GAME->interface()->cb->isVisible(targetPosition))
 		return;
+
+	// DMB observer mode: a watcher selects and moves nothing; a click on a hero or a town opens its window (read-only: the actions in those windows check the owner)
+	if(settings["session"]["spectate"].Bool())
+	{
+		if(topBlocking && topBlocking->ID == Obj::HERO)
+			GAME->interface()->openHeroWindow(static_cast<const CGHeroInstance *>(topBlocking));
+		else if(topBlocking && topBlocking->ID == Obj::TOWN)
+			GAME->interface()->openTownWindow(static_cast<const CGTownInstance *>(topBlocking));
+		return;
+	}
 
 	//check if we can select this object
 	bool canSelect = topBlocking && topBlocking->ID == Obj::HERO && topBlocking->tempOwner == GAME->interface()->playerID;

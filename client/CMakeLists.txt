@@ -11,6 +11,7 @@ set(vcmiclientcommon_SRCS
 	adventureMap/CMinimap.cpp
 	adventureMap/CResDataBar.cpp
 	adventureMap/MapAudioPlayer.cpp
+	adventureMap/ObserverBar.cpp
 	adventureMap/TurnProgressBar.cpp
 	adventureMap/TurnProgressMath.cpp
 	adventureMap/TurnTimerWidget.cpp
@@ -241,6 +242,7 @@ set(vcmiclientcommon_HEADERS
 	adventureMap/CMinimap.h
 	adventureMap/CResDataBar.h
 	adventureMap/MapAudioPlayer.h
+	adventureMap/ObserverBar.h
 	adventureMap/TurnProgressBar.h
 	adventureMap/TurnProgressMath.h
 	adventureMap/TurnTimerWidget.h

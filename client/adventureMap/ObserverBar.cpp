@@ -71,6 +71,17 @@ ObserverBar::~ObserverBar()
 	clearFlags();
 }
 
+void ObserverBar::showAll(Canvas & to)
+{
+	show(to);
+}
+
+void ObserverBar::show(Canvas & to)
+{
+	// the children are static widgets that draw in showAll; CIntObject::showAll draws all of them
+	CIntObject::showAll(to);
+}
+
 void ObserverBar::clickPressed(const Point & cursorPosition)
 {
 	const Point local = cursorPosition - pos.topLeft();

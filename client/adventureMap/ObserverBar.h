@@ -37,6 +37,9 @@ public:
 	static boost::filesystem::path flagFolder();
 	static void clearFlags();
 
+	/// drawn every frame, after the map has repainted the tiles under it (AdventureMapInterface::show): the map is animated, and a bar drawn only when the interface redraws would be painted over
+	void show(Canvas & to) override;
+	void showAll(Canvas & to) override;
 	void clickPressed(const Point & cursorPosition) override;
 	void tick(uint32_t msPassed) override;
 };

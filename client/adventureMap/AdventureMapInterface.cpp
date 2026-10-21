@@ -189,7 +189,16 @@ void AdventureMapInterface::show(Canvas & to)
 		for(const Rect & area : turnBars->takeRepaintAreas())
 			widget->getMapView()->repaintArea(area);
 	if(observerBar)
+	{
+		// a watcher is told no turn of its own (onEnemyTurnStarted returns early for it), so nothing ever applied the state to the widget: the world view's legend
+		// sat over the info panel. Done on the first frame, when the interface exists (the constructor runs before it does)
+		if(!observerStateApplied)
+		{
+			observerStateApplied = true;
+			setState(EAdventureState::MAKING_TURN);
+		}
 		widget->getMapView()->repaintArea(observerBar->pos);
+	}
 	CIntObject::show(to);
 	dim(to);
 	GAME->interface()->cingconsole->show(to);

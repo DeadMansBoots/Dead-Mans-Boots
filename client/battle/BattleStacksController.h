@@ -76,7 +76,8 @@ class BattleStacksController
 	const CStack *activeStack;
 
 	/// stacks or their battle queue images below mouse pointer (multiple stacks possible while spellcasting), used for border animation
-	std::vector<const CStack *> mouseHoveredStacks;
+	/// kept as unit ids: a hovered unit can leave the battle (a removed unit, a battle that ended) while the mouse rests on it, and a stored pointer then dangles
+	std::vector<uint32_t> mouseHoveredUnitIds;
 
 	///when animation is playing, we should wait till the end to make the next stack active; nullptr of none
 	const CStack *stackToActivate;

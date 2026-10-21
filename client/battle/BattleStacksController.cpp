@@ -823,23 +823,31 @@ void BattleStacksController::updateHoveredStacks()
 {
 	auto newStacks = selectHoveredStacks();
 
+	std::vector<uint32_t> newUnitIds;
+	for(const auto * stack : newStacks)
+		newUnitIds.push_back(stack->unitId());
+
 	if(newStacks.size() == 0)
 		owner.windowObject->updateStackInfoWindow(nullptr);
 
-	for(const auto * stack : mouseHoveredStacks)
+	for(const uint32_t unitId : mouseHoveredUnitIds)
 	{
-		if (vstd::contains(newStacks, stack))
+		if (vstd::contains(newUnitIds, unitId))
 			continue;
 
-		if (stack == activeStack)
-			stackAnimation[stack->unitId()]->setBorderColor(AnimationControls::getGoldBorder());
+		const auto animation = stackAnimation.find(unitId);
+		if (animation == stackAnimation.end())
+			continue; // the unit has left the battle
+
+		if (activeStack && activeStack->unitId() == unitId)
+			animation->second->setBorderColor(AnimationControls::getGoldBorder());
 		else
-			stackAnimation[stack->unitId()]->setBorderColor(AnimationControls::getNoBorder());
+			animation->second->setBorderColor(AnimationControls::getNoBorder());
 	}
 
 	for(const auto * stack : newStacks)
 	{
-		if (vstd::contains(mouseHoveredStacks, stack))
+		if (vstd::contains(mouseHoveredUnitIds, stack->unitId()))
 			continue;
 
 		owner.windowObject->updateStackInfoWindow(newStacks.size() == 1 && vstd::find_pos(newStacks, stack) == 0 ? stack : nullptr);
@@ -848,10 +856,10 @@ void BattleStacksController::updateHoveredStacks()
 			stackAnimation[stack->unitId()]->playOnce(ECreatureAnimType::MOUSEON);
 	}
 
-	if(mouseHoveredStacks != newStacks)
+	if(mouseHoveredUnitIds != newUnitIds)
 		ENGINE->windows().totalRedraw(); //fix for frozen stack info window and blue border in action bar
 
-	mouseHoveredStacks = newStacks;
+	mouseHoveredUnitIds = newUnitIds;
 }
 
 std::vector<const CStack *> BattleStacksController::selectHoveredStacks()
@@ -916,11 +924,5 @@ std::vector<const CStack *> BattleStacksController::selectHoveredStacks()
 
 const std::vector<uint32_t> BattleStacksController::getHoveredStacksUnitIds() const
 {
-	auto result = std::vector<uint32_t>();
-	for(const auto * stack : mouseHoveredStacks)
-	{
-		result.push_back(stack->unitId());
-	}
-
-	return result;
+	return mouseHoveredUnitIds;
 }

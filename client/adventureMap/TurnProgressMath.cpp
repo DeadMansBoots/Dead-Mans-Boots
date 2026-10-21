@@ -114,4 +114,30 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 		sum += value;
 	return std::clamp(static_cast<int>(100.0 * sum / categories.size() + 0.5), 0, 100);
 }
+
+std::vector<Place> layout(const std::vector<Size> & bars, const Place & origin, int gap, int maxBottom)
+{
+	std::vector<Place> places;
+	places.reserve(bars.size());
+	int x = origin.x;
+	int y = origin.y;
+	int columnWidth = 0;
+	bool columnEmpty = true;
+	for(const Size & bar : bars)
+	{
+		if(!columnEmpty && y + bar.h > maxBottom)
+		{
+			// the next column starts right of the widest bar in this one, at the top again
+			x += columnWidth + gap;
+			y = origin.y;
+			columnWidth = 0;
+			columnEmpty = true;
+		}
+		places.push_back({x, y});
+		y += bar.h + gap;
+		columnWidth = std::max(columnWidth, bar.w);
+		columnEmpty = false;
+	}
+	return places;
+}
 }

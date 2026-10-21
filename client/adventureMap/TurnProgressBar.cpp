@@ -52,11 +52,31 @@ TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
 	pos.w = FRAME_SIZE.x + 2 * END_PIECE;
 	pos.h = above + FRAME_SIZE.y;
 	recActions &= ~DEACTIVATE;
+	readName();
+}
+
+PlayerColor TurnProgressBar::getPlayer() const
+{
+	return player;
 }
 
 Point TurnProgressBar::frameOffset() const
 {
 	return frame.topLeft();
+}
+
+void TurnProgressBar::readName()
+{
+	// the name the lobby shows for this player; the colour's name when the lobby has none
+	playerName = player.toString();
+	if(GAME->interface() && GAME->interface()->cb)
+	{
+		const auto & infos = GAME->interface()->cb->getStartInfo()->playerInfos;
+		const auto found = infos.find(player);
+		if(found != infos.end() && !found->second.name.empty())
+			playerName = found->second.name;
+	}
+	fitName();
 }
 
 void TurnProgressBar::fitName()
@@ -70,28 +90,25 @@ void TurnProgressBar::fitName()
 	pos.w = std::max({pos.w, frameReach, nameReach});
 }
 
-void TurnProgressBar::startTurn(PlayerColor newPlayer)
-{
-	player = newPlayer;
-	turnEnded = false;
-	emptyFrame = false;
-	takeSnapshot();
-}
-
-void TurnProgressBar::takeSnapshot()
+void TurnProgressBar::takeSnapshot(int day)
 {
 	heroes.clear();
 	towns.clear();
 	snapshotTaken = false;
+	snapshotDay = day;
+	percent = 0;
+	shown = 0;
 
-	if(!GAME->interface() || !GAME->interface()->cb)
-		return;
 	const auto & cb = GAME->interface()->cb;
 	// this client's game state holds every player's heroes and towns (stock sends every pack to every client); the callback hands out the state of a player who is not this
-	// client's enemy, so it is the player's own and a teammate's
+	// client's enemy, so it is the player's own and an ally's (CGameInfoCallback::hasAccess)
 	const PlayerState * state = cb->getPlayerState(player, false);
 	if(!state)
+	{
+		// the list holds only players the callback grants (TurnProgressBars::members), so this is a fault: said in the log, and the bar stays empty until the next day
+		logGlobal->error("Turn bar: no game state for player %s on day %d; the bar stays empty this day", player.toString(), day);
 		return;
+	}
 
 	for(const CGHeroInstance * hero : state->getHeroes())
 	{
@@ -150,46 +167,33 @@ void TurnProgressBar::takeSnapshot()
 		towns.push_back(start);
 	}
 	snapshotTaken = true;
-	percent = 0;
-	shown = 0;
-	{
-		// the name the lobby shows for this player
-		const auto & infos = cb->getStartInfo()->playerInfos;
-		const auto found = infos.find(player);
-		playerName = found != infos.end() && !found->second.name.empty() ? found->second.name : player.toString();
-	}
-	fitName();
+}
+
+void TurnProgressBar::update()
+{
+	if(!GAME->interface() || !GAME->interface()->cb)
+		return;
+	const auto & cb = GAME->interface()->cb;
+	// the new day has reset every player's movement, mana and building in the game state (NewTurn), before any player acts on it: one snapshot a day serves
+	// simultaneous, sequential and hot-seat turns alike. A game loaded from a save has no snapshot yet: it is taken now, and the bar reads what is done since
+	const int day = cb->getDate(Date::DAY);
+	if(day != snapshotDay)
+		takeSnapshot(day);
+	acting = cb->isPlayerMakingTurn(player);
 }
 
 void TurnProgressBar::endTurn()
 {
-	turnEnded = true;
-	percent = 100;
-}
-
-void TurnProgressBar::remoteTurn(PlayerColor active, bool human)
-{
-	const auto * cb = GAME->interface() ? GAME->interface()->cb.get() : nullptr;
-	// a human who is not this client's enemy (a teammate): tracked, in that player's colour; any other turn, an enemy's or an AI's: the empty frame
-	if(human && cb && cb->getPlayerState(active, false))
-	{
-		player = active;
-		emptyFrame = false;
-		turnEnded = false;
-		takeSnapshot();
+	if(!GAME->interface() || !GAME->interface()->cb)
 		return;
-	}
-	emptyFrame = true;
-	snapshotTaken = false;
-	heroes.clear();
-	towns.clear();
-	percent = 0;
-	shown = 0;
+	endedDay = GAME->interface()->cb->getDate(Date::DAY);
+	if(endedDay == snapshotDay)
+		percent = 100;
 }
 
 int TurnProgressBar::compute() const
 {
-	if(turnEnded)
+	if(endedDay == snapshotDay)
 		return 100;
 	if(!snapshotTaken || !GAME->interface() || !GAME->interface()->cb)
 		return 0;
@@ -219,14 +223,11 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	sinceUpdate += msPassed;
 	// the drawn percent eases toward the real one: the liquid rises instead of jumping
 	shown += (percent - shown) * std::min(1.0, msPassed / 180.0);
+	// the day and whether the player acts, at every frame; the percent four times a second
+	update();
 	if(sinceUpdate < 250)
 		return;
 	sinceUpdate = 0;
-	if(emptyFrame)
-		return;
-	// a turn loaded from a save has no snapshot (the turn did not start in this run): it is taken now, and the bar reads what is done since
-	if(!snapshotTaken && !turnEnded && GAME->interface() && GAME->interface()->cb)
-		takeSnapshot();
 	percent = compute();
 	if(percent != loggedPercent)
 	{
@@ -275,7 +276,8 @@ void TurnProgressBar::show(Canvas & to)
 	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 77));
 
 	const double t = clockMs / 1000.0;
-	if(!emptyFrame)
+	// the liquid is bright while the player acts and dimmed while the player waits or has ended the turn
+	const double dim = acting ? 1.0 : 0.55;
 	{
 		const int width = std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
@@ -286,7 +288,7 @@ void TurnProgressBar::show(Canvas & to)
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
-				const ColorRGBA tone = shade(base, 1.30 - 0.85 * depth, 255);
+				const ColorRGBA tone = shade(base, (1.30 - 0.85 * depth) * dim, 255);
 				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
 				for(int i = 0; i < ripple; ++i)
 				{
@@ -296,7 +298,7 @@ void TurnProgressBar::show(Canvas & to)
 						to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), tone);
 				}
 			}
-			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), shade(base, 1.75, 255)); // the soft highlight under the surface
+			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), shade(base, 1.75 * dim, 255)); // the soft highlight under the surface
 		}
 	}
 
@@ -348,7 +350,6 @@ void TurnProgressBar::show(Canvas & to)
 		(void)inward;
 	}
 
-	if(!emptyFrame)
 	{
 		// the percent and the player's name, white with a solid black outline so they read over any terrain
 		drawOutlined(to, percentText, std::to_string(static_cast<int>(std::lround(shown))) + "%", Point(outer.x + outer.w / 2, outer.y + outer.h / 2));
@@ -359,4 +360,113 @@ void TurnProgressBar::show(Canvas & to)
 			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE));
 		}
 	}
+}
+
+TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans)
+	: CIntObject(TIME)
+	, timer(timer)
+	, mapArea(mapArea)
+	, humans(humans)
+{
+	recActions &= ~DEACTIVATE;
+	refresh();
+}
+
+std::vector<PlayerColor> TurnProgressBars::members() const
+{
+	std::vector<PlayerColor> result;
+	if(!GAME->interface() || !GAME->interface()->cb)
+		return result;
+	const auto & cb = GAME->interface()->cb;
+	const PlayerColor viewer = GAME->interface()->playerID;
+	// a spectator plays no turn of its own (its colour is no player's, and the game holds no state for it): no bar
+	if(!viewer.isValidPlayer())
+		return result;
+	// a player still in the game whose state the callback grants (the viewer and the viewer's allies, CGameInfoCallback::hasAccess); an eliminated one loses the bar
+	const auto inGame = [&cb](PlayerColor player)
+	{
+		const PlayerState * state = cb->getPlayerState(player, false);
+		return state && state->status == EPlayerStatus::INGAME;
+	};
+	if(inGame(viewer))
+		result.push_back(viewer);
+	for(auto player = PlayerColor(0); player < PlayerColor::PLAYER_LIMIT; ++player)
+		if(player != viewer && cb->getPlayerRelations(viewer, player) == PlayerRelations::ALLIES && inGame(player))
+			result.push_back(player);
+	// one human and no ally of the viewer: no bar, as in beta 15
+	if(humans <= 1 && result.size() <= 1)
+		result.clear();
+	return result;
+}
+
+void TurnProgressBars::refresh()
+{
+	const auto wanted = members();
+	bool changed = wanted.size() != bars.size();
+	for(size_t i = 0; !changed && i < wanted.size(); ++i)
+		changed = bars[i]->getPlayer() != wanted[i];
+	if(!changed)
+		return;
+
+	OBJECT_CONSTRUCTION;
+	std::vector<std::shared_ptr<TurnProgressBar>> next;
+	std::vector<bool> kept;
+	for(const PlayerColor player : wanted)
+	{
+		// a bar that stays keeps its snapshot and its kept text
+		const auto found = std::find_if(bars.begin(), bars.end(), [player](const auto & bar){ return bar->getPlayer() == player; });
+		kept.push_back(found != bars.end());
+		next.push_back(found != bars.end() ? *found : std::make_shared<TurnProgressBar>(Point(0, 0), player));
+	}
+	for(const auto & bar : bars)
+		if(std::find(next.begin(), next.end(), bar) == next.end())
+			vacated.push_back(bar->pos);
+	bars = std::move(next);
+	if(bars.empty())
+		return;
+
+	// placed by what each draws: with the timer, the first bar's top is 6 pixels below the timer's bottom and its frame lines up with the timer's left edge; without
+	// one, its frame is where the timer would be
+	const Point frame = bars.front()->frameOffset();
+	const Point origin = timer ? Point(timer->x - frame.x, timer->y + timer->h + 6) : Point(24, 24) - frame;
+	std::vector<TurnProgressMath::Size> sizes;
+	for(const auto & bar : bars)
+		sizes.push_back({bar->pos.w, bar->pos.h});
+	const auto places = TurnProgressMath::layout(sizes, {origin.x, origin.y}, 6, mapArea.y + mapArea.h / 2);
+	for(size_t i = 0; i < bars.size(); ++i)
+	{
+		const Point place(places[i].x, places[i].y);
+		if(bars[i]->pos.topLeft() == place)
+			continue;
+		if(kept[i])
+			vacated.push_back(bars[i]->pos);
+		bars[i]->moveTo(place);
+	}
+}
+
+void TurnProgressBars::tick(uint32_t)
+{
+	refresh();
+}
+
+std::vector<Rect> TurnProgressBars::takeRepaintAreas()
+{
+	std::vector<Rect> areas = std::move(vacated);
+	vacated.clear();
+	for(const auto & bar : bars)
+		areas.push_back(bar->pos);
+	return areas;
+}
+
+void TurnProgressBars::update()
+{
+	for(const auto & bar : bars)
+		bar->update();
+}
+
+void TurnProgressBars::endTurn(PlayerColor player)
+{
+	for(const auto & bar : bars)
+		if(bar->getPlayer() == player)
+			bar->endTurn();
 }

@@ -76,21 +76,15 @@ AdventureMapInterface::AdventureMapInterface():
 	if(GAME->interface()->cb->getStartInfo()->turnTimerInfo.turnTimer != 0)
 		watches = std::make_shared<TurnTimerWidget>(Point(24, 24));
 
-	// DMB (K, October 16th and 17th): the turn progress bar of a game with more than one human player, top left of the map; below the turn timer when there is one.
-	// It is placed by all it draws (its pos, the name above the frame included): with the timer, its top is 6 pixels below the timer's bottom and its frame
-	// lines up with the timer's left edge; without one, its frame is where the timer would be
+	// DMB (K, October 16th to 18th): the turn progress bars, top left of the map, below the turn timer when there is one: this player's and one per ally, in a game
+	// with more than one human player or where this player has an ally. The list picks its players from the game state and places each bar by all it draws
+	// (TurnProgressBars)
 	{
 		int humans = 0;
 		for(const auto & info : GAME->interface()->cb->getStartInfo()->playerInfos)
 			if(info.second.isControlledByHuman())
 				humans++;
-		// a spectator plays no turn of its own (its colour is no player's, and the game holds no state for it): no bar
-		if(humans > 1 && GAME->interface()->playerID.isValidPlayer())
-		{
-			turnBar = std::make_shared<TurnProgressBar>(Point(0, 0), GAME->interface()->playerID);
-			const Point frame = turnBar->frameOffset();
-			turnBar->moveTo(watches ? Point(watches->pos.x - frame.x, watches->pos.y + watches->pos.h + 6) : Point(24, 24) - frame);
-		}
+		turnBars = std::make_shared<TurnProgressBars>(watches ? std::optional<Rect>(watches->pos) : std::nullopt, widget->getMapView()->pos, humans);
 	}
 	
 	addUsedEvents(KEYBOARD | TIME);
@@ -184,9 +178,11 @@ void AdventureMapInterface::showAll(Canvas & to)
 
 void AdventureMapInterface::show(Canvas & to)
 {
-	// DMB: the map paints the terrain under the turn bar fresh in this frame, and the bar, drawn after it, darkens and decorates that (TurnProgressBar.h)
-	if(turnBar)
-		widget->getMapView()->repaintArea(turnBar->pos);
+	// DMB: the map paints the terrain under the turn bars fresh in this frame, and the bars, drawn after it, darken and decorate that (TurnProgressBar.h); where a bar
+	// was before it moved or went is painted fresh once
+	if(turnBars)
+		for(const Rect & area : turnBars->takeRepaintAreas())
+			widget->getMapView()->repaintArea(area);
 	CIntObject::show(to);
 	dim(to);
 	GAME->interface()->cingconsole->show(to);
@@ -396,8 +392,6 @@ void AdventureMapInterface::onEnemyTurnStarted(PlayerColor playerID, bool isHuma
 		return;
 
 	mapAudio->onEnemyTurnStarted();
-	if(turnBar)
-		turnBar->remoteTurn(playerID, isHuman); // another human's turn: that player's colour without a percent; an AI's turn: nothing
 	widget->getMinimap()->setAIRadar(!isHuman);
 	widget->getInfoBar()->startEnemyTurn(playerID);
 	setState(isHuman ? EAdventureState::MAKING_TURN : EAdventureState::AI_PLAYER_TURN);
@@ -433,9 +427,6 @@ void AdventureMapInterface::onPlayerTurnStarted(PlayerColor playerID)
 	backgroundDimLevel = settings["adventure"]["backgroundDimLevel"].Integer();
 
 	onCurrentPlayerChanged(playerID);
-
-	if(turnBar && playerID == GAME->interface()->playerID)
-		turnBar->startTurn(playerID);
 
 	setState(EAdventureState::MAKING_TURN);
 	if(playerID == GAME->interface()->playerID || settings["session"]["spectate"].Bool())
@@ -496,6 +487,18 @@ void AdventureMapInterface::onPlayerTurnStarted(PlayerColor playerID)
 	}
 }
 
+void AdventureMapInterface::onTurnBarsPlayerStarts()
+{
+	if(turnBars)
+		turnBars->update();
+}
+
+void AdventureMapInterface::onTurnBarsPlayerEnds(PlayerColor playerID)
+{
+	if(turnBars)
+		turnBars->endTurn(playerID);
+}
+
 void AdventureMapInterface::hotkeyEndingTurn()
 {
 	if(settings["session"]["spectate"].Bool())
@@ -507,8 +510,8 @@ void AdventureMapInterface::hotkeyEndingTurn()
 	}
 
 	GAME->interface()->makingTurn = false;
-	if(turnBar)
-		turnBar->endTurn();
+	if(turnBars)
+		turnBars->endTurn(GAME->interface()->playerID);
 	GAME->interface()->cb->endTurn();
 
 	mapAudio->onPlayerTurnEnded();

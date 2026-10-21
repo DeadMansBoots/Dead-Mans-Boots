@@ -40,7 +40,7 @@ class CInfoBar;
 class CMinimap;
 class MapAudioPlayer;
 class TurnTimerWidget;
-class TurnProgressBar;
+class TurnProgressBars;
 enum class EAdventureState;
 
 struct MapDrawingInfo;
@@ -70,7 +70,7 @@ private:
 	std::shared_ptr<AdventureMapWidget> widget;
 	std::shared_ptr<AdventureMapShortcuts> shortcuts;
 	std::shared_ptr<TurnTimerWidget> watches;
-	std::shared_ptr<TurnProgressBar> turnBar; // DMB: how much of this player's turn is done (display only)
+	std::shared_ptr<TurnProgressBars> turnBars; // DMB: how much of the turn this player and each ally have done (display only)
 
 private:
 	void setState(EAdventureState state);
@@ -132,6 +132,12 @@ public:
 
 	/// Called by PlayerInterface when local human player starts his turn
 	void onPlayerTurnStarted(PlayerColor playerID);
+
+	/// DMB: called by PlayerInterface when any player's turn starts, before that player can act: the turn bars read the game state now
+	void onTurnBarsPlayerStarts();
+
+	/// DMB: called by PlayerInterface when any player has ended the turn: that player's turn bar shows full
+	void onTurnBarsPlayerEnds(PlayerColor playerID);
 
 	/// Called by PlayerInterface when interface should be switched to specified player without starting turn
 	void onCurrentPlayerChanged(PlayerColor playerID);

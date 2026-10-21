@@ -57,4 +57,21 @@ struct TownNow
 /// how much of the turn is done, 0 to 100: the mean of the categories that apply (hero movement spent, a structure built in each town that could build one,
 /// creatures recruited where some could be, mana spent by heroes who could cast an adventure spell); 0 when none applies
 int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> & towns, const std::vector<HeroNow> & heroesNow, const std::vector<TownNow> & townsNow);
+
+/// a bar's size and where its top left goes, in screen pixels
+struct Size
+{
+	int w = 0;
+	int h = 0;
+};
+struct Place
+{
+	int x = 0;
+	int y = 0;
+};
+
+/// where each bar goes, in order: stacked downward from origin with gap pixels between them; a bar whose bottom would pass maxBottom starts a new column to the right
+/// of the widest bar so far in the column, again at origin's height. A column always takes at least one bar, so every bar is placed, even when a single bar is taller
+/// than the space allowed
+std::vector<Place> layout(const std::vector<Size> & bars, const Place & origin, int gap, int maxBottom);
 }

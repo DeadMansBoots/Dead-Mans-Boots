@@ -222,6 +222,9 @@ void CPlayerInterface::closeAllDialogs()
 void CPlayerInterface::playerEndsTurn(PlayerColor player)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	// DMB: any player's end of turn, an ally's included, fills that player's turn bar
+	if(adventureInt)
+		adventureInt->onTurnBarsPlayerEnds(player);
 	if (player == playerID)
 	{
 		makingTurn = false;
@@ -244,6 +247,8 @@ void CPlayerInterface::playerStartsTurn(PlayerColor player)
 	}
 
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	// DMB: the turn bars read the game state before this player can act (a new day's snapshot is taken here at the latest)
+	adventureInt->onTurnBarsPlayerStarts();
 	if (player != playerID && GAME->interface() == this)
 	{
 		waitWhileDialog();

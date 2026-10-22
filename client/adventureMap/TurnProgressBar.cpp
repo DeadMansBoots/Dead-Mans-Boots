@@ -17,6 +17,7 @@
 #include "../render/Graphics.h"
 #include "../render/Canvas.h"
 #include "../render/IFont.h"
+#include "../render/IImage.h"
 #include "../render/IRenderHandler.h"
 #include "../widgets/TextControls.h"
 
@@ -30,6 +31,8 @@
 #include "../../lib/spells/CSpellHandler.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 
 namespace
 {
@@ -254,6 +257,62 @@ void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::
 	to.draw(*kept.image, centre - kept.size / 2);
 }
 
+int TurnProgressBar::trimStyle(const PlayerColor & player)
+{
+	// the trim candidates (October 22nd, K: the bar's trim must match the game's own ornate frame): 0 the first trim, 1 the stock red and gold band, 2 the stock gold band;
+	// chosen by DMB_BAR_TRIM while the candidates are compared
+	static const char * value = std::getenv("DMB_BAR_TRIM");
+	if(value && std::string(value) == "mix")
+		return player.getNum() % 3;   // the candidates side by side, one per player
+	return value ? std::atoi(value) : 1;
+}
+
+void TurnProgressBar::drawStockTrim(Canvas & to, const Rect & outer, int style)
+{
+	// the game's own frame art: AdvMap.pcx is the adventure screen's frame, and the places below are the parts of it that never hold anything else (the top rail, the
+	// corner jewel); it is recoloured to this bar's player, as the screen's frame is recoloured to the player whose turn it is
+	if(!trimArt)
+	{
+		trimArt = ENGINE->renderHandler().loadImage(ImagePath::builtin("ADVMAP"), EImageBlitMode::OPAQUE);
+		if(trimArt && player.isValidPlayer())
+			trimArt->playerColored(player);
+	}
+	const auto & art = trimArt;
+	if(!art)
+		return;
+	// the top rail of the screen frame, rows 1 to 6 at x 300 and on: a pale gold line, its shade, two rows of red enamel, a light and a mid gold line. A rail is
+	// the rows in order, the bottom one in the opposite order, so the light falls from the top as it does on the screen frame
+	static const int bandRows[4] = {3, 4, 5, 6};    // style 1: enamel and gold, four rows
+	static const int goldRows[4] = {1, 2, 5, 6};    // style 2: gold only (highlight, shade, light, mid)
+	const int * rows = style == 1 ? bandRows : goldRows;
+	const int srcX = 300;
+	for(int i = 0; i < 4; ++i)
+	{
+		to.draw(art, Point(outer.x, outer.y + i), Rect(srcX, rows[i], outer.w, 1));
+		to.draw(art, Point(outer.x, outer.y + outer.h - 1 - i), Rect(srcX, rows[i], outer.w, 1));
+	}
+	// the sides: the screen frame's left rail, seven columns wide; its first four columns (shade, gold, light gold, enamel) go left, mirrored on the right
+	static const int sideCols[4] = {1, 2, 3, 4};
+	for(int i = 0; i < 4; ++i)
+	{
+		to.draw(art, Point(outer.x + i, outer.y + 4), Rect(sideCols[i], 200, 1, outer.h - 8));
+		to.draw(art, Point(outer.x + outer.w - 1 - i, outer.y + 4), Rect(sideCols[i], 200, 1, outer.h - 8));
+	}
+	// the gems: the screen frame's corner jewel, a round red stone in a silver and gold ring, cut as a disc and set over each end, centred on the frame's side
+	const int radius = 8;
+	const Point jewel(15, 14);    // the centre of the stone in AdvMap.pcx
+	for(const bool right : {false, true})
+	{
+		const int cx = right ? outer.x + outer.w + 1 : outer.x - 1;
+		const int cy = outer.y + outer.h / 2;
+		for(int dy = -radius; dy <= radius; ++dy)
+		{
+			const int half = static_cast<int>(std::lround(std::sqrt(static_cast<double>(radius * radius - dy * dy) + 0.25)));
+			to.draw(art, Point(cx - half, cy + dy), Rect(jewel.x - half, jewel.y + dy, 2 * half + 1, 1));
+		}
+	}
+}
+
 void TurnProgressBar::showAll(Canvas & to)
 {
 	show(to);
@@ -270,7 +329,9 @@ void TurnProgressBar::show(Canvas & to)
 	};
 
 	const Rect outer = frame + pos.topLeft();
-	const Rect inner(outer.x + 3, outer.y + 3, outer.w - 6, outer.h - 6);
+	const int style = trimStyle(player);
+	const int rim = style == 0 ? 3 : 4;
+	const Rect inner(outer.x + rim, outer.y + rim, outer.w - 2 * rim, outer.h - 2 * rim);
 
 	// the map has painted the terrain under pos fresh in this frame (AdventureMapInterface::show): the glass darkens it 30 percent, so 70 percent of the terrain shows
 	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 77));
@@ -302,53 +363,59 @@ void TurnProgressBar::show(Canvas & to)
 		}
 	}
 
-	// the trim: a gold frame in three lines (dark, gold, deep bronze) with a light edge on the top and left, a row of pearls along the top and bottom, flourishes at the corners and
-	// diamond end pieces
-	const ColorRGBA dark(45, 28, 8, 255), gold(214, 170, 70, 255), light(250, 222, 140, 255), deep(120, 82, 22, 255), pearl(255, 240, 190, 255);
-	to.drawBorder(outer, dark, 1);
-	to.drawBorder(Rect(outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2), gold, 1);
-	to.drawBorder(Rect(outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4), deep, 1);
-	to.drawLine(Point(outer.x + 2, outer.y + 1), Point(outer.x + outer.w - 3, outer.y + 1), light, light);
-	to.drawLine(Point(outer.x + 1, outer.y + 2), Point(outer.x + 1, outer.y + outer.h - 3), light, light);
-	for(int x = outer.x + 8; x < outer.x + outer.w - 8; x += 5)
+	if(style == 0)
 	{
-		to.drawColor(Rect(x, outer.y + 1, 1, 1), pearl); // pearls on the gold line, top and bottom
-		to.drawColor(Rect(x, outer.y + outer.h - 2, 1, 1), pearl);
-		to.drawColor(Rect(x + 2, outer.y + 1, 1, 1), dark); // a dark bead between each pair
-		to.drawColor(Rect(x + 2, outer.y + outer.h - 2, 1, 1), dark);
-	}
-	for(const bool right : {false, true})
-	{
-		for(const bool bottom : {false, true})
+		// the trim: a gold frame in three lines (dark, gold, deep bronze) with a light edge on the top and left, a row of pearls along the top and bottom, flourishes at the corners and
+		// diamond end pieces
+		const ColorRGBA dark(45, 28, 8, 255), gold(214, 170, 70, 255), light(250, 222, 140, 255), deep(120, 82, 22, 255), pearl(255, 240, 190, 255);
+		to.drawBorder(outer, dark, 1);
+		to.drawBorder(Rect(outer.x + 1, outer.y + 1, outer.w - 2, outer.h - 2), gold, 1);
+		to.drawBorder(Rect(outer.x + 2, outer.y + 2, outer.w - 4, outer.h - 4), deep, 1);
+		to.drawLine(Point(outer.x + 2, outer.y + 1), Point(outer.x + outer.w - 3, outer.y + 1), light, light);
+		to.drawLine(Point(outer.x + 1, outer.y + 2), Point(outer.x + 1, outer.y + outer.h - 3), light, light);
+		for(int x = outer.x + 8; x < outer.x + outer.w - 8; x += 5)
 		{
-			// a corner flourish: a bronze plate with a gold border, a bright diagonal stroke and a pearl
-			const int cx = right ? outer.x + outer.w - 6 : outer.x;
-			const int cy = bottom ? outer.y + outer.h - 6 : outer.y;
-			to.drawColor(Rect(cx, cy, 6, 6), deep);
-			to.drawBorder(Rect(cx, cy, 6, 6), dark, 1);
-			to.drawBorder(Rect(cx + 1, cy + 1, 4, 4), gold, 1);
-			to.drawLine(Point(cx + (right ? 4 : 1), cy + (bottom ? 4 : 1)), Point(cx + (right ? 1 : 4), cy + (bottom ? 1 : 4)), light, light);
-			to.drawPoint(Point(cx + 2 + (right ? 1 : 0), cy + 2 + (bottom ? 1 : 0)), pearl);
+			to.drawColor(Rect(x, outer.y + 1, 1, 1), pearl); // pearls on the gold line, top and bottom
+			to.drawColor(Rect(x, outer.y + outer.h - 2, 1, 1), pearl);
+			to.drawColor(Rect(x + 2, outer.y + 1, 1, 1), dark); // a dark bead between each pair
+			to.drawColor(Rect(x + 2, outer.y + outer.h - 2, 1, 1), dark);
 		}
-	}
-	for(const bool right : {false, true})
-	{
-		// a diamond end piece in the middle of each end: bronze outline, gold body, a pearl in the middle and short bars either side
-		const int mx = right ? outer.x + outer.w + 3 : outer.x - 4;
-		const int my = outer.y + outer.h / 2;
-		for(int d = 0; d <= 5; ++d)
+		for(const bool right : {false, true})
 		{
-			const int half = 5 - d;
-			to.drawLine(Point(mx - half, my - d), Point(mx + half, my - d), d == 5 ? dark : gold, d == 5 ? dark : gold);
-			to.drawLine(Point(mx - half, my + d), Point(mx + half, my + d), d == 5 ? dark : gold, d == 5 ? dark : gold);
+			for(const bool bottom : {false, true})
+			{
+				// a corner flourish: a bronze plate with a gold border, a bright diagonal stroke and a pearl
+				const int cx = right ? outer.x + outer.w - 6 : outer.x;
+				const int cy = bottom ? outer.y + outer.h - 6 : outer.y;
+				to.drawColor(Rect(cx, cy, 6, 6), deep);
+				to.drawBorder(Rect(cx, cy, 6, 6), dark, 1);
+				to.drawBorder(Rect(cx + 1, cy + 1, 4, 4), gold, 1);
+				to.drawLine(Point(cx + (right ? 4 : 1), cy + (bottom ? 4 : 1)), Point(cx + (right ? 1 : 4), cy + (bottom ? 1 : 4)), light, light);
+				to.drawPoint(Point(cx + 2 + (right ? 1 : 0), cy + 2 + (bottom ? 1 : 0)), pearl);
+			}
 		}
-		to.drawBorder(Rect(mx - 2, my - 2, 5, 5), deep, 1);
-		to.drawColor(Rect(mx - 1, my - 1, 3, 3), light);
-		to.drawPoint(Point(mx, my), pearl);
-		const int inward = right ? -6 : 6;
-		to.drawColor(Rect(mx + (right ? -7 : 5), my - 1, 3, 3), gold); // a bar joining the diamond to the frame
-		(void)inward;
+		for(const bool right : {false, true})
+		{
+			// a diamond end piece in the middle of each end: bronze outline, gold body, a pearl in the middle and short bars either side
+			const int mx = right ? outer.x + outer.w + 3 : outer.x - 4;
+			const int my = outer.y + outer.h / 2;
+			for(int d = 0; d <= 5; ++d)
+			{
+				const int half = 5 - d;
+				to.drawLine(Point(mx - half, my - d), Point(mx + half, my - d), d == 5 ? dark : gold, d == 5 ? dark : gold);
+				to.drawLine(Point(mx - half, my + d), Point(mx + half, my + d), d == 5 ? dark : gold, d == 5 ? dark : gold);
+			}
+			to.drawBorder(Rect(mx - 2, my - 2, 5, 5), deep, 1);
+			to.drawColor(Rect(mx - 1, my - 1, 3, 3), light);
+			to.drawPoint(Point(mx, my), pearl);
+			const int inward = right ? -6 : 6;
+			to.drawColor(Rect(mx + (right ? -7 : 5), my - 1, 3, 3), gold); // a bar joining the diamond to the frame
+			(void)inward;
+		}
+
 	}
+	else
+		drawStockTrim(to, outer, style);
 
 	{
 		// the percent and the player's name, white with a solid black outline so they read over any terrain

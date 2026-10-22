@@ -20,6 +20,8 @@
 /// none does; full when the player has ended the turn this day. Bright while the game state counts the player as acting, dimmed otherwise.
 /// Its pos is everything it draws: the frame, the end pieces either side and the player's name above. The map view paints the tiles under pos fresh every frame
 /// (AdventureMapInterface::show asks it to), and the bar is drawn over them: the glass darkens the terrain as it is in that frame, and nothing drawn earlier stays.
+class IImage;
+
 class TurnProgressBar : public CIntObject
 {
 	PlayerColor player;
@@ -54,6 +56,11 @@ class TurnProgressBar : public CIntObject
 	OutlinedText nameText;
 	/// draws `text` centred on `centre`, from the kept image when it is the same text as last time
 	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre);
+	/// which trim is drawn (0 the first trim, 1 and 2 the game's own frame pieces); the corner jewels, rails and gold lines come from AdvMap.pcx at run time
+	static int trimStyle(const PlayerColor & player);
+	void drawStockTrim(Canvas & to, const Rect & outer, int style);
+	/// the screen frame's own picture in this player's colour, as the adventure screen's frame wears it (loaded when first drawn)
+	std::shared_ptr<IImage> trimArt;
 
 	/// reads the player's heroes and towns as they are now and hands them, with the snapshot, to TurnProgressMath::percent
 	int compute() const;

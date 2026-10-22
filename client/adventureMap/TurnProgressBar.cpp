@@ -40,7 +40,10 @@ namespace
 const Point FRAME_SIZE(120, 18);
 const int END_PIECE = 9;
 /// the player's name is centred this far above the frame's top
-const int NAME_ABOVE = 6;
+const int NAME_ABOVE = 8;   // the small font's line is taller than the tiny one's: its bottom stays clear of the frame
+/// the name and the percent use the font of the resource bar and the date beside it (FONT_TINY drew a smooth sans face at 150 and 200 percent, K's
+/// screen, while the stock text around it is the game's serif: the Reviewer's pre-read, October 22nd)
+const EFonts LABEL_FONT = FONT_SMALL;
 }
 
 TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
@@ -48,8 +51,8 @@ TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
 	, player(player)
 {
 	// the name line above the frame: its centre NAME_ABOVE over the frame, half a line and the outline above that
-	const int nameHeight = static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getLineHeight());
-	const int above = std::max(14, NAME_ABOVE + nameHeight / 2 + 2);
+	const int nameHeight = static_cast<int>(ENGINE->renderHandler().loadFont(LABEL_FONT)->getLineHeight());
+	const int above = std::max(16, NAME_ABOVE + nameHeight / 2 + 2);
 	pos += position;
 	frame = Rect(END_PIECE, above, FRAME_SIZE.x, FRAME_SIZE.y);
 	pos.w = FRAME_SIZE.x + 2 * END_PIECE;
@@ -85,7 +88,7 @@ void TurnProgressBar::readName()
 void TurnProgressBar::fitName()
 {
 	// the name is centred over the frame; a wider one starts at pos's left edge and pos reaches as far right as it does, with its outline
-	const int nameWidth = playerName.empty() ? 0 : static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getStringWidth(playerName)) + 2;
+	const int nameWidth = playerName.empty() ? 0 : static_cast<int>(ENGINE->renderHandler().loadFont(LABEL_FONT)->getStringWidth(playerName)) + 2;
 	const int frameReach = frame.x + frame.w + END_PIECE;
 	const int nameReach = std::max(frame.x + frame.w / 2 + nameWidth / 2, nameWidth) + 1;
 	// pos never narrows: the map paints fresh only the tiles under pos, so a longer name drawn before (a teammate's) would stay on the map
@@ -243,15 +246,15 @@ void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::
 {
 	if(!kept.image || kept.text != text)
 	{
-		const auto & font = ENGINE->renderHandler().loadFont(FONT_TINY);
+		const auto & font = ENGINE->renderHandler().loadFont(LABEL_FONT);
 		kept.text = text;
 		kept.size = Point(static_cast<int>(font->getStringWidth(text)) + 2, static_cast<int>(font->getLineHeight()) + 2);
 		kept.image = std::make_shared<Canvas>(kept.size, CanvasScalingPolicy::AUTO);
 		for(int dx = -1; dx <= 1; ++dx)
 			for(int dy = -1; dy <= 1; ++dy)
 				if(dx != 0 || dy != 0)
-					kept.image->drawText(Point(1 + dx, 1 + dy), FONT_TINY, Colors::BLACK, ETextAlignment::TOPLEFT, text);
-		kept.image->drawText(Point(1, 1), FONT_TINY, Colors::WHITE, ETextAlignment::TOPLEFT, text);
+					kept.image->drawText(Point(1 + dx, 1 + dy), LABEL_FONT, Colors::BLACK, ETextAlignment::TOPLEFT, text);
+		kept.image->drawText(Point(1, 1), LABEL_FONT, Colors::WHITE, ETextAlignment::TOPLEFT, text);
 		kept.image->applyTransparency(true);
 	}
 	to.draw(*kept.image, centre - kept.size / 2);
@@ -299,7 +302,7 @@ void TurnProgressBar::drawStockTrim(Canvas & to, const Rect & outer, int style)
 		to.draw(art, Point(outer.x + outer.w - 1 - i, outer.y + 4), Rect(sideCols[i], 200, 1, outer.h - 8));
 	}
 	// the gems: the screen frame's corner jewel, a round red stone in a silver and gold ring, cut as a disc and set over each end, centred on the frame's side
-	const int radius = 8;
+	const int radius = 7;   // the jewel stays inside the frame's 18 pixels (at 8 its ring stood out by a pixel above and below)
 	const Point jewel(15, 14);    // the centre of the stone in AdvMap.pcx
 	for(const bool right : {false, true})
 	{
@@ -423,7 +426,7 @@ void TurnProgressBar::show(Canvas & to)
 		if(!playerName.empty())
 		{
 			// centred over the frame, or from pos's left edge when wider (fitName)
-			const int nameWidth = static_cast<int>(ENGINE->renderHandler().loadFont(FONT_TINY)->getStringWidth(playerName)) + 2;
+			const int nameWidth = static_cast<int>(ENGINE->renderHandler().loadFont(LABEL_FONT)->getStringWidth(playerName)) + 2;
 			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE));
 		}
 	}

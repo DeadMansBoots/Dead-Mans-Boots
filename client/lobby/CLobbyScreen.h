@@ -30,6 +30,8 @@ public:
 	void toggleChat();
 
 	void updateAfterStateChange();
+	/// Begin is blocked or not by what the lobby shows: a scenario needs a map and, for a host in a network lobby, a remote client
+	void updateStartButtonState();
 	void onRemoteClientLobbyStateChanged();
 	/// DMB (K, October 9th): a guest's screen shows the page the host's shows (CServerHandler::hostViewAction): the tab, and a map generator
 	/// tab's page. Nothing for the host.
@@ -83,5 +85,4 @@ private:
 	bool isLanOrOnlineMultiplayerHost() const;
 	void updateCompatibilityNotice(size_t requiredHumanPlayers);
 	void updateHostLobbyChatState();
-	void updateStartButtonState();
 };

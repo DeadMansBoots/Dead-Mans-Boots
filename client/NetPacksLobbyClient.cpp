@@ -262,5 +262,12 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyShowMessage(LobbyShowMessage & 
 void ApplyOnLobbyScreenNetPackVisitor::visitLobbySetBattleOnlyModeStartInfo(LobbySetBattleOnlyModeStartInfo & pack)
 {
 	if(lobby && lobby->tabBattleOnlyMode)
+	{
 		lobby->tabBattleOnlyMode->applyStartInfo(pack.startInfo);
+		// DMB: applying the battle mode's start info decides Begin by the battle mode's own rules (a hero and a battlefield chosen), which the
+		// default info never meets; a guest's first lobby packet therefore blocked the host's Begin of a scenario until something else redrew it.
+		// Only the battle mode's own tab decides it.
+		if(lobby->curTab != lobby->tabBattleOnlyMode)
+			lobby->updateStartButtonState();
+	}
 }

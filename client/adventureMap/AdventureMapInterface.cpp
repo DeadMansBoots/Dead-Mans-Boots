@@ -196,6 +196,11 @@ void AdventureMapInterface::show(Canvas & to)
 		{
 			observerStateApplied = true;
 			setState(EAdventureState::MAKING_TURN);
+			// a watcher has no hero or town to centre on: the view starts at the middle of the map (it started at the map's corner, with the rest black)
+			const int3 mapSize = GAME->interface()->cb->getMapSize();
+			centerOnTile(int3(mapSize.x / 2, mapSize.y / 2, 0));
+			// and its minimap shows the map: the AI radar's shield, which hides it while an AI plays, is never lifted for a watcher (no turn of its own starts)
+			widget->getMinimap()->setAIRadar(false);
 		}
 		widget->getMapView()->repaintArea(observerBar->pos);
 	}

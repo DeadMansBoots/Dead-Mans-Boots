@@ -26,6 +26,8 @@ class ObserverBar : public CIntObject
 	Rect pauseArea;
 	Rect stepArea;
 	bool paused = false;
+	/// only the host's machine runs the AI, and so only it can stop one: the flag files are read on that machine (K, October 22nd: pause is for the host)
+	bool canPause = false;
 	int shownDay = -1;
 
 public:
@@ -41,5 +43,7 @@ public:
 	void show(Canvas & to) override;
 	void showAll(Canvas & to) override;
 	void clickPressed(const Point & cursorPosition) override;
+	void mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance) override;
+	void hover(bool on) override;
 	void tick(uint32_t msPassed) override;
 };

@@ -11,6 +11,7 @@
 #include "../GameEngine.h"
 #include "../GameInstance.h"
 #include "../CPlayerInterface.h"
+#include "../CServerHandler.h"
 #include "../render/Colors.h"
 #include "../render/Graphics.h"
 #include "../render/IFont.h"
@@ -48,6 +49,7 @@ ObserverBar::ObserverBar(const Rect & area)
 {
 	OBJECT_CONSTRUCTION;
 	clearFlags();
+	canPause = GAME->server().isHost();
 
 	const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
 	const int pauseWidth = static_cast<int>(std::max(font->getStringWidth("Pause"), font->getStringWidth("Resume")));
@@ -59,11 +61,11 @@ ObserverBar::ObserverBar(const Rect & area)
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, width, HEIGHT), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
 	pauseArea = Rect(PAD - 4, 0, pauseWidth + 8, HEIGHT);
 	stepArea = Rect(PAD + pauseWidth + GAP - 4, 0, stepWidth + 8, HEIGHT);
-	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, "Pause");
-	stepLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Step");
+	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255), "Pause");
+	stepLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::WHITE : ColorRGBA(120, 120, 120, 255), "Step");
 	dayLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
 
-	addUsedEvents(LCLICK | TIME);
+	addUsedEvents(LCLICK | TIME | MOVE | HOVER);
 }
 
 ObserverBar::~ObserverBar()
@@ -85,6 +87,8 @@ void ObserverBar::show(Canvas & to)
 void ObserverBar::clickPressed(const Point & cursorPosition)
 {
 	const Point local = cursorPosition - pos.topLeft();
+	if(!canPause)
+		return; // a guest cannot pause the host's AI: the buttons are grey and say why
 	logGlobal->debug("Observer bar clicked at %d,%d (bar at %d,%d)", cursorPosition.x, cursorPosition.y, pos.x, pos.y);
 	boost::system::error_code ignored;
 	boost::filesystem::create_directories(flagFolder(), ignored);
@@ -105,6 +109,22 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 		// one hero move: OmniAI deletes STEP after it, and holds again
 		std::ofstream((flagFolder() / "STEP").string()).put('1');
 	}
+}
+
+void ObserverBar::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
+{
+	const Point local = cursorPosition - pos.topLeft();
+	static const std::string text = "Pause and Step: only the host of the game can pause the AI";
+	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local)))
+		ENGINE->statusbar()->write(text);
+	else
+		ENGINE->statusbar()->clearIfMatching(text);
+}
+
+void ObserverBar::hover(bool on)
+{
+	if(!on)
+		ENGINE->statusbar()->clearIfMatching("Pause and Step: only the host of the game can pause the AI");
 }
 
 void ObserverBar::tick(uint32_t msPassed)

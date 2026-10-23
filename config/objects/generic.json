@@ -57,6 +57,7 @@
 		"index" :111,
 		"handler" : "whirlpool",
 		"base" : {
+			"popupDescription" : "(Leads to another whirlpool; half of the hero's weakest troop is lost)",
 			"sounds" : {
 				"ambient" : ["LOOPWHIR"],
 				"visit" : ["DANGER"]
@@ -74,6 +75,7 @@
 		"index" :103,
 		"handler" : "subterraneanGate",
 		"base" : {
+			"popupDescription" : "(Leads to the other level)",
 			"sounds" : {
 				"ambient" : ["LOOPGATE"],
 				"visit" : ["CAVEHEAD"]
@@ -132,6 +134,7 @@
 		"index" :27,
 		"handler" : "magi",
 		"base" : {
+			"popupDescription" : "(Watched over from a Hut of the Magi)",
 			"sounds" : {
 				"visit" : ["LIGHTHOUSE"]
 			}
@@ -149,6 +152,7 @@
 		"index" :37,
 		"handler" : "magi",
 		"base" : {
+			"popupDescription" : "(Shows the land around every Eye of the Magi)",
 			"sounds" : {
 				"visit" : ["LIGHTHOUSE"]
 			}
@@ -204,6 +208,7 @@
 		"index" :87,
 		"handler" : "shipyard",
 		"base" : {
+			"popupDescription" : "(Builds a boat for 1000 gold and 10 wood)",
 			"sounds" : {
 				"ambient" : ["LOOPLUMB"],
 				"visit" : ["STORE"]
@@ -262,6 +267,7 @@
 		"index" :97,
 		"handler" : "denOfThieves",
 		"base" : {
+			"popupDescription" : "(Shows the Thieves Guild report)",
 			"sounds" : {
 				"ambient" : ["LOOPDEN"],
 				"visit" : ["MYSTERY"]
@@ -590,6 +596,7 @@
 		"index" :95,
 		"handler": "generic",
 		"base" : {
+			"popupDescription" : "(Hire heroes here)",
 			"blockVisit": true,
 			"sounds" : {
 				"ambient" : ["LOOPTAV"],
@@ -612,6 +619,7 @@
 		"index" :80,
 		"handler": "generic",
 		"base" : {
+			"popupDescription" : "(A hero inside cannot be attacked)",
 			"sounds" : {
 				"ambient" : ["LOOPSANC"],
 				"visit" : ["GETPROTECTION"]

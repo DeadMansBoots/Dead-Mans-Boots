@@ -34,6 +34,7 @@ class DLL_LINKAGE AObjectTypeHandler : public boost::noncopyable
 	RandomMapInfo rmgInfo;
 
 	std::unique_ptr<JsonNode> base; /// describes base template
+	bool popupDescription = false; /// DMB: a "popupDescription" text is registered for this type
 
 	std::vector<std::shared_ptr<const ObjectTemplate>> templates;
 
@@ -109,6 +110,9 @@ public:
 
 	/// returns object's name in form of translatable text ID
 	virtual std::string getNameTextID() const;
+	/// DMB: a short line the object's pop-up shows under its name ("popupDescription" in its config), for objects whose class shows nothing else
+	std::string getPopupDescriptionTextID() const;
+	bool hasPopupDescription() const;
 
 	/// returns object's name in form of human-readable text
 	std::string getNameTranslated() const;

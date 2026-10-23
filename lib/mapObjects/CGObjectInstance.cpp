@@ -282,13 +282,23 @@ std::string CGObjectInstance::getHoverText(const CGHeroInstance * hero) const
 	return getHoverText(hero->tempOwner);
 }
 
+/// DMB: the object type's own line under the name ("popupDescription"), for an object whose pop-up said only its name (K, October 23rd: "den of thieves
+/// needs a description")
+static std::string withPopupDescription(const CGObjectInstance & object, std::string text)
+{
+	const auto handler = object.getObjectHandler();
+	if(handler && handler->hasPopupDescription())
+		text += "\n\n" + LIBRARY->generaltexth->translate(handler->getPopupDescriptionTextID());
+	return text;
+}
+
 std::string CGObjectInstance::getPopupText(PlayerColor player) const
 {
-	return getHoverText(player);
+	return withPopupDescription(*this, getHoverText(player));
 }
 std::string CGObjectInstance::getPopupText(const CGHeroInstance * hero) const
 {
-	return getHoverText(hero);
+	return withPopupDescription(*this, getHoverText(hero));
 }
 
 std::vector<Component> CGObjectInstance::getPopupComponents(PlayerColor player) const

@@ -447,6 +447,7 @@
 		"handler": "monolith",
 		"lastReservedIndex" : 7,
 		"base" : {
+			"popupDescription" : "(Leads one way to a monolith exit of the same color)",
 			"sounds" : {
 				"ambient" : ["LOOPMON1"],
 				"visit" : ["TELPTOUT"]
@@ -468,6 +469,7 @@
 		"handler": "monolith",
 		"lastReservedIndex" : 7,
 		"base" : {
+			"popupDescription" : "(Where one-way monoliths of the same color lead)",
 			"sounds" : { "ambient" : ["LOOPMON1"] }
 		},
 		"types" : {
@@ -486,6 +488,7 @@
 		"handler": "monolith",
 		"lastReservedIndex" : 7,
 		"base" : {
+			"popupDescription" : "(Leads to another two-way monolith of the same color)",
 			"sounds" : {
 				"ambient" : ["LOOPMON2"],
 				"visit" : ["TELPTOUT"]

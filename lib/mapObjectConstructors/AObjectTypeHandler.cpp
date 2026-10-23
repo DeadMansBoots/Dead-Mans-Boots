@@ -64,6 +64,13 @@ static ui32 loadJsonOrMax(const JsonNode & input)
 
 void AObjectTypeHandler::init(const JsonNode & input)
 {
+	// DMB (K, October 23rd: "den of thieves needs a description"): the pop-up's line under the name, translatable like the name
+	if(input["popupDescription"].isString() && !input["popupDescription"].String().empty())
+	{
+		LIBRARY->generaltexth->registerString(modScope, getPopupDescriptionTextID(), input["popupDescription"]);
+		popupDescription = true;
+	}
+
 	if (!input["base"].isNull())
 		base = std::make_unique<JsonNode>(input["base"]);
 
@@ -168,6 +175,16 @@ std::string AObjectTypeHandler::getBaseTextID() const
 std::string AObjectTypeHandler::getNameTextID() const
 {
 	return TextIdentifier(getBaseTextID(), "name").get();
+}
+
+std::string AObjectTypeHandler::getPopupDescriptionTextID() const
+{
+	return TextIdentifier(getBaseTextID(), "popupDescription").get();
+}
+
+bool AObjectTypeHandler::hasPopupDescription() const
+{
+	return popupDescription;
 }
 
 std::string AObjectTypeHandler::getNameTranslated() const

@@ -10,6 +10,8 @@
 #include "StdInc.h"
 #include "CPlayerInterface.h"
 #include <future>
+#include <atomic>
+#include <thread>
 #include "../lib/DmbIssueReport.h"
 
 #include <vcmi/Artifact.h>
@@ -891,10 +893,15 @@ void CPlayerInterface::activeStack(const BattleID & battleID, const CStack * sta
 	{
 		if (isAutoFightOn)
 		{
-			//FIXME: we want client rendering to proceed while AI is making actions
-			// so unlock mutex while AI is busy since this might take quite a while, especially if hero has many spells
-			auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
-			autofightingAI->activeStack(battleID, stack);
+			// DMB: the auto-combat AI runs on its own thread, as BattleInterface::requestAutofightingAIToTakeAction already does for the
+			// first action after the Auto button. Its retreat question (makeSurrenderRetreatDecision) can wait for the player, and a wait
+			// here, on the network thread, stalled every other player's packets on the host until the click (the Opus Reviewer).
+			std::thread aiThread([ai = autofightingAI, battleID, stack]()
+			{
+				setThreadName("autofightingAI");
+				ai->activeStack(battleID, stack);
+			});
+			aiThread.detach();
 			return;
 		}
 		unregisterBattleInterface(autofightingAI);
@@ -2106,21 +2113,34 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 		enemyHeroName = "#ENEMY#";
 	const std::string surrenderMessage = canPay ? boost::str(boost::format(LIBRARY->generaltexth->allTexts[32]) % enemyHeroName % cost) : std::string();
 
-	auto answer = std::make_shared<std::promise<int>>(); // 0 fight on, 1 retreat, 2 surrender
-	auto future = answer->get_future();
-	ENGINE->dispatchMainThread([this, answer, canPay, surrenderMessage]()
+	// 0 fight on, 1 retreat, 2 surrender. Only the dialog's callbacks own the answer: if the window goes away without calling back,
+	// the last owner's destructor answers 0, so this thread never waits on a window that no longer exists.
+	struct Answer
+	{
+		std::promise<int> promise;
+		std::atomic<bool> given{false};
+		void give(int value)
+		{
+			if(!given.exchange(true))
+				promise.set_value(value);
+		}
+		~Answer() { give(0); }
+	};
+	auto answer = std::make_shared<Answer>();
+	auto future = answer->promise.get_future();
+	ENGINE->dispatchMainThread([this, answer = std::move(answer), canPay, surrenderMessage]()
 	{
 		showYesNoDialog(LIBRARY->generaltexth->allTexts[28], // "Are you sure you want to retreat?"
 			[this, answer, canPay, surrenderMessage]()
 			{
 				if(!canPay)
 				{
-					answer->set_value(1);
+					answer->give(1);
 					return;
 				}
-				showYesNoDialog(surrenderMessage, [answer]() { answer->set_value(2); }, [answer]() { answer->set_value(1); });
+				showYesNoDialog(surrenderMessage, [answer]() { answer->give(2); }, [answer]() { answer->give(1); });
 			},
-			[answer]() { answer->set_value(0); });
+			[answer]() { answer->give(0); });
 	});
 	while(future.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready)
 	{

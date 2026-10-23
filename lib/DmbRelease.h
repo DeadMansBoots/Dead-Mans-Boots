@@ -18,7 +18,7 @@
 #define DMB_BUILD_ID "dev"
 #endif
 // The update check compares DMB_VERSION_STRING and DMB_RELEASE_LABEL_TEXT (launcher/updatedialog_moc.cpp), so the label stays beta.15; what a player reads is this text.
-// The October 19th candidate on top of beta 15 (K, "latest version of dmb tonight"): beta 15.1 candidate, with the build id, so two builds can be told apart.
+// The candidate on top of beta 15 (K, October 19th and 22nd, "latest version of dmb tonight"): the beta 16 candidate, with the build id, so two builds can be told apart.
 #ifndef DMB_RELEASE_TEXT
-#define DMB_RELEASE_TEXT "Straker Beta (" DMB_VERSION_STRING "-beta.15.1 candidate, build " DMB_BUILD_ID ")"
+#define DMB_RELEASE_TEXT "Straker Beta (" DMB_VERSION_STRING "-beta.16 candidate, build " DMB_BUILD_ID ")"
 #endif

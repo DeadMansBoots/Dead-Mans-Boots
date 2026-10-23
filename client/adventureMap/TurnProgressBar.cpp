@@ -399,31 +399,37 @@ void TurnProgressBar::show(Canvas & to)
 	// the liquid is bright while the player acts and dimmed while the player waits or has ended the turn
 	const double dim = acting ? 1.0 : 0.55;
 	{
-		// at 100 the liquid is whole: no edge and no glass showing at the end (the eased fill used to stop short of the end; K, October 23rd 13:2x: "it
+		// at 100 the liquid is whole: no ripple and no glass showing at the end (the eased fill used to stop short of the end; K, October 23rd 13:2x: "it
 		// shouldn't be visible at all (that is to say, no see-through gaps) when the bar is at 100%")
 		const bool full = percent >= 100 && shown >= 99.0;
 		const int width = full ? inner.w : std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
 		{
-			// the liquid: lighter at the top, darker at the bottom; its leading edge slants from the top down to the right, a ripple running down it (K: "the
-			// wavy part goes horizontally from the top down and to the right"). Every row reaches up to the rail, so the top rail shows no nick
-			const int slant = full ? 0 : std::min(width, std::max(4, inner.h / 2));
+			// the liquid: lighter at the top, darker at the bottom; it ends in a few columns whose surface bobs, beta 15's ripple (K, 14:5x: "i like the
+			// bubbly/rippling/flowing better than the squiggly white line"), with his 13:2x upgrade: "the wavy part goes horizontally from the top down and to
+			// the right": the surfaces step down to the right and the crest travels right. Above a dipped column the liquid's shadowed top shows, not the
+			// glass, so the top rail shows no nick (4906a5ea4)
+			const int ripple = full ? 0 : std::min(width, 7);
+			const int body = width - ripple;
 			const ColorRGBA highlight = shade(base, 1.75 * dim, 255);
+			std::array<int, 7> surface{};
+			for(int i = 0; i < ripple; ++i)
+			{
+				const double lift = 1.4 * std::sin(t * 4.0 - i * 1.1) * (1.0 + i * 0.2);
+				surface[i] = std::clamp(static_cast<int>(std::lround((i + 1) * 0.6 + lift)), 0, std::max(0, inner.h - 3));
+			}
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
 				const ColorRGBA tone = shade(base, (1.30 - 0.85 * depth) * dim, 255);
-				int reach = width;
-				if(!full)
-				{
-					const double wave = 1.3 * std::sin(t * 4.0 - row * 0.8);
-					reach = width - slant / 2 + static_cast<int>(std::lround(slant * depth + wave));
-				}
-				reach = std::clamp(reach, 0, inner.w);
-				to.drawColor(Rect(inner.x, inner.y + row, reach, 1), tone);
-				if(row == 1 && reach > 2)
-					to.drawColor(Rect(inner.x, inner.y + 1, reach - 2, 1), highlight); // the soft highlight under the surface
+				const ColorRGBA shadow = shade(base, (0.62 - 0.25 * depth) * dim, 255);
+				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
+				for(int i = 0; i < ripple; ++i)
+					to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), row >= surface[i] ? tone : shadow);
 			}
+			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), highlight); // the soft highlight under the surface
+			for(int i = 0; i < ripple; ++i)
+				to.drawColor(Rect(inner.x + body + i, inner.y + surface[i], 1, 1), highlight); // the bobbing surface catches the light
 		}
 	}
 

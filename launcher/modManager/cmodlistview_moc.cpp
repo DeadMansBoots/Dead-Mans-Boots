@@ -24,6 +24,7 @@
 #include "modstatecontroller.h"
 #include "cdownloadmanager_moc.h"
 #include "chroniclesextractor.h"
+#include "dmbpackage.h"
 #include "../settingsView/csettingsview_moc.h"
 #include "../vcmiqt/launcherdirs.h"
 #include "../vcmiqt/jsonutils.h"
@@ -41,6 +42,11 @@
 #include "../../lib/texts/Languages.h"
 
 #include "../vcmiqt/convpathqstring.h"
+
+#ifdef VCMI_WINDOWS
+#include <windows.h>
+#include <tlhelp32.h>
+#endif
 #include "../vcmiqt/launcherdirs.h"
 
 #include <future>
@@ -1000,6 +1006,83 @@ void CModListView::hideProgressBar()
 		ui->progressBar->setMaximum(0);
 		ui->progressBar->setValue(0);
 	}
+}
+
+namespace
+{
+/// the game or its server is running from this install: a mod must not change under it
+bool gameRunning()
+{
+#ifdef VCMI_WINDOWS
+	const QString client = QFileInfo(pathToQString(VCMIDirs::get().clientPath())).fileName();
+	const QString server = QFileInfo(pathToQString(VCMIDirs::get().serverPath())).fileName();
+	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if(snapshot == INVALID_HANDLE_VALUE)
+		return false;
+	PROCESSENTRY32W entry;
+	entry.dwSize = sizeof(entry);
+	bool found = false;
+	for(bool more = Process32FirstW(snapshot, &entry); more && !found; more = Process32NextW(snapshot, &entry))
+	{
+		const QString name = QString::fromWCharArray(entry.szExeFile);
+		found = name.compare(client, Qt::CaseInsensitive) == 0 || name.compare(server, Qt::CaseInsensitive) == 0;
+	}
+	CloseHandle(snapshot);
+	return found;
+#else
+	return false;
+#endif
+}
+}
+
+void CModListView::installDmbPackage(const QString & path)
+{
+	const QString version = QString(DMB_VERSION_STRING);
+	const DmbPackage::Inspection inspection = DmbPackage::inspect(path, version);
+	if(!inspection.ok)
+	{
+		QMessageBox::warning(this, tr("This package cannot be installed"), inspection.reason);
+		return;
+	}
+	const auto & manifest = inspection.manifest;
+	QString installedNote;
+	if(modStateModel->isModExists(manifest.id) && modStateModel->getMod(manifest.id).isInstalled())
+	{
+		const QString installed = modStateModel->getMod(manifest.id).getVersion();
+		installedNote = "\n" + tr("Installed now: version %1. It will be replaced.").arg(installed);
+		if(CModVersion::fromString(manifest.version.toStdString()) < CModVersion::fromString(installed.toStdString()))
+			installedNote += " " + tr("This package is an older version.");
+	}
+	const QString text = tr("%1, version %2 (mod id %3)").arg(manifest.name, manifest.version, manifest.id) + "\n"
+		+ tr("%1 files, %2 MB").arg(manifest.files.size()).arg(QString::number(inspection.totalSize / 1048576.0, 'f', 1)) + "\n"
+		+ (manifest.signature ? tr("Signature: not verified") : tr("Not signed")) + installedNote + "\n\n" + tr("Install it?");
+	if(QMessageBox::question(this, tr("Install a Dead Man's Boots package"), text, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+		return;
+	if(gameRunning())
+	{
+		QMessageBox::warning(this, tr("This package cannot be installed"), tr("Close Dead Man's Boots first: the game reads its mods while it runs."));
+		return;
+	}
+	const bool wasInstalled = modStateModel->isModExists(manifest.id) && modStateModel->getMod(manifest.id).isInstalled();
+	QString reason;
+	if(!DmbPackage::install(path, CLauncherDirs::modsPath(), version, reason))
+	{
+		QMessageBox::warning(this, tr("The package was not installed"), reason);
+		return;
+	}
+	reload(manifest.id);
+	if(!wasInstalled && modStateModel->isModExists(manifest.id))
+	{
+		try
+		{
+			manager->enableMods({manifest.id});
+		}
+		catch(const std::exception & e)
+		{
+			QMessageBox::warning(this, tr("Failed to enable mod"), QString::fromUtf8(e.what()));
+		}
+	}
+	QMessageBox::information(this, tr("Installed"), tr("%1 %2 is installed.").arg(manifest.name, manifest.version));
 }
 
 void CModListView::installFiles(QStringList files)

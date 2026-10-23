@@ -16,6 +16,7 @@ set(launcher_SRCS
 		modManager/imageviewer_moc.cpp
 		modManager/chroniclesextractor.cpp
 		modManager/hdextractor.cpp
+		modManager/dmbpackage.cpp
 		settingsView/csettingsview_moc.cpp
 		settingsView/legacypictures.cpp
 		launchertooltips.cpp
@@ -61,6 +62,7 @@ set(launcher_HEADERS
 		modManager/imageviewer_moc.h
 		modManager/chroniclesextractor.h
 		modManager/hdextractor.h
+		modManager/dmbpackage.h
 		settingsView/configeditordialog_moc.h
 		settingsView/csettingsview_moc.h
 		settingsView/legacypictures.h

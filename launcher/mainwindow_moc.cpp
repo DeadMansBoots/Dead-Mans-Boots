@@ -310,7 +310,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 {
 	if(event->mimeData()->hasUrls())
 		for(const auto & url : event->mimeData()->urls())
-			for(const auto & ending : QStringList({".zip", ".h3m", ".h3c", ".vmap", ".vcmp", ".json", ".exe"}))
+			for(const auto & ending : QStringList({".zip", ".dmb", ".h3m", ".h3c", ".vmap", ".vcmp", ".json", ".exe"}))
 				if(url.fileName().endsWith(ending, Qt::CaseInsensitive))
 				{
 					event->acceptProposedAction();
@@ -338,7 +338,13 @@ void MainWindow::manualInstallFile(QString filePath)
 		switchToModsTab();
 
 	QString fileName = QFileInfo{filePath}.fileName();
-	if(realFilePath.endsWith(".zip", Qt::CaseInsensitive))
+	if(realFilePath.endsWith(".dmb", Qt::CaseInsensitive))
+	{
+		// a Dead Man's Boots package: shown and asked about before anything is written (modManager/dmbpackage.h)
+		switchToModsTab();
+		getModView()->installDmbPackage(realFilePath);
+	}
+	else if(realFilePath.endsWith(".zip", Qt::CaseInsensitive))
 	{
 		QString filenameClean = fileName.toLower()
 			// mod name currently comes from zip file -> remove suffixes from github zip download

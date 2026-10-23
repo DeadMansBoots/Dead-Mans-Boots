@@ -133,6 +133,8 @@ public:
 	void downloadMod(const ModState & mod);
 	void downloadFile(QString file, QUrl url, QString description, qint64 sizeBytes = 0);
 	void installFiles(QStringList mods);
+	/// a .dmb package (modManager/dmbpackage.h): its contents are shown and the player is asked before anything is written
+	void installDmbPackage(const QString & path);
 
 public slots:
 	void enableModByName(QString modName);

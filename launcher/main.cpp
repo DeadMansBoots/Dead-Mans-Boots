@@ -14,6 +14,7 @@
 #include "bugreport.h"
 #include "helper.h"
 #include "theme.h"
+#include "modManager/dmbpackage.h"
 
 #include "../lib/VCMIDirs.h"
 #include "../lib/CConfigHandler.h"
@@ -26,6 +27,7 @@
 #include <memory>
 #include <thread>
 #include <QFile>
+#include <QTimer>
 #include <QNetworkProxy>
 #include <QNetworkProxyFactory>
 
@@ -181,9 +183,40 @@ int MAIN_EXPORT main(int argc, char * argv[])
 		BugReport::run(nullptr, "after a crash");
 		return 0;
 	}
+	// DMB: "--check-package <file> <verdict file> [--into <mods folder>]" checks a .dmb with no window (and installs it into the folder given), and writes
+	// "ok" or "refused" and the reason: the Reviewer's crafted-package tests run against this, never against a player's folders
+	const int checkAt = vcmilauncher.arguments().indexOf("--check-package");
+	if(checkAt >= 0 && checkAt + 2 < vcmilauncher.arguments().size())
+	{
+		const QStringList args = vcmilauncher.arguments();
+		const int intoAt = args.indexOf("--into");
+		QString verdict;
+		if(intoAt >= 0 && intoAt + 1 < args.size())
+		{
+			QString reason;
+			verdict = DmbPackage::install(args.at(checkAt + 1), args.at(intoAt + 1), QString(DMB_VERSION_STRING), reason) ? QString("ok installed") : "refused " + reason;
+		}
+		else
+		{
+			const auto inspection = DmbPackage::inspect(args.at(checkAt + 1), QString(DMB_VERSION_STRING));
+			verdict = inspection.ok ? "ok " + inspection.manifest.id + " " + inspection.manifest.version : "refused " + inspection.reason;
+		}
+		QFile out(args.at(checkAt + 2));
+		if(out.open(QIODevice::WriteOnly))
+			out.write(verdict.toUtf8());
+		return 0;
+	}
 
 	MainWindow mainWindow;
 	mainWindow.show();
+	// DMB: "--install-package <file>" (a double-click on a .dmb): the launcher opens on the Mods page and shows the package; the file is taken as a
+	// path only, never as further options
+	const int installAt = vcmilauncher.arguments().indexOf("--install-package");
+	if(installAt >= 0 && installAt + 1 < vcmilauncher.arguments().size())
+	{
+		const QString package = vcmilauncher.arguments().at(installAt + 1);
+		QTimer::singleShot(0, &mainWindow, [&mainWindow, package]() { mainWindow.manualInstallFile(package); });
+	}
 
 #ifdef VCMI_ANDROID
 	// changing language causes window to increase size over the bounds, force it back to proper value

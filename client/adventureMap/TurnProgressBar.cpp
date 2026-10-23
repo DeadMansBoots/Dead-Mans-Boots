@@ -436,23 +436,25 @@ void TurnProgressBar::show(Canvas & to)
 		const int width = std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
 		{
-			// the liquid: lighter at the top, darker at the bottom; its leading edge is a few columns whose surface ripples
+			// the liquid: lighter at the top, darker at the bottom, filled up to the rail across its whole width; at its leading edge only the highlight under
+			// the surface ripples (the columns there used to start one to three rows down, and the dark glass above them read as a nick in the top rail: the
+			// lead's look at the corner pictures, October 23rd)
 			const int ripple = std::min(width, 5);
 			const int body = width - ripple;
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
 				const ColorRGBA tone = shade(base, (1.30 - 0.85 * depth) * dim, 255);
-				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
-				for(int i = 0; i < ripple; ++i)
-				{
-					const double lift = 1.4 * std::sin(t * 4.0 + i * 1.1) * (1.0 + i * 0.25);
-					const int top = std::clamp(static_cast<int>(std::lround((ripple - 1 - i) * 0.0 + (i + 1) * 0.5 + lift)), 0, inner.h - 3);
-					if(row >= top)
-						to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), tone);
-				}
+				to.drawColor(Rect(inner.x, inner.y + row, width, 1), tone);
 			}
-			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), shade(base, 1.75 * dim, 255)); // the soft highlight under the surface
+			const ColorRGBA highlight = shade(base, 1.75 * dim, 255);
+			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), highlight); // the soft highlight under the surface
+			for(int i = 0; i < ripple; ++i)
+			{
+				const double lift = 1.4 * std::sin(t * 4.0 + i * 1.1) * (1.0 + i * 0.25);
+				const int dip = std::clamp(static_cast<int>(std::lround(std::abs(lift) * 0.6)), 0, std::max(0, inner.h - 3));
+				to.drawColor(Rect(inner.x + body + i, inner.y + 1 + dip, 1, 1), highlight);
+			}
 		}
 	}
 

@@ -30,8 +30,6 @@ namespace NK2AI
 		int pathfinderBucketsCount;
 		int pathfinderBucketSize;
 		float maxGoldPressure;
-		float retreatThresholdRelative;
-		float retreatThresholdAbsolute;
 		float safeAttackRatio;
 		float maxArmyLossTarget;
 		bool allowObjectGraph;
@@ -47,8 +45,6 @@ namespace NK2AI
 		int getMaxPass() const { return maxPass; }
 		int getMaxPriorityPass() const { return maxPriorityPass; }
 		float getMaxGoldPressure() const { return maxGoldPressure; }
-		float getRetreatThresholdRelative() const { return retreatThresholdRelative; }
-		float getRetreatThresholdAbsolute() const { return retreatThresholdAbsolute; }
 		float getSafeAttackRatio() const { return safeAttackRatio; }
 		float getMaxArmyLossTarget() const { return maxArmyLossTarget; }
 		int getMaxRoamingHeroes() const { return maxRoamingHeroes; }

@@ -27,7 +27,9 @@
 #include "../../lib/battle/BattleAction.h"
 #include "../../lib/battle/BattleStateInfoForRetreat.h"
 #include "../../lib/battle/CObstacleInstance.h"
+#include "../../lib/mapObjects/army/CCommanderInstance.h"
 #include "../../lib/StartInfo.h"
+#include "../../lib/CConfigHandler.h"
 #include "../../lib/CStack.h" // TODO: remove
                               // Eventually only IBattleInfoCallback and battle::Unit should be used,
                               // CUnitState should be private and CStack should be removed completely
@@ -286,6 +288,67 @@ void CBattleAI::print(const std::string &text) const
 	logAi->trace("%s Battle AI[%p]: %s", playerID.toString(), this, text);
 }
 
+// DMB: the basegame's retreat trigger, "if the AI thinks the player is going to lose after the current move" (Heroes 3 wiki, Retreat
+// and Combat pages). Each enemy stack that can shoot, or reach a hex beside one of ours within its movement range, deals its estimated
+// average damage once, to the stack of ours it hurts most (capped at that stack's remaining health); true when nothing of ours is
+// left. Before this no battle AI set the field, so every AI that reads it (OmniAI) never retreated. Only the units that
+// battleIsFinished counts are counted, on both sides: a turret, a war machine (SIEGE_WEAPON), a clone, a summoned unit or a
+// commander neither keeps a side in the battle nor is counted as an attacker here.
+static bool countsForResult(const battle::Unit * unit)
+{
+	return unit->alive() && !unit->isTurret() && !unit->hasBonusOfType(BonusType::SIEGE_WEAPON) && !unit->isClone()
+		&& !unit->acquireState()->summoned && !dynamic_cast<const CCommanderInstance *>(unit);
+}
+
+static bool lastTurnBeforeDie(const CPlayerBattleCallback & battle, const battle::Units & ours, const battle::Units & theirs)
+{
+	std::map<uint32_t, int64_t> left;
+	int64_t total = 0;
+	for(const auto * unit : ours)
+	{
+		if(!countsForResult(unit))
+			continue;
+		left[unit->unitId()] = unit->getAvailableHealth();
+		total += unit->getAvailableHealth();
+	}
+	if(total <= 0)
+		return false;
+	for(const auto * enemy : theirs)
+	{
+		if(!countsForResult(enemy))
+			continue;
+		const bool shooter = battle.battleCanShoot(enemy);
+		ReachabilityInfo reach;
+		if(!shooter)
+			reach = battle.getReachability(enemy);
+		const battle::Unit * target = nullptr;
+		int64_t targetDamage = 0;
+		for(const auto * unit : ours)
+		{
+			if(!left.count(unit->unitId()))
+				continue;
+			const int64_t health = left[unit->unitId()];
+			if(health <= 0)
+				continue;
+			if(!shooter && reach.distToNearestNeighbour(unit->getHexes()) > enemy->getMovementRange())
+				continue;
+			const DamageEstimation estimate = battle.battleEstimateDamage(enemy, unit, 0);
+			const int64_t damage = std::min<int64_t>(health, (estimate.damage.min + estimate.damage.max) / 2);
+			if(damage > targetDamage)
+			{
+				targetDamage = damage;
+				target = unit;
+			}
+		}
+		if(target)
+		{
+			left[target->unitId()] -= targetDamage;
+			total -= targetDamage;
+		}
+	}
+	return total <= 0;
+}
+
 std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const BattleID & battleID)
 {
 	BattleStateInfoForRetreat bs;
@@ -317,10 +380,27 @@ std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const Battl
 		return std::nullopt;
 	}
 
-	auto result = cb->makeSurrenderRetreatDecision(battleID, bs);
+	// ai.battleLastTurnEstimate (default true): the OmniAI benchmark lanes keep it false, so that an OmniAI build that retreats on
+	// this field does not start doing so in the middle of a measurement (the Opus Reviewer, 2026-10-23).
+	if(settings["ai"]["battleLastTurnEstimate"].Bool())
+		bs.isLastTurnBeforeDie = lastTurnBeforeDie(*cb->getBattle(battleID), bs.ourStacks, bs.enemyStacks);
+	if(bs.isLastTurnBeforeDie)
+		logAi->info("Battle AI: round %d, side %d expects to lose after the current move (our strength %d, enemy %d)",
+			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());
 
-	if(!result && bs.canFlee && bs.turnsSkippedByDefense > 30)
+	auto result = cb->makeSurrenderRetreatDecision(battleID, bs);
+	if(result)
+		logAi->info("Battle AI: round %d, side %d retreats or surrenders (our strength %d, enemy %d)",
+			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());
+
+	// DMB: the 30-defend-turn retreat is VCMI's guard against a battle that never ends; the basegame has no such rule and no round
+	// limit (a battle ends by destruction, retreat or surrender). A human player's side, in auto or quick combat, never retreats by
+	// it: that is the player's decision. AI sides keep the guard.
+	const bool humanSide = env->game()->getStartInfo()->getIthPlayersSettings(playerID).isControlledByHuman();
+	if(!result && !humanSide && bs.canFlee && bs.turnsSkippedByDefense > 30)
 	{
+		logAi->info("Battle AI: round %d, side %d retreats after %d defend turns per stack", cb->getBattle(battleID)->battleGetRound(),
+			static_cast<int>(bs.ourSide), bs.turnsSkippedByDefense);
 		return BattleAction::makeRetreat(bs.ourSide);
 	}
 

@@ -29,8 +29,6 @@
 	// - P:Step3 AINodeStorage::calculateTeleportations Failed to allocate node at %s[%d]
 	// - P:Step4 HeroChainCalculationTask::addHeroChain Failed to allocate node at %s[%d]
 	// - P:Step5 TownPortalFinder createTownPortalNode Failed to allocate node at %s[%d]
-	// retreatThresholdRelative: how close to death (% of army) to be before AI considers retreating
-	// retreatThresholdAbsolute: how close to death (strength of army) to be before AI considers retreating
 	// safeAttackRatio: extra ratio added on top of hero's strength to determine if it's stronger than the enemy (danger)
 	// - general formula: heroStrength > dangerStrength * safeAttackRatio
 	// maxArmyLossTarget: how much (% of army) the AI is willing to lose before it considers getting into a battle
@@ -56,8 +54,6 @@
 		"allowObjectGraph": false,
 		"pathfinderBucketsCount" : 1,
 		"pathfinderBucketSize" : 8,
-		"retreatThresholdRelative" : 0.1,
-		"retreatThresholdAbsolute" : 2000,
 		"safeAttackRatio" : 1.1,
 		"maxArmyLossTarget" : 0.65,
 		"useFuzzy" : false
@@ -79,8 +75,6 @@
 		"allowObjectGraph": false,
 		"pathfinderBucketsCount" : 1,
 		"pathfinderBucketSize" : 16,
-		"retreatThresholdRelative" : 0.1,
-		"retreatThresholdAbsolute" : 5000,
 		"safeAttackRatio" : 1.1,
 		"maxArmyLossTarget" : 0.50,
 		"useFuzzy" : false
@@ -102,8 +96,6 @@
 		"allowObjectGraph": false,
 		"pathfinderBucketsCount" : 1,
 		"pathfinderBucketSize" : 32,
-		"retreatThresholdRelative" : 0.3,
-		"retreatThresholdAbsolute" : 10000,
 		"safeAttackRatio" : 1.1,
 		"maxArmyLossTarget" : 0.35,
 		"useFuzzy" : false
@@ -125,8 +117,6 @@
 		"allowObjectGraph": false,
 		"pathfinderBucketsCount" : 1,
 		"pathfinderBucketSize" : 32,
-		"retreatThresholdRelative" : 0.3,
-		"retreatThresholdAbsolute" : 10000,
 		"safeAttackRatio" : 1.1,
 		"maxArmyLossTarget" : 0.35,
 		"useFuzzy" : false
@@ -148,8 +138,6 @@
 		"allowObjectGraph": false,
 		"pathfinderBucketsCount" : 1,
 		"pathfinderBucketSize" : 32,
-		"retreatThresholdRelative" : 0.3,
-		"retreatThresholdAbsolute" : 10000,
 		"safeAttackRatio" : 1.1,
 		"maxArmyLossTarget" : 0.35,
 		"useFuzzy" : false

@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CPlayerInterface.h"
+#include <atomic>
 #include "../lib/DmbIssueReport.h"
 
 #include <vcmi/Artifact.h>
@@ -87,6 +88,8 @@
 #include "../lib/VCMIDirs.h"
 
 #include "../lib/battle/CPlayerBattleCallback.h"
+#include "../lib/battle/BattleStateInfoForRetreat.h"
+#include "../lib/gameState/InfoAboutArmy.h"
 
 #include "../lib/bonuses/Limiters.h"
 #include "../lib/bonuses/Propagators.h"
@@ -917,9 +920,36 @@ void CPlayerInterface::activeStack(const BattleID & battleID, const CStack * sta
 	battleInt->stackActivated(stack);
 }
 
+// DMB: the auto-combat retreat question's window, built as showYesNoDialog builds a dialog (movement abort, the dialog marked busy,
+// OK and Cancel) but kept by a weak handle so that battleEnd can close it. Main thread only (dispatchMainThread from
+// makeSurrenderRetreatDecision, or a button callback).
+void CPlayerInterface::showRetreatQuestion(const BattleID & battleID, const std::string & text, CFunctionList<void()> onYes, CFunctionList<void()> onNo)
+{
+	movementController->requestMovementAbort();
+	showingDialog->setBusy();
+	std::vector<std::pair<AnimationPath, CFunctionList<void()>>> buttons;
+	buttons.emplace_back(AnimationPath::builtin("IOKAY.DEF"), nullptr);
+	buttons.emplace_back(AnimationPath::builtin("ICANCEL.DEF"), nullptr);
+	auto window = std::make_shared<CInfoWindow>(text, playerID, CInfoWindow::TCompsInfo(), buttons);
+	window->buttons[0]->addCallback(onYes);
+	window->buttons[1]->addCallback(onNo);
+	retreatWindows[battleID] = window;
+	ENGINE->windows().pushWindow(window);
+}
+
 void CPlayerInterface::battleEnd(const BattleID & battleID, const BattleResult *br, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	// DMB: the auto-combat retreat question for this battle closes with it, if it is still on screen and on top (the Opus Reviewer);
+	// no button callback runs, so it counts as "fight on".
+	if(const auto asked = retreatWindows.find(battleID); asked != retreatWindows.end())
+	{
+		if(const auto window = asked->second.lock())
+			if(ENGINE->windows().isTopWindow(window))
+				window->close();
+		retreatWindows.erase(asked);
+	}
+	retreatAnswers.erase(battleID);
 	if(isAutoFightOn || autofightingAI)
 	{
 		isAutoFightOn = false;
@@ -2125,6 +2155,81 @@ void CPlayerInterface::setColorScheme(ColorScheme scheme)
 
 std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const BattleID & battleID, const BattleStateInfoForRetreat & battleState)
 {
+	// DMB: the basegame's prompt (Heroes 3 wiki, Retreat and Combat pages): "During a combat (including Quick combat), if the AI thinks
+	// the player is going to lose after the current move, the player might get a prompt if the player wants to retreat", then, if the
+	// hero has the gold, a prompt to surrender instead. The auto-combat AI calls this on the network thread, as stock runs it; nothing
+	// here waits. The question goes up on the main thread, the AI plays its own action for this stack, and the answer is acted on at
+	// this side's next stack turn. A window that closes unanswered counts as "fight on". One question per battle; none headless.
+	if(settings["session"]["headless"].Bool() || !ENGINE)
+		return std::nullopt;
+	auto battle = cb->getBattle(battleID);
+	if(!battle)
+		return std::nullopt;
+
+	const auto asked = retreatAnswers.find(battleID);
+	if(asked != retreatAnswers.end())
+	{
+		const int choice = asked->second->load();
+		if(choice < 0)
+			return std::nullopt; // still on screen: the AI goes on fighting meanwhile
+		asked->second->store(0); // act on an answer once
+		if(choice == 2 && battleState.canSurrender)
+		{
+			const int cost = battle->battleGetSurrenderCost();
+			if(cost >= 0 && cb->getResourceAmount(EGameResID::GOLD) >= cost)
+			{
+				logGlobal->info("Auto combat: the player chose to surrender");
+				return BattleAction::makeSurrender(battleState.ourSide);
+			}
+		}
+		if((choice == 1 || choice == 2) && battleState.canFlee)
+		{
+			logGlobal->info("Auto combat: the player chose to retreat");
+			return BattleAction::makeRetreat(battleState.ourSide);
+		}
+		return std::nullopt;
+	}
+
+	if(!battleState.canFlee || !battleState.isLastTurnBeforeDie)
+		return std::nullopt;
+
+	const int cost = battleState.canSurrender ? battle->battleGetSurrenderCost() : -1;
+	const bool canPay = cost >= 0 && cb->getResourceAmount(EGameResID::GOLD) >= cost;
+	std::string enemyHeroName = canPay ? battle->battleGetEnemyHero().name : std::string();
+	if(enemyHeroName.empty())
+		enemyHeroName = "#ENEMY#";
+	const std::string surrenderMessage = canPay ? boost::str(boost::format(LIBRARY->generaltexth->allTexts[32]) % enemyHeroName % cost) : std::string();
+
+	auto answer = std::make_shared<std::atomic<int>>(-1);
+	retreatAnswers[battleID] = answer;
+	// Only the dialog's callbacks hold the setter; if the window goes away without calling back, its destructor answers 0.
+	struct Setter
+	{
+		std::shared_ptr<std::atomic<int>> target;
+		void give(int value) const
+		{
+			int pending = -1;
+			target->compare_exchange_strong(pending, value);
+		}
+		~Setter() { give(0); }
+	};
+	auto setter = std::make_shared<Setter>();
+	setter->target = answer;
+	logGlobal->info("Auto combat: the player's side expects to lose after the current move; asking about a retreat");
+	ENGINE->dispatchMainThread([this, battleID, setter = std::move(setter), canPay, surrenderMessage]()
+	{
+		showRetreatQuestion(battleID, LIBRARY->generaltexth->allTexts[28], // "Are you sure you want to retreat?"
+			[this, battleID, setter, canPay, surrenderMessage]()
+			{
+				if(!canPay)
+				{
+					setter->give(1);
+					return;
+				}
+				showRetreatQuestion(battleID, surrenderMessage, [setter]() { setter->give(2); }, [setter]() { setter->give(1); });
+			},
+			[setter]() { setter->give(0); });
+	});
 	return std::nullopt;
 }
 

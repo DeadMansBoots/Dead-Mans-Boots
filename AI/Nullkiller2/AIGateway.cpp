@@ -31,7 +31,9 @@
 #include "../../lib/networkPacks/StackLocation.h"
 #include "../../lib/battle/BattleStateInfoForRetreat.h"
 #include "../../lib/battle/BattleInfo.h"
+#include "../../lib/battle/Unit.h"
 #include "../../lib/CPlayerState.h"
+#include "../../lib/mapping/CMapHeader.h"
 
 #include "AIGateway.h"
 #include "Goals/Goals.h"
@@ -495,16 +497,83 @@ std::optional<BattleAction> AIGateway::makeSurrenderRetreatDecision(const Battle
 		return std::nullopt;
 	}
 
-	double ourStrength = battleState.getOurStrength();
-	double fightRatio = ourStrength / (double)battleState.getEnemyStrength();
+	// DMB: the basegame rule (Heroes 3 wiki, Retreat and Combat pages, read 2026-10-23). The AI retreats "if the AI thinks the player
+	// is going to lose after the current move" (isLastTurnBeforeDie, filled by BattleAI), and never surrenders. It never retreats on
+	// easy, and on normal considers it in half the battles; never with the hero a "defeat hero X" victory condition names; never
+	// without a town with a tavern, or when the besieged town is its last one with a tavern. The old test (army strength under
+	// retreatThresholdAbsolute and under retreatThresholdRelative of the enemy's) let a small army leave on round 1 before any blow.
+	if(!battleState.canFlee)
+		return std::nullopt;
 
-	// if we have no towns - things are already bad, so retreat is not an option.
-	if(cc->getTownsInfo().size() && ourStrength < nullkiller->settings->getRetreatThresholdAbsolute() && fightRatio < nullkiller->settings->getRetreatThresholdRelative() && battleState.canFlee)
+	// The basegame's failed siege: the AI always retreats when it attacks a town with a Fort, the drawbridge is up, no wall
+	// section is destroyed, it has no flyer, shooter or catapult, and every defender is inside the walls.
+	bool failedSiege = false;
+	if(const auto battle = cc->getBattle(battleID))
 	{
-		return BattleAction::makeRetreat(battleState.ourSide);
+		const CGTownInstance * town = battle->battleGetDefendedTown();
+		if(town && battleState.ourSide == BattleSide::ATTACKER && town->fortLevel() != CGTownInstance::NONE
+			&& battle->battleGetGateState() == EGateState::CLOSED)
+		{
+			failedSiege = true;
+			for(EWallPart part : {EWallPart::BOTTOM_WALL, EWallPart::BELOW_GATE, EWallPart::OVER_GATE, EWallPart::UPPER_WALL})
+				if(battle->battleGetWallState(part) == EWallState::DESTROYED)
+					failedSiege = false;
+			for(const auto * unit : battleState.ourStacks)
+				if(unit->hasBonusOfType(BonusType::FLYING) || battle->battleCanShoot(unit) || unit->creatureId() == CreatureID::CATAPULT)
+					failedSiege = false;
+			for(const auto * unit : battleState.enemyStacks)
+				if(!battle->battleIsInsideWalls(unit->getPosition()))
+					failedSiege = false;
+		}
+	}
+	if(failedSiege)
+		logAi->info("NK2: the siege of %s cannot succeed (walls whole, no flyer, shooter or catapult)",
+			battleState.ourHero ? battleState.ourHero->getNameTranslated() : std::string("?"));
+	if(!battleState.isLastTurnBeforeDie && !failedSiege)
+		return std::nullopt;
+
+	const int difficulty = cc->getStartInfo()->difficulty;
+	if(difficulty <= 0)
+		return std::nullopt;
+	if(difficulty == 1)
+	{
+		// half the battles, fixed per battle and hero so that a replay of the same game decides the same
+		const uint32_t heroId = battleState.ourHero ? static_cast<uint32_t>(battleState.ourHero->id.getNum()) : 0;
+		uint32_t roll = static_cast<uint32_t>(battleID.getNum()) * 2654435761u ^ heroId * 40503u ^ static_cast<uint32_t>(cc->getDate(Date::DAY));
+		roll ^= roll >> 15;
+		roll *= 2246822519u;
+		roll ^= roll >> 13;
+		if(roll & 1)
+			return std::nullopt;
 	}
 
-	return std::nullopt;
+	if(battleState.ourHero)
+	{
+		bool namedTarget = false;
+		for(const TriggeredEvent & event : cc->getMapHeader()->triggeredEvents)
+		{
+			if(event.effect.type != EventEffect::VICTORY)
+				continue;
+			event.trigger.morph([&](const EventCondition & condition)
+			{
+				if(condition.condition == EventCondition::DESTROY && condition.objectID == battleState.ourHero->id)
+					namedTarget = true;
+				return EventExpression::Variant(condition);
+			});
+		}
+		if(namedTarget)
+			return std::nullopt;
+	}
+
+	const CGTownInstance * besieged = cc->getBattle(battleID) ? cc->getBattle(battleID)->battleGetDefendedTown() : nullptr;
+	bool tavernTown = false;
+	for(const CGTownInstance * town : cc->getTownsInfo())
+		if(town && town != besieged && town->hasBuilt(BuildingID::TAVERN))
+			tavernTown = true;
+	if(!tavernTown)
+		return std::nullopt;
+
+	return BattleAction::makeRetreat(battleState.ourSide);
 }
 
 

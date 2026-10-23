@@ -32,8 +32,8 @@ CursorHardware::CursorHardware():
 
 CursorHardware::~CursorHardware()
 {
-	if(cursor)
-		SDL_FreeCursor(cursor);
+	for(const auto & entry : cached)
+		SDL_FreeCursor(entry.cursor);
 }
 
 void CursorHardware::setVisible(bool on)
@@ -49,9 +49,47 @@ void CursorHardware::setVisible(bool on)
 
 void CursorHardware::setImage(std::shared_ptr<IImage> image, const Point & pivotOffset)
 {
-	int videoScalingSettings = ENGINE->screenHandler().getInterfaceScalingPercentage();
-	float cursorScalingSettings = settings["video"]["cursorScalingFactor"].Float();
-	int cursorScalingPercent = videoScalingSettings * cursorScalingSettings;
+	ENGINE->dispatchMainThread([this, image, pivotOffset, weak = std::weak_ptr<bool>(alive)]()
+	{
+		if(!weak.expired())
+			apply(image, pivotOffset);
+	});
+}
+
+void CursorHardware::apply(const std::shared_ptr<IImage> & image, const Point & pivotOffset)
+{
+	const int scalingPercent = static_cast<int>(ENGINE->screenHandler().getInterfaceScalingPercentage() * settings["video"]["cursorScalingFactor"].Float());
+	const int scalingFactor = ENGINE->screenHandler().getScalingFactor();
+	auto found = std::find_if(cached.begin(), cached.end(), [&](const CachedCursor & entry)
+	{
+		return entry.image == image && entry.pivot == pivotOffset && entry.scalingPercent == scalingPercent && entry.scalingFactor == scalingFactor;
+	});
+	if(found == cached.end())
+	{
+		SDL_Cursor * made = create(image, pivotOffset, scalingPercent);
+		if(!made)
+			return;
+		cached.push_back({image, pivotOffset, scalingPercent, scalingFactor, made});
+		logGlobal->debug("Hardware cursor: a new OS cursor, %d kept", static_cast<int>(cached.size()));
+	}
+	else
+		std::rotate(found, std::next(found), cached.end());
+	if(cached.back().cursor != cursor)
+	{
+		cursor = cached.back().cursor;
+		SDL_SetCursor(cursor);
+	}
+	// the pictures not shown for longest go when more are kept than the game has cursors (an artifact being dragged brings its own); the one shown is last
+	constexpr size_t keep = 64;
+	while(cached.size() > keep)
+	{
+		SDL_FreeCursor(cached.front().cursor);
+		cached.erase(cached.begin());
+	}
+}
+
+SDL_Cursor * CursorHardware::create(const std::shared_ptr<IImage> & image, const Point & pivotOffset, int cursorScalingPercent) const
+{
 	Point cursorDimensions = image->dimensions() * ENGINE->screenHandler().getScalingFactor();
 	Point cursorDimensionsScaled = image->dimensions() * cursorScalingPercent / 100;
 	Point pivotOffsetScaled = pivotOffset * cursorScalingPercent / 100 / ENGINE->screenHandler().getScalingFactor();
@@ -66,21 +104,14 @@ void CursorHardware::setImage(std::shared_ptr<IImage> image, const Point & pivot
 	scaler.scaleSurface(cursorDimensionsScaled, EScalingAlgorithm::BILINEAR);
 	SDL_Surface	* cursorSurfaceScaled = scaler.acquireResultSurface();
 
-	auto oldCursor = cursor;
-	cursor = SDL_CreateColorCursor(cursorSurfaceScaled, pivotOffsetScaled.x, pivotOffsetScaled.y);
+	SDL_Cursor * made = SDL_CreateColorCursor(cursorSurfaceScaled, pivotOffsetScaled.x, pivotOffsetScaled.y);
 
-	if (!cursor)
+	if (!made)
 		logGlobal->error("Failed to set cursor! SDL says %s", SDL_GetError());
 
 	SDL_FreeSurface(cursorSurface);
 	SDL_FreeSurface(cursorSurfaceScaled);
-
-	ENGINE->dispatchMainThread([this, oldCursor](){
-		SDL_SetCursor(cursor);
-
-		if (oldCursor)
-			SDL_FreeCursor(oldCursor);
-	});
+	return made;
 }
 
 void CursorHardware::setCursorPosition( const Point & newPos )

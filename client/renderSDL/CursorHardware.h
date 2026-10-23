@@ -23,6 +23,24 @@ class CursorHardware : public ICursor
 
 	SDL_Cursor * cursor;
 
+	/// DMB (K, October 22nd 17:5x: "my cursor is flickering nonstop"): each change of the cursor's picture made a new OS cursor and freed the old one, and
+	/// his recording shows the cursor gone for a frame at each change as the mouse crosses tiles. A picture's OS cursor is now made once and kept; a change
+	/// only switches to it (SDL_SetCursor), the same pictures and hotspots as before. Used on the main thread only.
+	struct CachedCursor
+	{
+		std::shared_ptr<IImage> image; ///< held, so its address cannot come back as another picture's
+		Point pivot;
+		int scalingPercent;
+		int scalingFactor;
+		SDL_Cursor * cursor;
+	};
+	std::vector<CachedCursor> cached; ///< the most recently shown last
+	/// pending main-thread work for this cursor checks it before it runs, since the object can go first (a switch to the software cursor)
+	std::shared_ptr<bool> alive = std::make_shared<bool>(true);
+
+	SDL_Cursor * create(const std::shared_ptr<IImage> & image, const Point & pivotOffset, int scalingPercent) const;
+	void apply(const std::shared_ptr<IImage> & image, const Point & pivotOffset);
+
 public:
 	CursorHardware();
 	~CursorHardware();

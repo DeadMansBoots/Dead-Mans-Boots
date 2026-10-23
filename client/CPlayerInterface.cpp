@@ -255,7 +255,10 @@ void CPlayerInterface::playerStartsTurn(PlayerColor player)
 
 		bool isHuman = cb->getStartInfo()->playerInfos.count(player) && cb->getStartInfo()->playerInfos.at(player).isControlledByHuman();
 
-		if (makingTurn == false)
+		// DMB: while this player's own turn dialog is open (the network game's dialog of 5db85dfaf) the screen stays in the turn-start wait with its black
+		// fill, as stock, whose network thread waits at that dialog with makingTurn already set and so never gets here (K, October 23rd 14:0x: "why are we
+		// diverting from base behavior again"; the Reviewer's REVIEW-turnstart-black-screen-1023.md)
+		if (makingTurn == false && !turnDialogOpen)
 			adventureInt->onEnemyTurnStarted(player, isHuman);
 	}
 }
@@ -361,8 +364,10 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 			std::vector<std::shared_ptr<CComponent>> cmp;
 			cmp.push_back(std::make_shared<CComponent>(ComponentType::FLAG, playerID));
 			auto dialog = CInfoWindow::create(msg, playerID, cmp);
+			turnDialogOpen = true;
 			dialog->onClose = [this, queryID]()
 			{
+				turnDialogOpen = false;
 				makingTurn = true;
 				adventureInt->onPlayerTurnStarted(playerID);
 				finishTurnStart(queryID);

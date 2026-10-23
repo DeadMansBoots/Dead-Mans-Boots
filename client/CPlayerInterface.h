@@ -92,6 +92,8 @@ public: // TODO: make private
 	ConditionalWait * showingDialog; //indicates if dialog box is displayed
 
 	bool makingTurn; //if player is already making his turn
+	/// DMB: this player's network turn dialog is open (yourTurn, 5db85dfaf); another player's turn start leaves the screen in its black turn-start wait meanwhile
+	bool turnDialogOpen = false;
 
 	CCastleInterface * castleInt; //nullptr if castle window isn't opened
 	static std::shared_ptr<BattleInterface> battleInt; //nullptr if no battle

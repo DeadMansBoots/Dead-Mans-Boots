@@ -1150,6 +1150,11 @@ std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
 	const auto infoFile = read("template-info.json");
 	if(!approvedFile || !infoFile || !(*approvedFile)["approved"].isStruct() || !(*infoFile)["templates"].isStruct())
 		return entries;
+	// the open layout's row is the entry the module names in open-template-name.json (OmniMapGen 0.3.18: "Classic"), else the first entry marked
+	// openLayout. OmniMapGen 0.3.16 marks its two interim Nostalgia entries openLayout too, and taking the last one marked labelled the open layout's
+	// row "Nostalgia (approximate)" while the panel beside it, which took the first, described Classic (K, October 22nd 17:4x)
+	const auto nameFile = read("open-template-name.json");
+	const std::string named = nameFile && (*nameFile)["name"].isString() ? (*nameFile)["name"].String() : std::string();
 	std::optional<std::string> random;
 	std::optional<std::string> open;
 	for(const auto & entry : (*infoFile)["templates"].Struct())
@@ -1159,9 +1164,15 @@ std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
 		if(!isApproved)
 			continue;
 		if(entry.second["randomEntry"].isBool() && entry.second["randomEntry"].Bool())
-			random = entry.first;
+		{
+			if(!random)
+				random = entry.first;
+		}
 		else if(entry.second["openLayout"].isBool() && entry.second["openLayout"].Bool())
-			open = entry.first;
+		{
+			if(!open || (!named.empty() && boost::iequals(entry.first, named)))
+				open = entry.first;
+		}
 	}
 	if(random)
 		entries.emplace_back(*random, true);
@@ -1240,15 +1251,32 @@ class TemplateInfoPanel : public CIntObject
 	Rect area;
 	JsonNode info;
 	std::vector<std::string> values;
+	std::vector<std::string> names;
 
 	static std::string whole(const JsonNode & node)
 	{
 		return node.isNumber() ? std::to_string(static_cast<int>(node.Float())) : std::string();
 	}
 
+	/// the Zones line: the count and the count of each kind; an entry with no fixed zones (the open layout and Random, "zones": 0) has no Zones line,
+	/// where it read "Zones 0 ()" (K's picture, October 22nd 17:4x)
+	static std::string zoneCount(const JsonNode & block)
+	{
+		if(!block["zones"].isNumber() || block["zones"].Float() <= 0)
+			return std::string();
+		std::string zones = whole(block["zones"]);
+		std::string kinds;
+		if(block["zonesByKind"].isStruct())
+			for(const auto & kind : block["zonesByKind"].Struct())
+				kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
+		if(!kinds.empty())
+			zones += " (" + kinds + ")";
+		return zones;
+	}
+
 public:
-	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues)
-		: CIntObject(0, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues))
+	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues, std::vector<std::string> entryNames)
+		: CIntObject(0, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues)), names(std::move(entryNames))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;
@@ -1302,7 +1330,20 @@ public:
 			return;
 		}
 		std::string value = values[id];
-		// the module's own entries for the open layout and Random (OmniMapGen 0.3.15) have their own text and facts in template-info.json
+		// the module's own entries for the open layout and Random (OmniMapGen 0.3.15) have their own text and facts in template-info.json: the row's own
+		// name finds its entry, so the panel always describes the row the list shows; a row named by the tab's own text falls back to the first entry
+		// marked
+		if((value.empty() || value == RANDOM_TEMPLATE) && id < static_cast<int>(names.size()))
+		{
+			for(const auto & item : info["templates"].Struct())
+			{
+				if(boost::iequals(item.first, names[id]))
+				{
+					value = item.first;
+					break;
+				}
+			}
+		}
 		if(value.empty() || value == RANDOM_TEMPLATE)
 		{
 			for(const auto & item : info["templates"].Struct())
@@ -1360,15 +1401,7 @@ public:
 			line(tabText("template.details.computerStarts"), whole(original["computerStartZones"]));
 			if(original["levels"].isNumber())
 				line(tabText("template.details.levels"), tabText(original["levels"].Integer() >= 2 ? "template.details.levelsTwo" : "template.details.levelsOne"));
-			std::string zones = whole(original["zones"]);
-			if(!zones.empty() && original["zonesByKind"].isStruct())
-			{
-				std::string kinds;
-				for(const auto & kind : original["zonesByKind"].Struct())
-					kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
-				zones += " (" + kinds + ")";
-			}
-			line(tabText("template.details.zones"), zones);
+			line(tabText("template.details.zones"), zoneCount(original));
 			line(tabText("template.details.checked"), text("checked"));
 		}
 		else
@@ -1388,15 +1421,7 @@ public:
 			line(tabText("template.details.humans"), whole(entry["humansMax"]));
 			if(entry["originalLevels"].isNumber())
 				line(tabText("template.details.levels"), tabText(entry["originalLevels"].Integer() >= 2 ? "template.details.levelsTwo" : "template.details.levelsOne"));
-			std::string zones = whole(entry["zones"]);
-			if(!zones.empty() && entry["zonesByKind"].isStruct())
-			{
-				std::string kinds;
-				for(const auto & kind : entry["zonesByKind"].Struct())
-					kinds += (kinds.empty() ? "" : ", ") + whole(kind.second) + " " + kind.first;
-				zones += " (" + kinds + ")";
-			}
-			line(tabText("template.details.zones"), zones);
+			line(tabText("template.details.zones"), zoneCount(entry));
 		}
 		if(!lines.empty() && lines.back() == '\n')
 			lines.pop_back();
@@ -1435,7 +1460,7 @@ public:
 		if(!infoFile["templates"].isStruct())
 			return; // a module without template-info.json has no panel
 		const int gap = 6, width = 310, height = 500;
-		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values);
+		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, values, names);
 		panel->show(static_cast<int>(current));
 		// the panel follows the selection however it moved (a click, the arrow keys, a search narrowing the list)
 		onSelectionChanged = [this]() { panel->show(idAt(selected)); panel->redraw(); };

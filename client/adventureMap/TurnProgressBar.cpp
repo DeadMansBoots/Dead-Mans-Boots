@@ -411,7 +411,14 @@ void TurnProgressBar::show(Canvas & to)
 			// glass, so the top rail shows no nick (4906a5ea4)
 			const int ripple = full ? 0 : std::min(width, 7);
 			const int body = width - ripple;
-			const ColorRGBA highlight = shade(base, 1.75 * dim, 255);
+			// brightening mixes toward white, so a colour keeps its hue: multiplied and clamped per channel, tan's highlight turned yellow-green beside the gold
+			// rails, orange's yellow and pink's magenta (the Reviewer's REVIEW-tan-bar-1023.md); the darker rows keep the multiply
+			const auto lighten = [dim](const ColorRGBA & c, double k)
+			{
+				const auto mix = [k, dim](uint8_t v) { return static_cast<uint8_t>(std::clamp((v + (255 - v) * k) * dim, 0.0, 255.0)); };
+				return ColorRGBA(mix(c.r), mix(c.g), mix(c.b), 255);
+			};
+			const ColorRGBA highlight = lighten(base, 0.45);
 			std::array<int, 7> surface{};
 			for(int i = 0; i < ripple; ++i)
 			{
@@ -421,7 +428,8 @@ void TurnProgressBar::show(Canvas & to)
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
-				const ColorRGBA tone = shade(base, (1.30 - 0.85 * depth) * dim, 255);
+				const double brightness = 1.30 - 0.85 * depth;
+				const ColorRGBA tone = brightness > 1.0 ? lighten(base, (brightness - 1.0) / 0.30 * 0.20) : shade(base, brightness * dim, 255);
 				const ColorRGBA shadow = shade(base, (0.62 - 0.25 * depth) * dim, 255);
 				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
 				for(int i = 0; i < ripple; ++i)

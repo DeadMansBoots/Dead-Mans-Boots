@@ -135,6 +135,8 @@ public:
 	void installFiles(QStringList mods);
 	/// a .dmb package (modManager/dmbpackage.h): its contents are shown and the player is asked before anything is written
 	void installDmbPackage(const QString & path);
+	/// an installed mod as a .dmb package, to a file the player picks
+	void exportDmbPackage(const QString & modName);
 
 public slots:
 	void enableModByName(QString modName);

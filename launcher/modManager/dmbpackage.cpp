@@ -12,6 +12,7 @@
 #include "dmbpackage.h"
 
 #include "../../lib/filesystem/MinizipExtensions.h"
+#include "../../lib/filesystem/CZipSaver.h"
 #include "../../vcmiqt/convpathqstring.h"
 
 #include <QCryptographicHash>
@@ -521,6 +522,169 @@ bool install(const QString & packagePath, const QString & modsDir, const QString
 	if(hadOld)
 		QDir(aside).removeRecursively();
 	cleanStaging();
+	return true;
+}
+
+namespace
+{
+bool isLink(const QFileInfo & info)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+	if(info.isJunction())
+		return true;
+#endif
+	return info.isSymLink();
+}
+
+/// the personal information a file must not carry: the user name, the computer name, a path into a user's folder (not Public or Default)
+QString personalInformation(const QByteArray & bytes)
+{
+	QStringList names;
+	for(const char * variable : {"USERNAME", "COMPUTERNAME"})
+	{
+		const QString value = qEnvironmentVariable(variable);
+		if(value.size() >= 3)
+			names.push_back(value);
+	}
+	for(const auto & name : names)
+	{
+		const QByteArray utf8 = name.toUtf8().toLower();
+		QByteArray utf16;
+		for(const QChar c : name.toLower())
+		{
+			utf16.append(static_cast<char>(c.unicode() & 0xff));
+			utf16.append(static_cast<char>(c.unicode() >> 8));
+		}
+		const QByteArray lowered = bytes.toLower();
+		if(lowered.contains(utf8) || lowered.contains(utf16))
+			return QObject::tr("the Windows user or computer name");
+	}
+	static const QRegularExpression userPath("[A-Za-z]:[\\\\/]+Users[\\\\/]+(?!Public|Default|All Users)[^\\\\/\\s\"<>|*?]{1,40}", QRegularExpression::CaseInsensitiveOption);
+	if(userPath.match(QString::fromLatin1(bytes)).hasMatch())
+		return QObject::tr("a path into a Windows user's folder");
+	return {};
+}
+}
+
+bool make(const QString & modFolder, const QString & outPath, const QString & dmbMin, QString & reason)
+{
+	const QFileInfo folder(modFolder);
+	if(!folder.isDir() || isLink(folder))
+	{
+		reason = QObject::tr("The mod's folder cannot be read, or it is a link.");
+		return false;
+	}
+	const QString id = folder.fileName().toLower();
+	static const QRegularExpression idPattern("^[a-z0-9][a-z0-9_-]{0,63}$");
+	if(!idPattern.match(id).hasMatch() || id == "vcmi" || id == "core")
+	{
+		reason = QObject::tr("The folder's name \"%1\" is not a mod id a package can carry.").arg(folder.fileName());
+		return false;
+	}
+	QFile modJson(folder.absoluteFilePath() + "/mod.json");
+	if(!modJson.open(QIODevice::ReadOnly))
+	{
+		reason = QObject::tr("The mod's folder has no mod.json.");
+		return false;
+	}
+	QString jsonText = QString::fromUtf8(modJson.readAll());
+	jsonText.remove(QRegularExpression("^\\s*//[^\\n]*$", QRegularExpression::MultilineOption));
+	const auto meta = QJsonDocument::fromJson(jsonText.toUtf8()).object();
+	modJson.close();
+
+	static const QSet<QString> junkFolders = {".git", ".svn", "__pycache__"};
+	static const QSet<QString> junkFiles = {"thumbs.db", "desktop.ini", ".ds_store"};
+	QStringList files;
+	QStringList pending = {folder.absoluteFilePath()};
+	while(!pending.isEmpty())
+	{
+		const QString current = pending.takeFirst();
+		for(const auto & info : QDir(current).entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System, QDir::Name))
+		{
+			if(isLink(info))
+			{
+				reason = QObject::tr("The mod's folder holds a link (%1); a package cannot carry one.").arg(info.fileName());
+				return false;
+			}
+			if(info.isDir())
+			{
+				if(!junkFolders.contains(info.fileName()))
+					pending.push_back(info.absoluteFilePath());
+			}
+			else if(!junkFiles.contains(info.fileName().toLower()))
+				files.push_back(QDir(folder.absoluteFilePath()).relativeFilePath(info.absoluteFilePath()));
+		}
+	}
+	files.sort();
+
+	QJsonArray listed;
+	QList<QByteArray> contents;
+	for(const auto & path : files)
+	{
+		const QString problem = nameProblem(path);
+		if(!problem.isEmpty())
+		{
+			reason = QObject::tr("\"%1\": %2.").arg(path, problem);
+			return false;
+		}
+		QFile file(folder.absoluteFilePath() + "/" + path);
+		if(!file.open(QIODevice::ReadOnly) || file.size() > MAX_FILE_SIZE)
+		{
+			reason = QObject::tr("\"%1\" cannot be read, or is larger than %2 MB.").arg(path).arg(MAX_FILE_SIZE / 1024 / 1024);
+			return false;
+		}
+		const QByteArray bytes = file.readAll();
+		const QString personal = personalInformation(bytes);
+		if(!personal.isEmpty())
+		{
+			reason = QObject::tr("\"%1\" carries %2; nothing was written.").arg(path, personal);
+			return false;
+		}
+		QJsonObject entry;
+		entry["path"] = path;
+		entry["size"] = static_cast<double>(bytes.size());
+		entry["sha256"] = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+		listed.append(entry);
+		contents.push_back(bytes);
+	}
+	QJsonObject manifest;
+	manifest["format"] = 1;
+	manifest["kind"] = "mod";
+	manifest["id"] = id;
+	manifest["name"] = meta.value("name").toString(id);
+	manifest["version"] = meta.value("version").toString("1.0");
+	manifest["dmbVersion"] = QJsonObject{{"min", dmbMin}};
+	manifest["files"] = listed;
+
+	const QString partial = outPath + ".part";
+	QFile::remove(partial);
+	try
+	{
+		CZipSaver saver(std::make_shared<CDefaultIOApi>(), qstringToPath(partial));
+		{
+			const QByteArray bytes = QJsonDocument(manifest).toJson(QJsonDocument::Indented);
+			auto stream = saver.addFile(MANIFEST.toStdString());
+			stream->write(reinterpret_cast<const ui8 *>(bytes.constData()), bytes.size());
+		}
+		for(int i = 0; i < files.size(); ++i)
+		{
+			auto stream = saver.addFile((MOD_FOLDER + files[i]).toUtf8().toStdString());
+			stream->write(reinterpret_cast<const ui8 *>(contents[i].constData()), contents[i].size());
+		}
+	}
+	catch(const std::exception & e)
+	{
+		QFile::remove(partial);
+		reason = QObject::tr("The package could not be written: %1").arg(QString::fromUtf8(e.what()));
+		return false;
+	}
+	QFile::remove(outPath);
+	if(!QFile::rename(partial, outPath))
+	{
+		QFile::remove(partial);
+		reason = QObject::tr("The package could not be written to %1.").arg(outPath);
+		return false;
+	}
 	return true;
 }
 }

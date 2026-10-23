@@ -53,4 +53,8 @@ Inspection inspect(const QString & packagePath, const QString & runningDmbVersio
 /// installs the package into modsDir/<id>: unpacked into a staging folder beside it, every file's size and hash checked, then the folders are swapped;
 /// false with a plain reason when anything fails, the installed copy of the mod kept as it was
 bool install(const QString & packagePath, const QString & modsDir, const QString & runningDmbVersion, QString & reason);
+
+/// a .dmb made from a mod's folder (the folder's name is the id); false with a plain reason when the folder holds a link, has no mod.json, or a
+/// file carries the Windows user name, the computer name or a user folder path (K, October 11th: no personal information in what leaves the PC)
+bool make(const QString & modFolder, const QString & outPath, const QString & dmbMin, QString & reason);
 }

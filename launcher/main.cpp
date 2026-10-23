@@ -206,6 +206,18 @@ int MAIN_EXPORT main(int argc, char * argv[])
 			out.write(verdict.toUtf8());
 		return 0;
 	}
+	// DMB: "--make-package <mod folder> <out.dmb> <verdict file>" makes a package with no window (the launcher's Export as .dmb), for tests
+	const int makeAt = vcmilauncher.arguments().indexOf("--make-package");
+	if(makeAt >= 0 && makeAt + 3 < vcmilauncher.arguments().size())
+	{
+		const QStringList args = vcmilauncher.arguments();
+		QString reason;
+		const bool made = DmbPackage::make(args.at(makeAt + 1), args.at(makeAt + 2), QString(DMB_VERSION_STRING), reason);
+		QFile out(args.at(makeAt + 3));
+		if(out.open(QIODevice::WriteOnly))
+			out.write((made ? QString("ok made") : "refused " + reason).toUtf8());
+		return 0;
+	}
 
 	MainWindow mainWindow;
 	mainWindow.show();

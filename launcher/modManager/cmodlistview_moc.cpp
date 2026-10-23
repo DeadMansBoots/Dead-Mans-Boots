@@ -642,6 +642,12 @@ void CModListView::onCustomContextMenu(const QPoint &point)
 		tr("Open directory"),
 		[this](ModState mod){ openModDictionary(mod.getID()); }
 	);
+	// DMB: the mod as a .dmb package another player can double-click to install (modManager/dmbpackage.h)
+	addContextEntry(
+		mod.isInstalled() && !mod.isSubmod(), true, QIcon{":/icons/menu-mods.png"},
+		tr("Export as .dmb"),
+		[this](ModState mod){ exportDmbPackage(mod.getID()); }
+	);
 	addContextEntry(
 		state.repositoryVisible, state.repositoryEnabled, QIcon{":/icons/about-project.png"},
 		tr("Open repository"),
@@ -1033,6 +1039,24 @@ bool gameRunning()
 	return false;
 #endif
 }
+}
+
+void CModListView::exportDmbPackage(const QString & modName)
+{
+	ResourcePath resID(std::string("Mods/") + modName.toStdString(), EResType::DIRECTORY);
+	const auto location = CResourceHandler::get()->getResourceName(resID);
+	if(!location)
+		return;
+	const auto mod = modStateModel->getMod(modName);
+	const QString suggested = QDir::homePath() + "/" + modName + "-" + mod.getVersion() + ".dmb";
+	const QString out = QFileDialog::getSaveFileName(this, tr("Export as .dmb"), suggested, tr("Dead Man's Boots packages (*.dmb)"));
+	if(out.isEmpty())
+		return;
+	QString reason;
+	if(DmbPackage::make(pathToQString(*location), out, QString(DMB_VERSION_STRING), reason))
+		QMessageBox::information(this, tr("Exported"), tr("%1 is written.").arg(QDir::toNativeSeparators(out)));
+	else
+		QMessageBox::warning(this, tr("The package was not made"), reason);
 }
 
 void CModListView::installDmbPackage(const QString & path)

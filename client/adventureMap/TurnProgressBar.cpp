@@ -289,24 +289,31 @@ void TurnProgressBar::drawStockTrim(Canvas & to, const Rect & outer, int style)
 	static const int goldRows[4] = {1, 2, 5, 6};    // style 2: gold only (highlight, shade, light, mid)
 	const int * rows = style == 1 ? bandRows : goldRows;
 	const int srcX = 300;
+	// the gems' size: the screen frame's corner jewel, cut as a disc of this radius and centred a pixel outside each side
+	const int radius = 7;   // the jewel stays inside the frame's 18 pixels (at 8 its ring stood out by a pixel above and below)
+	// the ends (K, October 22nd 17:5x: "the corners of the progress bars look like they need some fill on the corners"): the rails run on to the gems' outer edge
+	// and the sides close the frame there, so each gem is set in the frame's metal and the corners above and below it show the rails and the side instead of the
+	// terrain under the bar
+	const int reach = radius + 1;
+	const Rect closed(outer.x - reach, outer.y, outer.w + 2 * reach, outer.h);
 	for(int i = 0; i < 4; ++i)
 	{
-		to.draw(art, Point(outer.x, outer.y + i), Rect(srcX, rows[i], outer.w, 1));
-		to.draw(art, Point(outer.x, outer.y + outer.h - 1 - i), Rect(srcX, rows[i], outer.w, 1));
+		to.draw(art, Point(closed.x, closed.y + i), Rect(srcX, rows[i], closed.w, 1));
+		to.draw(art, Point(closed.x, closed.y + closed.h - 1 - i), Rect(srcX, rows[i], closed.w, 1));
 	}
 	// the sides: the screen frame's left rail, seven columns wide; its first four columns (shade, gold, light gold, enamel) go left, mirrored on the right
 	static const int sideCols[4] = {1, 2, 3, 4};
 	for(int i = 0; i < 4; ++i)
 	{
-		to.draw(art, Point(outer.x + i, outer.y + 4), Rect(sideCols[i], 200, 1, outer.h - 8));
-		to.draw(art, Point(outer.x + outer.w - 1 - i, outer.y + 4), Rect(sideCols[i], 200, 1, outer.h - 8));
+		to.draw(art, Point(closed.x + i, closed.y + 4), Rect(sideCols[i], 200, 1, closed.h - 8));
+		to.draw(art, Point(closed.x + closed.w - 1 - i, closed.y + 4), Rect(sideCols[i], 200, 1, closed.h - 8));
 	}
-	// the gems: the screen frame's corner jewel, a round red stone in a silver and gold ring, cut as a disc and set over each end, centred on the frame's side
-	const int radius = 7;   // the jewel stays inside the frame's 18 pixels (at 8 its ring stood out by a pixel above and below)
+	// the gems: the screen frame's corner jewel, a round red stone in a silver and gold ring, cut as a disc and set over each end, centred a pixel outside the
+	// frame's side on both ends (the right one stood a pixel further out than the left)
 	const Point jewel(15, 14);    // the centre of the stone in AdvMap.pcx
 	for(const bool right : {false, true})
 	{
-		const int cx = right ? outer.x + outer.w + 1 : outer.x - 1;
+		const int cx = right ? outer.x + outer.w : outer.x - 1;
 		const int cy = outer.y + outer.h / 2;
 		for(int dy = -radius; dy <= radius; ++dy)
 		{

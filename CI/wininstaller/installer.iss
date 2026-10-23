@@ -226,6 +226,15 @@ Root: HKCU; Subkey: "Software\Classes\.h3m"; ValueType: string; ValueName: ""; V
 Root: HKCU; Subkey: "Software\Classes\DMB.h3m"; ValueType: string; ValueName: ""; ValueData: "{cm:H3MDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_h3m
 Root: HKCU; Subkey: "Software\Classes\DMB.h3m\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_h3m
 
+; DMB (K, October 23rd): a .dmb package opens in the launcher, which shows it and asks before installing (launcher/modManager/dmbpackage.cpp). .dmb is
+; also BYOND's extension for its game worlds: DMB adds itself to Open with on every PC and takes the double-click only where no other program holds .dmb
+; (DmbExtensionFree); uninstalling removes DMB's ProgID and Open-with entry, and the default only while it still names DMB (CurUninstallStepChanged)
+Root: HKCU; Subkey: "Software\Classes\DMB.package"; ValueType: string; ValueName: ""; ValueData: "Dead Man's Boots package"; Flags: uninsdeletekey; Check: not IsPRInstaller
+Root: HKCU; Subkey: "Software\Classes\DMB.package\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\VCMI_launcher.exe,0"; Check: not IsPRInstaller
+Root: HKCU; Subkey: "Software\Classes\DMB.package\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_launcher.exe"" --install-package ""%1"""; Check: not IsPRInstaller
+Root: HKCU; Subkey: "Software\Classes\.dmb\OpenWithProgids"; ValueType: string; ValueName: "DMB.package"; ValueData: ""; Flags: uninsdeletevalue; Check: not IsPRInstaller
+Root: HKCU; Subkey: "Software\Classes\.dmb"; ValueType: string; ValueName: ""; ValueData: "DMB.package"; Check: (not IsPRInstaller) and DmbExtensionFree
+
 
 
 [Run]
@@ -2108,13 +2117,37 @@ begin
 end;
 
 
+/// DMB: .dmb's double-click is free for DMB when no other program holds the extension (BYOND uses .dmb for its game worlds); DMB is in Open with either way
+function DmbExtensionFree(): Boolean;
+var
+  Current: String;
+begin
+  Result := True;
+  if RegQueryStringValue(HKCU, 'Software\Classes\.dmb', '', Current) and (Current <> '') and (Current <> 'DMB.package') then
+    Result := False;
+  if Result and RegQueryStringValue(HKLM, 'Software\Classes\.dmb', '', Current) and (Current <> '') and (Current <> 'DMB.package') then
+    Result := False;
+end;
+
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Current: String;
 begin
   if CurUninstallStep = usUninstall then
+  begin
+    // DMB: .dmb's default goes only while it still names DMB; another program's claim is left as it is
+    if RegQueryStringValue(HKCU, 'Software\Classes\.dmb', '', Current) and (Current = 'DMB.package') then
+      RegDeleteValue(HKCU, 'Software\Classes\.dmb', '');
     PerformFileDeletion;
+  end;
   // Repeat delete process after uninstall due logs from killed processes during uninstall
   if CurUninstallStep = usPostUninstall then
+  begin
     PerformFileDeletion;
+    RegDeleteKeyIfEmpty(HKCU, 'Software\Classes\.dmb\OpenWithProgids');
+    RegDeleteKeyIfEmpty(HKCU, 'Software\Classes\.dmb');
+  end;
 end;
 
 

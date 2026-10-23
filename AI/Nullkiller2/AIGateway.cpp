@@ -31,6 +31,7 @@
 #include "../../lib/networkPacks/StackLocation.h"
 #include "../../lib/battle/BattleStateInfoForRetreat.h"
 #include "../../lib/battle/BattleInfo.h"
+#include "../../lib/battle/Unit.h"
 #include "../../lib/CPlayerState.h"
 #include "../../lib/mapping/CMapHeader.h"
 
@@ -501,7 +502,34 @@ std::optional<BattleAction> AIGateway::makeSurrenderRetreatDecision(const Battle
 	// easy, and on normal considers it in half the battles; never with the hero a "defeat hero X" victory condition names; never
 	// without a town with a tavern, or when the besieged town is its last one with a tavern. The old test (army strength under
 	// retreatThresholdAbsolute and under retreatThresholdRelative of the enemy's) let a small army leave on round 1 before any blow.
-	if(!battleState.canFlee || !battleState.isLastTurnBeforeDie)
+	if(!battleState.canFlee)
+		return std::nullopt;
+
+	// The basegame's failed siege: the AI always retreats when it attacks a town with a Fort, the drawbridge is up, no wall
+	// section is destroyed, it has no flyer, shooter or catapult, and every defender is inside the walls.
+	bool failedSiege = false;
+	if(const auto battle = cc->getBattle(battleID))
+	{
+		const CGTownInstance * town = battle->battleGetDefendedTown();
+		if(town && battleState.ourSide == BattleSide::ATTACKER && town->fortLevel() != CGTownInstance::NONE
+			&& battle->battleGetGateState() == EGateState::CLOSED)
+		{
+			failedSiege = true;
+			for(EWallPart part : {EWallPart::BOTTOM_WALL, EWallPart::BELOW_GATE, EWallPart::OVER_GATE, EWallPart::UPPER_WALL})
+				if(battle->battleGetWallState(part) == EWallState::DESTROYED)
+					failedSiege = false;
+			for(const auto * unit : battleState.ourStacks)
+				if(unit->hasBonusOfType(BonusType::FLYING) || battle->battleCanShoot(unit) || unit->creatureId() == CreatureID::CATAPULT)
+					failedSiege = false;
+			for(const auto * unit : battleState.enemyStacks)
+				if(!battle->battleIsInsideWalls(unit->getPosition()))
+					failedSiege = false;
+		}
+	}
+	if(failedSiege)
+		logAi->info("NK2: the siege of %s cannot succeed (walls whole, no flyer, shooter or catapult)",
+			battleState.ourHero ? battleState.ourHero->getNameTranslated() : std::string("?"));
+	if(!battleState.isLastTurnBeforeDie && !failedSiege)
 		return std::nullopt;
 
 	const int difficulty = cc->getStartInfo()->difficulty;

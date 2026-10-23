@@ -360,6 +360,10 @@ int MapGenerators::run(const MapGeneratorInfo & generator, const std::vector<std
 
 	const std::string command = generator.command.string();
 	const std::string ext = boost::algorithm::to_lower_copy(generator.command.extension().string());
+	// DMB: the log starts empty: the progress poll reads it from its start, and an earlier run's last line ("stage 31 of 31, Inking the Map") made it skip
+	// every stage of this run (the Reviewer's REVIEW-loading-inking-1023.md); errorLine then reads only this run's error
+	boost::system::error_code removeLog;
+	boost::filesystem::remove(logPath, removeLog);
 	std::error_code ec;
 	std::unique_ptr<boost::process::child> child;
 	// one handle for both streams: two handles on the file each write from its start and overwrite each

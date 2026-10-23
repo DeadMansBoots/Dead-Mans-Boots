@@ -545,8 +545,20 @@ int sweep(const QString & modsDir)
 	QDir mods(modsDir);
 	for(const auto & name : mods.entryList({".dmb-staging-*", ".dmb-old-*"}, QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot))
 	{
-		// the long-path form reaches folders deeper than Windows' usual limit
 		const QString path = QDir::toNativeSeparators(mods.absoluteFilePath(name));
+		if(name.startsWith(".dmb-old-"))
+		{
+			// .dmb-old-<id>-<tag>: an installed copy moved aside; when its mod's own folder is missing (the move into place and the move back both
+			// failed), it is the only copy and goes back to <id> instead of being deleted (the Reviewer's read of 3f940af79)
+			const QString id = name.mid(9).section('-', 0, -2);
+			if(!id.isEmpty() && !QFileInfo::exists(mods.filePath(id)))
+			{
+				if(QDir().rename(mods.absoluteFilePath(name), mods.filePath(id)))
+					removed++;
+				continue;
+			}
+		}
+		// the long-path form reaches folders deeper than Windows' usual limit
 		if(QDir(path).removeRecursively() || QDir("\\\\?\\" + path).removeRecursively())
 			removed++;
 	}

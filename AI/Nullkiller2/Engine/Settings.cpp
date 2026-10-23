@@ -30,8 +30,6 @@ namespace NK2AI
 		scoutHeroTurnDistanceLimit(5),
 		threatTurnDistanceLimit(5),
 		maxGoldPressure(0.3f),
-		retreatThresholdRelative(0.3),
-		retreatThresholdAbsolute(10000),
 		safeAttackRatio(1.1),
 		maxPass(10),
 		maxPriorityPass(10),
@@ -57,8 +55,6 @@ namespace NK2AI
 		pathfinderBucketsCount = node["pathfinderBucketsCount"].Integer();
 		pathfinderBucketSize = node["pathfinderBucketSize"].Integer();
 		maxGoldPressure = node["maxGoldPressure"].Float();
-		retreatThresholdRelative = node["retreatThresholdRelative"].Float();
-		retreatThresholdAbsolute = node["retreatThresholdAbsolute"].Float();
 		maxArmyLossTarget = node["maxArmyLossTarget"].Float();
 		safeAttackRatio = node["safeAttackRatio"].Float();
 		allowObjectGraph = node["allowObjectGraph"].Bool();

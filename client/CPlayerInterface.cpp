@@ -344,6 +344,34 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 			performAutosave();
 		}
 
+		if (hotseatWait && GAME->server().howManyPlayerInterfaces() <= 1 && !settings["session"]["autoSkip"].Bool())
+		{
+			// DMB (K, October 23rd 02:43: "if the host or another (any other i think) player hasn't hit the checkmark, they can't enter combat. we need
+			// actual resolution to this problem, not just removing basegame functionality"): a network game shows the same dialog, and the turn starts
+			// at the same click, but the dialog no longer holds this client's network thread until the click. acceptTurn's wait held it, and the
+			// host's client also runs every AI player and the neutral monsters' battle AI, so another player's fight with a monster waited for the
+			// host's click, and every pack behind it (the other players' moves and turn starts) waited too. The window is pushed without the busy
+			// flag (another player's hero move waits on that flag, as the no-town warning found); makingTurn is set at the click, so this player's
+			// own messages queue behind the dialog as before; what acceptTurn does after its wait runs when the window closes. Hot seat (several
+			// human seats on this client) keeps the stock wait: the dialog is the handover of the seat there.
+			adventureInt->onHotseatWaitStarted(playerID);
+
+			std::string msg = LIBRARY->generaltexth->allTexts[13];
+			boost::replace_first(msg, "%s", cb->getStartInfo()->playerInfos.find(playerID)->second.name);
+			std::vector<std::shared_ptr<CComponent>> cmp;
+			cmp.push_back(std::make_shared<CComponent>(ComponentType::FLAG, playerID));
+			auto dialog = CInfoWindow::create(msg, playerID, cmp);
+			dialog->onClose = [this, queryID]()
+			{
+				makingTurn = true;
+				adventureInt->onPlayerTurnStarted(playerID);
+				finishTurnStart(queryID);
+			};
+			ENGINE->sound().playSound(static_cast<soundBase::soundID>(0)); // what showInfoDialog plays with its default sound
+			ENGINE->windows().pushWindow(dialog);
+			return;
+		}
+
 		if (hotseatWait) //hot seat or MP message
 		{
 			adventureInt->onHotseatWaitStarted(playerID);
@@ -379,6 +407,11 @@ void CPlayerInterface::acceptTurn(QueryID queryID, bool hotseatWait)
 		adventureInt->onPlayerTurnStarted(playerID);
 	}
 
+	finishTurnStart(queryID);
+}
+
+void CPlayerInterface::finishTurnStart(QueryID queryID)
+{
 	// stock's order: the turn query is answered when the no-town warning has been closed, so the server keeps this player's timer stopped while it is open
 	// (TimerPauseQuery). Beta 13 answered it first (an away player with no town held up a simultaneous turns game): that was a change of stock, undone
 	bool queryAnsweredByWarning = false;

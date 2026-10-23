@@ -267,6 +267,9 @@ private:
 	void garrisonsChanged(std::vector<const CArmedInstance *> objs);
 	void requestReturningToMainMenu(bool won);
 	void acceptTurn(QueryID queryID, bool hotseatWait); //used during hot seat after your turn message is close
+	/// the start of the turn after the turn dialog: the no-town warning, the turn query's answer and the movement controller (DMB: run on the network
+	/// thread after acceptTurn's wait, or when a network game's turn dialog closes)
+	void finishTurnStart(QueryID queryID);
 	void initializeHeroTownList();
 	int getLastIndex(std::string namePrefix);
 };

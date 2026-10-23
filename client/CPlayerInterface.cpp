@@ -2104,6 +2104,8 @@ bool CPlayerInterface::prepareAutoFightingAI(const BattleID &bid, const CCreatur
 
 	AutocombatPreferences autocombatPreferences = AutocombatPreferences();
 	autocombatPreferences.enableSpellsUsage = settings["battle"]["enableAutocombatSpells"].Bool();
+	// DMB: the human's auto and quick combat uses the tactics phase as the player does by hand (DESIGN-DMB-auto-combat-1023.md section 8)
+	autocombatPreferences.placeInTactics = true;
 
 	autofightingAI->initBattleInterface(env, cb, autocombatPreferences);
 	autofightingAI->battleStart(bid, army1, army2, tile, hero1, hero2, side, false);

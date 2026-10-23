@@ -626,10 +626,15 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "adventureAlliedAI", "adventureEnemyAI", "combatEnemyAI", "combatAlliedAI", "combatNeutralAI", "playerAIOverrides", "omniaiLearning", "omniaiDifficulty", "testmapDifficulty", "omniaiLearningMode", "omniaiResetBrain", "omniaiDifficultyBySlot" ],
+			"required" : [ "adventureAlliedAI", "adventureEnemyAI", "combatEnemyAI", "combatAlliedAI", "combatNeutralAI", "playerAIOverrides", "omniaiLearning", "omniaiDifficulty", "testmapDifficulty", "omniaiLearningMode", "omniaiResetBrain", "omniaiDifficultyBySlot", "battleAutoTacticsForAI" ],
 			"properties" : {
 				// DMB: no fixed list for the five AI keys: an AI plugin from a mod (lib/modding/AIPlugins.h)
 				// has a name only its mod knows. A missing AI falls back to VCMI's own (CDynLibHandler).
+				// DMB, test only: AI players place their stacks in the tactics phase as the human's auto combat does (BattleAI)
+				"battleAutoTacticsForAI" : {
+					"type" : "boolean",
+					"default" : false
+				},
 				"adventureAlliedAI" : {
 					"type" : "string",
 					"default" : "Nullkiller2"

@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CPlayerInterface.h"
+#include <future>
 #include "../lib/DmbIssueReport.h"
 
 #include <vcmi/Artifact.h>
@@ -87,6 +88,8 @@
 #include "../lib/VCMIDirs.h"
 
 #include "../lib/battle/CPlayerBattleCallback.h"
+#include "../lib/battle/BattleStateInfoForRetreat.h"
+#include "../lib/gameState/InfoAboutArmy.h"
 
 #include "../lib/bonuses/Limiters.h"
 #include "../lib/bonuses/Propagators.h"
@@ -2085,6 +2088,52 @@ void CPlayerInterface::setColorScheme(ColorScheme scheme)
 
 std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const BattleID & battleID, const BattleStateInfoForRetreat & battleState)
 {
+	// DMB: the basegame's prompt (Heroes 3 wiki, Retreat and Combat pages): "During a combat (including Quick combat), if the AI thinks
+	// the player is going to lose after the current move, the player might get a prompt if the player wants to retreat", then, if the
+	// hero has the gold, a prompt to surrender instead. The auto-combat AI calls this off the main thread with the interface lock
+	// released (CPlayerInterface::activeStack, BattleInterface::requestAutofightingAIToTakeAction); the question is put on the main
+	// thread and this thread waits for the answer, giving up only if the battle ends meanwhile. Once per battle; never headless.
+	if(!battleState.canFlee || !battleState.isLastTurnBeforeDie || settings["session"]["headless"].Bool() || !ENGINE)
+		return std::nullopt;
+	auto battle = cb->getBattle(battleID);
+	if(!battle || !retreatAsked.insert(battleID).second)
+		return std::nullopt;
+
+	const int cost = battleState.canSurrender ? battle->battleGetSurrenderCost() : -1;
+	const bool canPay = cost >= 0 && cb->getResourceAmount(EGameResID::GOLD) >= cost;
+	std::string enemyHeroName = canPay ? battle->battleGetEnemyHero().name : std::string();
+	if(enemyHeroName.empty())
+		enemyHeroName = "#ENEMY#";
+	const std::string surrenderMessage = canPay ? boost::str(boost::format(LIBRARY->generaltexth->allTexts[32]) % enemyHeroName % cost) : std::string();
+
+	auto answer = std::make_shared<std::promise<int>>(); // 0 fight on, 1 retreat, 2 surrender
+	auto future = answer->get_future();
+	ENGINE->dispatchMainThread([this, answer, canPay, surrenderMessage]()
+	{
+		showYesNoDialog(LIBRARY->generaltexth->allTexts[28], // "Are you sure you want to retreat?"
+			[this, answer, canPay, surrenderMessage]()
+			{
+				if(!canPay)
+				{
+					answer->set_value(1);
+					return;
+				}
+				showYesNoDialog(surrenderMessage, [answer]() { answer->set_value(2); }, [answer]() { answer->set_value(1); });
+			},
+			[answer]() { answer->set_value(0); });
+	});
+	while(future.wait_for(std::chrono::milliseconds(200)) != std::future_status::ready)
+	{
+		auto now = cb->getBattle(battleID);
+		if(!now || now->battleIsFinished())
+			return std::nullopt;
+	}
+	const int choice = future.get();
+	logGlobal->info("Auto combat: the player answered the retreat question with %d (0 fight on, 1 retreat, 2 surrender)", choice);
+	if(choice == 1)
+		return BattleAction::makeRetreat(battleState.ourSide);
+	if(choice == 2)
+		return BattleAction::makeSurrender(battleState.ourSide);
 	return std::nullopt;
 }
 

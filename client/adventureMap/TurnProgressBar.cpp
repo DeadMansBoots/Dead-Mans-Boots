@@ -124,54 +124,24 @@ void TurnProgressBar::takeSnapshot(int day)
 		TurnProgressMath::HeroStart start;
 		start.id = hero->id.getNum();
 		start.movement = hero->movementPointsRemaining();
-		start.mana = hero->mana;
-		if(hero->hasSpellbook())
-		{
-			for(const SpellID & id : hero->getSpellsInSpellbook())
-			{
-				const auto * spell = id.toSpell();
-				if(spell && spell->isAdventure() && hero->getSpellCost(spell) <= hero->mana)
-				{
-					start.canCast = true;
-					break;
-				}
-			}
-		}
 		heroes.push_back(start);
 	}
 
-	const ResourceSet resources = state->resources;
 	for(const CGTownInstance * town : state->getTowns())
 	{
 		TurnProgressMath::TownStart start;
 		start.id = town->id.getNum();
-		if(town->built == 0)
+		for(const auto & building : town->getTown()->buildings)
 		{
-			for(const auto & building : town->getTown()->buildings)
-			{
-				if(cb->canBuildStructure(town, building.first) == EBuildingState::ALLOWED)
-				{
-					start.canBuild = true;
-					break;
-				}
-			}
-		}
-		for(size_t index = 0; index < town->creatures.size(); ++index)
-		{
-			const auto & level = town->creatures[index];
-			if(level.second.empty() || level.first == 0)
+			if(building.second->mode != CBuilding::BUILD_NORMAL || town->hasBuilt(building.first))
 				continue;
-			// the level counts when the player can pay for any creature of it, the basic one included (not only its last, upgraded form)
-			const bool affordable = std::any_of(level.second.begin(), level.second.end(), [&resources](const CreatureID & id)
-			{
-				const auto * creature = id.toCreature();
-				return creature && resources.canAfford(creature->getFullRecruitCost());
-			});
-			if(affordable)
-			{
-				start.recruitable += static_cast<int>(level.first);
-				start.levels.push_back(index);
-			}
+			const EBuildingState buildState = cb->canBuildStructure(town, building.first);
+			// still on the town's list: allowed now, or waiting for gold, a prerequisite or the next day; not forbidden there, not impossible on its ground
+			if(buildState == EBuildingState::ALLOWED || buildState == EBuildingState::NO_RESOURCES || buildState == EBuildingState::CANT_BUILD_TODAY
+				|| buildState == EBuildingState::PREREQUIRES || buildState == EBuildingState::MISSING_BASE || buildState == EBuildingState::ADD_MAGES_GUILD)
+				start.remaining++;
+			if(town->built == 0 && buildState == EBuildingState::ALLOWED)
+				start.canBuild = true;
 		}
 		towns.push_back(start);
 	}
@@ -188,6 +158,14 @@ void TurnProgressBar::update()
 	const int day = cb->getDate(Date::DAY);
 	if(day != snapshotDay)
 		takeSnapshot(day);
+	else if(snapshotTaken)
+	{
+		// a hero hired or freed during the turn joins the bar with the movement it has when first seen
+		if(const PlayerState * state = cb->getPlayerState(player, false))
+			for(const CGHeroInstance * hero : state->getHeroes())
+				if(std::none_of(heroes.begin(), heroes.end(), [hero](const TurnProgressMath::HeroStart & start) { return start.id == hero->id.getNum(); }))
+					heroes.push_back({hero->id.getNum(), hero->movementPointsRemaining()});
+	}
 	acting = cb->isPlayerMakingTurn(player);
 }
 
@@ -202,6 +180,26 @@ void TurnProgressBar::endTurn()
 
 int TurnProgressBar::compute() const
 {
+	// DMB_BAR_FORCE="red=0,blue=30,tan=67": test only, the named players' bars held at those fills (the pictures at fixed fills)
+	static const std::map<std::string, int> forced = []()
+	{
+		std::map<std::string, int> out;
+		const char * text = std::getenv("DMB_BAR_FORCE");
+		if(!text)
+			return out;
+		std::vector<std::string> pairs;
+		boost::split(pairs, std::string(text), boost::is_any_of(","));
+		for(const auto & pair : pairs)
+		{
+			const auto at = pair.find('=');
+			if(at != std::string::npos)
+				out[pair.substr(0, at)] = std::clamp(std::atoi(pair.substr(at + 1).c_str()), 0, 100);
+		}
+		logGlobal->warn("Turn bar: DMB_BAR_FORCE holds %d bars at fixed fills (a test setting)", static_cast<int>(out.size()));
+		return out;
+	}();
+	if(forced.count(player.toString()))
+		return forced.at(player.toString());
 	if(endedDay == snapshotDay)
 		return 100;
 	if(!snapshotTaken || !GAME->interface() || !GAME->interface()->cb)
@@ -210,30 +208,14 @@ int TurnProgressBar::compute() const
 	const PlayerState * state = cb->getPlayerState(player, false);
 	if(!state)
 		return 0;
-	// a category is done when nothing useful is left in it (the lead for K, October 23rd): what is still possible is read from the game state every client has,
-	// so the same player reads the same on every client
-	const ResourceSet resources = state->resources;
+	// what is still possible is read from the game state every client has, so the same player reads the same on every client
 	std::vector<TurnProgressMath::HeroNow> heroesNow;
 	for(const CGHeroInstance * hero : state->getHeroes())
 	{
 		TurnProgressMath::HeroNow now;
 		now.id = hero->id.getNum();
 		now.movement = hero->movementPointsRemaining();
-		now.mana = static_cast<int>(hero->mana);
 		now.canMove = canStillMove(hero);
-		now.canCast = false;
-		if(hero->hasSpellbook())
-		{
-			for(const SpellID & id : hero->getSpellsInSpellbook())
-			{
-				const auto * spell = id.toSpell();
-				if(spell && spell->isAdventure() && hero->getSpellCost(spell) <= hero->mana)
-				{
-					now.canCast = true;
-					break;
-				}
-			}
-		}
 		heroesNow.push_back(now);
 	}
 	std::vector<TurnProgressMath::TownNow> townsNow;
@@ -242,8 +224,6 @@ int TurnProgressBar::compute() const
 		TurnProgressMath::TownNow now;
 		now.id = town->id.getNum();
 		now.built = town->built;
-		for(const auto & level : town->creatures)
-			now.available.push_back(static_cast<int>(level.first));
 		now.canBuild = false;
 		if(town->built == 0)
 		{
@@ -256,22 +236,6 @@ int TurnProgressBar::compute() const
 				}
 			}
 		}
-		now.canRecruit = false;
-		for(const auto & level : town->creatures)
-		{
-			if(level.first == 0)
-				continue;
-			const bool affordable = std::any_of(level.second.begin(), level.second.end(), [&resources](const CreatureID & id)
-			{
-				const auto * creature = id.toCreature();
-				return creature && resources.canAfford(creature->getFullRecruitCost());
-			});
-			if(affordable)
-			{
-				now.canRecruit = true;
-				break;
-			}
-		}
 		townsNow.push_back(now);
 	}
 	return TurnProgressMath::percent(heroes, towns, heroesNow, townsNow);
@@ -279,8 +243,8 @@ int TurnProgressBar::compute() const
 
 bool TurnProgressBar::canStillMove(const CGHeroInstance * hero)
 {
-	// a step to one of the eight neighbouring tiles that the movement left pays for, by the pathfinder's own cost rule (the diagonal exception included);
-	// blocked tiles are not looked at, so a hero next to a free tile always counts as able to move
+	// a step to one of the eight neighbouring tiles that the movement left pays for, by the pathfinder's own cost rule (the diagonal exception included),
+	// onto a tile the hero can enter: clear from where it stands, or holding something it can visit (a walled-in hero counts as spent, the Reviewer's read)
 	const int left = hero->movementPointsRemaining();
 	if(left <= 0 || !GAME->interface() || !GAME->interface()->cb)
 		return false;
@@ -299,7 +263,7 @@ bool TurnProgressBar::canStillMove(const CGHeroInstance * hero)
 				continue;
 			const int3 to(at.x + dx, at.y + dy, at.z);
 			const TerrainTile * tile = cb->isInTheMap(to) ? cb->getTile(to, false) : nullptr;
-			if(tile && helper.getMovementCost(at, to, from, tile, left, false) <= left)
+			if(tile && (tile->isClear(from) || tile->visitable()) && helper.getMovementCost(at, to, from, tile, left, false) <= left)
 				return true;
 		}
 	}
@@ -310,8 +274,10 @@ void TurnProgressBar::tick(uint32_t msPassed)
 {
 	clockMs += msPassed;
 	sinceUpdate += msPassed;
-	// the drawn percent eases toward the real one: the liquid rises instead of jumping
+	// the drawn percent eases toward the real one: the liquid rises instead of jumping, and settles exactly on it once within half a percent
 	shown += (percent - shown) * std::min(1.0, msPassed / 180.0);
+	if(std::abs(percent - shown) < 0.5)
+		shown = percent;
 	// the day and whether the player acts, at every frame; the percent four times a second
 	update();
 	if(sinceUpdate < 250)
@@ -433,27 +399,30 @@ void TurnProgressBar::show(Canvas & to)
 	// the liquid is bright while the player acts and dimmed while the player waits or has ended the turn
 	const double dim = acting ? 1.0 : 0.55;
 	{
-		const int width = std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
+		// at 100 the liquid is whole: no edge and no glass showing at the end (the eased fill used to stop short of the end; K, October 23rd 13:2x: "it
+		// shouldn't be visible at all (that is to say, no see-through gaps) when the bar is at 100%")
+		const bool full = percent >= 100 && shown >= 99.0;
+		const int width = full ? inner.w : std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
 		{
-			// the liquid: lighter at the top, darker at the bottom, filled up to the rail across its whole width; at its leading edge only the highlight under
-			// the surface ripples (the columns there used to start one to three rows down, and the dark glass above them read as a nick in the top rail: the
-			// lead's look at the corner pictures, October 23rd)
-			const int ripple = std::min(width, 5);
-			const int body = width - ripple;
+			// the liquid: lighter at the top, darker at the bottom; its leading edge slants from the top down to the right, a ripple running down it (K: "the
+			// wavy part goes horizontally from the top down and to the right"). Every row reaches up to the rail, so the top rail shows no nick
+			const int slant = full ? 0 : std::min(width, std::max(4, inner.h / 2));
+			const ColorRGBA highlight = shade(base, 1.75 * dim, 255);
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
 				const ColorRGBA tone = shade(base, (1.30 - 0.85 * depth) * dim, 255);
-				to.drawColor(Rect(inner.x, inner.y + row, width, 1), tone);
-			}
-			const ColorRGBA highlight = shade(base, 1.75 * dim, 255);
-			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), highlight); // the soft highlight under the surface
-			for(int i = 0; i < ripple; ++i)
-			{
-				const double lift = 1.4 * std::sin(t * 4.0 + i * 1.1) * (1.0 + i * 0.25);
-				const int dip = std::clamp(static_cast<int>(std::lround(std::abs(lift) * 0.6)), 0, std::max(0, inner.h - 3));
-				to.drawColor(Rect(inner.x + body + i, inner.y + 1 + dip, 1, 1), highlight);
+				int reach = width;
+				if(!full)
+				{
+					const double wave = 1.3 * std::sin(t * 4.0 - row * 0.8);
+					reach = width - slant / 2 + static_cast<int>(std::lround(slant * depth + wave));
+				}
+				reach = std::clamp(reach, 0, inner.w);
+				to.drawColor(Rect(inner.x, inner.y + row, reach, 1), tone);
+				if(row == 1 && reach > 2)
+					to.drawColor(Rect(inner.x, inner.y + 1, reach - 2, 1), highlight); // the soft highlight under the surface
 			}
 		}
 	}

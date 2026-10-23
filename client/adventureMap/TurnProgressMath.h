@@ -19,21 +19,16 @@ struct HeroStart
 {
 	int id = 0;
 	int movement = 0;
-	int mana = 0;
-	/// the hero has an adventure spell in its book it can pay for
-	bool canCast = false;
 };
 
 /// a town as the player's turn starts
 struct TownStart
 {
 	int id = 0;
-	/// a structure is allowed in the town
+	/// a structure is allowed in the town and paid for
 	bool canBuild = false;
-	/// creatures in the dwelling levels below, summed
-	int recruitable = 0;
-	/// the dwelling levels counted in recruitable (the ones with a creature, basic or upgraded, the player could afford at the start): the same levels are summed again later
-	std::vector<size_t> levels;
+	/// the structures and upgrades still on the town's list: not built, and not forbidden there (affordable or not)
+	int remaining = 0;
 };
 
 /// a hero as it is now; a hero the player no longer has is left out
@@ -41,11 +36,8 @@ struct HeroNow
 {
 	int id = 0;
 	int movement = 0;
-	int mana = 0;
 	/// a step to a neighbouring tile is still affordable with the movement left; false counts the hero's movement as spent
 	bool canMove = true;
-	/// an adventure spell the hero can pay for is still in its book; false counts the hero's mana as spent
-	bool canCast = true;
 };
 
 /// a town as it is now; a town the player no longer has is left out
@@ -54,18 +46,18 @@ struct TownNow
 	int id = 0;
 	/// structures built in the town this turn
 	int built = 0;
-	/// creatures available in each dwelling level
-	std::vector<int> available;
-	/// a structure can still be built in the town now (allowed and paid for); false counts the town's building as done
+	/// a structure can still be built in the town now (allowed and paid for); false counts the town as done
 	bool canBuild = true;
-	/// a creature of a level counted at the start is still in its dwelling and the player can pay for it now; false counts the town's recruiting as done
-	bool canRecruit = true;
 };
 
-/// how much of the turn is done, 0 to 100: the mean of the categories that apply (hero movement spent, a structure built in each town that could build one,
-/// creatures recruited where some could be, mana spent by heroes who could cast an adventure spell); 0 when none applies. A category is done when nothing
-/// useful is left in it (K's bar read 67 percent with the gold spent on a building and nothing left to recruit, October 22nd): a hero with no affordable
-/// step, a town where nothing can be built or recruited now, a hero with no spell it can pay for counts as finished
+/// a town's weight in the bar from what is left on its list (K, October 23rd 13:0x: "weighted down as the number of buildings that can be built dwindle
+/// (going to 0% of the total at 1-3 buildings or upgrades left to build)"): 0 at 3 or fewer, full at 10 or more, a straight fade between
+double townWeight(int remaining);
+
+/// how much of the turn is done, 0 to 100 (K, October 23rd 13:0x: "i mainly just want the turn progress bar to track: 1. Heroes to move 2. Towns that can
+/// be built in"; roster\NOTE-turnbar-formula-1023.md). H: the movement the heroes have spent of what they had at dawn (a hero with no affordable step
+/// counts as spent). T: the weighted share of towns that could build at dawn and have built today or can build nothing now; W: their weights summed, at
+/// most 1. The bar is (H + T * W) / (1 + W), or T alone when no hero had movement at dawn, and 100 when neither applies.
 int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> & towns, const std::vector<HeroNow> & heroesNow, const std::vector<TownNow> & townsNow);
 
 /// a bar's size and where its top left goes, in screen pixels

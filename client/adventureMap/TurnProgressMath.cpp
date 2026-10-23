@@ -11,6 +11,13 @@
 
 namespace TurnProgressMath
 {
+double townWeight(int remaining)
+{
+	if(remaining <= 3)
+		return 0.0;
+	return std::min(1.0, (remaining - 3) / 7.0);
+}
+
 int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> & towns, const std::vector<HeroNow> & heroesNow, const std::vector<TownNow> & townsNow)
 {
 	const auto findHero = [&heroesNow](int id) -> const HeroNow *
@@ -28,91 +35,47 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 		return nullptr;
 	};
 
-	std::vector<double> categories;
-
-	// hero movement: points spent over the points the heroes had when the turn started
+	// heroes: movement points spent over the points the heroes had when the turn started
+	int total = 0;
+	int spent = 0;
+	for(const auto & start : heroes)
 	{
-		int total = 0;
-		int spent = 0;
-		for(const auto & start : heroes)
+		if(start.movement <= 0)
+			continue;
+		const HeroNow * hero = findHero(start.id);
+		total += start.movement;
+		if(!hero)
 		{
-			if(start.movement <= 0)
-				continue;
-			const HeroNow * hero = findHero(start.id);
-			if(!hero)
-				continue;
-			total += start.movement;
-			spent += hero->canMove ? std::clamp(start.movement - hero->movement, 0, start.movement) : start.movement;
+			spent += start.movement; // lost or dismissed during the turn: it has nothing left to move
+			continue;
 		}
-		if(total > 0)
-			categories.push_back(static_cast<double>(spent) / total);
+		spent += hero->canMove ? std::clamp(start.movement - hero->movement, 0, start.movement) : start.movement;
 	}
+	const double heroWeight = total > 0 ? 1.0 : 0.0;
+	const double heroShare = total > 0 ? static_cast<double>(spent) / total : 0.0;
 
-	// building: one structure a turn in each town that could build one
+	// towns: each town that could build at dawn, weighted by what is left on its list; done when it built today or nothing can be built there now
+	double weights = 0.0;
+	double doneWeights = 0.0;
+	for(const auto & start : towns)
 	{
-		int possible = 0;
-		int done = 0;
-		for(const auto & start : towns)
-		{
-			if(!start.canBuild)
-				continue;
-			const TownNow * town = findTown(start.id);
-			if(!town)
-				continue;
-			possible++;
-			if(town->built > 0 || !town->canBuild)
-				done++;
-		}
-		if(possible > 0)
-			categories.push_back(static_cast<double>(done) / possible);
+		if(!start.canBuild)
+			continue;
+		const TownNow * town = findTown(start.id);
+		const double weight = townWeight(start.remaining);
+		if(!town || weight <= 0.0)
+			continue;
+		weights += weight;
+		if(town->built > 0 || !town->canBuild)
+			doneWeights += weight;
 	}
+	const double townsWeight = std::min(1.0, weights);
+	const double townShare = weights > 0.0 ? doneWeights / weights : 0.0;
 
-	// recruiting: creatures taken out of the dwellings the player could afford at the start
-	{
-		int total = 0;
-		int taken = 0;
-		for(const auto & start : towns)
-		{
-			if(start.recruitable <= 0)
-				continue;
-			const TownNow * town = findTown(start.id);
-			if(!town)
-				continue;
-			int now = 0;
-			for(const size_t index : start.levels)
-				if(index < town->available.size())
-					now += town->available[index];
-			total += start.recruitable;
-			taken += town->canRecruit ? std::clamp(start.recruitable - now, 0, start.recruitable) : start.recruitable;
-		}
-		if(total > 0)
-			categories.push_back(static_cast<double>(taken) / total);
-	}
-
-	// spells: mana spent by the heroes who could cast an adventure spell
-	{
-		int total = 0;
-		int spent = 0;
-		for(const auto & start : heroes)
-		{
-			if(!start.canCast || start.mana <= 0)
-				continue;
-			const HeroNow * hero = findHero(start.id);
-			if(!hero)
-				continue;
-			total += start.mana;
-			spent += hero->canCast ? std::clamp(start.mana - hero->mana, 0, start.mana) : start.mana;
-		}
-		if(total > 0)
-			categories.push_back(static_cast<double>(spent) / total);
-	}
-
-	if(categories.empty())
-		return 0;
-	double sum = 0;
-	for(double value : categories)
-		sum += value;
-	return std::clamp(static_cast<int>(100.0 * sum / categories.size() + 0.5), 0, 100);
+	const double denominator = heroWeight + townsWeight;
+	if(denominator <= 0.0)
+		return 100; // nothing to move and nothing worth building
+	return std::clamp(static_cast<int>(100.0 * (heroShare * heroWeight + townShare * townsWeight) / denominator + 0.5), 0, 100);
 }
 
 std::vector<Place> layout(const std::vector<Size> & bars, const Place & origin, int gap, int maxBottom)

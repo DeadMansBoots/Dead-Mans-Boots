@@ -446,7 +446,7 @@ std::string joinWords(const std::vector<std::string> & parts, const std::string 
 	return result;
 }
 
-std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveOutSpells)
+std::vector<std::string> prizeParts(const PrizeSummary & prize, bool alternatives, bool leaveOutSpells)
 {
 	std::vector<std::string> gives;
 	// every kind with the same amounts: the windmill's one kind of several
@@ -558,7 +558,21 @@ std::string prizeText(const PrizeSummary & prize, bool alternatives, bool leaveO
 	// a bonus with no words of its own is named only where the prize has nothing else to say (the rest is usually the engine's mark that a hero has visited)
 	if(prize.otherBonuses && gives.empty())
 		gives.push_back("a bonus");
-	return joinWords(gives, alternatives ? "or" : "and");
+	return gives;
+}
+
+/// a prize part the object's own description already says, value and kind ("+1 luck" in the Idol of Fortune's "(+1 luck or +1 morale until next
+/// battle)"); how long it lasts is not compared, the description words that its own way
+bool statedIn(const std::string & part, const std::string & description)
+{
+	std::string core = boost::to_lower_copy(part);
+	for(const char * lasts : {" in the next battle", " until the day ends", " until the week ends"})
+	{
+		const auto at = core.find(lasts);
+		if(at != std::string::npos)
+			core.erase(at);
+	}
+	return !core.empty() && boost::to_lower_copy(description).find(core) != std::string::npos;
 }
 
 /// a limiter's conditions in words, added to `out`; false when it holds something that is not worded here (the caller then keeps a general sentence)
@@ -727,10 +741,19 @@ std::string CRewardableObject::getBuildingInfoText(PlayerColor player, const CGH
 		for(const auto & info : configuration.info)
 			if(info.visitType == Rewardable::EEventType::EVENT_FIRST_VISIT)
 				++firstVisitRewards;
-		const bool alternatives = firstVisitRewards > 1 && (configuration.selectMode == Rewardable::SELECT_PLAYER || configuration.selectMode == Rewardable::SELECT_RANDOM);
-		const std::string gives = prizeText(prize, alternatives, learnsSpell);
+		// a "select first" table gives only the first reward whose condition passes (the Idol of Fortune: luck on some days, morale on others), so
+		// its rewards are alternatives too (K, October 22nd: the Idol's window said "+1 luck ... and +1 morale")
+		const bool alternatives = firstVisitRewards > 1 && (configuration.selectMode == Rewardable::SELECT_PLAYER || configuration.selectMode == Rewardable::SELECT_RANDOM
+			|| configuration.selectMode == Rewardable::SELECT_FIRST);
+		const auto parts = prizeParts(prize, alternatives, learnsSpell);
+		// the prize is not said twice: when the object's own description already states every part of it (K: "too redundant for a basegame heroes
+		// entry"), the Gives line is left out, as costText leaves out a price the description states
+		const std::string description = getDescriptionMessage(player, hero);
+		const bool alreadySaid = !parts.empty() && std::all_of(parts.begin(), parts.end(), [&description](const std::string & part) { return statedIn(part, description); });
+		const std::string gives = alreadySaid ? std::string() : joinWords(parts, alternatives ? "or" : "and");
 		if(!gives.empty())
-			text += std::string("\n") + (guarded ? "Prize: " : "Gives: ") + (alternatives ? (configuration.selectMode == Rewardable::SELECT_PLAYER ? "your pick of " : "one of ") : "") + gives;
+			text += std::string("\n") + (guarded ? "Prize: " : "Gives: ") + (configuration.selectMode == Rewardable::SELECT_PLAYER && alternatives ? "your pick of "
+				: configuration.selectMode == Rewardable::SELECT_RANDOM && alternatives ? "one of " : "") + gives;
 		if(configuration.selectMode == Rewardable::SELECT_FIRST && firstVisitRewards > 1)
 		{
 			// a reward that needs a later day is checked first (a water wheel gives more after the first week)

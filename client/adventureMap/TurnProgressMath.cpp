@@ -42,7 +42,7 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 			if(!hero)
 				continue;
 			total += start.movement;
-			spent += std::clamp(start.movement - hero->movement, 0, start.movement);
+			spent += hero->canMove ? std::clamp(start.movement - hero->movement, 0, start.movement) : start.movement;
 		}
 		if(total > 0)
 			categories.push_back(static_cast<double>(spent) / total);
@@ -60,7 +60,7 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 			if(!town)
 				continue;
 			possible++;
-			if(town->built > 0)
+			if(town->built > 0 || !town->canBuild)
 				done++;
 		}
 		if(possible > 0)
@@ -83,7 +83,7 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 				if(index < town->available.size())
 					now += town->available[index];
 			total += start.recruitable;
-			taken += std::clamp(start.recruitable - now, 0, start.recruitable);
+			taken += town->canRecruit ? std::clamp(start.recruitable - now, 0, start.recruitable) : start.recruitable;
 		}
 		if(total > 0)
 			categories.push_back(static_cast<double>(taken) / total);
@@ -101,7 +101,7 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 			if(!hero)
 				continue;
 			total += start.mana;
-			spent += std::clamp(start.mana - hero->mana, 0, start.mana);
+			spent += hero->canCast ? std::clamp(start.mana - hero->mana, 0, start.mana) : start.mana;
 		}
 		if(total > 0)
 			categories.push_back(static_cast<double>(spent) / total);

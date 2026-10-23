@@ -28,6 +28,9 @@
 #include "../../lib/entities/faction/CTown.h"
 #include "../../lib/mapObjects/CGHeroInstance.h"
 #include "../../lib/mapObjects/CGTownInstance.h"
+#include "../../lib/mapping/TerrainTile.h"
+#include "../../lib/pathfinder/CPathfinder.h"
+#include "../../lib/pathfinder/PathfinderOptions.h"
 #include "../../lib/spells/CSpellHandler.h"
 
 #include <algorithm>
@@ -207,9 +210,32 @@ int TurnProgressBar::compute() const
 	const PlayerState * state = cb->getPlayerState(player, false);
 	if(!state)
 		return 0;
+	// a category is done when nothing useful is left in it (the lead for K, October 23rd): what is still possible is read from the game state every client has,
+	// so the same player reads the same on every client
+	const ResourceSet resources = state->resources;
 	std::vector<TurnProgressMath::HeroNow> heroesNow;
 	for(const CGHeroInstance * hero : state->getHeroes())
-		heroesNow.push_back({hero->id.getNum(), hero->movementPointsRemaining(), static_cast<int>(hero->mana)});
+	{
+		TurnProgressMath::HeroNow now;
+		now.id = hero->id.getNum();
+		now.movement = hero->movementPointsRemaining();
+		now.mana = static_cast<int>(hero->mana);
+		now.canMove = canStillMove(hero);
+		now.canCast = false;
+		if(hero->hasSpellbook())
+		{
+			for(const SpellID & id : hero->getSpellsInSpellbook())
+			{
+				const auto * spell = id.toSpell();
+				if(spell && spell->isAdventure() && hero->getSpellCost(spell) <= hero->mana)
+				{
+					now.canCast = true;
+					break;
+				}
+			}
+		}
+		heroesNow.push_back(now);
+	}
 	std::vector<TurnProgressMath::TownNow> townsNow;
 	for(const CGTownInstance * town : state->getTowns())
 	{
@@ -218,9 +244,66 @@ int TurnProgressBar::compute() const
 		now.built = town->built;
 		for(const auto & level : town->creatures)
 			now.available.push_back(static_cast<int>(level.first));
+		now.canBuild = false;
+		if(town->built == 0)
+		{
+			for(const auto & building : town->getTown()->buildings)
+			{
+				if(cb->canBuildStructure(town, building.first) == EBuildingState::ALLOWED)
+				{
+					now.canBuild = true;
+					break;
+				}
+			}
+		}
+		now.canRecruit = false;
+		for(const auto & level : town->creatures)
+		{
+			if(level.first == 0)
+				continue;
+			const bool affordable = std::any_of(level.second.begin(), level.second.end(), [&resources](const CreatureID & id)
+			{
+				const auto * creature = id.toCreature();
+				return creature && resources.canAfford(creature->getFullRecruitCost());
+			});
+			if(affordable)
+			{
+				now.canRecruit = true;
+				break;
+			}
+		}
 		townsNow.push_back(now);
 	}
 	return TurnProgressMath::percent(heroes, towns, heroesNow, townsNow);
+}
+
+bool TurnProgressBar::canStillMove(const CGHeroInstance * hero)
+{
+	// a step to one of the eight neighbouring tiles that the movement left pays for, by the pathfinder's own cost rule (the diagonal exception included);
+	// blocked tiles are not looked at, so a hero next to a free tile always counts as able to move
+	const int left = hero->movementPointsRemaining();
+	if(left <= 0 || !GAME->interface() || !GAME->interface()->cb)
+		return false;
+	const auto & cb = GAME->interface()->cb;
+	const int3 at = hero->visitablePos();
+	const TerrainTile * from = cb->getTile(at, false);
+	if(!from)
+		return true;
+	PathfinderOptions options(*cb);
+	CPathfinderHelper helper(*cb, hero, options);
+	for(int dx = -1; dx <= 1; ++dx)
+	{
+		for(int dy = -1; dy <= 1; ++dy)
+		{
+			if(dx == 0 && dy == 0)
+				continue;
+			const int3 to(at.x + dx, at.y + dy, at.z);
+			const TerrainTile * tile = cb->isInTheMap(to) ? cb->getTile(to, false) : nullptr;
+			if(tile && helper.getMovementCost(at, to, from, tile, left, false) <= left)
+				return true;
+		}
+	}
+	return false;
 }
 
 void TurnProgressBar::tick(uint32_t msPassed)

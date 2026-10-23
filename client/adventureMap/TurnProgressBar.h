@@ -22,6 +22,10 @@
 /// (AdventureMapInterface::show asks it to), and the bar is drawn over them: the glass darkens the terrain as it is in that frame, and nothing drawn earlier stays.
 class IImage;
 
+VCMI_LIB_NAMESPACE_BEGIN
+class CGHeroInstance;
+VCMI_LIB_NAMESPACE_END
+
 class TurnProgressBar : public CIntObject
 {
 	PlayerColor player;
@@ -64,6 +68,8 @@ class TurnProgressBar : public CIntObject
 
 	/// reads the player's heroes and towns as they are now and hands them, with the snapshot, to TurnProgressMath::percent
 	int compute() const;
+	/// a step to a neighbouring tile is still affordable with the hero's movement left
+	static bool canStillMove(const CGHeroInstance * hero);
 	/// the name the lobby shows for the player, and pos fitted to it
 	void readName();
 	/// pos widens to the right for a name wider than the frame and its end pieces, so pos stays all the bar draws

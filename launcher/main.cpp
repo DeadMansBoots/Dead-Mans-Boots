@@ -185,8 +185,10 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	}
 	// DMB: "--check-package <file> <verdict file> [--into <mods folder>]" checks a .dmb with no window (and installs it into the folder given), and writes
 	// "ok" or "refused" and the reason: the Reviewer's crafted-package tests run against this, never against a player's folders
+	// test switches: only with DMB_TEST_PACKAGES=1 in the environment, so a player's launcher never installs or writes a package without its window
+	const bool packageTests = qEnvironmentVariable("DMB_TEST_PACKAGES") == "1";
 	const int checkAt = vcmilauncher.arguments().indexOf("--check-package");
-	if(checkAt >= 0 && checkAt + 2 < vcmilauncher.arguments().size())
+	if(packageTests && checkAt >= 0 && checkAt + 2 < vcmilauncher.arguments().size())
 	{
 		const QStringList args = vcmilauncher.arguments();
 		const int intoAt = args.indexOf("--into");
@@ -208,7 +210,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	}
 	// DMB: "--make-package <mod folder> <out.dmb> <verdict file>" makes a package with no window (the launcher's Export as .dmb), for tests
 	const int makeAt = vcmilauncher.arguments().indexOf("--make-package");
-	if(makeAt >= 0 && makeAt + 3 < vcmilauncher.arguments().size())
+	if(packageTests && makeAt >= 0 && makeAt + 3 < vcmilauncher.arguments().size())
 	{
 		const QStringList args = vcmilauncher.arguments();
 		QString reason;

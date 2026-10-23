@@ -283,7 +283,8 @@ QString nameProblem(const QString & name)
 	QString trimmed = name;
 	if(trimmed.endsWith('/'))
 		trimmed.chop(1);
-	static const QRegularExpression reserved("^(con|prn|aux|nul|com[0-9]|lpt[0-9]|conin\\$|conout\\$)$", QRegularExpression::CaseInsensitiveOption);
+	static const QRegularExpression reserved(QString::fromUtf8("^(con|prn|aux|nul|com[0-9\u00b9\u00b2\u00b3]|lpt[0-9\u00b9\u00b2\u00b3]|conin\\$|conout\\$)$"),
+		QRegularExpression::CaseInsensitiveOption);
 	for(const auto & part : trimmed.split('/'))
 	{
 		if(part.isEmpty())
@@ -437,6 +438,15 @@ bool install(const QString & packagePath, const QString & modsDir, const QString
 		return false;
 	}
 	std::array<char, 65536> buffer;
+	// every target must fit Windows' path limit before anything is written (a deep path refused half way left its staging folders behind, the Reviewer's R4)
+	const QString longestPossible = mods.filePath(".dmb-staging-" + QString(16, 'f') + "/" + manifest.id + "/");
+	for(const auto & file : manifest.files)
+		if(QDir::toNativeSeparators(longestPossible + file.path).size() >= 250)
+		{
+			cleanStaging();
+			reason = QObject::tr("\"%1\" would be too long a path for Windows in this mods folder.").arg(file.path);
+			return false;
+		}
 	for(const auto & file : manifest.files)
 	{
 		const QString target = stagedMod + "/" + file.path;
@@ -513,16 +523,34 @@ bool install(const QString & packagePath, const QString & modsDir, const QString
 	}
 	if(!QDir().rename(stagedMod, destination))
 	{
-		if(hadOld)
-			QDir().rename(aside, destination);
+		if(hadOld && !QDir().rename(aside, destination))
+		{
+			reason = QObject::tr("The mod could not be moved into place, and the installed copy could not be moved back: it is in %1. Close Dead Man's Boots and "
+				"rename that folder to %2.").arg(QDir::toNativeSeparators(aside), manifest.id);
+			return false;
+		}
 		cleanStaging();
 		reason = QObject::tr("The mod could not be moved into place; the installed copy is unchanged.");
 		return false;
 	}
-	if(hadOld)
-		QDir(aside).removeRecursively();
 	cleanStaging();
+	if(hadOld && !QDir(aside).removeRecursively())
+		logGlobal->warn("DMB package: the old copy of %s stays in %s until the next install sweeps it", manifest.id.toStdString(), aside.toStdString());
 	return true;
+}
+
+int sweep(const QString & modsDir)
+{
+	int removed = 0;
+	QDir mods(modsDir);
+	for(const auto & name : mods.entryList({".dmb-staging-*", ".dmb-old-*"}, QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot))
+	{
+		// the long-path form reaches folders deeper than Windows' usual limit
+		const QString path = QDir::toNativeSeparators(mods.absoluteFilePath(name));
+		if(QDir(path).removeRecursively() || QDir("\\\\?\\" + path).removeRecursively())
+			removed++;
+	}
+	return removed;
 }
 
 namespace

@@ -57,4 +57,7 @@ bool install(const QString & packagePath, const QString & modsDir, const QString
 /// a .dmb made from a mod's folder (the folder's name is the id); false with a plain reason when the folder holds a link, has no mod.json, or a
 /// file carries the Windows user name, the computer name or a user folder path (K, October 11th: no personal information in what leaves the PC)
 bool make(const QString & modFolder, const QString & outPath, const QString & dmbMin, QString & reason);
+
+/// removes what an interrupted or failed install left in the mods folder (.dmb-staging-* and .dmb-old-* folders); the number removed
+int sweep(const QString & modsDir);
 }

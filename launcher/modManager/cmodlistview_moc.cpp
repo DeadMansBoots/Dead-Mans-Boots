@@ -1017,11 +1017,23 @@ void CModListView::hideProgressBar()
 namespace
 {
 /// the game or its server is running from this install: a mod must not change under it
+/// a message box whose text is shown as written: a package's own name or file names never turn into rich text (the Reviewer's finding 4)
+QMessageBox::StandardButton plainBox(QWidget * parent, QMessageBox::Icon icon, const QString & title, const QString & text,
+	QMessageBox::StandardButtons buttons = QMessageBox::Ok, QMessageBox::StandardButton defaultButton = QMessageBox::NoButton)
+{
+	QMessageBox box(icon, title, text, buttons, parent);
+	box.setTextFormat(Qt::PlainText);
+	if(defaultButton != QMessageBox::NoButton)
+		box.setDefaultButton(defaultButton);
+	return static_cast<QMessageBox::StandardButton>(box.exec());
+}
+
 bool gameRunning()
 {
 #ifdef VCMI_WINDOWS
-	const QString client = QFileInfo(pathToQString(VCMIDirs::get().clientPath())).fileName();
-	const QString server = QFileInfo(pathToQString(VCMIDirs::get().serverPath())).fileName();
+	// by the full path of each process's program: stock VCMI and other installs run programs with the same names (the Reviewer's finding 1)
+	const QString client = QFileInfo(pathToQString(VCMIDirs::get().clientPath())).canonicalFilePath();
+	const QString server = QFileInfo(pathToQString(VCMIDirs::get().serverPath())).canonicalFilePath();
 	HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	if(snapshot == INVALID_HANDLE_VALUE)
 		return false;
@@ -1030,8 +1042,17 @@ bool gameRunning()
 	bool found = false;
 	for(bool more = Process32FirstW(snapshot, &entry); more && !found; more = Process32NextW(snapshot, &entry))
 	{
-		const QString name = QString::fromWCharArray(entry.szExeFile);
-		found = name.compare(client, Qt::CaseInsensitive) == 0 || name.compare(server, Qt::CaseInsensitive) == 0;
+		HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+		if(!process)
+			continue;
+		wchar_t image[MAX_PATH * 4];
+		DWORD size = static_cast<DWORD>(std::size(image));
+		if(QueryFullProcessImageNameW(process, 0, image, &size))
+		{
+			const QString path = QFileInfo(QString::fromWCharArray(image, static_cast<int>(size))).canonicalFilePath();
+			found = (!client.isEmpty() && path.compare(client, Qt::CaseInsensitive) == 0) || (!server.isEmpty() && path.compare(server, Qt::CaseInsensitive) == 0);
+		}
+		CloseHandle(process);
 	}
 	CloseHandle(snapshot);
 	return found;
@@ -1054,18 +1075,21 @@ void CModListView::exportDmbPackage(const QString & modName)
 		return;
 	QString reason;
 	if(DmbPackage::make(pathToQString(*location), out, QString(DMB_VERSION_STRING), reason))
-		QMessageBox::information(this, tr("Exported"), tr("%1 is written.").arg(QDir::toNativeSeparators(out)));
+		plainBox(this, QMessageBox::Information, tr("Exported"), tr("%1 is written.").arg(QDir::toNativeSeparators(out)));
 	else
-		QMessageBox::warning(this, tr("The package was not made"), reason);
+		plainBox(this, QMessageBox::Warning, tr("The package was not made"), reason);
 }
 
 void CModListView::installDmbPackage(const QString & path)
 {
 	const QString version = QString(DMB_VERSION_STRING);
+	const int swept = DmbPackage::sweep(CLauncherDirs::modsPath());
+	if(swept > 0)
+		logGlobal->info("DMB package: %d folders an earlier install left were removed", swept);
 	const DmbPackage::Inspection inspection = DmbPackage::inspect(path, version);
 	if(!inspection.ok)
 	{
-		QMessageBox::warning(this, tr("This package cannot be installed"), inspection.reason);
+		plainBox(this, QMessageBox::Warning, tr("This package cannot be installed"), inspection.reason);
 		return;
 	}
 	const auto & manifest = inspection.manifest;
@@ -1080,18 +1104,18 @@ void CModListView::installDmbPackage(const QString & path)
 	const QString text = tr("%1, version %2 (mod id %3)").arg(manifest.name, manifest.version, manifest.id) + "\n"
 		+ tr("%1 files, %2 MB").arg(manifest.files.size()).arg(QString::number(inspection.totalSize / 1048576.0, 'f', 1)) + "\n"
 		+ (manifest.signature ? tr("Signature: not verified") : tr("Not signed")) + installedNote + "\n\n" + tr("Install it?");
-	if(QMessageBox::question(this, tr("Install a Dead Man's Boots package"), text, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+	if(plainBox(this, QMessageBox::Question, tr("Install a Dead Man's Boots package"), text, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
 		return;
 	if(gameRunning())
 	{
-		QMessageBox::warning(this, tr("This package cannot be installed"), tr("Close Dead Man's Boots first: the game reads its mods while it runs."));
+		plainBox(this, QMessageBox::Warning, tr("This package cannot be installed"), tr("Close Dead Man's Boots first: the game reads its mods while it runs."));
 		return;
 	}
 	const bool wasInstalled = modStateModel->isModExists(manifest.id) && modStateModel->getMod(manifest.id).isInstalled();
 	QString reason;
 	if(!DmbPackage::install(path, CLauncherDirs::modsPath(), version, reason))
 	{
-		QMessageBox::warning(this, tr("The package was not installed"), reason);
+		plainBox(this, QMessageBox::Warning, tr("The package was not installed"), reason);
 		return;
 	}
 	reload(manifest.id);
@@ -1103,10 +1127,10 @@ void CModListView::installDmbPackage(const QString & path)
 		}
 		catch(const std::exception & e)
 		{
-			QMessageBox::warning(this, tr("Failed to enable mod"), QString::fromUtf8(e.what()));
+			plainBox(this, QMessageBox::Warning, tr("Failed to enable mod"), QString::fromUtf8(e.what()));
 		}
 	}
-	QMessageBox::information(this, tr("Installed"), tr("%1 %2 is installed.").arg(manifest.name, manifest.version));
+	plainBox(this, QMessageBox::Information, tr("Installed"), tr("%1 %2 is installed.").arg(manifest.name, manifest.version));
 }
 
 void CModListView::installFiles(QStringList files)

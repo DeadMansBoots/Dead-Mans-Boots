@@ -286,6 +286,53 @@ void CBattleAI::print(const std::string &text) const
 	logAi->trace("%s Battle AI[%p]: %s", playerID.toString(), this, text);
 }
 
+// DMB: the basegame's retreat trigger, "if the AI thinks the player is going to lose after the current move" (Heroes 3 wiki, Retreat
+// and Combat pages). Each enemy stack that can shoot, or reach a hex beside one of ours within its movement range, deals its estimated
+// average damage once, to the stack of ours it hurts most (capped at that stack's remaining health); true when nothing of ours is
+// left. Before this no battle AI set the field, so every AI that reads it (OmniAI) never retreated.
+static bool lastTurnBeforeDie(const CPlayerBattleCallback & battle, const battle::Units & ours, const battle::Units & theirs)
+{
+	std::map<uint32_t, int64_t> left;
+	int64_t total = 0;
+	for(const auto * unit : ours)
+	{
+		left[unit->unitId()] = unit->getAvailableHealth();
+		total += unit->getAvailableHealth();
+	}
+	if(total <= 0)
+		return false;
+	for(const auto * enemy : theirs)
+	{
+		const bool shooter = battle.battleCanShoot(enemy);
+		ReachabilityInfo reach;
+		if(!shooter)
+			reach = battle.getReachability(enemy);
+		const battle::Unit * target = nullptr;
+		int64_t targetDamage = 0;
+		for(const auto * unit : ours)
+		{
+			const int64_t health = left[unit->unitId()];
+			if(health <= 0)
+				continue;
+			if(!shooter && reach.distToNearestNeighbour(unit->getHexes()) > enemy->getMovementRange())
+				continue;
+			const DamageEstimation estimate = battle.battleEstimateDamage(enemy, unit, 0);
+			const int64_t damage = std::min<int64_t>(health, (estimate.damage.min + estimate.damage.max) / 2);
+			if(damage > targetDamage)
+			{
+				targetDamage = damage;
+				target = unit;
+			}
+		}
+		if(target)
+		{
+			left[target->unitId()] -= targetDamage;
+			total -= targetDamage;
+		}
+	}
+	return total <= 0;
+}
+
 std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const BattleID & battleID)
 {
 	BattleStateInfoForRetreat bs;
@@ -317,7 +364,15 @@ std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const Battl
 		return std::nullopt;
 	}
 
+	bs.isLastTurnBeforeDie = lastTurnBeforeDie(*cb->getBattle(battleID), bs.ourStacks, bs.enemyStacks);
+	if(bs.isLastTurnBeforeDie)
+		logAi->info("Battle AI: round %d, side %d expects to lose after the current move (our strength %d, enemy %d)",
+			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());
+
 	auto result = cb->makeSurrenderRetreatDecision(battleID, bs);
+	if(result)
+		logAi->info("Battle AI: round %d, side %d retreats or surrenders (our strength %d, enemy %d)",
+			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());
 
 	if(!result && bs.canFlee && bs.turnsSkippedByDefense > 30)
 	{

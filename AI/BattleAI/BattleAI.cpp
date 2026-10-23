@@ -29,6 +29,7 @@
 #include "../../lib/battle/CObstacleInstance.h"
 #include "../../lib/mapObjects/army/CCommanderInstance.h"
 #include "../../lib/StartInfo.h"
+#include "../../lib/CConfigHandler.h"
 #include "../../lib/CStack.h" // TODO: remove
                               // Eventually only IBattleInfoCallback and battle::Unit should be used,
                               // CUnitState should be private and CStack should be removed completely
@@ -379,7 +380,10 @@ std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const Battl
 		return std::nullopt;
 	}
 
-	bs.isLastTurnBeforeDie = lastTurnBeforeDie(*cb->getBattle(battleID), bs.ourStacks, bs.enemyStacks);
+	// ai.battleLastTurnEstimate (default true): the OmniAI benchmark lanes keep it false, so that an OmniAI build that retreats on
+	// this field does not start doing so in the middle of a measurement (the Opus Reviewer, 2026-10-23).
+	if(settings["ai"]["battleLastTurnEstimate"].Bool())
+		bs.isLastTurnBeforeDie = lastTurnBeforeDie(*cb->getBattle(battleID), bs.ourStacks, bs.enemyStacks);
 	if(bs.isLastTurnBeforeDie)
 		logAi->info("Battle AI: round %d, side %d expects to lose after the current move (our strength %d, enemy %d)",
 			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());

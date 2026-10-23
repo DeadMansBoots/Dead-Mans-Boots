@@ -359,7 +359,8 @@ AssetGenerator::CanvasPtr AssetGenerator::createMapGenBackground() const
 	// of buttons 3 rows under the divider then has 2 clear rows above and below. Nothing above a bottom edge moves, so a page's rows stay where
 	// they are. Without VCMI Extras the tab's stock background is returned as it is.
 	const ImagePath extras = ImagePath::builtin("RanMapBk_new");
-	if(!CResourceHandler::get()->existsResource(extras))
+	// a mod's picture is registered under SPRITES/ (CInfoBar looks the same way); the game's own under its name
+	if(!CResourceHandler::get()->existsResource(extras) && !CResourceHandler::get()->existsResource(extras.addPrefix("SPRITES/")))
 	{
 		std::shared_ptr<IImage> stock = ENGINE->renderHandler().loadImage(ImageLocator(ImagePath::builtin("RANMAPBK"), EImageBlitMode::OPAQUE));
 		auto image = ENGINE->renderHandler().createImage(stock->dimensions(), CanvasScalingPolicy::IGNORE);

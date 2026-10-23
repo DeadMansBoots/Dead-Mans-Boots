@@ -105,8 +105,9 @@ public: // TODO: make private
 	std::shared_ptr<CBattleGameInterface> autofightingAI; //AI that makes decisions
 	bool isAutoFightOn; //Flag, switch it to stop quick combat. Don't touch if there is no battle interface.
 	bool isAutoFightEndBattle; //Flag, if battle forced to end with autocombat
-	/// DMB: battles in which the auto-combat retreat question was already put (once per battle, as makeSurrenderRetreatDecision asks)
-	std::set<BattleID> retreatAsked;
+	/// DMB: the auto-combat retreat question, one per battle (makeSurrenderRetreatDecision): -1 while it waits for the player, then
+	/// 0 fight on, 1 retreat, 2 surrender. Written by the dialog's callbacks on the main thread, read on the network thread.
+	std::map<BattleID, std::shared_ptr<std::atomic<int>>> retreatAnswers;
 
 protected: // Call-ins from server, should not be called directly, but only via GameInterface
 

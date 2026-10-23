@@ -30,6 +30,7 @@ not be offered to them.
 | 3 | map generators that make the game's map at Begin ([DMB_Addons.md](DMB_Addons.md)), `valueTexts` |
 | 4 | chooser buttons, `valueTexts` for numbers |
 | 5 | main menu backgrounds a mod adds to the pool (below) |
+| 6 | `DmbMapGenBk`, a map generator tab background: VCMI Extras' `RanMapBk_new` with each of its six boxes 4 rows taller (the bottom edge moved into the groove under it), so a row of 32-high buttons placed 3 rows under a box's divider has 2 clear rows above and below |
 
 ## Rules every UI mod follows
 

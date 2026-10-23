@@ -75,6 +75,7 @@ void AssetGenerator::initialize()
 	}
 
 	imageFiles[ImagePath::builtin("AdventureOptionsBackgroundClear.png")] = [this](){ return createAdventureOptionsCleanBackground();};
+	imageFiles[ImagePath::builtin("DmbMapGenBk.png")] = [this](){ return createMapGenBackground();};
 	imageFiles[ImagePath::builtin("SpellBookLarge.png")] = [this](){ return createBigSpellBook();};
 	imageFiles[ImagePath::builtin("MuPopUpCustom.png")] = [this](){ return createMuPopUpCustom();};
 
@@ -345,6 +346,46 @@ AssetGenerator::CanvasPtr AssetGenerator::createAdventureOptionsCleanBackground(
 	canvas.draw(img, Point(53, 567), Rect(53, 520, 339, 3));
 	canvas.draw(img, Point(53, 520), Rect(53, 264, 339, 47));
 
+	return image;
+}
+
+AssetGenerator::CanvasPtr AssetGenerator::createMapGenBackground() const
+{
+	// DMB, the map generator tab's background (K, October 22nd 17:4x: the size and player buttons "ride too low on their bounding ui boxes and
+	// should be given a tad more breathing room...all the buttons should have a unified margin with their containing bounding box"). The tab
+	// draws on VCMI Extras' lobby background (RanMapBk_new, 575 by 585), whose six boxes leave a row of 32 high buttons 32 rows between a
+	// box's divider and its bottom edge, so a row touches one line or the other. This copy moves each box's bottom edge (its inner bevel and
+	// its line) 4 rows down into the dark groove under it, which keeps 3 of its 7 rows, and fills the 4 rows with the box's own texture: a row
+	// of buttons 3 rows under the divider then has 2 clear rows above and below. Nothing above a bottom edge moves, so a page's rows stay where
+	// they are. Without VCMI Extras the tab's stock background is returned as it is.
+	const ImagePath extras = ImagePath::builtin("RanMapBk_new");
+	if(!CResourceHandler::get()->existsResource(extras))
+	{
+		std::shared_ptr<IImage> stock = ENGINE->renderHandler().loadImage(ImageLocator(ImagePath::builtin("RANMAPBK"), EImageBlitMode::OPAQUE));
+		auto image = ENGINE->renderHandler().createImage(stock->dimensions(), CanvasScalingPolicy::IGNORE);
+		image->getCanvas().draw(stock, Point(0, 0));
+		return image;
+	}
+	std::shared_ptr<IImage> img = ENGINE->renderHandler().loadImage(ImageLocator(extras, EImageBlitMode::OPAQUE));
+	const Point size = img->dimensions();
+	auto image = ENGINE->renderHandler().createImage(size, CanvasScalingPolicy::IGNORE);
+	Canvas canvas = image->getCanvas();
+	canvas.draw(img, Point(0, 0), Rect(Point(0, 0), size));
+	// in the picture's own rows (the tab draws it 6 rows down): each box's divider and bottom line, measured on the picture; x 56 to 387 is the
+	// box with the dark channels either side of it, inside the column's frame
+	constexpr std::array<int, 6> dividers = {145, 211, 277, 344, 411, 477};
+	constexpr std::array<int, 6> bottoms = {179, 245, 311, 378, 445, 511};
+	constexpr int left = 56;
+	constexpr int width = 332;
+	constexpr int grow = 4;
+	if(size.x < left + width || size.y < bottoms.back() + grow + 1)
+		return image;
+	for(size_t i = 0; i < bottoms.size(); ++i)
+	{
+		// the box's own texture from 8 rows under its divider (clear of the divider's shadow), then the bevel and the line under it
+		canvas.draw(img, Point(left, bottoms[i] - 1), Rect(left, dividers[i] + 8, width, grow));
+		canvas.draw(img, Point(left, bottoms[i] - 1 + grow), Rect(left, bottoms[i] - 1, width, 2));
+	}
 	return image;
 }
 

@@ -60,6 +60,7 @@ private:
 	std::map<AnimationPath, AnimationLayoutMap> animationFiles;
 
 	CanvasPtr createAdventureOptionsCleanBackground() const;
+	CanvasPtr createMapGenBackground() const;
 	CanvasPtr createBigSpellBook() const;
 	CanvasPtr createPlayerColoredBackground(const PlayerColor & player) const;
 	CanvasPtr createCombatUnitNumberWindow(float multR, float multG, float multB) const;

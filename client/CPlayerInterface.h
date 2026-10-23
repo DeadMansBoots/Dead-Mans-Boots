@@ -108,6 +108,9 @@ public: // TODO: make private
 	/// DMB: the auto-combat retreat question, one per battle (makeSurrenderRetreatDecision): -1 while it waits for the player, then
 	/// 0 fight on, 1 retreat, 2 surrender. Written by the dialog's callbacks on the main thread, read on the network thread.
 	std::map<BattleID, std::shared_ptr<std::atomic<int>>> retreatAnswers;
+	/// DMB: the question's window (or its surrender follow-up) per battle, closed by battleEnd if still on top. Main thread only.
+	std::map<BattleID, std::weak_ptr<CInfoWindow>> retreatWindows;
+	void showRetreatQuestion(const BattleID & battleID, const std::string & text, CFunctionList<void()> onYes, CFunctionList<void()> onNo);
 
 protected: // Call-ins from server, should not be called directly, but only via GameInterface
 

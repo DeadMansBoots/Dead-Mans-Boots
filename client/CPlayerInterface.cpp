@@ -910,9 +910,36 @@ void CPlayerInterface::activeStack(const BattleID & battleID, const CStack * sta
 	battleInt->stackActivated(stack);
 }
 
+// DMB: the auto-combat retreat question's window, built as showYesNoDialog builds a dialog (movement abort, the dialog marked busy,
+// OK and Cancel) but kept by a weak handle so that battleEnd can close it. Main thread only (dispatchMainThread from
+// makeSurrenderRetreatDecision, or a button callback).
+void CPlayerInterface::showRetreatQuestion(const BattleID & battleID, const std::string & text, CFunctionList<void()> onYes, CFunctionList<void()> onNo)
+{
+	movementController->requestMovementAbort();
+	showingDialog->setBusy();
+	std::vector<std::pair<AnimationPath, CFunctionList<void()>>> buttons;
+	buttons.emplace_back(AnimationPath::builtin("IOKAY.DEF"), nullptr);
+	buttons.emplace_back(AnimationPath::builtin("ICANCEL.DEF"), nullptr);
+	auto window = std::make_shared<CInfoWindow>(text, playerID, CInfoWindow::TCompsInfo(), buttons);
+	window->buttons[0]->addCallback(onYes);
+	window->buttons[1]->addCallback(onNo);
+	retreatWindows[battleID] = window;
+	ENGINE->windows().pushWindow(window);
+}
+
 void CPlayerInterface::battleEnd(const BattleID & battleID, const BattleResult *br, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	// DMB: the auto-combat retreat question for this battle closes with it, if it is still on screen and on top (the Opus Reviewer);
+	// no button callback runs, so it counts as "fight on".
+	if(const auto asked = retreatWindows.find(battleID); asked != retreatWindows.end())
+	{
+		if(const auto window = asked->second.lock())
+			if(ENGINE->windows().isTopWindow(window))
+				window->close();
+		retreatWindows.erase(asked);
+	}
+	retreatAnswers.erase(battleID);
 	if(isAutoFightOn || autofightingAI)
 	{
 		isAutoFightOn = false;
@@ -2149,17 +2176,17 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 	auto setter = std::make_shared<Setter>();
 	setter->target = answer;
 	logGlobal->info("Auto combat: the player's side expects to lose after the current move; asking about a retreat");
-	ENGINE->dispatchMainThread([this, setter = std::move(setter), canPay, surrenderMessage]()
+	ENGINE->dispatchMainThread([this, battleID, setter = std::move(setter), canPay, surrenderMessage]()
 	{
-		showYesNoDialog(LIBRARY->generaltexth->allTexts[28], // "Are you sure you want to retreat?"
-			[this, setter, canPay, surrenderMessage]()
+		showRetreatQuestion(battleID, LIBRARY->generaltexth->allTexts[28], // "Are you sure you want to retreat?"
+			[this, battleID, setter, canPay, surrenderMessage]()
 			{
 				if(!canPay)
 				{
 					setter->give(1);
 					return;
 				}
-				showYesNoDialog(surrenderMessage, [setter]() { setter->give(2); }, [setter]() { setter->give(1); });
+				showRetreatQuestion(battleID, surrenderMessage, [setter]() { setter->give(2); }, [setter]() { setter->give(1); });
 			},
 			[setter]() { setter->give(0); });
 	});

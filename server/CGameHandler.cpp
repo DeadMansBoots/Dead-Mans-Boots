@@ -1552,9 +1552,11 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 
 	if (gameInfo().getPlayerRelations(h1->getOwner(), h2->getOwner()) != PlayerRelations::ENEMIES)
 	{
-		// DMB: one hero is in one trade at a time; a third hero reaching for one already trading is told so, once (K, October 24th)
+		// DMB: one hero is in one trade at a time; a third hero reaching for one already trading is told so, once (K, October 24th). Every open
+		// exchange of two heroes counts, shared or not (one with a computer ally's hero has the window on one screen only).
 		for(const auto & open : queries->allQueries())
-			if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get()); trade && trade->sharedWith.isValidPlayer())
+			if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get());
+				trade && dynamic_cast<const CGHeroInstance *>(trade->exchangingArmies[0]) && dynamic_cast<const CGHeroInstance *>(trade->exchangingArmies[1]))
 				for(const auto * army : trade->exchangingArmies)
 					if(army->id == hero1 || army->id == hero2)
 					{

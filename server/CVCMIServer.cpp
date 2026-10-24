@@ -262,11 +262,12 @@ void CVCMIServer::onTimer()
 	auto msPassedNow = std::chrono::duration_cast<std::chrono::milliseconds>(timePassedNow);
 	auto msDelta = msPassedNow - msPassedBefore;
 
-	// DMB: a paused watched game holds its timers too (the turn timers of every player), and sends on what the pause held once it ends
-	releaseHeldPacks();
+	// DMB: a paused watched game holds its timers too (the turn timers of every player), and sends on what the pause held once it ends; the next timer
+	// is set first, so a held request that throws cannot stop the timer (the Reviewer's note)
+	networkHandler->createTimer(*this, serverUpdateInterval);
 	if (msDelta.count() && !DmbObserverPause::paused)
 		gh->tick(msDelta.count());
-	networkHandler->createTimer(*this, serverUpdateInterval);
+	releaseHeldPacks();
 }
 
 void CVCMIServer::prepareToRestart()

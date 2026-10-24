@@ -78,6 +78,7 @@ public:
 
 	void activeStack(const BattleID & battleID, const CStack * stack) override; //called when it's turn of that stack
 	void yourTacticPhase(const BattleID & battleID, int distance) override;
+	void placeInTactics(const BattleID & battleID);
 
 	std::optional<BattleAction> considerFleeingOrSurrendering(const BattleID & battleID, const BattleAction & planned);
 

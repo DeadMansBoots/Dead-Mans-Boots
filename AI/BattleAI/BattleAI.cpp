@@ -75,6 +75,9 @@ void CBattleAI::initBattleInterface(std::shared_ptr<Environment> ENV, std::share
 	wasWaitingForRealize = CB->waitTillRealize;
 	CB->waitTillRealize = false;
 	movesSkippedByDefense = 0;
+	// DMB, test only: ai.battleAutoTacticsForAI gives AI players the human's auto-combat tactics placement, so a headless game can
+	// stand in for the human's side; the preferences the human's auto combat passes overwrite this
+	autobattlePreferences.placeInTactics = settings["ai"]["battleAutoTacticsForAI"].Bool();
 
 	logHexNumbers();
 }
@@ -103,7 +106,76 @@ BattleAction CBattleAI::useHealingTent(const BattleID & battleID, const CStack *
 
 void CBattleAI::yourTacticPhase(const BattleID & battleID, int distance)
 {
+	if(autobattlePreferences.placeInTactics && cb->getBattle(battleID)->battleGetTacticDist() > 0)
+		placeInTactics(battleID);
 	cb->battleMakeTacticAction(battleID, BattleAction::makeEndOFTacticPhase(cb->getBattle(battleID)->battleGetTacticsSide()));
+}
+
+// DMB: the tactics phase used as a player uses it (K's by-hand fights in his October 23rd play log, battles 53, 55, 61, 128 and 139: all
+// seven stacks moved to the front of the zone, then the enemy destroyed before it acted; DESIGN-DMB-auto-combat-1023.md section 8). Each
+// stack that walks and does not shoot, fastest first, goes to the free hex of the tactics zone nearest an enemy stack; shooters keep
+// their place; war machines do not move. Moves are sent without waiting for them to apply, so the hexes already taken are tracked here.
+void CBattleAI::placeInTactics(const BattleID & battleID)
+{
+	auto battle = cb->getBattle(battleID);
+	const BattleSide side = battle->battleGetTacticsSide();
+	auto ours = battle->battleGetUnitsIf([side](const battle::Unit * unit)
+	{
+		return unit->alive() && unit->unitSide() == side && !unit->isTurret() && !unit->hasBonusOfType(BonusType::SIEGE_WEAPON)
+			&& unit->getPosition().isValid();
+	});
+	const auto theirs = battle->battleGetUnitsIf([side](const battle::Unit * unit)
+	{
+		return unit->alive() && unit->unitSide() != side && !unit->isTurret() && unit->getPosition().isValid();
+	});
+	if(theirs.empty())
+		return;
+	std::stable_sort(ours.begin(), ours.end(), [](const battle::Unit * a, const battle::Unit * b)
+	{
+		return a->getMovementRange(0) > b->getMovementRange(0);
+	});
+	auto nearestEnemy = [&theirs](const BattleHex & hex)
+	{
+		int best = std::numeric_limits<int>::max();
+		for(const auto * enemy : theirs)
+			best = std::min<int>(best, BattleHex::getDistance(hex, enemy->getPosition()));
+		return best;
+	};
+	BattleHexArray taken;
+	for(const auto * unit : ours)
+		taken.insert(unit->getHexes());
+	for(const auto * unit : ours)
+	{
+		if(battle->battleCanShoot(unit) || unit->getMovementRange(0) == 0)
+			continue;
+		const BattleHexArray & own = unit->getHexes();
+		BattleHex best = unit->getPosition();
+		int bestDistance = nearestEnemy(best);
+		for(const auto & hex : battle->battleGetAvailableHexes(unit, false))
+		{
+			bool clash = false;
+			for(const auto & part : battle::Unit::getHexes(hex, unit->doubleWide(), side))
+				if(taken.contains(part) && !own.contains(part))
+					clash = true;
+			if(clash)
+				continue;
+			const int distance = nearestEnemy(hex);
+			if(distance < bestDistance)
+			{
+				bestDistance = distance;
+				best = hex;
+			}
+		}
+		if(best == unit->getPosition())
+			continue;
+		for(const auto & part : own)
+			if(taken.contains(part))
+				taken.erase(part);
+		taken.insert(battle::Unit::getHexes(best, unit->doubleWide(), side));
+		logAi->info("Battle AI: tactics, %s from %d to %d (nearest enemy %d hexes)", unit->getDescription(), unit->getPosition().toInt(),
+			best.toInt(), bestDistance);
+		cb->battleMakeTacticAction(battleID, BattleAction::makeMove(unit, best));
+	}
 }
 
 static float getStrengthRatio(std::shared_ptr<CBattleInfoCallback> cb, BattleSide side)

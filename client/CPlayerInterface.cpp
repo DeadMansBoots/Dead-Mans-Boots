@@ -374,11 +374,6 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 				makingTurn = true;
 				adventureInt->onPlayerTurnStarted(playerID);
 				finishTurnStart(queryID);
-				// what other players' actions raised for this player while the dialog was open, in the order it arrived
-				auto held = std::move(heldDialogs);
-				heldDialogs.clear();
-				for(const auto & show : held)
-					show();
 			};
 			ENGINE->sound().playSound(static_cast<soundBase::soundID>(0)); // what showInfoDialog plays with its default sound
 			ENGINE->windows().pushWindow(dialog);
@@ -1112,12 +1107,6 @@ void CPlayerInterface::yourTacticPhase(const BattleID & battleID, int distance)
 void CPlayerInterface::showInfoDialog(EInfoWindowMode type, const std::string &text, const std::vector<Component> & components, int soundID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	if(turnDialogOpen)
-	{
-		// DMB: held while this player's network turn dialog is open, and shown after its click, where stock's network thread reaches it (the lead's 15:0x row)
-		heldDialogs.push_back([this, type, text, components, soundID]() { showInfoDialog(type, text, components, soundID); });
-		return;
-	}
 
 	bool autoTryHover = settings["gameTweaks"]["infoBarPick"].Bool() && type == EInfoWindowMode::AUTO;
 	auto timer = type == EInfoWindowMode::INFO ? 3000 : 4500; //Implement long info windows like in HD mod
@@ -1205,12 +1194,6 @@ void CPlayerInterface::showYesNoDialog(const std::string &text, CFunctionList<vo
 void CPlayerInterface::showBlockingDialog(const std::string &text, const std::vector<Component> &components, QueryID askID, const int soundID, bool selection, bool cancel, bool safeToAutoaccept)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	if(turnDialogOpen)
-	{
-		// DMB: held while this player's network turn dialog is open, and shown after its click, where stock's network thread reaches it (the lead's 15:0x row)
-		heldDialogs.push_back([this, text, components, askID, soundID, selection, cancel, safeToAutoaccept]() { showBlockingDialog(text, components, askID, soundID, selection, cancel, safeToAutoaccept); });
-		return;
-	}
 	waitWhileDialog();
 
 	movementController->requestMovementAbort();
@@ -1255,24 +1238,12 @@ void CPlayerInterface::showBlockingDialog(const std::string &text, const std::ve
 void CPlayerInterface::showTeleportDialog(const CGHeroInstance * hero, TeleportChannelID channel, TTeleportExitsList exits, bool impassable, QueryID askID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	if(turnDialogOpen)
-	{
-		// DMB: held while this player's network turn dialog is open, and shown after its click, where stock's network thread reaches it (the lead's 15:0x row)
-		heldDialogs.push_back([this, hero, channel, exits, impassable, askID]() { showTeleportDialog(hero, channel, exits, impassable, askID); });
-		return;
-	}
 	movementController->showTeleportDialog(hero, channel, exits, impassable, askID);
 }
 
 void CPlayerInterface::showMapObjectSelectDialog(QueryID askID, const Component & icon, const MetaString & title, const MetaString & description, const std::vector<ObjectInstanceID> & objects)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	if(turnDialogOpen)
-	{
-		// DMB: held while this player's network turn dialog is open, and shown after its click, where stock's network thread reaches it (the lead's 15:0x row)
-		heldDialogs.push_back([this, askID, icon, title, description, objects]() { showMapObjectSelectDialog(askID, icon, title, description, objects); });
-		return;
-	}
 
 	std::vector<ObjectInstanceID> objectGuiOrdered = objects;
 
@@ -1420,12 +1391,6 @@ void CPlayerInterface::moveHero( const CGHeroInstance *h, const CGPath& path )
 void CPlayerInterface::showGarrisonDialog(const CArmedInstance * up, const CGHeroInstance * down, bool removableUnits, QueryID queryID, const MetaString & customTitle)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
-	if(turnDialogOpen)
-	{
-		// DMB: held while this player's network turn dialog is open, and shown after its click, where stock's network thread reaches it (the lead's 15:0x row)
-		heldDialogs.push_back([this, up, down, removableUnits, queryID, customTitle]() { showGarrisonDialog(up, down, removableUnits, queryID, customTitle); });
-		return;
-	}
 	auto onEnd = [this, queryID](){ cb->selectionMade(0, queryID); };
 
 	if (movementController->isHeroMovingThroughGarrison(down, up))

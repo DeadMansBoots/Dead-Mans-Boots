@@ -94,8 +94,6 @@ public: // TODO: make private
 	bool makingTurn; //if player is already making his turn
 	/// DMB: this player's network turn dialog is open (yourTurn, 5db85dfaf); another player's turn start leaves the screen in its black turn-start wait meanwhile
 	bool turnDialogOpen = false;
-	/// DMB: the network dialogs that arrived while that turn dialog was open, shown in order when it closes
-	std::vector<std::function<void()>> heldDialogs;
 
 	CCastleInterface * castleInt; //nullptr if castle window isn't opened
 	static std::shared_ptr<BattleInterface> battleInt; //nullptr if no battle

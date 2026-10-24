@@ -20,6 +20,7 @@
 #include "../widgets/TextControls.h"
 
 #include "../../lib/DmbObserverPause.h"
+#include "../../lib/CConfigHandler.h"
 #include "../../lib/VCMIDirs.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/gameState/CGameState.h"
@@ -32,6 +33,13 @@ namespace
 const int PAD = 8;
 const int HEIGHT = 22;
 const int GAP = 14;
+// the stock enemy hero speeds (adventure options), slowest first; 0 is no animation
+const std::array<int, 5> SPEEDS = {400, 200, 100, 50, 0};
+
+std::string speedText(int ms)
+{
+	return ms <= 0 ? std::string("Speed max") : "Speed " + std::to_string(100 * 100 / ms) + "%";
+}
 }
 
 boost::filesystem::path ObserverBar::flagFolder()
@@ -57,8 +65,9 @@ ObserverBar::ObserverBar(const Rect & area)
 	const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
 	const int pauseWidth = static_cast<int>(std::max(font->getStringWidth("Pause"), font->getStringWidth("Resume")));
 	const int stepWidth = static_cast<int>(font->getStringWidth("Step"));
+	const int speedWidth = static_cast<int>(std::max(font->getStringWidth("Speed 200%"), font->getStringWidth("Speed max")));
 	const int dayWidth = static_cast<int>(font->getStringWidth("Day 999"));
-	const int width = PAD + pauseWidth + GAP + stepWidth + GAP + dayWidth + PAD;
+	const int width = PAD + pauseWidth + GAP + stepWidth + GAP + speedWidth + GAP + dayWidth + PAD;
 	pos = Rect(area.x + (area.w - width) / 2, area.y + 4, width, HEIGHT);
 
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, width, HEIGHT), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
@@ -66,7 +75,11 @@ ObserverBar::ObserverBar(const Rect & area)
 	stepArea = Rect(PAD + pauseWidth + GAP - 4, 0, stepWidth + 8, HEIGHT);
 	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255), "Pause");
 	stepLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::WHITE : ColorRGBA(120, 120, 120, 255), "Step");
-	dayLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
+	const int speedX = PAD + pauseWidth + GAP + stepWidth + GAP;
+	speedArea = Rect(speedX - 4, 0, speedWidth + 8, HEIGHT);
+	speedLabel = std::make_shared<CLabel>(speedX + speedWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW,
+		speedText(static_cast<int>(settings["adventure"]["enemyMoveTime"].Float())));
+	dayLabel = std::make_shared<CLabel>(speedX + speedWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
 
 	addUsedEvents(LCLICK | TIME | MOVE | HOVER);
 }
@@ -90,6 +103,25 @@ void ObserverBar::show(Canvas & to)
 void ObserverBar::clickPressed(const Point & cursorPosition)
 {
 	const Point local = cursorPosition - pos.topLeft();
+	if(speedArea.isInside(local))
+	{
+		// the next stock speed, after the current one (a value between two goes to the faster)
+		const int now = static_cast<int>(settings["adventure"]["enemyMoveTime"].Float());
+		int next = SPEEDS[0];
+		for(size_t i = 0; i < SPEEDS.size(); ++i)
+		{
+			if(now > SPEEDS[i] || (now == SPEEDS[i] && i + 1 < SPEEDS.size()))
+			{
+				next = now == SPEEDS[i] ? SPEEDS[i + 1] : SPEEDS[i];
+				break;
+			}
+		}
+		Settings entry = settings.write["adventure"]["enemyMoveTime"];
+		entry->Float() = next;
+		speedLabel->setText(speedText(next));
+		logGlobal->info("Observer: enemy hero speed %d ms a tile", next);
+		return;
+	}
 	if(!canPause)
 		return; // a guest cannot pause the host's AI: the buttons are grey and say why
 	logGlobal->debug("Observer bar clicked at %d,%d (bar at %d,%d)", cursorPosition.x, cursorPosition.y, pos.x, pos.y);

@@ -812,6 +812,12 @@ bool PlayerMessageProcessor::handleCheatCode(const std::string & cheat, PlayerCo
 	auto playerTargetedCheats = getCheats("playerTargetedCheats");
 	auto heroTargetedCheats = getCheats("heroTargetedCheats");
 
+	// DMB: a cheat on a hero in an allied trade that this player has no window for waits, as his other requests on it do (the Reviewer, October 24th)
+	const bool isCheat = vstd::contains(localCheats, cheatName) || vstd::contains(townTargetedCheats, cheatName) || vstd::contains(playerTargetedCheats, cheatName)
+		|| vstd::contains(heroTargetedCheats, cheatName);
+	if(isCheat && gameHandler->tradeHoldsBack(player, currObj))
+		return true;
+
 	if(vstd::contains(localCheats, cheatName))
 	{
 		executeCheatCode(cheatName, player, currObj, words);

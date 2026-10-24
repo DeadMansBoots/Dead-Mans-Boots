@@ -1576,6 +1576,21 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 	}
 }
 
+bool CGameHandler::tradeHoldsBack(PlayerColor player, ObjectInstanceID object)
+{
+	if(!object.hasValue())
+		return false;
+	for(const auto & open : queries->allQueries())
+		if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get()); trade && !trade->isWindowOwner(player))
+			for(const auto * army : trade->exchangingArmies)
+				if(army->id == object)
+				{
+					tellTradeBusy(player, trade->exchangingArmies);
+					return true;
+				}
+	return false;
+}
+
 void CGameHandler::tellTradeBusy(PlayerColor player, const std::array<const CArmedInstance *, 2> & armies)
 {
 	InfoWindow iw;
@@ -3565,7 +3580,25 @@ bool CGameHandler::isAllowedExchange(ObjectInstanceID id1, ObjectInstanceID id2)
 		const bool matchesForward = garrisonQuery->exchangingArmies[0]->id == id1 && garrisonQuery->exchangingArmies[1]->id == id2;
 		const bool matchesBackward = garrisonQuery->exchangingArmies[0]->id == id2 && garrisonQuery->exchangingArmies[1]->id == id1;
 		if(matchesForward || matchesBackward)
+		{
+			// DMB: two heroes trade only while they stand next to each other (or in one town); a trade whose heroes were parted allows nothing more
+			// (the Reviewer, October 24th: a trading hero cast away mid-trade went on trading from anywhere)
+			const auto * h1 = dynamic_cast<const CGHeroInstance *>(garrisonQuery->exchangingArmies[0]);
+			const auto * h2 = dynamic_cast<const CGHeroInstance *>(garrisonQuery->exchangingArmies[1]);
+			if(h1 && h2)
+			{
+				const int3 p1 = h1->visitablePos();
+				const int3 p2 = h2->visitablePos();
+				const bool sameTown = h1->getVisitedTown() && h1->getVisitedTown() == h2->getVisitedTown();
+				const bool adjacent = p1.z == p2.z && std::abs(p1.x - p2.x) <= 1 && std::abs(p1.y - p2.y) <= 1;
+				if(!adjacent && !sameTown)
+				{
+					logGlobal->warn("Exchange refused: %s and %s are no longer next to each other", h1->getNameTranslated(), h2->getNameTranslated());
+					return false;
+				}
+			}
 			return true;
+		}
 	}
 
 	const CGObjectInstance *o1 = gameInfo().getObj(id1);

@@ -15,6 +15,7 @@
 #include "../TurnTimerHandler.h"
 #include "../../lib/callback/IGameInfoCallback.h"
 #include "../../lib/mapObjects/CGHeroInstance.h"
+#include "../../lib/mapObjects/CGTownInstance.h"
 #include "../../lib/mapObjects/MiscObjects.h"
 #include "../../lib/networkPacks/PacksForServer.h"
 
@@ -106,6 +107,17 @@ bool CGarrisonDialogQuery::touchesArmies(const CPackForServer * pack) const
 	if(const auto * p = dynamic_cast<const TradeOnMarketplace *>(pack)) return ours(p->heroId);
 	if(const auto * p = dynamic_cast<const SetFormation *>(pack)) return ours(p->hid);
 	if(const auto * p = dynamic_cast<const SetTactics *>(pack)) return ours(p->hid);
+	// an adventure spell (Dimension Door, Town Portal, Fly...) or a dig would take the hero out of the trade (the Reviewer, October 24th)
+	if(const auto * p = dynamic_cast<const CastAdvSpell *>(pack)) return ours(p->hid);
+	if(const auto * p = dynamic_cast<const DigWithHero *>(pack)) return ours(p->id);
+	// a town whose visiting or garrison hero is in the trade
+	const auto townOfOurs = [this, &ours](const ObjectInstanceID & tid)
+	{
+		const auto * town = gh->gameInfo().getTown(tid);
+		return town && ((town->getVisitingHero() && ours(town->getVisitingHero()->id)) || (town->getGarrisonHero() && ours(town->getGarrisonHero()->id)));
+	};
+	if(const auto * p = dynamic_cast<const GarrisonHeroSwap *>(pack)) return townOfOurs(p->tid);
+	if(const auto * p = dynamic_cast<const VisitTownBuilding *>(pack)) return townOfOurs(p->tid);
 	return false;
 }
 

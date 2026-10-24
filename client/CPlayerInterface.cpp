@@ -916,6 +916,8 @@ void CPlayerInterface::activeStack(const BattleID & battleID, const CStack * sta
 void CPlayerInterface::showRetreatQuestion(const BattleID & battleID, const std::string & text, CFunctionList<void()> onYes, CFunctionList<void()> onNo)
 {
 	movementController->requestMovementAbort();
+	if(cingconsole && cingconsole->isTyping())
+		cingconsole->endEnteringText(false);
 	showingDialog->setBusy();
 	std::vector<std::pair<AnimationPath, CFunctionList<void()>>> buttons;
 	buttons.emplace_back(AnimationPath::builtin("IOKAY.DEF"), nullptr);
@@ -2065,6 +2067,12 @@ bool CPlayerInterface::capturedAllEvents()
 
 	bool needToLockAdventureMap = adventureInt && adventureInt->isActive() && GAME->map().hasOngoingAnimations();
 	bool quickCombatOngoing = isAutoFightOn && !battleInt;
+	// DMB: not while the auto-combat retreat question is up: it holds the stack's turn until it is answered, so swallowing the input
+	// here would leave the battle waiting for good (the Opus Reviewer, seat session mv5quick)
+	if(quickCombatOngoing)
+		for(const auto & asked : retreatWindows)
+			if(!asked.second.expired())
+				quickCombatOngoing = false;
 
 	if (ignoreEvents || needToLockAdventureMap || quickCombatOngoing )
 	{

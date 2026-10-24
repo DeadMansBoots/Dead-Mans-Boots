@@ -82,10 +82,12 @@ void CResDataBar::showAll(Canvas & to)
 {
 	CIntObject::showAll(to);
 
+	// a spectator has no player state: a dash for each resource, and no query (each one logged "No player info", thousands a minute in a watched game)
+	const bool spectator = !GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false);
 	//TODO: all this should be labels, but they require proper text update on change
 	for (auto & entry : resourcePositions)
 	{
-		std::string text = std::to_string(GAME->interface()->cb->getResourceAmount(entry.first));
+		std::string text = spectator ? "-" : std::to_string(GAME->interface()->cb->getResourceAmount(entry.first));
 
 		to.drawText(pos.topLeft() + entry.second, FONT_SMALL, Colors::WHITE, ETextAlignment::TOPLEFT, text);
 	}
@@ -106,7 +108,9 @@ void CResDataBar::showPopupWindow(const Point & cursorPosition)
 
 	// only daily income
 	ResourceSet income;
-	auto playerState = GAME->interface()->cb->getPlayerState(GAME->interface()->playerID);
+	auto playerState = GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false);
+	if(!playerState)
+		return; // a spectator: no income to show
 	auto playerSettings = GAME->interface()->cb->getPlayerSettings(GAME->interface()->playerID);
 	for(auto & k : LIBRARY->resourceTypeHandler->getAllObjects())
 	{

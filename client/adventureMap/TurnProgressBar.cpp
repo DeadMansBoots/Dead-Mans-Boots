@@ -443,10 +443,15 @@ void TurnProgressBar::show(Canvas & to)
 				return ColorRGBA(mix(c.r), mix(c.g), mix(c.b), 255);
 			};
 			const ColorRGBA highlight = lighten(base, 0.45);
+			// every bar ripples on its own: a phase a golden angle apart and a speed of its own per player, so no two bars bob in step (K, October 24th 08:0x:
+			// "the waviness of the fluid on the different players' bars must not sync up")
+			static constexpr std::array<double, 8> speeds = {1.00, 0.86, 1.13, 0.93, 1.07, 0.81, 1.19, 0.97};
+			const int seed = player.isValidPlayer() ? player.getNum() % 8 : 0;
+			const double phase = seed * 2.39996;
 			std::array<int, 7> surface{};
 			for(int i = 0; i < ripple; ++i)
 			{
-				const double lift = 1.4 * std::sin(t * 4.0 - i * 1.1) * (1.0 + i * 0.2);
+				const double lift = 1.4 * std::sin(t * 4.0 * speeds[seed] + phase - i * 1.1) * (1.0 + i * 0.2);
 				surface[i] = std::clamp(static_cast<int>(std::lround((i + 1) * 0.6 + lift)), 0, std::max(0, inner.h - 3));
 			}
 			for(int row = 0; row < inner.h; ++row)

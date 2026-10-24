@@ -69,7 +69,7 @@ void AdventureMapShortcuts::onMapViewMoved(const Rect & visibleArea, int newMapL
 std::vector<AdventureMapShortcutState> AdventureMapShortcuts::getShortcuts()
 {
 	std::vector<AdventureMapShortcutState> result = {
-		{ EShortcut::ADVENTURE_KINGDOM_OVERVIEW, optionInMapView(),      [this]() { this->showOverview(); } },
+		{ EShortcut::ADVENTURE_KINGDOM_OVERVIEW, optionHasKingdom(),     [this]() { this->showOverview(); } },
 		{ EShortcut::ADVENTURE_EXIT_WORLD_VIEW,  optionInWorldView(),    [this]() { this->worldViewBack(); } },
 		{ EShortcut::ADVENTURE_VIEW_WORLD,       optionInMapView(),      [this]() { this->worldViewScale1x(); } },
 		{ EShortcut::ADVENTURE_VIEW_WORLD_X1,    optionInWorldView(),    [this]() { this->worldViewScale1x(); } },
@@ -104,7 +104,7 @@ std::vector<AdventureMapShortcutState> AdventureMapShortcuts::getShortcuts()
 		{ EShortcut::ADVENTURE_RESTART_GAME,     optionInMapView(),      [this]() { this->restartGame(); } },
 		{ EShortcut::ADVENTURE_DIG_GRAIL,        optionHeroDig(),        [this]() { this->digGrail(); } },
 		{ EShortcut::ADVENTURE_REPLAY_TURN,      optionInMapView(),      [this]() { this->replayTurn(); } },
-		{ EShortcut::ADVENTURE_VIEW_PUZZLE,      optionSidePanelActive(),[this]() { this->viewPuzzleMap(); } },
+		{ EShortcut::ADVENTURE_VIEW_PUZZLE,      optionSidePanelActive() && optionHasKingdom(false),[this]() { this->viewPuzzleMap(); } },
 		{ EShortcut::ADVENTURE_VISIT_OBJECT,     optionCanVisitObject(), [this]() { this->visitObject(); } },
 		{ EShortcut::ADVENTURE_VIEW_SELECTED,    optionInMapView(),      [this]() { this->openObject(); } },
 		{ EShortcut::ADVENTURE_MARKETPLACE,      optionMarketplace(),    [this]() { this->showMarketplace(); } },
@@ -626,6 +626,14 @@ bool AdventureMapShortcuts::optionCanViewQuests()
 	// a watcher (spectator) has no player state
 	const auto * state = GAME->interface()->cb->getPlayerState(GAME->interface()->playerID);
 	return optionInMapView() && state && !state->quests.empty();
+}
+
+bool AdventureMapShortcuts::optionHasKingdom(bool inMapView)
+{
+	// a watcher (spectator) has no kingdom: the Kingdom Overview reads its player state and settings, the puzzle map its start info and grail team
+	if(inMapView && !optionInMapView())
+		return false;
+	return GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false) != nullptr;
 }
 
 bool AdventureMapShortcuts::optionCanToggleLevel()

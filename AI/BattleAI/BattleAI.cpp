@@ -30,6 +30,9 @@
 #include "../../lib/mapObjects/army/CCommanderInstance.h"
 #include "../../lib/StartInfo.h"
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/GameLibrary.h"
+#include "../../lib/IGameSettings.h"
+#include "../../lib/bonuses/BonusParameters.h"
 #include "../../lib/CStack.h" // TODO: remove
                               // Eventually only IBattleInfoCallback and battle::Unit should be used,
                               // CUnitState should be private and CStack should be removed completely
@@ -209,7 +212,7 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 
 	logAi->trace("Spellcast attempt completed in %lld", timeElapsed(start));
 
-	if(auto action = considerFleeingOrSurrendering(battleID))
+	if(auto action = considerFleeingOrSurrendering(battleID, result))
 	{
 		cb->battleMakeUnitAction(battleID, *action);
 		return;
@@ -290,29 +293,87 @@ void CBattleAI::print(const std::string &text) const
 
 // DMB: the basegame's retreat trigger, "if the AI thinks the player is going to lose after the current move" (Heroes 3 wiki, Retreat
 // and Combat pages). Each enemy stack that can shoot, or reach a hex beside one of ours within its movement range, deals its estimated
-// average damage once, to the stack of ours it hurts most (capped at that stack's remaining health); true when nothing of ours is
-// left. Before this no battle AI set the field, so every AI that reads it (OmniAI) never retreated. Only the units that
-// battleIsFinished counts are counted, on both sides: a turret, a war machine (SIEGE_WEAPON), a clone, a summoned unit or a
-// commander neither keeps a side in the battle nor is counted as an attacker here.
+// average damage for every attack it makes in its turn (one, plus ADDITIONAL_ATTACK such as a double strike, plus FEROCITY's attacks
+// when its first blow kills enough), and good morale adds its chance of a second turn (the engine's goodMoraleChance over
+// moraleDiceSize) as that share of the damage. An enemy stack gets one turn before our next stack's if it still moves this round (a
+// waited stack included), and one more if none of ours moves later this round and it is faster than all of ours, so it opens the
+// next round before us (zz_storm2: the Stormbirds' waited turns ended round 1 and their next opened round 2, and an army the
+// one-turn estimate left with 334 of 620 hit points died before its next turn); its reach grows with its turns. The stack about to act is measured at the hex its planned walk or attack takes it to:
+// "after the current move" it stands there. True when those turns together can take every hit point we have: a max flow from the
+// enemy stacks (their turn's damage) to ours (their remaining health) along the reach edges. Greedy assignments, even with the most
+// constrained stacks first, left hit points standing that the enemy took that same round (zz_storm: 40 of 250 left, the army died
+// before its next turn); the flow lets one stack's damage spread over two targets, so it leans to "about to lose" by that much.
+// Before this no battle AI set the field, so every AI that reads it (OmniAI) never retreated. Only the units that battleIsFinished
+// counts are counted, on both sides: a turret, a war machine (SIEGE_WEAPON), a clone, a summoned unit or a commander neither keeps a
+// side in the battle nor is counted as an attacker here.
 static bool countsForResult(const battle::Unit * unit)
 {
 	return unit->alive() && !unit->isTurret() && !unit->hasBonusOfType(BonusType::SIEGE_WEAPON) && !unit->isClone()
 		&& !unit->acquireState()->summoned && !dynamic_cast<const CCommanderInstance *>(unit);
 }
 
-static bool lastTurnBeforeDie(const CPlayerBattleCallback & battle, const battle::Units & ours, const battle::Units & theirs)
+// the attacks an enemy stack makes on one target in one turn: one, the ADDITIONAL_ATTACK count, and FEROCITY's extra attacks when one
+// blow kills at least the creatures the bonus asks for (its parameter, default one)
+static int attacksPerTurn(const battle::Unit * enemy, const battle::Unit * target, int64_t blow)
 {
-	std::map<uint32_t, int64_t> left;
-	int64_t total = 0;
-	for(const auto * unit : ours)
+	int attacks = 1 + std::max(0, enemy->valOfBonuses(BonusType::ADDITIONAL_ATTACK));
+	if(enemy->hasBonusOfType(BonusType::FEROCITY))
 	{
-		if(!countsForResult(unit))
-			continue;
-		left[unit->unitId()] = unit->getAvailableHealth();
-		total += unit->getAvailableHealth();
+		auto ferocity = enemy->getBonus(Selector::type()(BonusType::FEROCITY));
+		const int64_t needed = ferocity && ferocity->parameters ? std::max<int64_t>(1, ferocity->parameters->toNumber()) : 1;
+		const int64_t firstHealth = target->getFirstHPleft();
+		const int64_t perCreature = std::max<int64_t>(1, target->getMaxHealth());
+		const int64_t killed = blow < firstHealth ? 0 : 1 + (blow - firstHealth) / perCreature;
+		if(killed >= needed)
+			attacks += std::max(0, enemy->valOfBonuses(BonusType::FEROCITY));
 	}
-	if(total <= 0)
+	return attacks;
+}
+
+// the chance of a second turn from good morale, as the server rolls it (BattleFlowProcessor::rollGoodMorale)
+static double goodMoraleChance(const battle::Unit * enemy)
+{
+	const int morale = enemy->moraleVal();
+	if(morale <= 0)
+		return 0.0;
+	const auto chances = LIBRARY->engineSettings()->getVector(EGameSettings::COMBAT_GOOD_MORALE_CHANCE);
+	const int dice = LIBRARY->engineSettings()->getInteger(EGameSettings::COMBAT_MORALE_DICE_SIZE);
+	if(chances.empty() || dice <= 0)
+		return 0.0;
+	const size_t index = std::min<size_t>(chances.size(), morale) - 1;
+	return std::clamp(static_cast<double>(chances[index]) / dice, 0.0, 1.0);
+}
+
+static bool lastTurnBeforeDie(const CPlayerBattleCallback & battle, const battle::Units & ours, const battle::Units & theirs,
+	const battle::Unit * mover, const BattleHex & moveTo)
+{
+	// nodes: 0 source, 1 sink, then our stacks, then the enemy stacks; capacity[from][to]
+	std::vector<const battle::Unit *> mine;
+	for(const auto * unit : ours)
+		if(countsForResult(unit) && unit->getAvailableHealth() > 0)
+			mine.push_back(unit);
+	if(mine.empty())
 		return false;
+	std::vector<std::vector<int64_t>> capacity(2 + mine.size());
+	int64_t health = 0;
+	for(size_t i = 0; i < mine.size(); ++i)
+	{
+		capacity[2 + i].resize(capacity.size(), 0);
+		capacity[2 + i][1] = mine[i]->getAvailableHealth();
+		health += mine[i]->getAvailableHealth();
+	}
+	capacity[0].resize(capacity.size(), 0);
+	capacity[1].resize(capacity.size(), 0);
+	// whether another stack of ours still moves this round (then our next turn comes before the next round), and our fastest stack
+	bool oursLaterThisRound = false;
+	int32_t ourFastest = 0;
+	for(const auto * unit : mine)
+	{
+		if(unit != mover && unit->willMove())
+			oursLaterThisRound = true;
+		ourFastest = std::max(ourFastest, unit->getInitiative());
+	}
+	int attackers = 0;
 	for(const auto * enemy : theirs)
 	{
 		if(!countsForResult(enemy))
@@ -321,35 +382,73 @@ static bool lastTurnBeforeDie(const CPlayerBattleCallback & battle, const battle
 		ReachabilityInfo reach;
 		if(!shooter)
 			reach = battle.getReachability(enemy);
-		const battle::Unit * target = nullptr;
-		int64_t targetDamage = 0;
-		for(const auto * unit : ours)
+		const int turns = (enemy->willMove() ? 1 : 0) + (!oursLaterThisRound && enemy->getInitiative() > ourFastest ? 1 : 0);
+		if(turns == 0)
+			continue;
+		const double share = turns * (1.0 + goodMoraleChance(enemy));
+		std::vector<int64_t> row(2 + mine.size(), 0);
+		int64_t best = 0;
+		for(size_t i = 0; i < mine.size(); ++i)
 		{
-			if(!left.count(unit->unitId()))
-				continue;
-			const int64_t health = left[unit->unitId()];
-			if(health <= 0)
-				continue;
-			if(!shooter && reach.distToNearestNeighbour(unit->getHexes()) > enemy->getMovementRange())
-				continue;
-			const DamageEstimation estimate = battle.battleEstimateDamage(enemy, unit, 0);
-			const int64_t damage = std::min<int64_t>(health, (estimate.damage.min + estimate.damage.max) / 2);
-			if(damage > targetDamage)
+			const auto * unit = mine[i];
+			if(!shooter)
 			{
-				targetDamage = damage;
-				target = unit;
+				const uint32_t distance = unit == mover && moveTo.isValid()
+					? reach.distToNearestNeighbour(battle::Unit::getHexes(moveTo, unit->doubleWide(), unit->unitSide()))
+					: reach.distToNearestNeighbour(enemy, unit);
+				if(distance > enemy->getMovementRange() * turns)
+					continue;
 			}
+			const DamageEstimation estimate = battle.battleEstimateDamage(enemy, unit, 0);
+			const int64_t blow = (estimate.damage.min + estimate.damage.max) / 2;
+			row[2 + i] = static_cast<int64_t>(blow * attacksPerTurn(enemy, unit, blow) * share);
+			best = std::max(best, row[2 + i]);
 		}
-		if(target)
-		{
-			left[target->unitId()] -= targetDamage;
-			total -= targetDamage;
-		}
+		if(best <= 0)
+			continue;
+		++attackers;
+		// the source gives this stack its best turn; each edge carries what it would deal to that target
+		capacity.push_back(row);
+		for(auto & r : capacity)
+			r.resize(capacity.size(), 0);
+		capacity[0][capacity.size() - 1] = best;
 	}
-	return total <= 0;
+	// Edmonds-Karp: at most 21 stacks of ours and theirs, so plain breadth-first augmenting paths
+	int64_t flow = 0;
+	const size_t n = capacity.size();
+	while(true)
+	{
+		std::vector<int> parent(n, -1);
+		parent[0] = 0;
+		std::deque<size_t> queue{0};
+		while(!queue.empty() && parent[1] < 0)
+		{
+			const size_t at = queue.front();
+			queue.pop_front();
+			for(size_t to = 0; to < n; ++to)
+				if(parent[to] < 0 && capacity[at][to] > 0)
+				{
+					parent[to] = static_cast<int>(at);
+					queue.push_back(to);
+				}
+		}
+		if(parent[1] < 0)
+			break;
+		int64_t push = std::numeric_limits<int64_t>::max();
+		for(size_t v = 1; v != 0; v = parent[v])
+			push = std::min(push, capacity[parent[v]][v]);
+		for(size_t v = 1; v != 0; v = parent[v])
+		{
+			capacity[parent[v]][v] -= push;
+			capacity[v][parent[v]] += push;
+		}
+		flow += push;
+	}
+	logAi->trace("Battle AI: last-turn estimate: our health %d, %d enemy stacks reach us, %d left after their turn", health, attackers, health - flow);
+	return flow >= health;
 }
 
-std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const BattleID & battleID)
+std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const BattleID & battleID, const BattleAction & planned)
 {
 	BattleStateInfoForRetreat bs;
 
@@ -377,13 +476,24 @@ std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const Battl
 
 	if(!bs.canFlee && !bs.canSurrender)
 	{
+		logAi->trace("Battle AI: side %d can neither flee nor surrender", static_cast<int>(bs.ourSide));
 		return std::nullopt;
 	}
 
 	// ai.battleLastTurnEstimate (default true): the OmniAI benchmark lanes keep it false, so that an OmniAI build that retreats on
 	// this field does not start doing so in the middle of a measurement (the Opus Reviewer, 2026-10-23).
 	if(settings["ai"]["battleLastTurnEstimate"].Bool())
-		bs.isLastTurnBeforeDie = lastTurnBeforeDie(*cb->getBattle(battleID), bs.ourStacks, bs.enemyStacks);
+	{
+		// the acting stack and where its planned walk or attack puts it (the first aimed hex: the destination, or the hex it attacks from)
+		const battle::Unit * mover = nullptr;
+		BattleHex moveTo = BattleHex::INVALID;
+		for(const auto * unit : bs.ourStacks)
+			if(unit->unitId() == planned.stackNumber)
+				mover = unit;
+		if(mover && (planned.actionType == EActionType::WALK || planned.actionType == EActionType::WALK_AND_ATTACK) && !planned.target.empty())
+			moveTo = planned.target.front().hexValue;
+		bs.isLastTurnBeforeDie = lastTurnBeforeDie(*cb->getBattle(battleID), bs.ourStacks, bs.enemyStacks, mover, moveTo);
+	}
 	if(bs.isLastTurnBeforeDie)
 		logAi->info("Battle AI: round %d, side %d expects to lose after the current move (our strength %d, enemy %d)",
 			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());

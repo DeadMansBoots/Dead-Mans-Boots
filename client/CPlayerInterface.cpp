@@ -2215,7 +2215,7 @@ void CPlayerInterface::answerRetreat(const BattleID & battleID, uint32_t stackID
 		return;
 	}
 	// fight on: the held stack plays as the auto combat would have, on its own thread as BattleInterface's Auto button runs it; with the
-	// auto combat switched off meanwhile, the player gets the stack
+	// auto combat switched off meanwhile, the player gets the stack; with neither, it defends, so a held turn never waits for ever
 	const CStack * stack = battle->battleGetStackByID(stackID);
 	if(!stack)
 		return;
@@ -2231,6 +2231,8 @@ void CPlayerInterface::answerRetreat(const BattleID & battleID, uint32_t stackID
 	}
 	else if(battleInt)
 		battleInt->stackActivated(stack);
+	else
+		cb->battleMakeUnitAction(battleID, BattleAction::makeDefend(stack));
 }
 
 void CPlayerInterface::registerBattleInterface(std::shared_ptr<CBattleGameInterface> battleEvents)

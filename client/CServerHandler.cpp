@@ -442,20 +442,27 @@ void CServerHandler::sendClientDisconnecting()
 
 	setState(EClientState::DISCONNECTING);
 	mapToStart = nullptr;
-	LobbyClientDisconnected lcd;
-	lcd.clientId = logicConnection->connectionID;
-	logNetwork->info("Connection has been requested to be closed.");
-	if(isServerLocal())
+	// DMB (Meg's crash, October 24th, Sentry DMB-4): a connection that was lost already (onDisconnected reset it) has nothing to send the goodbye on or to close; a
+	// guest whose host went away and who then pressed the lobby's back button crashed here on the throw of a send on a closed connection
+	if(networkConnection && logicConnection)
 	{
-		lcd.shutdownServer = true;
-		logNetwork->info("Sent closing signal to the server");
+		LobbyClientDisconnected lcd;
+		lcd.clientId = logicConnection->connectionID;
+		logNetwork->info("Connection has been requested to be closed.");
+		if(isServerLocal())
+		{
+			lcd.shutdownServer = true;
+			logNetwork->info("Sent closing signal to the server");
+		}
+		else
+		{
+			logNetwork->info("Sent leaving signal to the server");
+		}
+		sendLobbyPack(lcd);
+		networkConnection->close();
 	}
 	else
-	{
-		logNetwork->info("Sent leaving signal to the server");
-	}
-	sendLobbyPack(lcd);
-	networkConnection->close();
+		logNetwork->info("Leaving a connection that was already lost");
 	networkConnection.reset();
 	logicConnection.reset();
 	waitForServerShutdown();
@@ -1248,7 +1255,15 @@ void CServerHandler::sendLobbyPack(const CPackForLobby & pack) const
 		return;
 	}
 
-	logicConnection->sendPack(pack);
+	// DMB: a connection lost a moment ago (the host went away) throws on a send; a button pressed in that moment must not crash the game (Meg's crash, October 24th)
+	try
+	{
+		logicConnection->sendPack(pack);
+	}
+	catch(const std::exception & e)
+	{
+		logNetwork->warn("A lobby pack (%s) was not sent: %s", typeid(pack).name(), e.what());
+	}
 }
 
 bool CServerHandler::inLobbyRoom() const
@@ -1266,5 +1281,18 @@ void CServerHandler::sendGamePack(const CPackForServer & pack) const
 	if (networkLagCompensator)
 		networkLagCompensator->tryPredictReply(pack);
 
-	logicConnection->sendPack(pack);
+	// DMB: as sendLobbyPack, a request made in the moment the connection is lost is logged, not thrown into the game (Meg's crash, October 24th)
+	if(!logicConnection)
+	{
+		logNetwork->warn("A game pack (%s) was not sent: there is no connection to the server", typeid(pack).name());
+		return;
+	}
+	try
+	{
+		logicConnection->sendPack(pack);
+	}
+	catch(const std::exception & e)
+	{
+		logNetwork->warn("A game pack (%s) was not sent: %s", typeid(pack).name(), e.what());
+	}
 }

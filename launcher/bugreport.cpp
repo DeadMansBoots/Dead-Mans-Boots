@@ -624,9 +624,28 @@ void runCrashWindow(const QString & dumpPath)
 		detail->setText(automatic ? QObject::tr("Sending a report by itself (the \"General\" button on the \"Settings\" tab switches this off)...") : QObject::tr("Sending..."));
 		detail->show();
 		QApplication::processEvents();
-		const Report report = build("the game crashed", {}, true, dumpPath);
+		// DMB (Meg, October 24th: "the crash reporter crashed too"): nothing the building or the sending throws may take this window down; what went wrong is said,
+		// and the saved zip (if the report was made) is named
+		Report report;
 		QString problem;
-		const bool sent = report.error.isEmpty() && send(report, problem);
+		bool sent = false;
+		try
+		{
+			report = build("the game crashed", {}, true, dumpPath);
+			sent = report.error.isEmpty() && send(report, problem);
+		}
+		catch(const std::exception & e)
+		{
+			problem = QString::fromUtf8(e.what());
+			if(report.error.isEmpty())
+				report.error = problem;
+		}
+		catch(...)
+		{
+			problem = "an unknown error";
+			if(report.error.isEmpty())
+				report.error = problem;
+		}
 		// the crash text opens with the log's lines ("[2026-Oct-14 08:42:28.739218] ERROR [39436] global - Disaster happened."): the exception line without its stamp says more
 		// (K, October 14th: "Exception EXCEPTION_ACCESS_VIOLATION (0xc0000005) at ? (Attempt to read from 0x0000000000000000)")
 		static const QRegularExpression stamp("^\\[[^\\]]+\\]\\s+\\w+\\s+\\[[^\\]]+\\]\\s+\\w+\\s+-\\s+");
@@ -659,6 +678,8 @@ void runCrashWindow(const QString & dumpPath)
 			: QObject::tr("The report could not be sent (%1).").arg(report.error.isEmpty() ? problem : report.error);
 		if(!sent && !report.zipPath.isEmpty())
 			text += QObject::tr(" It is saved here: %1").arg(QDir::toNativeSeparators(report.zipPath));
+		else if(!sent)
+			text += QObject::tr(" The game's logs and the crash file are in this folder: %1").arg(QDir::toNativeSeparators(QFileInfo(dumpPath).absolutePath()));
 		if(report.error.isEmpty() && report.dump.isEmpty())
 			text += QObject::tr(" The crash file is not in the report (it could not be read, or it made the report too large to send); the logs and settings are.");
 		if(!cause.isEmpty())
@@ -666,6 +687,8 @@ void runCrashWindow(const QString & dumpPath)
 		detail->setText(text);
 		dont->setEnabled(true);
 		finish();
+		// the window grows to the text it shows now (after a failed send its last lines, which name the saved zip, were cut off)
+		dialog.adjustSize();
 	};
 	QObject::connect(sendButton, &QPushButton::clicked, &dialog, [&]() { sendNow(false); });
 	QObject::connect(dont, &QPushButton::clicked, &dialog, &QDialog::accept);

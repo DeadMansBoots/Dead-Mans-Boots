@@ -19,6 +19,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 class CMapInfo;
 
+struct CPack;
 struct CPackForLobby;
 struct LobbyGuiAction;
 

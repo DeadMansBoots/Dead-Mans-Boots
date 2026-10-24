@@ -245,6 +245,7 @@
 		"index" :92,
 		"handler" : "siren",
 		"base" : {
+			"popupDescription" : "Sirens. Their song lures part of your army into the sea. When a hero visits, 30% of every stack (rounded up) drowns; a stack of one creature is spared. The hero gains experience equal to the total health of the drowned creatures (Learning raises it). Once a hero has visited, the crew plugs their ears with wax until the hero's next battle; visiting again before then does nothing.",
 			"sounds" : {
 				"ambient" : ["LOOPSIRE"],
 				"visit" : ["DANGER"]

@@ -65,6 +65,8 @@ public:
 
 	void startEnteringText();
 	void endEnteringText(bool processEnteredText);
+	/// DMB: whether a chat line is being typed (the auto-combat retreat question ends it, so its keys reach the question)
+	bool isTyping() const { return isEnteringText(); }
 	void refreshEnteredText();
 
 	CInGameConsole();

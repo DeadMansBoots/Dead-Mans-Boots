@@ -17,8 +17,8 @@
 /// own marble texture. Display only: it reads the game state the client already holds and changes no rule, timer or AI. Measured against a snapshot taken when the
 /// day starts (the new day resets every player's movement and building at once, whatever the turn order): K, October 23rd 13:0x, "1. Heroes to move 2. Towns
 /// that can be built in": hero movement spent, and a structure built in each town that can build one, a town weighted by what is left on its list
-/// (TurnProgressMath::percent and townWeight); full when neither applies, and when the player has ended the turn this day. Bright while the game state counts the
-/// player as acting, dimmed otherwise.
+/// (TurnProgressMath::percent and townWeight); full when neither applies, and when the player has ended the turn this day. One fill colour at every level, for the
+/// acting player and the others alike.
 /// Its pos is everything it draws: the frame, the end pieces either side and the player's name above. The map view paints the tiles under pos fresh every frame
 /// (AdventureMapInterface::show asks it to), and the bar is drawn over them: the glass darkens the terrain as it is in that frame, and nothing drawn earlier stays.
 class IImage;

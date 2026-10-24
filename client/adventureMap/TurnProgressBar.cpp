@@ -382,6 +382,29 @@ void TurnProgressBar::show(Canvas & to)
 	ColorRGBA base(150, 150, 150, 255);
 	if(player.getNum() >= 0 && player.getNum() < 8)
 		base = graphics->playerColors[player.getNum()];
+	// DMB_BAR_COLOR="blue=196.145.104,green=170.131.99": test only, a player's fill colour (the pictures that put candidate colours side by side)
+	static const std::map<std::string, ColorRGBA> testColors = []()
+	{
+		std::map<std::string, ColorRGBA> out;
+		const char * text = std::getenv("DMB_BAR_COLOR");
+		if(!text)
+			return out;
+		std::vector<std::string> pairs;
+		boost::split(pairs, std::string(text), boost::is_any_of(","));
+		for(const auto & pair : pairs)
+		{
+			const auto at = pair.find('=');
+			std::vector<std::string> rgb;
+			if(at != std::string::npos)
+				boost::split(rgb, pair.substr(at + 1), boost::is_any_of("."));
+			if(rgb.size() == 3)
+				out[pair.substr(0, at)] = ColorRGBA(std::clamp(std::atoi(rgb[0].c_str()), 0, 255), std::clamp(std::atoi(rgb[1].c_str()), 0, 255), std::clamp(std::atoi(rgb[2].c_str()), 0, 255), 255);
+		}
+		logGlobal->warn("Turn bar: DMB_BAR_COLOR sets %d fill colours (a test setting)", static_cast<int>(out.size()));
+		return out;
+	}();
+	if(testColors.count(player.toString()))
+		base = testColors.at(player.toString());
 	const auto shade = [](const ColorRGBA & c, double factor, uint8_t alpha)
 	{
 		return ColorRGBA(static_cast<uint8_t>(std::clamp(c.r * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.g * factor, 0.0, 255.0)), static_cast<uint8_t>(std::clamp(c.b * factor, 0.0, 255.0)), alpha);
@@ -396,8 +419,9 @@ void TurnProgressBar::show(Canvas & to)
 	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 77));
 
 	const double t = clockMs / 1000.0;
-	// the liquid is bright while the player acts and dimmed while the player waits or has ended the turn
-	const double dim = acting ? 1.0 : 0.55;
+	// the liquid is one colour at every fill and whoever is acting: the dim for a player who waits or has ended the turn made every full bar dark (K, October
+	// 23rd 15:2x: "oh the bar gets darker the fuller it gets. yeah we need to do away with that")
+	const double dim = 1.0;
 	{
 		// at 100 the liquid is whole: no ripple and no glass showing at the end (the eased fill used to stop short of the end; K, October 23rd 13:2x: "it
 		// shouldn't be visible at all (that is to say, no see-through gaps) when the bar is at 100%")
@@ -407,8 +431,8 @@ void TurnProgressBar::show(Canvas & to)
 		{
 			// the liquid: lighter at the top, darker at the bottom; it ends in a few columns whose surface bobs, beta 15's ripple (K, 14:5x: "i like the
 			// bubbly/rippling/flowing better than the squiggly white line"), with his 13:2x upgrade: "the wavy part goes horizontally from the top down and to
-			// the right": the surfaces step down to the right and the crest travels right. Above a dipped column the liquid's shadowed top shows, not the
-			// glass, so the top rail shows no nick (4906a5ea4)
+			// the right": the surfaces step down to the right and the crest travels right. Above a dipped column is the plain glass of the empty trough (K, 18:5x:
+			// "get rid of the player-colorish transparency layer over or behind the bar where the waviness is")
 			const int ripple = full ? 0 : std::min(width, 7);
 			const int body = width - ripple;
 			// brightening mixes toward white, so a colour keeps its hue: multiplied and clamped per channel, tan's highlight turned yellow-green beside the gold
@@ -430,10 +454,10 @@ void TurnProgressBar::show(Canvas & to)
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
 				const double brightness = 1.30 - 0.85 * depth;
 				const ColorRGBA tone = brightness > 1.0 ? lighten(base, (brightness - 1.0) / 0.30 * 0.20) : shade(base, brightness * dim, 255);
-				const ColorRGBA shadow = shade(base, (0.62 - 0.25 * depth) * dim, 255);
 				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
 				for(int i = 0; i < ripple; ++i)
-					to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), row >= surface[i] ? tone : shadow);
+					if(row >= surface[i])
+						to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), tone);
 			}
 			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), highlight); // the soft highlight under the surface
 			for(int i = 0; i < ripple; ++i)

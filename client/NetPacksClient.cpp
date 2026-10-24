@@ -209,6 +209,14 @@ void ApplyClientNetPackVisitor::visitFoWChange(FoWChange & pack)
 	callAllInterfaces(cl, &CGameInterface::invalidatePaths);
 }
 
+// DMB: a change to an ally's hero reaches the ally's interface only; this screen's player may be watching that hero in a shared trade window
+static void refreshTradeWindow(std::initializer_list<PlayerColor> notified, ObjectInstanceID id1, ObjectInstanceID id2 = ObjectInstanceID())
+{
+	auto * pi = GAME->interface();
+	if(pi && !vstd::contains(notified, pi->playerID))
+		pi->tradeArmiesChanged(id1, id2);
+}
+
 static void dispatchGarrisonChange(CClient & cl, ObjectInstanceID army1, ObjectInstanceID army2)
 {
 	auto obj1 = cl.gameInfo().getObj(army1);
@@ -231,7 +239,10 @@ static void dispatchGarrisonChange(CClient & cl, ObjectInstanceID army1, ObjectI
 
 		if(obj1->tempOwner != obj2->tempOwner)
 			callInterfaceIfPresent(cl, obj2->tempOwner, &IGameEventsReceiver::garrisonsChanged, army1, army2);
+		refreshTradeWindow({obj1->tempOwner, obj2->tempOwner}, army1, army2);
 	}
+	else
+		refreshTradeWindow({obj1->tempOwner}, army1);
 }
 
 void ApplyClientNetPackVisitor::visitChangeStackCount(ChangeStackCount & pack)
@@ -280,12 +291,14 @@ void ApplyClientNetPackVisitor::visitPutArtifact(PutArtifact & pack)
 	callInterfaceIfPresent(cl, cl.gameState().getOwner(pack.al.artHolder), &IGameEventsReceiver::artifactPut, pack.al);
 	if(pack.askAssemble)
 		callInterfaceIfPresent(cl, cl.gameState().getOwner(pack.al.artHolder), &IGameEventsReceiver::askToAssembleArtifact, pack.al);
+	refreshTradeWindow({cl.gameState().getOwner(pack.al.artHolder)}, pack.al.artHolder);
 }
 
 void ApplyClientNetPackVisitor::visitBulkEraseArtifacts(BulkEraseArtifacts & pack)
 {
 	for(const auto & slotErase : pack.posPack)
 		callInterfaceIfPresent(cl, cl.gameState().getOwner(pack.artHolder), &IGameEventsReceiver::artifactRemoved, ArtifactLocation(pack.artHolder, slotErase));
+	refreshTradeWindow({cl.gameState().getOwner(pack.artHolder)}, pack.artHolder);
 }
 
 void ApplyClientNetPackVisitor::visitBulkMoveArtifacts(BulkMoveArtifacts & pack)
@@ -326,16 +339,19 @@ void ApplyClientNetPackVisitor::visitBulkMoveArtifacts(BulkMoveArtifacts & pack)
 	applyMove(pack.artsPack0);
 	if(!pack.artsPack1.empty())
 		applyMove(pack.artsPack1);
+	refreshTradeWindow({pack.interfaceOwner, dstOwner, cl.gameState().getOwner(pack.srcArtHolder)}, pack.srcArtHolder, pack.dstArtHolder);
 }
 
 void ApplyClientNetPackVisitor::visitAssembledArtifact(AssembledArtifact & pack)
 {
 	callInterfaceIfPresent(cl, cl.gameState().getOwner(pack.al.artHolder), &IGameEventsReceiver::artifactAssembled, pack.al);
+	refreshTradeWindow({cl.gameState().getOwner(pack.al.artHolder)}, pack.al.artHolder);
 }
 
 void ApplyClientNetPackVisitor::visitDisassembledArtifact(DisassembledArtifact & pack)
 {
 	callInterfaceIfPresent(cl, cl.gameState().getOwner(pack.al.artHolder), &IGameEventsReceiver::artifactDisassembled, pack.al);
+	refreshTradeWindow({cl.gameState().getOwner(pack.al.artHolder)}, pack.al.artHolder);
 }
 
 void ApplyClientNetPackVisitor::visitHeroVisit(HeroVisit & pack)

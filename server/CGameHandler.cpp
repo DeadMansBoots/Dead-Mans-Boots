@@ -1552,16 +1552,26 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 
 	if (gameInfo().getPlayerRelations(h1->getOwner(), h2->getOwner()) != PlayerRelations::ENEMIES)
 	{
-		// DMB: a hero already in a trade is not opened for a second one; whoever tried is told (K, October 24th: the second trade opened nothing,
-		// lagged and spammed "fishy" messages)
+		// DMB: one hero is in one trade at a time; a third hero reaching for one already trading is told so, once (K, October 24th)
 		for(const auto & open : queries->allQueries())
-			if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get()))
+			if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get()); trade && trade->sharedWith.isValidPlayer())
 				for(const auto * army : trade->exchangingArmies)
 					if(army->id == hero1 || army->id == hero2)
 					{
-						tellTradeBusy(h1->getOwner(), trade->exchangingArmies);
+						tellTrader(h1->getOwner(), army, " is in a trade. Try again when its trade window is closed.");
 						return;
 					}
+
+		// DMB: an allied trade is one window that both players have open (K, October 24th: "THE TRADE WINDOW TO BE PERFECTLY SYNCED"). The changes
+		// either makes reach both, as every change of an army does, and either player's OK ends it for both (CGarrisonDialogQuery::onRemoval).
+		// The ally's window would open over a battle of his and hold the battle up, so the trade waits for the battle's end.
+		const PlayerColor ally = h2->getOwner();
+		const bool shared = ally != h1->getOwner() && gameInfo().getPlayerState(ally)->isHuman();
+		if(shared && gameState().getBattle(ally))
+		{
+			tellTrader(h1->getOwner(), h2, " cannot trade now: its owner is in a battle.");
+			return;
+		}
 
 		auto exchange = std::make_shared<CGarrisonDialogQuery>(this, h1, h2);
 		ExchangeDialog hex;
@@ -1570,34 +1580,25 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 		hex.hero1 = hero1;
 		hex.hero2 = hero2;
 		sendAndApply(hex);
+		if(shared)
+		{
+			exchange->sharedWith = ally;
+			hex.player = ally;
+			sendAndApply(hex);
+		}
 
 		useScholarSkill(hero1,hero2);
 		queries->addQuery(exchange);
 	}
 }
 
-bool CGameHandler::tradeHoldsBack(PlayerColor player, ObjectInstanceID object)
-{
-	if(!object.hasValue())
-		return false;
-	for(const auto & open : queries->allQueries())
-		if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get()); trade && !trade->isWindowOwner(player))
-			for(const auto * army : trade->exchangingArmies)
-				if(army->id == object)
-				{
-					tellTradeBusy(player, trade->exchangingArmies);
-					return true;
-				}
-	return false;
-}
-
-void CGameHandler::tellTradeBusy(PlayerColor player, const std::array<const CArmedInstance *, 2> & armies)
+void CGameHandler::tellTrader(PlayerColor player, const CArmedInstance * army, const std::string & text)
 {
 	InfoWindow iw;
 	iw.player = player;
-	const auto * hero = dynamic_cast<const CGHeroInstance *>(armies[0]);
-	iw.text.appendRawString(hero ? hero->getNameTranslated() : std::string("A hero"));
-	iw.text.appendRawString(" is in a trade. Try again when the trade window is closed.");
+	const auto * hero = dynamic_cast<const CGHeroInstance *>(army);
+	iw.text.appendRawString(hero ? hero->getNameTranslated() : std::string("This hero"));
+	iw.text.appendRawString(text);
 	sendAndApply(iw);
 }
 
@@ -3499,6 +3500,13 @@ bool CGameHandler::queryReply(QueryID qid, std::optional<int32_t> answer, Player
 
 	auto topQuery = queries->topQuery(player);
 
+	// DMB: both players of a shared trade window may press OK; the second OK finds the trade already closed by the first
+	if((!topQuery || topQuery->queryID != qid) && closedSharedTrades.count(qid))
+	{
+		logGlobal->info("Player %s closed trade %d, already closed by the other player", player.toString(), qid.getNum());
+		return true;
+	}
+
 	COMPLAIN_RET_FALSE_IF(!topQuery, "This player doesn't have any queries!");
 
 	if(topQuery->queryID != qid)
@@ -3580,25 +3588,7 @@ bool CGameHandler::isAllowedExchange(ObjectInstanceID id1, ObjectInstanceID id2)
 		const bool matchesForward = garrisonQuery->exchangingArmies[0]->id == id1 && garrisonQuery->exchangingArmies[1]->id == id2;
 		const bool matchesBackward = garrisonQuery->exchangingArmies[0]->id == id2 && garrisonQuery->exchangingArmies[1]->id == id1;
 		if(matchesForward || matchesBackward)
-		{
-			// DMB: two heroes trade only while they stand next to each other (or in one town); a trade whose heroes were parted allows nothing more
-			// (the Reviewer, October 24th: a trading hero cast away mid-trade went on trading from anywhere)
-			const auto * h1 = dynamic_cast<const CGHeroInstance *>(garrisonQuery->exchangingArmies[0]);
-			const auto * h2 = dynamic_cast<const CGHeroInstance *>(garrisonQuery->exchangingArmies[1]);
-			if(h1 && h2)
-			{
-				const int3 p1 = h1->visitablePos();
-				const int3 p2 = h2->visitablePos();
-				const bool sameTown = h1->getVisitedTown() && h1->getVisitedTown() == h2->getVisitedTown();
-				const bool adjacent = p1.z == p2.z && std::abs(p1.x - p2.x) <= 1 && std::abs(p1.y - p2.y) <= 1;
-				if(!adjacent && !sameTown)
-				{
-					logGlobal->warn("Exchange refused: %s and %s are no longer next to each other", h1->getNameTranslated(), h2->getNameTranslated());
-					return false;
-				}
-			}
 			return true;
-		}
 	}
 
 	const CGObjectInstance *o1 = gameInfo().getObj(id1);
@@ -4358,11 +4348,11 @@ bool CGameHandler::isBlockedByQueries(const CPackForServer *pack, PlayerColor pl
 	auto query = queries->topQuery(player);
 	if (query && query->blocksPack(pack))
 	{
-		// DMB: the other player of an allied trade, reaching for one of its two armies: he has no window to answer, so he is told, and nothing is
-		// broadcast (K, October 24th)
-		if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(query.get()); trade && !trade->isWindowOwner(player))
+		// DMB: a shared trade window opens on the ally's screen while his own requests may be on their way (a step of his hero, often towards the
+		// same trade); such a request is dropped with a log line, without the broadcast to every player's chat (K, October 24th: "fishy" spam)
+		if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(query.get()); trade && trade->sharedWith.isValidPlayer())
 		{
-			tellTradeBusy(player, trade->exchangingArmies);
+			logGlobal->info("Player %s is in a trade; dropped %s", player.toString(), typeid(*pack).name());
 			return true;
 		}
 		complain(boost::str(boost::format(

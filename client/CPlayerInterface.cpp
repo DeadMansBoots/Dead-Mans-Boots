@@ -1546,7 +1546,40 @@ void CPlayerInterface::showHeroExchange(ObjectInstanceID hero1, ObjectInstanceID
 void CPlayerInterface::heroExchangeStarted(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID query)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	// DMB: a shared trade window (both players of an allied trade have it): the server closes it with a dialog that names no heroes, and in a hot
+	// seat game both players' dialogs reach this one screen, which shows the window once
+	if(query.getNum() > 0)
+	{
+		const auto open = ENGINE->windows().findWindows<CExchangeWindow>();
+		const auto ofThisTrade = std::find_if(open.begin(), open.end(), [query](const auto & w) { return w->tradeQuery() == query; });
+		if(hero1 == ObjectInstanceID::NONE)
+		{
+			if(ofThisTrade != open.end())
+				(*ofThisTrade)->closeTrade();
+			return;
+		}
+		if(ofThisTrade != open.end())
+			return;
+	}
 	ENGINE->windows().createAndPushWindow<CExchangeWindow>(hero1, hero2, query);
+}
+
+void CPlayerInterface::tradeArmiesChanged(ObjectInstanceID id1, ObjectInstanceID id2)
+{
+	if(ENGINE->windows().findWindows<CExchangeWindow>().empty())
+		return;
+
+	std::vector<const CArmedInstance *> objs;
+	for(const auto & id : {id1, id2})
+		if(auto obj = dynamic_cast<const CArmedInstance *>(cb->getObjInstance(id)))
+			objs.push_back(obj);
+
+	for(auto cgh : ENGINE->windows().findWindows<IGarrisonHolder>())
+		if(cgh->holdsGarrisons(objs))
+			cgh->updateGarrisons();
+	for(const auto & artWin : ENGINE->windows().findWindows<IArtifactsHolder>())
+		artWin->updateArtifacts();
+	ENGINE->windows().totalRedraw();
 }
 
 void CPlayerInterface::beforeObjectPropertyChanged(const SetObjectProperty * sop)

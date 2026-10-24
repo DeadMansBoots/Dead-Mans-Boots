@@ -53,15 +53,13 @@ class CGarrisonDialogQuery : public CDialogQuery //used also for hero exchange d
 {
 public:
 	std::array<const CArmedInstance *,2> exchangingArmies;
+	/// DMB: the second player of an allied trade, who has the window open too (an invalid colour when only one player has it)
+	PlayerColor sharedWith = PlayerColor::CANNOT_DETERMINE;
 
 	CGarrisonDialogQuery(CGameHandler * owner, const CArmedInstance *up, const CArmedInstance *down);
 	void notifyObjectAboutRemoval(const CGObjectInstance * visitedObject, const CGHeroInstance * visitingHero) const override;
 	bool blocksPack(const CPackForServer *pack) const override;
 	void onRemoval(PlayerColor color) override;
-	/// DMB: the pack names one of the two armies in this trade
-	bool touchesArmies(const CPackForServer * pack) const;
-	/// DMB: this player has the trade window (the first army's owner); the other player of an allied trade has the query and no window
-	bool isWindowOwner(PlayerColor player) const;
 };
 
 //yes/no and component selection dialogs

@@ -72,8 +72,14 @@ class CExchangeWindow : public CStatusbarWindow, public IGarrisonHolder, public 
 	/// True when this player does not own the hero, so nothing may be taken from it
 	bool isHeroBlocked(size_t leftRight) const;
 
+	QueryID queryID;
+
 public:
 	CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID);
+	/// DMB: the trade this window answers (an invalid ID for a window opened from a town)
+	QueryID tradeQuery() const { return queryID; }
+	/// DMB: the other player closed the shared trade; this window and what was opened from it close
+	void closeTrade();
 
 	void keyPressed(EShortcut key) override;
 

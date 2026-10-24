@@ -11,6 +11,7 @@
 #include "CExchangeWindow.h"
 
 #include "CHeroBackpackWindow.h"
+#include "InfoWindows.h"
 
 #include "../CPlayerInterface.h"
 
@@ -45,7 +46,8 @@ static bool isQuickExchangeLayoutAvailable()
 
 CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID)
 	: CWindowObject(PLAYER_COLORED | BORDERED, ImagePath::builtin(isQuickExchangeLayoutAvailable() ? QUICK_EXCHANGE_BG : "TRADE2")),
-	controller(hero1, hero2)
+	controller(hero1, hero2),
+	queryID(queryID)
 {
 	const bool qeLayout = isQuickExchangeLayoutAvailable();
 
@@ -378,6 +380,20 @@ void CExchangeWindow::keyPressed(EShortcut key)
 			backpackShortcut(false);
 		break;
 	}
+}
+
+void CExchangeWindow::closeTrade()
+{
+	// the windows opened from this one (a split, a hero, a backpack) are above it; an info dialog from the server stays
+	while(ENGINE->windows().count() > 0)
+	{
+		const auto top = ENGINE->windows().topWindow<CIntObject>();
+		if(!top || top.get() == this || std::dynamic_pointer_cast<CInfoWindow>(top))
+			break;
+		ENGINE->windows().popWindow(top);
+	}
+	ENGINE->cursor().dragAndDropCursor(nullptr);
+	close();
 }
 
 bool CExchangeWindow::isHeroBlocked(size_t leftRight) const

@@ -214,6 +214,10 @@ void CBattleAI::activeStack(const BattleID & battleID, const CStack * stack )
 
 	if(auto action = considerFleeingOrSurrendering(battleID, result))
 	{
+		// DMB: NO_ACTION from the player's interface: it asked the player about a retreat and holds this stack's turn; the answer
+		// sends the retreat or surrender, or runs this AI again for the same stack (CPlayerInterface::answerRetreat)
+		if(action->actionType == EActionType::NO_ACTION)
+			return;
 		cb->battleMakeUnitAction(battleID, *action);
 		return;
 	}

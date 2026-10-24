@@ -503,7 +503,10 @@ std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const Battl
 			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());
 
 	auto result = cb->makeSurrenderRetreatDecision(battleID, bs);
-	if(result)
+	if(result && result->actionType == EActionType::NO_ACTION)
+		logAi->info("Battle AI: round %d, side %d waits for the player's answer about a retreat", cb->getBattle(battleID)->battleGetRound(),
+			static_cast<int>(bs.ourSide));
+	else if(result)
 		logAi->info("Battle AI: round %d, side %d retreats or surrenders (our strength %d, enemy %d)",
 			cb->getBattle(battleID)->battleGetRound(), static_cast<int>(bs.ourSide), bs.getOurStrength(), bs.getEnemyStrength());
 

@@ -19,6 +19,7 @@
 #include "../widgets/GraphicalPrimitiveCanvas.h"
 #include "../widgets/TextControls.h"
 
+#include "../../lib/DmbObserverPause.h"
 #include "../../lib/VCMIDirs.h"
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/gameState/CGameState.h"
@@ -43,6 +44,8 @@ void ObserverBar::clearFlags()
 	boost::system::error_code ignored;
 	boost::filesystem::remove(flagFolder() / "PAUSE", ignored);
 	boost::filesystem::remove(flagFolder() / "STEP", ignored);
+	DmbObserverPause::paused = false;
+	DmbObserverPause::steps = 0;
 }
 
 ObserverBar::ObserverBar(const Rect & area)
@@ -94,7 +97,7 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 	boost::filesystem::create_directories(flagFolder(), ignored);
 	if(pauseArea.isInside(local))
 	{
-		paused = !paused;
+		setPaused(!paused);
 		if(paused)
 			std::ofstream((flagFolder() / "PAUSE").string()).put('1');
 		else
@@ -102,13 +105,23 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 			boost::filesystem::remove(flagFolder() / "PAUSE", ignored);
 			boost::filesystem::remove(flagFolder() / "STEP", ignored);
 		}
-		pauseLabel->setText(paused ? "Resume" : "Pause");
 	}
 	else if(stepArea.isInside(local) && paused)
 	{
-		// one hero move: OmniAI deletes STEP after it, and holds again
+		// one action: the server lets one held request through; OmniAI makes one hero move (it deletes STEP after it) and holds again
 		std::ofstream((flagFolder() / "STEP").string()).put('1');
+		DmbObserverPause::steps++;
 	}
+}
+
+void ObserverBar::setPaused(bool on)
+{
+	paused = on;
+	DmbObserverPause::paused = on;
+	if(!on)
+		DmbObserverPause::steps = 0;
+	pauseLabel->setText(paused ? "Resume" : "Pause");
+	logGlobal->info("Observer: the game is %s", paused ? "paused" : "running");
 }
 
 void ObserverBar::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
@@ -129,6 +142,16 @@ void ObserverBar::hover(bool on)
 
 void ObserverBar::tick(uint32_t msPassed)
 {
+	// the watch console's p and Enter write and remove the same PAUSE file: the bar follows it twice a second, so either control pauses the whole game
+	sinceFlagCheck += msPassed;
+	if(canPause && sinceFlagCheck >= 500)
+	{
+		sinceFlagCheck = 0;
+		boost::system::error_code ignored;
+		const bool flag = boost::filesystem::exists(flagFolder() / "PAUSE", ignored);
+		if(flag != paused)
+			setPaused(flag);
+	}
 	const auto * callback = GAME->interface() ? GAME->interface()->cb.get() : nullptr;
 	if(!callback)
 		return;

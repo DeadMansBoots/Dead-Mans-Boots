@@ -53,6 +53,10 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 
 	std::shared_ptr<GameConnection> findConnection(const std::shared_ptr<INetworkConnection> &);
 
+	/// DMB: requests from players held while the host's observer bar pauses the game (DmbObserverPause), in arrival order
+	std::deque<std::pair<std::shared_ptr<GameConnection>, std::unique_ptr<CPack>>> heldPacks;
+	void releaseHeldPacks();
+
 	GameConnectionID currentClientId;
 	PlayerConnectionID currentPlayerId;
 	uint16_t port;

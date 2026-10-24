@@ -10,6 +10,7 @@
 #include "StdInc.h"
 #include "CVCMIServer.h"
 #include "../lib/DmbIssueReport.h"
+#include "../lib/DmbObserverPause.h"
 
 #include "CGameHandler.h"
 #include "GlobalLobbyProcessor.h"
@@ -144,8 +145,37 @@ void CVCMIServer::onPacketReceived(const std::shared_ptr<INetworkConnection> & c
 		throw std::out_of_range("Unknown connection received in CVCMIServer::findConnection");
 
 	auto pack = c->retrievePack(message);
+	// DMB: while the host's observer bar pauses a watched game, a player's request waits here (and every one after it, so the order holds); the watcher's own
+	// requests (chat) pass
+	const auto * request = dynamic_cast<const CPackForServer *>(pack.get());
+	if(getState() == EServerState::GAMEPLAY && request && !request->player.isSpectator() && (DmbObserverPause::paused || !heldPacks.empty()))
+	{
+		heldPacks.emplace_back(c, std::move(pack));
+		releaseHeldPacks();
+		return;
+	}
 	CVCMIServerPackVisitor visitor(*this, this->gh, c);
 	pack->visit(visitor);
+}
+
+void CVCMIServer::releaseHeldPacks()
+{
+	// unpaused: all of them, in order; paused: one for each step the bar asked for
+	while(!heldPacks.empty() && getState() == EServerState::GAMEPLAY)
+	{
+		if(DmbObserverPause::paused)
+		{
+			int steps = DmbObserverPause::steps.load();
+			if(steps <= 0 || !DmbObserverPause::steps.compare_exchange_strong(steps, steps - 1))
+				return;
+		}
+		auto held = std::move(heldPacks.front());
+		heldPacks.pop_front();
+		CVCMIServerPackVisitor visitor(*this, this->gh, held.first);
+		held.second->visit(visitor);
+	}
+	if(getState() != EServerState::GAMEPLAY)
+		heldPacks.clear();
 }
 
 void CVCMIServer::setState(EServerState value)
@@ -232,7 +262,9 @@ void CVCMIServer::onTimer()
 	auto msPassedNow = std::chrono::duration_cast<std::chrono::milliseconds>(timePassedNow);
 	auto msDelta = msPassedNow - msPassedBefore;
 
-	if (msDelta.count())
+	// DMB: a paused watched game holds its timers too (the turn timers of every player), and sends on what the pause held once it ends
+	releaseHeldPacks();
+	if (msDelta.count() && !DmbObserverPause::paused)
 		gh->tick(msDelta.count());
 	networkHandler->createTimer(*this, serverUpdateInterval);
 }

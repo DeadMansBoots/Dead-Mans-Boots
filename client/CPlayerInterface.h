@@ -211,6 +211,9 @@ protected: // Call-ins from server, should not be called directly, but only via 
 
 public: // public interface for use by client via GAME->interface() access
 
+	/// DMB: an army or artifact change of an ally's hero, which reaches the ally's interface only; this player may be watching it in a shared trade
+	void tradeArmiesChanged(ObjectInstanceID id1, ObjectInstanceID id2);
+
 	// part of GameInterface that is also used by client code
 	void update();
 	void showPuzzleMap() override;
@@ -283,8 +286,6 @@ private:
 	void heroKilled(const CGHeroInstance* hero);
 	void townRemoved(const CGTownInstance* town);
 	void garrisonsChanged(std::vector<const CArmedInstance *> objs);
-	/// DMB: an army or artifact change of an ally's hero, which reaches the ally's interface only; this player may be watching it in a shared trade
-	void tradeArmiesChanged(ObjectInstanceID id1, ObjectInstanceID id2);
 	void requestReturningToMainMenu(bool won);
 	void acceptTurn(QueryID queryID, bool hotseatWait); //used during hot seat after your turn message is close
 	/// the start of the turn after the turn dialog: the no-town warning, the turn query's answer and the movement controller (DMB: run on the network

@@ -82,8 +82,46 @@ void CGarrisonDialogQuery::onRemoval(PlayerColor color)
 	}
 }
 
+bool CGarrisonDialogQuery::touchesArmies(const CPackForServer * pack) const
+{
+	const auto ours = [this](const ObjectInstanceID & id) { return id == exchangingArmies[0]->id || id == exchangingArmies[1]->id; };
+	if(const auto * p = dynamic_cast<const MoveHero *>(pack)) return ours(p->hid);
+	if(const auto * p = dynamic_cast<const DismissHero *>(pack)) return ours(p->hid);
+	if(const auto * p = dynamic_cast<const CastleTeleportHero *>(pack)) return ours(p->hid);
+	if(const auto * p = dynamic_cast<const ArrangeStacks *>(pack)) return ours(p->id1) || ours(p->id2);
+	if(const auto * p = dynamic_cast<const BulkMoveArmy *>(pack)) return ours(p->srcArmy) || ours(p->destArmy);
+	if(const auto * p = dynamic_cast<const BulkSplitStack *>(pack)) return ours(p->srcOwner);
+	if(const auto * p = dynamic_cast<const BulkMergeStacks *>(pack)) return ours(p->srcOwner);
+	if(const auto * p = dynamic_cast<const BulkSplitAndRebalanceStack *>(pack)) return ours(p->srcOwner);
+	if(const auto * p = dynamic_cast<const DisbandCreature *>(pack)) return ours(p->id);
+	if(const auto * p = dynamic_cast<const RecruitCreatures *>(pack)) return ours(p->dst);
+	if(const auto * p = dynamic_cast<const UpgradeCreature *>(pack)) return ours(p->id);
+	if(const auto * p = dynamic_cast<const ExchangeArtifacts *>(pack)) return ours(p->src.artHolder) || ours(p->dst.artHolder);
+	if(const auto * p = dynamic_cast<const BulkExchangeArtifacts *>(pack)) return ours(p->srcHero) || ours(p->dstHero);
+	if(const auto * p = dynamic_cast<const ManageBackpackArtifacts *>(pack)) return ours(p->artHolder);
+	if(const auto * p = dynamic_cast<const ManageEquippedArtifacts *>(pack)) return ours(p->artHolder);
+	if(const auto * p = dynamic_cast<const AssembleArtifacts *>(pack)) return ours(p->heroID);
+	if(const auto * p = dynamic_cast<const EraseArtifactByClient *>(pack)) return ours(p->al.artHolder);
+	if(const auto * p = dynamic_cast<const BuyArtifact *>(pack)) return ours(p->hid);
+	if(const auto * p = dynamic_cast<const TradeOnMarketplace *>(pack)) return ours(p->heroId);
+	if(const auto * p = dynamic_cast<const SetFormation *>(pack)) return ours(p->hid);
+	if(const auto * p = dynamic_cast<const SetTactics *>(pack)) return ours(p->hid);
+	return false;
+}
+
+bool CGarrisonDialogQuery::isWindowOwner(PlayerColor player) const
+{
+	return player == exchangingArmies[0]->tempOwner;
+}
+
 bool CGarrisonDialogQuery::blocksPack(const CPackForServer * pack) const
 {
+	// DMB: an allied trade is this one query for both owners, but only the first army's owner has the window. The other player had it on top of his
+	// stack and no way to answer it, so every request of his was refused, each with a complaint to every player's chat (K, October 24th: a second trade
+	// with a hero already trading opened nothing, lagged and spammed "fishy" messages). He is held back only from the two armies in the trade.
+	if(!isWindowOwner(pack->player))
+		return touchesArmies(pack);
+
 	std::set<ObjectInstanceID> ourIds;
 	ourIds.insert(this->exchangingArmies[0]->id);
 	ourIds.insert(this->exchangingArmies[1]->id);

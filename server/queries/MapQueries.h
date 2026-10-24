@@ -58,6 +58,10 @@ public:
 	void notifyObjectAboutRemoval(const CGObjectInstance * visitedObject, const CGHeroInstance * visitingHero) const override;
 	bool blocksPack(const CPackForServer *pack) const override;
 	void onRemoval(PlayerColor color) override;
+	/// DMB: the pack names one of the two armies in this trade
+	bool touchesArmies(const CPackForServer * pack) const;
+	/// DMB: this player has the trade window (the first army's owner); the other player of an allied trade has the query and no window
+	bool isWindowOwner(PlayerColor player) const;
 };
 
 //yes/no and component selection dialogs

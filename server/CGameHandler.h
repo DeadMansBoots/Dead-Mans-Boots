@@ -176,6 +176,8 @@ public:
 	void giveHero(ObjectInstanceID id, PlayerColor player, ObjectInstanceID boatId = ObjectInstanceID()) override;
 	void changeObjPos(ObjectInstanceID objid, int3 newPos, const PlayerColor & initiator) override;
 	void heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2) override;
+	/// DMB: tells the player that a hero of the trade between these armies is busy (a second trade, or the other player of an allied trade)
+	void tellTradeBusy(PlayerColor player, const std::array<const CArmedInstance *, 2> & armies);
 
 	void changeFogOfWar(int3 center, ui32 radius, PlayerColor player, ETileVisibility mode) override;
 	void changeFogOfWar(const FowTilesType &tiles, PlayerColor player,ETileVisibility mode) override;

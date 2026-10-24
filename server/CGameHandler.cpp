@@ -1552,6 +1552,17 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 
 	if (gameInfo().getPlayerRelations(h1->getOwner(), h2->getOwner()) != PlayerRelations::ENEMIES)
 	{
+		// DMB: a hero already in a trade is not opened for a second one; whoever tried is told (K, October 24th: the second trade opened nothing,
+		// lagged and spammed "fishy" messages)
+		for(const auto & open : queries->allQueries())
+			if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get()))
+				for(const auto * army : trade->exchangingArmies)
+					if(army->id == hero1 || army->id == hero2)
+					{
+						tellTradeBusy(h1->getOwner(), trade->exchangingArmies);
+						return;
+					}
+
 		auto exchange = std::make_shared<CGarrisonDialogQuery>(this, h1, h2);
 		ExchangeDialog hex;
 		hex.queryID = exchange->queryID;
@@ -1563,6 +1574,16 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 		useScholarSkill(hero1,hero2);
 		queries->addQuery(exchange);
 	}
+}
+
+void CGameHandler::tellTradeBusy(PlayerColor player, const std::array<const CArmedInstance *, 2> & armies)
+{
+	InfoWindow iw;
+	iw.player = player;
+	const auto * hero = dynamic_cast<const CGHeroInstance *>(armies[0]);
+	iw.text.appendRawString(hero ? hero->getNameTranslated() : std::string("A hero"));
+	iw.text.appendRawString(" is in a trade. Try again when the trade window is closed.");
+	sendAndApply(iw);
 }
 
 void CGameHandler::sendAndApply(CPackForClient & pack)
@@ -4304,6 +4325,13 @@ bool CGameHandler::isBlockedByQueries(const CPackForServer *pack, PlayerColor pl
 	auto query = queries->topQuery(player);
 	if (query && query->blocksPack(pack))
 	{
+		// DMB: the other player of an allied trade, reaching for one of its two armies: he has no window to answer, so he is told, and nothing is
+		// broadcast (K, October 24th)
+		if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(query.get()); trade && !trade->isWindowOwner(player))
+		{
+			tellTradeBusy(player, trade->exchangingArmies);
+			return true;
+		}
 		complain(boost::str(boost::format(
 			"\r\n| Player \"%s\" has to answer queries before attempting any further actions.\r\n| Top Query: \"%s\"\r\n")
 			% boost::to_upper_copy<std::string>(player.toString())

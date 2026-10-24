@@ -42,6 +42,8 @@ const IMarket * CGameInfoCallback::getMarket(ObjectInstanceID objid) const
 
 int CGameInfoCallback::getResource(PlayerColor Player, GameResID which) const
 {
+	if(Player.isSpectator())
+		return 0; // DMB: a watcher owns nothing (asked every frame in a watched game, it logged "No player info!" thousands of times a minute)
 	const PlayerState *p = getPlayerState(Player);
 	ERROR_RET_VAL_IF(!p, "No player info!", -1);
 	ERROR_RET_VAL_IF(p->resources.size() <= which.getNum() || which.getNum() < 0, "No such resource!", -1);
@@ -204,7 +206,9 @@ void CGameInfoCallback::getThievesGuildInfo(SThievesGuildInfo & thi, const CGObj
 
 	if(obj->ID == Obj::TOWN || obj->ID == Obj::TAVERN)
 	{
-		int taverns = gameState().players.at(*getPlayerID()).valOfBonuses(BonusType::THIEVES_GUILD_ACCESS);
+		// DMB: a spectator (no player state; players.at threw for it) sees the guild in full, as the Den of Thieves shows it
+		const bool watcher = !getPlayerID() || !gameState().players.count(*getPlayerID());
+		int taverns = watcher ? 20 : gameState().players.at(*getPlayerID()).valOfBonuses(BonusType::THIEVES_GUILD_ACCESS);
 		gameState().obtainPlayersStats(thi, taverns);
 	}
 	else if(obj->ID == Obj::DEN_OF_THIEVES)
@@ -216,6 +220,8 @@ void CGameInfoCallback::getThievesGuildInfo(SThievesGuildInfo & thi, const CGObj
 int CGameInfoCallback::howManyTowns(PlayerColor Player) const
 {
 	ERROR_RET_VAL_IF(!hasAccess(Player), "Access forbidden!", -1);
+	if(!gameState().players.count(Player))
+		return 0; // DMB: a spectator has no towns (players.at threw for it)
 	return static_cast<int>(gameState().players.at(Player).getTowns().size());
 }
 

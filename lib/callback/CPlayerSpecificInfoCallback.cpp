@@ -64,6 +64,8 @@ int CPlayerSpecificInfoCallback::getHeroSerial(const CGHeroInstance * hero, bool
 		return -1;
 
 	size_t index = 0;
+	if(!getPlayerID() || !gameState().players.count(*getPlayerID()))
+		return -1; // DMB: a spectator has no hero list (players.at threw for it)
 	const auto & heroes = gameState().players.at(*getPlayerID()).getHeroes();
 
 	for (auto & possibleHero : heroes)
@@ -145,6 +147,8 @@ int CPlayerSpecificInfoCallback::getResourceAmount(GameResID type) const
 TResources CPlayerSpecificInfoCallback::getResourceAmount() const
 {
 	ERROR_RET_VAL_IF(!getPlayerID(), "Applicable only for player callbacks", TResources());
+	if(!gameState().players.count(*getPlayerID()))
+		return TResources(); // DMB: a spectator owns nothing (players.at threw for it)
 	return gameState().players.at(*getPlayerID()).resources;
 }
 

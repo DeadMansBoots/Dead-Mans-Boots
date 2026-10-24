@@ -78,7 +78,9 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 	OBJECT_CONSTRUCTION;
 	curHero = hero;
 
-	banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), GAME->interface()->playerID.getNum(), 0, 606, 8);
+	// DMB: a spectator is no player (its colour has no crest frame): the hero's owner's crest
+	const PlayerColor crest = GAME->interface()->playerID.isSpectator() ? hero->getOwner() : GAME->interface()->playerID;
+	banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), crest.getNum(), 0, 606, 8);
 	name = std::make_shared<CLabel>(190, 38, EFonts::FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW);
 	title = std::make_shared<CLabel>(190, 65, EFonts::FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE);
 
@@ -248,7 +250,8 @@ void CHeroWindow::updateArtifacts()
 			enableKeyboardShortcuts();
 		}
 
-		int serial = GAME->interface()->cb->getHeroSerial(curHero, false);
+		// DMB: a spectator has no hero list of its own (the callback's own-player lookups throw for it)
+		int serial = GAME->interface()->playerID.isSpectator() ? -1 : GAME->interface()->cb->getHeroSerial(curHero, false);
 
 		listSelection.reset();
 		if(serial >= 0)
@@ -313,8 +316,12 @@ void CHeroWindow::updateArtifacts()
 			noDismiss = true;
 	}
 
+	// DMB: a spectator watches; it dismisses nothing (and has no towns or heroes to count)
+	const bool watcher = GAME->interface()->playerID.isSpectator();
+	if(watcher)
+		noDismiss = true;
 	//if player only have one hero and no towns
-	if(!GAME->interface()->cb->howManyTowns() && GAME->interface()->cb->howManyHeroes() == 1)
+	else if(!GAME->interface()->cb->howManyTowns() && GAME->interface()->cb->howManyHeroes() == 1)
 		noDismiss = true;
 
 	if(curHero->isMissionCritical())
@@ -322,7 +329,7 @@ void CHeroWindow::updateArtifacts()
 
 	dismissButton->block(noDismiss);
 
-	if(curHero->valOfBonuses(BonusType::BEFORE_BATTLE_REPOSITION) == 0)
+	if(watcher || curHero->valOfBonuses(BonusType::BEFORE_BATTLE_REPOSITION) == 0)
 	{
 		tacticsButton->block(true);
 	}
@@ -335,7 +342,8 @@ void CHeroWindow::updateArtifacts()
 	formations->resetCallback();
 	//setting formations
 	formations->setSelected(curHero->formation == EArmyFormation::TIGHT ? 1 : 0);
-	formations->addCallback([this](int value){ GAME->interface()->cb->setFormation(curHero, static_cast<EArmyFormation>(value));});
+	if(!watcher)
+		formations->addCallback([this](int value){ GAME->interface()->cb->setFormation(curHero, static_cast<EArmyFormation>(value));});
 
 	morale->set(curHero);
 	luck->set(curHero);

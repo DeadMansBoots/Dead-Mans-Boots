@@ -2218,6 +2218,11 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 	// here waits. The question goes up on the main thread and this stack's turn is held (the NO_ACTION marker: BattleAI sends nothing);
 	// the answer acts within the same turn (answerRetreat), since the server takes a retreat only from the side whose stack is active.
 	// Windows that all close unanswered count as "fight on". One question per battle; none headless.
+	// DMB (K, October 24th, via the lead: an "are you sure you want to retreat" message when entering a battle, which he never asked for and does not want):
+	// the question is off, as stock has it: in auto or quick combat the player's side is never asked, and the battle window's Retreat button asks as it always did.
+	// The code below stays for a later setting, if K ever wants it.
+	if(constexpr bool askRetreatInAutoCombat = false; !askRetreatInAutoCombat)
+		return std::nullopt;
 	if(settings["session"]["headless"].Bool() || !ENGINE)
 		return std::nullopt;
 	auto battle = cb->getBattle(battleID);

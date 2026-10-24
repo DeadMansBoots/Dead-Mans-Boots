@@ -79,7 +79,7 @@ public:
 	void activeStack(const BattleID & battleID, const CStack * stack) override; //called when it's turn of that stack
 	void yourTacticPhase(const BattleID & battleID, int distance) override;
 
-	std::optional<BattleAction> considerFleeingOrSurrendering(const BattleID & battleID);
+	std::optional<BattleAction> considerFleeingOrSurrendering(const BattleID & battleID, const BattleAction & planned);
 
 	void print(const std::string &text) const;
 	BattleAction useCatapult(const BattleID & battleID, const CStack *stack);

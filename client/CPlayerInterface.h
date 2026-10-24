@@ -108,8 +108,12 @@ public: // TODO: make private
 	bool isAutoFightOn; //Flag, switch it to stop quick combat. Don't touch if there is no battle interface.
 	bool isAutoFightEndBattle; //Flag, if battle forced to end with autocombat
 	/// DMB: the auto-combat retreat question, one per battle (makeSurrenderRetreatDecision): -1 while it waits for the player, then
-	/// 0 fight on, 1 retreat, 2 surrender. Written by the dialog's callbacks on the main thread, read on the network thread.
+	/// 0 fight on, 1 retreat, 2 surrender. Written on the main thread by answerRetreat; its presence means "asked", on any thread.
 	std::map<BattleID, std::shared_ptr<std::atomic<int>>> retreatAnswers;
+	/// DMB: guards retreatAnswers: the network thread, the auto-combat thread and the main thread all reach it
+	std::mutex retreatAnswersMutex;
+	/// DMB: acts on the question's answer for the stack whose turn it holds, if that turn is still waiting. Main thread only.
+	void answerRetreat(const BattleID & battleID, uint32_t stackID, int choice);
 	/// DMB: the question's window (or its surrender follow-up) per battle, closed by battleEnd if still on top. Main thread only.
 	std::map<BattleID, std::weak_ptr<CInfoWindow>> retreatWindows;
 	void showRetreatQuestion(const BattleID & battleID, const std::string & text, CFunctionList<void()> onYes, CFunctionList<void()> onNo);

@@ -10,6 +10,7 @@
 #include "StdInc.h"
 #include "CGameHandler.h"
 #include "../lib/DmbIssueReport.h"
+#include "../lib/networkPacks/DmbTradePointer.h"
 
 #include "CVCMIServer.h"
 #include "TurnTimerHandler.h"
@@ -493,8 +494,44 @@ void CGameHandler::handleClientDisconnection(GameConnectionID connectionID, cons
 	}
 }
 
+void CGameHandler::forwardTradePointer(GameConnectionID connection, const TradePointer & pointer)
+{
+	if(!hasPlayerAt(pointer.player, connection))
+		return;
+	for(const auto & open : queries->allQueries())
+	{
+		const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get());
+		if(!trade || trade->queryID != pointer.trade || !trade->sharedWith.isValidPlayer())
+			continue;
+		const PlayerColor first = trade->exchangingArmies[0]->getOwner();
+		// a hot seat game shows the window once, on the one screen both players use
+		if(hasBothPlayersAtSameConnection(first, trade->sharedWith))
+			return;
+		TradePointerShown shown;
+		shown.trade = pointer.trade;
+		shown.player = pointer.player;
+		if(pointer.player == first)
+			shown.viewer = trade->sharedWith;
+		else if(pointer.player == trade->sharedWith)
+			shown.viewer = first;
+		else
+			return;
+		shown.position = pointer.position;
+		shown.selection = pointer.selection;
+		gameServer().applyPack(shown);
+		return;
+	}
+}
+
 void CGameHandler::handleReceivedPack(GameConnectionID connection, CPackForServer & pack)
 {
+	// DMB: a shared trade window's pointer is passed on and answered with nothing; it arrives up to 25 times a second
+	if(const auto * pointer = dynamic_cast<const TradePointer *>(&pack))
+	{
+		forwardTradePointer(connection, *pointer);
+		return;
+	}
+
 	//prepare struct informing that action was applied
 	auto sendPackageResponse = [&](bool successfullyApplied)
 	{

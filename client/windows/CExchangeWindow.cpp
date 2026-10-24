@@ -27,6 +27,15 @@
 #include "../widgets/TextControls.h"
 
 #include "../render/IRenderHandler.h"
+#include "../render/Canvas.h"
+#include "../render/Colors.h"
+#include "../render/Graphics.h"
+#include "../render/IImage.h"
+#include "../CServerHandler.h"
+
+#include "../../lib/entities/artifact/CArtifact.h"
+#include "../../lib/entities/artifact/CArtifactInstance.h"
+#include "../../lib/networkPacks/DmbTradePointer.h"
 
 #include "../lib/CSkillHandler.h"
 #include "../lib/GameLibrary.h"
@@ -56,6 +65,8 @@ CExchangeWindow::CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2,
 
 	heroInst[0] = GAME->interface()->cb->getHero(hero1);
 	heroInst[1] = GAME->interface()->cb->getHero(hero2);
+	if(sharesPointer())
+		addUsedEvents(MOVE | TIME);
 
 	auto genTitle = [](const CGHeroInstance * h)
 	{
@@ -394,6 +405,143 @@ void CExchangeWindow::closeTrade()
 	}
 	ENGINE->cursor().dragAndDropCursor(nullptr);
 	close();
+}
+
+bool CExchangeWindow::sharesPointer() const
+{
+	return queryID.getNum() > 0 && heroInst[0]->tempOwner != heroInst[1]->tempOwner;
+}
+
+int CExchangeWindow::ownSelection() const
+{
+	const auto * slot = garr ? garr->getSelection() : nullptr;
+	if(!slot)
+		return -1;
+	return slot->getSlot().getNum() + (slot->getGarrison() == EGarrisonType::LOWER ? GameConstants::ARMY_SIZE : 0);
+}
+
+void CExchangeWindow::sendPointer(const Point & position, int selection)
+{
+	TradePointer pointer;
+	pointer.player = GAME->interface()->playerID;
+	pointer.trade = queryID;
+	pointer.position = position;
+	pointer.selection = selection;
+	GAME->server().sendGamePack(pointer);
+	sentPointer = position;
+	sentSelection = selection;
+	sinceSent = 0;
+}
+
+void CExchangeWindow::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
+{
+	ownPointer = pos.isInside(cursorPosition) ? cursorPosition - pos.topLeft() : Point(-1, -1);
+}
+
+void CExchangeWindow::tick(uint32_t msPassed)
+{
+	sinceSent += msPassed;
+	const int selection = ownSelection();
+	// 25 a second at most, and only when something changed
+	if(sinceSent >= 40 && (ownPointer != sentPointer || selection != sentSelection))
+		sendPointer(ownPointer, selection);
+
+	// the other player's pointer glides to where he is: smooth at any rate the server's packets arrive
+	if(allyTarget.x >= 0 && (std::abs(allyX - allyTarget.x) >= 0.5 || std::abs(allyY - allyTarget.y) >= 0.5))
+	{
+		const double step = std::min(1.0, msPassed / 50.0);
+		allyX += (allyTarget.x - allyX) * step;
+		allyY += (allyTarget.y - allyY) * step;
+		if(std::abs(allyX - allyTarget.x) < 0.5 && std::abs(allyY - allyTarget.y) < 0.5)
+		{
+			allyX = allyTarget.x;
+			allyY = allyTarget.y;
+		}
+		redraw();
+	}
+}
+
+void CExchangeWindow::deactivate()
+{
+	// a window opened over this one (a split, a hero screen) takes the pointer: the other player stops seeing it here
+	if(sharesPointer() && sentPointer.x >= 0)
+		sendPointer(Point(-1, -1), -1);
+	ownPointer = Point(-1, -1);
+	CWindowWithArtifacts::deactivate();
+}
+
+void CExchangeWindow::showAllyPointer(PlayerColor player, const Point & position, int selection)
+{
+	const bool appears = allyTarget.x < 0 && position.x >= 0;
+	allyColor = player;
+	allyTarget = position;
+	allySelection = selection;
+	if(appears)
+	{
+		allyX = position.x;
+		allyY = position.y;
+	}
+	redraw();
+}
+
+void CExchangeWindow::drawAllyPointer(Canvas & to)
+{
+	if(!allyColor.isValidPlayer())
+		return;
+	const ColorRGBA color = graphics->playerColors[allyColor.getNum()];
+
+	if(allySelection >= 0)
+	{
+		const auto type = allySelection >= GameConstants::ARMY_SIZE ? EGarrisonType::LOWER : EGarrisonType::UPPER;
+		const Rect slot = garr->slotRect(type, SlotID(allySelection % GameConstants::ARMY_SIZE));
+		if(slot.w > 0)
+			to.drawBorder(Rect(slot.x - 2, slot.y - 2, slot.w + 4, slot.h + 4), color, 2);
+	}
+
+	if(allyTarget.x < 0)
+		return;
+	const Point tip = pos.topLeft() + Point(static_cast<int>(allyX), static_cast<int>(allyY));
+
+	// the artifact he carries, at his pointer, outlined in his colour
+	for(const auto * hero : heroInst)
+	{
+		if(hero->tempOwner != allyColor)
+			continue;
+		if(const auto * art = hero->getArt(ArtifactPosition::TRANSITION_POS))
+		{
+			const int index = art->getType()->getIconIndex();
+			if(index != allyArtIndex || !allyArtImage)
+			{
+				allyArtImage = ENGINE->renderHandler().loadImage(AnimationPath::builtin("artifact"), index, 0, EImageBlitMode::COLORKEY);
+				allyArtIndex = index;
+			}
+			const Point corner = tip + Point(6, 6);
+			to.draw(allyArtImage, corner);
+			to.drawBorder(Rect(corner.x - 1, corner.y - 1, 46, 46), color, 2);
+		}
+	}
+
+	// the arrow: his colour inside a black edge
+	for(int row = 0; row <= 16; ++row)
+	{
+		const int right = row <= 12 ? row * 3 / 4 : 9 - (row - 12) * 9 / 4;
+		to.drawLine(tip + Point(0, row), tip + Point(std::max(0, right), row), color, color);
+	}
+	to.drawLine(tip, tip + Point(0, 16), Colors::BLACK, Colors::BLACK);
+	to.drawLine(tip, tip + Point(9, 12), Colors::BLACK, Colors::BLACK);
+	to.drawLine(tip + Point(9, 12), tip + Point(0, 16), Colors::BLACK, Colors::BLACK);
+}
+
+void CExchangeWindow::showAll(Canvas & to)
+{
+	CStatusbarWindow::showAll(to);
+	drawAllyPointer(to);
+}
+
+void CExchangeWindow::show(Canvas & to)
+{
+	CStatusbarWindow::show(to);
+	drawAllyPointer(to);
 }
 
 bool CExchangeWindow::isHeroBlocked(size_t leftRight) const

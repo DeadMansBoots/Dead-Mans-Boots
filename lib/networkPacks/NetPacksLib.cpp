@@ -69,6 +69,16 @@ void SaveLocalState::visitTyped(ICPackVisitor & visitor)
 	visitor.visitSaveLocalState(*this);
 }
 
+void TradePointer::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitTradePointer(*this);
+}
+
+void TradePointerShown::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitTradePointerShown(*this);
+}
+
 void PackageApplied::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitPackageApplied(*this);

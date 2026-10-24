@@ -114,6 +114,8 @@ public:
 
 	void selectSlot(CGarrisonSlot * slot); ///< @param slot null = deselect
 	const CGarrisonSlot * getSelection() const;
+	/// DMB: the screen rectangle of a slot (empty when there is no such slot)
+	Rect slotRect(EGarrisonType type, SlotID slot) const;
 
 	void setSplittingMode(bool on);
 	bool getSplittingMode();

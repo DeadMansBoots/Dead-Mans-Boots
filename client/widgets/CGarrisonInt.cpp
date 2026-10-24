@@ -753,6 +753,14 @@ CGarrisonInt::CGarrisonInt(const Point & position, int inx, const Point & garsOf
 	createSlots();
 }
 
+Rect CGarrisonInt::slotRect(EGarrisonType type, SlotID slot) const
+{
+	for(const auto & s : availableSlots)
+		if(s->getGarrison() == type && s->getSlot() == slot)
+			return s->pos;
+	return Rect();
+}
+
 const CGarrisonSlot * CGarrisonInt::getSelection() const
 {
 	return highlighted;

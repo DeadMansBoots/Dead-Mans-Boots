@@ -14,6 +14,7 @@
 #include "PacksForServer.h"
 #include "PacksForLobby.h"
 #include "SaveLocalState.h"
+#include "DmbTradePointer.h"
 #include "SetRewardableConfiguration.h"
 #include "SetStackEffect.h"
 
@@ -195,6 +196,8 @@ public:
 	virtual void visitBattleStackMoved(BattleLogMessage & pack) {}
 	virtual void visitResponseStatistic(ResponseStatistic & pack) {}
 	virtual void visitAdvInterfaceReady(AdvInterfaceReady & pack) {}
+	virtual void visitTradePointer(TradePointer & pack) {}
+	virtual void visitTradePointerShown(TradePointerShown & pack) {}
 };
 
 VCMI_LIB_NAMESPACE_END

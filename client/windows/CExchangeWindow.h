@@ -13,6 +13,7 @@
 #include "../widgets/CExchangeController.h"
 
 class CGarrisonSlot;
+class IImage;
 class CMultiLineLabel;
 class LRClickableAreaWText;
 
@@ -74,12 +75,40 @@ class CExchangeWindow : public CStatusbarWindow, public IGarrisonHolder, public 
 
 	QueryID queryID;
 
+	/// DMB: the other player's pointer in a shared trade (K, October 24th: "THEIR MOUSE SHOULD BE THEIR COLOR, ANYTHING THEY HAVE SELECTED/ARE MOVING
+	/// SHOULD HAVE A OUTLINE WITH THEIR COLOR")
+	PlayerColor allyColor = PlayerColor::CANNOT_DETERMINE;
+	Point allyTarget = Point(-1, -1);
+	double allyX = -1;
+	double allyY = -1;
+	int allySelection = -1;
+	std::shared_ptr<IImage> allyArtImage;
+	int allyArtIndex = -1;
+	/// this player's pointer, as last sent
+	Point ownPointer = Point(-1, -1);
+	Point sentPointer = Point(-2, -2);
+	int sentSelection = -2;
+	uint32_t sinceSent = 0;
+
+	bool sharesPointer() const;
+	int ownSelection() const;
+	void sendPointer(const Point & position, int selection);
+	void drawAllyPointer(Canvas & to);
+
 public:
 	CExchangeWindow(ObjectInstanceID hero1, ObjectInstanceID hero2, QueryID queryID);
 	/// DMB: the trade this window answers (an invalid ID for a window opened from a town)
 	QueryID tradeQuery() const { return queryID; }
 	/// DMB: the other player closed the shared trade; this window and what was opened from it close
 	void closeTrade();
+	/// DMB: the other player's pointer, from the server
+	void showAllyPointer(PlayerColor player, const Point & position, int selection);
+
+	void mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance) override;
+	void tick(uint32_t msPassed) override;
+	void showAll(Canvas & to) override;
+	void show(Canvas & to) override;
+	void deactivate() override;
 
 	void keyPressed(EShortcut key) override;
 

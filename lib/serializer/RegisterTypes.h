@@ -40,6 +40,7 @@
 #include "../networkPacks/PacksForLobby.h"
 #include "../networkPacks/PacksForServer.h"
 #include "../networkPacks/SaveLocalState.h"
+#include "../networkPacks/DmbTradePointer.h"
 #include "../networkPacks/SetRewardableConfiguration.h"
 #include "../networkPacks/SetStackEffect.h"
 
@@ -306,6 +307,9 @@ void registerTypes(Serializer &s)
 	s.template registerType<ChangeTactics>(262);
 	s.template registerType<CompositeUpdater>(263);
 	s.template registerType<BonusParameters>(264);
+	// DMB: well above the stock IDs, so a later stock pack does not take them
+	s.template registerType<TradePointer>(300);
+	s.template registerType<TradePointerShown>(301);
 }
 
 VCMI_LIB_NAMESPACE_END

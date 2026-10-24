@@ -13,6 +13,7 @@
 #include "Client.h"
 #include "CPlayerInterface.h"
 #include "windows/GUIClasses.h"
+#include "windows/CExchangeWindow.h"
 #include "windows/CCastleInterface.h"
 #include "mapView/mapHandler.h"
 #include "mainmenu/CMainMenu.h"
@@ -728,6 +729,16 @@ void ApplyClientNetPackVisitor::visitGarrisonDialog(GarrisonDialog & pack)
 	const CArmedInstance *obj = static_cast<const CArmedInstance*>(cl.gameInfo().getObj(pack.objid));
 
 	callOnlyThatInterface(cl, h->getOwner(), &CGameInterface::showGarrisonDialog, obj, h, pack.removableUnits, pack.queryID, pack.customTitle);
+}
+
+void ApplyClientNetPackVisitor::visitTradePointerShown(TradePointerShown & pack)
+{
+	auto * pi = GAME->interface();
+	if(!pi || pi->playerID != pack.viewer)
+		return;
+	for(const auto & window : ENGINE->windows().findWindows<CExchangeWindow>())
+		if(window->tradeQuery() == pack.trade)
+			window->showAllyPointer(pack.player, pack.position, pack.selection);
 }
 
 void ApplyClientNetPackVisitor::visitExchangeDialog(ExchangeDialog & pack)

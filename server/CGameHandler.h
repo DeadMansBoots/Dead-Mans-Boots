@@ -22,6 +22,7 @@
 VCMI_LIB_NAMESPACE_BEGIN
 
 struct SideInBattle;
+struct TradePointer;
 class IMarket;
 class SpellCastEnvironment;
 class CCommanderInstance;
@@ -217,6 +218,8 @@ public:
 	void handleReceivedPack(GameConnectionID connectionId, CPackForServer & pack);
 	/// DMB: a move refused by the game's rules (moveHero's simultaneous-turns checks): handleReceivedPack tells the mover this one line instead of complaining to all
 	std::string refusalForMover;
+	/// DMB: a shared trade window's pointer, to the other player of the trade
+	void forwardTradePointer(GameConnectionID connection, const TradePointer & pointer);
 	bool hasPlayerAt(PlayerColor player, GameConnectionID connectionId) const;
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const;
 

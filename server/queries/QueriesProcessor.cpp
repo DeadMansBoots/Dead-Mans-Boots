@@ -75,6 +75,19 @@ void QueriesProcessor::addQuery(PlayerColor player, QueryPtr query)
 	queries[player].push_back(query);
 }
 
+void QueriesProcessor::removeQuery(PlayerColor player, QueryPtr query)
+{
+	if(!vstd::contains(queries[player], query))
+		return;
+	if(topQuery(player) == query)
+	{
+		popQuery(player, query);
+		return;
+	}
+	queries[player] -= query;
+	query->onRemoval(player);
+}
+
 QueryPtr QueriesProcessor::topQuery(PlayerColor player)
 {
 	return vstd::backOrNull(queries[player]);

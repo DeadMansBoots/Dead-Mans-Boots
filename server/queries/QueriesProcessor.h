@@ -34,5 +34,7 @@ public:
 	std::vector<std::shared_ptr<const CQuery>> allQueries() const;
 	std::vector<QueryPtr> allQueries();
 	QueryPtr getQuery(QueryID queryID);
+	/// DMB: takes a query out of a player's stack wherever it is in it (popQuery takes it only from the top)
+	void removeQuery(PlayerColor player, QueryPtr query);
 	//void removeQuery
 };

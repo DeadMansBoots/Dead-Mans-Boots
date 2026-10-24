@@ -1564,9 +1564,11 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 
 		// DMB: an allied trade is one window that both players have open (K, October 24th: "THE TRADE WINDOW TO BE PERFECTLY SYNCED"). The changes
 		// either makes reach both, as every change of an army does, and either player's OK ends it for both (CGarrisonDialogQuery::onRemoval).
-		// The ally's window would open over a battle of his and hold the battle up, so the trade waits for the battle's end.
+		// The ally's window would open over a battle of his and hold the battle up, so the trade waits for the battle's end. An ally who is not
+		// acting (turns one player at a time) could not make a move in it (every one is refused as not his turn), so he is left as stock leaves him,
+		// without the window.
 		const PlayerColor ally = h2->getOwner();
-		const bool shared = ally != h1->getOwner() && gameInfo().getPlayerState(ally)->isHuman();
+		const bool shared = ally != h1->getOwner() && gameInfo().getPlayerState(ally)->isHuman() && vstd::contains(gameState().actingPlayers, ally);
 		if(shared && gameState().getBattle(ally))
 		{
 			tellTrader(h1->getOwner(), h2, " cannot trade now: its owner is in a battle.");

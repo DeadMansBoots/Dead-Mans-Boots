@@ -86,6 +86,10 @@ void CGarrisonDialogQuery::onRemoval(PlayerColor color)
 	// has closed his already, and the message finds nothing to close)
 	if(sharedWith.isValidPlayer())
 	{
+		// the trade ends for both: the other player may have a dialog above it, where popQuery would leave it
+		const PlayerColor other = color == sharedWith ? exchangingArmies[0]->getOwner() : sharedWith;
+		if(auto self = gh->queries->getQuery(queryID))
+			gh->queries->removeQuery(other, self);
 		gh->closedSharedTrades.insert(queryID);
 		ExchangeDialog close;
 		close.queryID = queryID;

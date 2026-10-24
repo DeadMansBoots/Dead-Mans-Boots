@@ -109,6 +109,7 @@ public:
 	void showAll(Canvas & to) override;
 	void show(Canvas & to) override;
 	void deactivate() override;
+	void activate() override;
 
 	void keyPressed(EShortcut key) override;
 

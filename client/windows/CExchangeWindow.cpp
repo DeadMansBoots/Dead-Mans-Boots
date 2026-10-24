@@ -32,6 +32,7 @@
 #include "../render/Graphics.h"
 #include "../render/IImage.h"
 #include "../CServerHandler.h"
+#include "../adventureMap/CInGameConsole.h"
 
 #include "../../lib/entities/artifact/CArtifact.h"
 #include "../../lib/entities/artifact/CArtifactInstance.h"
@@ -435,7 +436,9 @@ void CExchangeWindow::sendPointer(const Point & position, int selection)
 
 void CExchangeWindow::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
 {
-	ownPointer = pos.isInside(cursorPosition) ? cursorPosition - pos.topLeft() : Point(-1, -1);
+	// outside the window the pointer keeps its last place inside it
+	if(pos.isInside(cursorPosition))
+		ownPointer = cursorPosition - pos.topLeft();
 }
 
 void CExchangeWindow::tick(uint32_t msPassed)
@@ -468,6 +471,25 @@ void CExchangeWindow::deactivate()
 		sendPointer(Point(-1, -1), -1);
 	ownPointer = Point(-1, -1);
 	CWindowWithArtifacts::deactivate();
+	if(sharesPointer())
+	{
+		// a line being typed ends with the window (a window opened over it, or the trade's close)
+		if(GAME->interface()->cingconsole->isTyping())
+			GAME->interface()->cingconsole->endEnteringText(false);
+		GAME->interface()->cingconsole->deactivate();
+	}
+}
+
+void CExchangeWindow::activate()
+{
+	CWindowWithArtifacts::activate();
+	// DMB: the chat works in a shared trade as over a battle (K, October 24th: "I SHOULD ALSO BE ABLE TO USE THE CHAT WHILE THE OTHER PLAYER IS
+	// MOVING STUFF"): Tab opens the line in this window's status bar, and the chat lines show over the window
+	if(sharesPointer())
+	{
+		GAME->interface()->cingconsole->activate();
+		GAME->interface()->cingconsole->pos = pos;
+	}
 }
 
 void CExchangeWindow::showAllyPointer(PlayerColor player, const Point & position, int selection)
@@ -536,12 +558,16 @@ void CExchangeWindow::showAll(Canvas & to)
 {
 	CStatusbarWindow::showAll(to);
 	drawAllyPointer(to);
+	if(sharesPointer())
+		GAME->interface()->cingconsole->show(to);
 }
 
 void CExchangeWindow::show(Canvas & to)
 {
 	CStatusbarWindow::show(to);
 	drawAllyPointer(to);
+	if(sharesPointer())
+		GAME->interface()->cingconsole->show(to);
 }
 
 bool CExchangeWindow::isHeroBlocked(size_t leftRight) const

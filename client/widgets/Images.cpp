@@ -204,6 +204,10 @@ FilledTexturePlayerColored::FilledTexturePlayerColored(Rect position)
 
 void FilledTexturePlayerColored::setPlayerColor(PlayerColor player)
 {
+	// DMB: a watcher's colour has no dialog background; its missing-image placeholder was tiled along the bottom of a watched game's map. It keeps the
+	// plain texture it was built with
+	if(player.isSpectator())
+		return;
 	ImagePath imagePath = ImagePath::builtin("DialogBoxBackground_" + player.toString() + ".bmp");
 
 	texture = ENGINE->renderHandler().loadImage(imagePath, EImageBlitMode::COLORKEY);

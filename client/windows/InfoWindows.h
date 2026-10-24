@@ -36,6 +36,7 @@ class FilledTexturePlayerColored;
 class TransparentFilledRectangle;
 class CMinimapInstance;
 class CLabel;
+class CMultiLineLabel;
 class CSlider;
 
 /// text + comp. + ok button
@@ -151,6 +152,7 @@ class TeleporterPopup : public AdventureMapPopup
 	std::shared_ptr<FilledTexturePlayerColored> filledBackground;
 	std::shared_ptr<MinimapWithIcons> minimap;
 	std::shared_ptr<CLabel> labelTitle;
+	std::shared_ptr<CMultiLineLabel> labelDescription;
 
 public:
 	TeleporterPopup(const Point & position, const CGTeleport * teleporter);
@@ -161,7 +163,7 @@ class KeymasterPopup : public AdventureMapPopup
 	std::shared_ptr<FilledTexturePlayerColored> filledBackground;
 	std::shared_ptr<MinimapWithIcons> minimap;
 	std::shared_ptr<CLabel> labelTitle;
-	std::shared_ptr<CLabel> labelDescription;
+	std::shared_ptr<CMultiLineLabel> labelDescription;
 
 public:
 	KeymasterPopup(const Point & position, const CGKeys * keymasterOrGuard);
@@ -172,7 +174,7 @@ class ObeliskPopup : public AdventureMapPopup
 	std::shared_ptr<FilledTexturePlayerColored> filledBackground;
 	std::shared_ptr<MinimapWithIcons> minimap;
 	std::shared_ptr<CLabel> labelTitle;
-	std::shared_ptr<CLabel> labelDescription;
+	std::shared_ptr<CMultiLineLabel> labelDescription;
 
 public:
 	ObeliskPopup(const Point & position, const CGObelisk * obelisk);

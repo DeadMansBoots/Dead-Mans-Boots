@@ -434,16 +434,47 @@ void MinimapWithIcons::addIcon(const int3 & coordinates, const ImagePath & image
 	icons.push_back({coordinates, image});
 }
 
+/// DMB (K, October 24th: the whirlpool's pop-up drew its name and description as one line off both edges of the window): a map-picture pop-up's description,
+/// wrapped to the window's width under the name. The text below the name's line (an empty line first is dropped), the height it takes once wrapped (0 for none).
+namespace
+{
+constexpr int POPUP_DESCRIPTION_TOP = 32; // under the name, whose line is centred at 20
+constexpr int POPUP_MAP_TOP = 40; // where a MinimapWithIcons draws its maps inside itself
+
+std::string popupDescriptionText(const std::string & popupText)
+{
+	const auto lineEnd = popupText.find('\n');
+	return lineEnd == std::string::npos ? std::string() : boost::algorithm::trim_copy(popupText.substr(lineEnd + 1));
+}
+
+int popupDescriptionHeight(const std::string & description, int windowWidth)
+{
+	return description.empty() ? 0 : CMessage::guessHeight(description, windowWidth - 20, FONT_SMALL);
+}
+
+/// how far the map moves down so that it starts under the description (never above where it was: `base`)
+int popupMapShift(int descriptionHeight, int base)
+{
+	return descriptionHeight == 0 ? base : std::max(base, POPUP_DESCRIPTION_TOP + descriptionHeight + 6 - POPUP_MAP_TOP);
+}
+}
+
 TeleporterPopup::TeleporterPopup(const Point & position, const CGTeleport * teleporter)
 	: AdventureMapPopup(BORDERED | RCLICK_POPUP)
 {
 	OBJECT_CONSTRUCTION;
 	pos.w = 322;
-	pos.h = 200 + (GAME->interface()->cb->getMapSize().z > 2 ? 21 : 0);
+	const std::string popupText = teleporter->getPopupText(GAME->interface()->playerID);
+	const std::string description = popupDescriptionText(popupText);
+	const int descriptionHeight = popupDescriptionHeight(description, pos.w);
+	const int mapShift = popupMapShift(descriptionHeight, 0);
+	pos.h = 200 + mapShift + (GAME->interface()->cb->getMapSize().z > 2 ? 21 : 0);
 
 	filledBackground = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
-	labelTitle = std::make_shared<CLabel>(pos.w / 2, 20, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, teleporter->getPopupText(GAME->interface()->playerID));
-	minimap = std::make_shared<MinimapWithIcons>(Point(0,0));
+	labelTitle = std::make_shared<CLabel>(pos.w / 2, 20, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, popupText.substr(0, popupText.find('\n')));
+	if(descriptionHeight > 0)
+		labelDescription = std::make_shared<CMultiLineLabel>(Rect(10, POPUP_DESCRIPTION_TOP, pos.w - 20, descriptionHeight), FONT_SMALL, ETextAlignment::TOPCENTER, Colors::WHITE, description);
+	minimap = std::make_shared<MinimapWithIcons>(Point(0, mapShift));
 
 	const auto & entrances = teleporter->getAllEntrances();
 	const auto & exits = teleporter->getAllExits();
@@ -481,12 +512,16 @@ KeymasterPopup::KeymasterPopup(const Point & position, const CGKeys * keymasterO
 {
 	OBJECT_CONSTRUCTION;
 	pos.w = 322;
-	pos.h = 220 + (GAME->interface()->cb->getMapSize().z > 2 ? 21 : 0);
+	const std::string description = boost::algorithm::trim_copy(keymasterOrGuard->getObjectDescription(GAME->interface()->playerID));
+	const int descriptionHeight = popupDescriptionHeight(description, pos.w);
+	const int mapShift = popupMapShift(descriptionHeight, 20);
+	pos.h = 200 + mapShift + (GAME->interface()->cb->getMapSize().z > 2 ? 21 : 0);
 
 	filledBackground = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
 	labelTitle = std::make_shared<CLabel>(pos.w / 2, 20, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, keymasterOrGuard->getObjectName());
-	labelDescription = std::make_shared<CLabel>(pos.w / 2, 40, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, keymasterOrGuard->getObjectDescription(GAME->interface()->playerID));
-	minimap = std::make_shared<MinimapWithIcons>(Point(0,20));
+	if(descriptionHeight > 0)
+		labelDescription = std::make_shared<CMultiLineLabel>(Rect(10, POPUP_DESCRIPTION_TOP, pos.w - 20, descriptionHeight), FONT_SMALL, ETextAlignment::TOPCENTER, Colors::WHITE, description);
+	minimap = std::make_shared<MinimapWithIcons>(Point(0, mapShift));
 
 	const auto allObjects = GAME->interface()->cb->getAllVisitableObjs();
 
@@ -521,12 +556,16 @@ ObeliskPopup::ObeliskPopup(const Point & position, const CGObelisk * obelisk)
 {
 	OBJECT_CONSTRUCTION;
 	pos.w = 322;
-	pos.h = 220 + (GAME->interface()->cb->getMapSize().z > 2 ? 21 : 0);
+	const std::string description = boost::algorithm::trim_copy(obelisk->getObjectDescription(GAME->interface()->playerID));
+	const int descriptionHeight = popupDescriptionHeight(description, pos.w);
+	const int mapShift = popupMapShift(descriptionHeight, 20);
+	pos.h = 200 + mapShift + (GAME->interface()->cb->getMapSize().z > 2 ? 21 : 0);
 
 	filledBackground = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
 	labelTitle = std::make_shared<CLabel>(pos.w / 2, 20, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, obelisk->getObjectName());
-	labelDescription = std::make_shared<CLabel>(pos.w / 2, 40, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, obelisk->getObjectDescription(GAME->interface()->playerID));
-	minimap = std::make_shared<MinimapWithIcons>(Point(0,20));
+	if(descriptionHeight > 0)
+		labelDescription = std::make_shared<CMultiLineLabel>(Rect(10, POPUP_DESCRIPTION_TOP, pos.w - 20, descriptionHeight), FONT_SMALL, ETextAlignment::TOPCENTER, Colors::WHITE, description);
+	minimap = std::make_shared<MinimapWithIcons>(Point(0, mapShift));
 
 	const auto allObjects = GAME->interface()->cb->getAllVisitableObjs();
 

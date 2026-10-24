@@ -240,6 +240,45 @@ void CPlayerInterface::playerEndsTurn(PlayerColor player)
 	}
 }
 
+namespace
+{
+/// DMB: notes the window a server event opens for this player before its turn has started (CPlayerInterface::turnStartWindows)
+class TurnStartWindowGuard
+{
+	CPlayerInterface & owner;
+	std::shared_ptr<CIntObject> before;
+public:
+	explicit TurnStartWindowGuard(CPlayerInterface & owner)
+		: owner(owner)
+		, before(ENGINE->windows().topWindow<CIntObject>())
+	{}
+	~TurnStartWindowGuard()
+	{
+		if(owner.makingTurn)
+			return;
+		auto after = ENGINE->windows().topWindow<CIntObject>();
+		if(after && after != before)
+			owner.noteTurnStartWindow(after);
+	}
+};
+}
+
+void CPlayerInterface::noteTurnStartWindow(const std::shared_ptr<CIntObject> & window)
+{
+	vstd::erase_if(turnStartWindows, [](const std::weak_ptr<CIntObject> & w) { return w.expired(); });
+	turnStartWindows.push_back(window);
+}
+
+bool CPlayerInterface::turnStartWindowOpen() const
+{
+	for(const auto & weak : turnStartWindows)
+		if(const auto window = weak.lock())
+			for(const auto & open : ENGINE->windows().findWindows<CIntObject>())
+				if(open == window)
+					return true;
+	return false;
+}
+
 void CPlayerInterface::playerStartsTurn(PlayerColor player)
 {
 	if(ENGINE->windows().findWindows<AdventureMapInterface>().empty())
@@ -608,6 +647,7 @@ void CPlayerInterface::receivedResource()
 void CPlayerInterface::heroGotLevel(const CGHeroInstance *hero, PrimarySkill pskill, std::vector<SecondarySkill>& skills, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	TurnStartWindowGuard turnStartGuard(*this);
 	waitWhileDialog();
 	ENGINE->sound().playSound(soundBase::heroNewLevel);
 	ENGINE->windows().createAndPushWindow<CLevelWindow>(hero, pskill, skills, [this, queryID](ui32 selection)
@@ -622,6 +662,7 @@ void CPlayerInterface::heroGotLevel(const CGHeroInstance *hero, PrimarySkill psk
 void CPlayerInterface::commanderGotLevel (const CCommanderInstance * commander, std::vector<ui32> skills, QueryID queryID)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	TurnStartWindowGuard turnStartGuard(*this);
 	waitWhileDialog();
 	ENGINE->sound().playSound(soundBase::heroNewLevel);
 	ENGINE->windows().createAndPushWindow<CStackWindow>(commander, skills, [this, queryID](ui32 selection)
@@ -1175,6 +1216,7 @@ void CPlayerInterface::showInfoDialog(const std::string &text, const std::vector
 	else
 	{
 		dialogs.push_back(temp);
+		noteTurnStartWindow(temp);
 	}
 }
 
@@ -1199,6 +1241,7 @@ void CPlayerInterface::showYesNoDialog(const std::string &text, CFunctionList<vo
 void CPlayerInterface::showBlockingDialog(const std::string &text, const std::vector<Component> &components, QueryID askID, const int soundID, bool selection, bool cancel, bool safeToAutoaccept)
 {
 	EVENT_HANDLER_CALLED_BY_CLIENT;
+	TurnStartWindowGuard turnStartGuard(*this);
 	waitWhileDialog();
 
 	movementController->requestMovementAbort();
@@ -1242,12 +1285,14 @@ void CPlayerInterface::showBlockingDialog(const std::string &text, const std::ve
 
 void CPlayerInterface::showTeleportDialog(const CGHeroInstance * hero, TeleportChannelID channel, TTeleportExitsList exits, bool impassable, QueryID askID)
 {
+	TurnStartWindowGuard turnStartGuard(*this);
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 	movementController->showTeleportDialog(hero, channel, exits, impassable, askID);
 }
 
 void CPlayerInterface::showMapObjectSelectDialog(QueryID askID, const Component & icon, const MetaString & title, const MetaString & description, const std::vector<ObjectInstanceID> & objects)
 {
+	TurnStartWindowGuard turnStartGuard(*this);
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 
 	std::vector<ObjectInstanceID> objectGuiOrdered = objects;
@@ -1395,6 +1440,7 @@ void CPlayerInterface::moveHero( const CGHeroInstance *h, const CGPath& path )
 
 void CPlayerInterface::showGarrisonDialog(const CArmedInstance * up, const CGHeroInstance * down, bool removableUnits, QueryID queryID, const MetaString & customTitle)
 {
+	TurnStartWindowGuard turnStartGuard(*this);
 	EVENT_HANDLER_CALLED_BY_CLIENT;
 	auto onEnd = [this, queryID](){ cb->selectionMade(0, queryID); };
 

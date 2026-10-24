@@ -99,6 +99,8 @@ private:
 
 	/// dim interface if some windows opened
 	void dim(Canvas & to);
+	/// DMB: a window that arrived before this player's turn started is open, in a game with more than one human: the full black behind it
+	bool turnStartBlack() const;
 
 protected:
 	/// CIntObject interface implementation

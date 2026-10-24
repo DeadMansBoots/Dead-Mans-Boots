@@ -222,17 +222,33 @@ void AdventureMapInterface::dim(Canvas & to)
 				return;
 			}
 		}
+	// DMB: a window that arrived before this player's turn started is drawn on the full black, as the turn dialog is, in a game with more than one human
+	// (K, October 24th: "still have instances of checkmark screens not showing black behind it", "start turn, whatever"; CPlayerInterface::turnStartWindows)
+	const bool turnStart = turnStartBlack();
 	for (auto window : ENGINE->windows().findWindows<CIntObject>())
 	{
-		if (!std::dynamic_pointer_cast<AdventureMapInterface>(window) && !std::dynamic_pointer_cast<RadialMenu>(window) && !window->isPopupWindow() && (settings["adventure"]["backgroundDimSmallWindows"].Bool() || isBigWindow(window) || shortcuts->getState() == EAdventureState::HOTSEAT_WAIT))
+		if (!std::dynamic_pointer_cast<AdventureMapInterface>(window) && !std::dynamic_pointer_cast<RadialMenu>(window) && !window->isPopupWindow() && (settings["adventure"]["backgroundDimSmallWindows"].Bool() || isBigWindow(window) || shortcuts->getState() == EAdventureState::HOTSEAT_WAIT || turnStart))
 		{
 			Rect targetRect(0, 0, ENGINE->screenDimensions().x, ENGINE->screenDimensions().y);
-			ColorRGBA colorToFill(0, 0, 0, std::clamp<int>(backgroundDimLevel, 0, 255));
-			if(backgroundDimLevel > 0)
+			const int level = turnStart ? 255 : backgroundDimLevel;
+			ColorRGBA colorToFill(0, 0, 0, std::clamp<int>(level, 0, 255));
+			if(level > 0)
 				to.drawColorBlended(targetRect, colorToFill);
 			return;
 		}
 	}
+}
+
+bool AdventureMapInterface::turnStartBlack() const
+{
+	// a watcher has no turn; with one human (against AI only) there is no turn dialog and no black, as stock
+	if(settings["session"]["spectate"].Bool() || !GAME->interface() || !GAME->interface()->turnStartWindowOpen())
+		return false;
+	int humans = 0;
+	for(const auto & info : GAME->interface()->cb->getStartInfo()->playerInfos)
+		if(info.second.isControlledByHuman())
+			humans++;
+	return humans > 1;
 }
 
 void AdventureMapInterface::tick(uint32_t msPassed)

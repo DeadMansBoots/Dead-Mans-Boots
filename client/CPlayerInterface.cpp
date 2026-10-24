@@ -939,7 +939,10 @@ void CPlayerInterface::battleEnd(const BattleID & battleID, const BattleResult *
 				window->close();
 		retreatWindows.erase(asked);
 	}
-	retreatAnswers.erase(battleID);
+	{
+		std::lock_guard<std::mutex> guard(retreatAnswersMutex);
+		retreatAnswers.erase(battleID);
+	}
 	if(isAutoFightOn || autofightingAI)
 	{
 		isAutoFightOn = false;
@@ -2127,8 +2130,11 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 	if(!battle)
 		return std::nullopt;
 
-	if(retreatAnswers.count(battleID))
-		return std::nullopt; // asked once in this battle; the answer was acted on in the turn it held
+	{
+		std::lock_guard<std::mutex> guard(retreatAnswersMutex);
+		if(retreatAnswers.count(battleID))
+			return std::nullopt; // asked once in this battle; the answer was acted on in the turn it held
+	}
 
 	if(!battleState.canFlee || !battleState.isLastTurnBeforeDie)
 		return std::nullopt;
@@ -2144,7 +2150,10 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 		enemyHeroName = "#ENEMY#";
 	const std::string surrenderMessage = canPay ? boost::str(boost::format(LIBRARY->generaltexth->allTexts[32]) % enemyHeroName % cost) : std::string();
 
-	retreatAnswers[battleID] = std::make_shared<std::atomic<int>>(-1);
+	{
+		std::lock_guard<std::mutex> guard(retreatAnswersMutex);
+		retreatAnswers[battleID] = std::make_shared<std::atomic<int>>(-1);
+	}
 	// The question's windows share the setter; the first answer acts (main thread). If every window goes away without an answer
 	// (the battle ended, or a window closed some other way), its destructor answers "fight on", which acts only if the stack still waits.
 	struct Setter
@@ -2189,8 +2198,11 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 
 void CPlayerInterface::answerRetreat(const BattleID & battleID, uint32_t stackID, int choice)
 {
-	if(const auto asked = retreatAnswers.find(battleID); asked != retreatAnswers.end())
-		asked->second->store(choice);
+	{
+		std::lock_guard<std::mutex> guard(retreatAnswersMutex);
+		if(const auto asked = retreatAnswers.find(battleID); asked != retreatAnswers.end())
+			asked->second->store(choice);
+	}
 	auto battle = cb->getBattle(battleID);
 	if(!battle || battle->battleIsFinished())
 		return;

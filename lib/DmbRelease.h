@@ -7,7 +7,7 @@
 
 // The name this release goes by beside its number (K, October 9th: "Straker Beta"), as the window titles and the launcher show it.
 // DMB_VERSION_STRING comes from cmake_modules/VersionDefinition.cmake, which also names the release for the release job.
-#define DMB_RELEASE_LABEL_TEXT "beta.15"
+#define DMB_RELEASE_LABEL_TEXT "beta.16"
 // DMB_BUILD_ID: the commit a candidate was built from, written to lib/DmbBuildId.h (not in git) by the build chain; a build with no such file reads "dev"
 #if defined(__has_include)
 #if __has_include("DmbBuildId.h")
@@ -17,8 +17,8 @@
 #ifndef DMB_BUILD_ID
 #define DMB_BUILD_ID "dev"
 #endif
-// The update check compares DMB_VERSION_STRING and DMB_RELEASE_LABEL_TEXT (launcher/updatedialog_moc.cpp), so the label stays beta.15; what a player reads is this text.
-// The candidate on top of beta 15 (K, October 19th and 22nd, "latest version of dmb tonight"): the beta 16 candidate, with the build id, so two builds can be told apart.
+// The update check compares DMB_VERSION_STRING and DMB_RELEASE_LABEL_TEXT (launcher/updatedialog_moc.cpp); what a player reads is this text. Beta 16, the
+// stable release for the week of October 24th (K's order); a candidate after it puts its build id back in this text (DMB_BUILD_ID), as the beta 16 candidates did.
 #ifndef DMB_RELEASE_TEXT
-#define DMB_RELEASE_TEXT "Straker Beta (" DMB_VERSION_STRING "-beta.16 candidate, build " DMB_BUILD_ID ")"
+#define DMB_RELEASE_TEXT "Straker Beta (" DMB_VERSION_STRING "-" DMB_RELEASE_LABEL_TEXT ")"
 #endif

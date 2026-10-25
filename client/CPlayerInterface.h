@@ -69,9 +69,6 @@ class CPlayerInterface : public CGameInterface
 	const std::string QUICKSAVE_PATH = "Saves/Quicksave";
 
 	std::list<std::shared_ptr<CInfoWindow>> dialogs; //queue of dialogs awaiting to be shown (not currently shown!)
-	/// DMB: the windows the game opened for this player that arrived before its turn started (the queued messages above, the level-ups and other server
-	/// windows); the adventure map draws the full black behind them in a game with more than one human, as behind the turn dialog
-	std::vector<std::weak_ptr<CIntObject>> turnStartWindows;
 
 	std::unique_ptr<HeroMovementController> movementController;
 	std::unique_ptr<PathfinderCache> pathfinderCache;
@@ -95,9 +92,6 @@ public: // TODO: make private
 	ConditionalWait * showingDialog; //indicates if dialog box is displayed
 
 	bool makingTurn; //if player is already making his turn
-	/// DMB: a window of turnStartWindows is open now
-	bool turnStartWindowOpen() const;
-	void noteTurnStartWindow(const std::shared_ptr<CIntObject> & window);
 	/// DMB: this player's network turn dialog is open (yourTurn, 5db85dfaf); another player's turn start leaves the screen in its black turn-start wait meanwhile
 	bool turnDialogOpen = false;
 

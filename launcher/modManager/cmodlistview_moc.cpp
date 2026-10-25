@@ -29,6 +29,7 @@
 #include "../vcmiqt/launcherdirs.h"
 #include "../vcmiqt/jsonutils.h"
 #include "../helper.h"
+#include "../theme.h"
 
 #include "../../lib/CConfigHandler.h"
 #include "../../lib/VCMIDirs.h"
@@ -692,6 +693,8 @@ void CModListView::selectMod(const QModelIndex & index)
 
 		ui->modInfoBrowser->document()->setMarkdown(genModInfoText(mod), QTextDocument::MarkdownFeature::MarkdownNoHTML);
 		ui->changelogBrowser->document()->setMarkdown(genChangelogText(mod), QTextDocument::MarkdownFeature::MarkdownNoHTML);
+		LauncherTheme::styleTitles(ui->modInfoBrowser->document());
+		LauncherTheme::styleTitles(ui->changelogBrowser->document());
 
 		Helper::enableScrollBySwiping(ui->modInfoBrowser);
 		Helper::enableScrollBySwiping(ui->changelogBrowser);

@@ -25,6 +25,8 @@ class QPushButton;
 ///  - "system": the platform's own look, as stock VCMI's launcher has it.
 /// Applied after the game's filesystem is loaded and before the main window builds its widgets, and again
 /// whenever the Settings page's Launcher Look changes; every window and dialog of the launcher follows.
+class QTextDocument;
+
 namespace LauncherTheme
 {
 	void apply();
@@ -66,4 +68,8 @@ namespace LauncherTheme
 	/// The button's own baked-in word sits at (holeX, holeY, holeW, holeH); it is inpainted out rather
 	/// than cropped around, so the icon keeps the whole image (K's standing rule for this, same day).
 	void applySidebarIcon(QToolButton * button, const std::string & defName, int holeX, int holeY, int holeW, int holeH);
+
+	/// DMB (K, October 24th): the titles of `document` (its headings, such as a mod's name above its description) in the button face, the rest in
+	/// the launcher's text face
+	void styleTitles(QTextDocument * document);
 }

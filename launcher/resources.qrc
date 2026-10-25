@@ -16,6 +16,7 @@
         <file>icons/star.png</file>
         <file>tooltips.json</file>
         <file>fonts/DMBButtonFace.ttf</file>
+        <file>fonts/DMBTextFace.ttf</file>
         <file>fonts/OFL.txt</file>
     </qresource>
 </RCC>

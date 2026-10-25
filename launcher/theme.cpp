@@ -33,6 +33,9 @@
 #include <QStyle>
 #include <QStyleFactory>
 #include <QTimer>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 #include <QToolButton>
 
 #ifdef VCMI_WINDOWS
@@ -560,6 +563,44 @@ QString buttonFaceFamily()
 		return families.isEmpty() ? QString() : families.front();
 	}();
 	return family;
+}
+
+/// DMB's text face (launcher/fonts/DMBTextFace.ttf, Playfair Display at weight 600 with lining figures, made by DMB/release/make_text_face.py; the
+/// licence text beside it): the launcher's running text (K, October 24th, via the lead: the game's small pixel font in a mod's description was hard to
+/// read). Empty when the file did not load: the game's MEDFONT stays.
+QString textFaceFamily()
+{
+	static const QString family = []()
+	{
+		const int id = QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/DMBTextFace.ttf"));
+		const QStringList families = id < 0 ? QStringList() : QFontDatabase::applicationFontFamilies(id);
+		return families.isEmpty() ? QString() : families.front();
+	}();
+	return family;
+}
+
+constexpr int TEXT_FACE_PIXELS = 17; // a paragraph at 100 percent (Qt scales it with the screen); .tmp/show/k1024/launcher-font/text-face-600-700-sample.png
+constexpr int TITLE_FACE_PIXELS = 24; // a title in the button face, half as large again as the text
+
+void LauncherTheme::styleTitles(QTextDocument * document)
+{
+	const QString title = buttonFaceFamily();
+	if(title.isEmpty() || document == nullptr)
+		return;
+	for(QTextBlock block = document->begin(); block.isValid(); block = block.next())
+	{
+		if(block.blockFormat().headingLevel() == 0)
+			continue;
+		QTextCursor cursor(block);
+		cursor.select(QTextCursor::BlockUnderCursor);
+		QFont font(title);
+		font.setPixelSize(TITLE_FACE_PIXELS);
+		font.setWeight(QFont::Normal);
+		font.setStyleStrategy(QFont::PreferAntialias);
+		QTextCharFormat format;
+		format.setFont(font, QTextCharFormat::FontPropertiesAll);
+		cursor.mergeCharFormat(format);
+	}
 }
 
 /// the height of a button word's capitals, as the game draws them on its bars: 22 rows on a 40 row bar (RANSHOW's own, the bar
@@ -1405,6 +1446,23 @@ const char * const WIDGETS_WITH_OWN_FONTS[] = { "QAbstractItemView", "QListView"
 /// game draws them. Empty before the game's files are imported: the platform's font stays.
 static QString gameFontStyle()
 {
+	// DMB (K, October 24th): the text face for running text and the button face for titles, both shipped with the launcher; the game's own fonts below
+	// only when the text face did not load
+	if(const QString face = textFaceFamily(); !face.isEmpty())
+	{
+		QFont font(face);
+		font.setPixelSize(TEXT_FACE_PIXELS);
+		font.setStyleStrategy(QFont::PreferAntialias);
+		QApplication::setFont(font);
+		for(const char * kind : WIDGETS_WITH_OWN_FONTS)
+			QApplication::setFont(font, kind);
+		QString style = QString(
+			"#dmbSettingsCategories QPushButton { font-weight: normal; }"
+			"QAbstractItemView, QHeaderView::section { font-family: \"%1\"; font-size: %2px; }").arg(face).arg(TEXT_FACE_PIXELS);
+		if(const QString title = buttonFaceFamily(); !title.isEmpty())
+			style += QString("QLabel[dmbSettingsTitle=\"true\"] { font-family: \"%1\"; font-size: %2px; font-weight: normal; }").arg(title).arg(TITLE_FACE_PIXELS);
+		return style;
+	}
 	const GameFont::Font text = GameFont::load("MEDFONT", "DMB Heroes");
 	const GameFont::Font title = GameFont::load("BIGFONT", "DMB Heroes Big");
 	if(text.family.isEmpty())

@@ -406,6 +406,22 @@ bool CVCMIServer::prepareToStartGame()
 		}
 	}
 
+	// DMB (K, October 24th: a random map made with two human allies and no other player announced the victory on day 1): a new game whose players are all
+	// in one team has nothing to win, so it does not start; every player in the lobby is told, and the lobby stays as it was. A loaded game starts as stock.
+	if(si->mode == EStartMode::NEW_GAME)
+	{
+		std::set<TeamID> teams;
+		for(const auto & [color, state] : newGH->gameState().players)
+			if(color.isValidPlayer() && !state.checkVanquished())
+				teams.insert(state.team);
+		if(teams.size() == 1)
+		{
+			logGlobal->error("Every player on the map is in one team; the game is not started");
+			announceMessage("All players are allies, so there is nothing to win. Put a player on another team (or add a computer player on another team), then start again.");
+			return false;
+		}
+	}
+
 	gh = std::move(newGH);
 
 	if(lobbyProcessor)

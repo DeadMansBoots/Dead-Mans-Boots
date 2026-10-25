@@ -545,6 +545,12 @@ void CServerHandler::setPlayerOption(ui8 what, int32_t value, PlayerColor player
 
 void CServerHandler::setDifficulty(int to) const
 {
+	// DMB (K, October 24th: the multiplayer difficulty must survive shutdowns, restarts and crashes): the choice is saved the moment it is made, not only when
+	// the game starts (stock saves lastDifficulty at Begin); a new lobby opens with it (the server's StartInfo above reads it)
+	{
+		Settings lastDifficulty = settings.write["general"]["lastDifficulty"];
+		lastDifficulty->Integer() = to;
+	}
 	LobbySetDifficulty lsd;
 	lsd.difficulty = to;
 	sendLobbyPack(lsd);

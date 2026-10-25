@@ -429,12 +429,11 @@ void TurnProgressBar::show(Canvas & to)
 		const int width = full ? inner.w : std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
 		{
-			// the liquid: lighter at the top, darker at the bottom; it ends in a few columns whose surface bobs, beta 15's ripple (K, 14:5x: "i like the
-			// bubbly/rippling/flowing better than the squiggly white line"), with his 13:2x upgrade: "the wavy part goes horizontally from the top down and to
-			// the right": the surfaces step down to the right and the crest travels right. Above a dipped column is the plain glass of the empty trough (K, 18:5x:
-			// "get rid of the player-colorish transparency layer over or behind the bar where the waviness is")
-			const int ripple = full ? 0 : std::min(width, 7);
-			const int body = width - ripple;
+			// the liquid: lighter at the top, darker at the bottom. Its leading edge is Gen 3 of the edge's history (K, October 24th, picking it from the GIFs of
+			// 42f0ba701: "looks the cleanest"): it slants from the top down to the right across the whole height of the bar, a ripple running down it (his October
+			// 23rd words: "the wavy part goes horizontally from the top down and to the right"). Beyond the edge is the plain glass of the empty trough (K, October
+			// 23rd 18:5x: "get rid of the player-colorish transparency layer over or behind the bar where the waviness is")
+			const int slant = full ? 0 : std::min(width, std::max(4, inner.h / 2));
 			// brightening mixes toward white, so a colour keeps its hue: multiplied and clamped per channel, tan's highlight turned yellow-green beside the gold
 			// rails, orange's yellow and pink's magenta (the Reviewer's REVIEW-tan-bar-1023.md); the darker rows keep the multiply
 			const auto lighten = [dim](const ColorRGBA & c, double k)
@@ -448,25 +447,22 @@ void TurnProgressBar::show(Canvas & to)
 			static constexpr std::array<double, 8> speeds = {1.00, 0.86, 1.13, 0.93, 1.07, 0.81, 1.19, 0.97};
 			const int seed = player.isValidPlayer() ? player.getNum() % 8 : 0;
 			const double phase = seed * 2.39996;
-			std::array<int, 7> surface{};
-			for(int i = 0; i < ripple; ++i)
-			{
-				const double lift = 1.4 * std::sin(t * 4.0 * speeds[seed] + phase - i * 1.1) * (1.0 + i * 0.2);
-				surface[i] = std::clamp(static_cast<int>(std::lround((i + 1) * 0.6 + lift)), 0, std::max(0, inner.h - 3));
-			}
 			for(int row = 0; row < inner.h; ++row)
 			{
 				const double depth = static_cast<double>(row) / std::max(1, inner.h - 1);
 				const double brightness = 1.30 - 0.85 * depth;
 				const ColorRGBA tone = brightness > 1.0 ? lighten(base, (brightness - 1.0) / 0.30 * 0.20) : shade(base, brightness * dim, 255);
-				to.drawColor(Rect(inner.x, inner.y + row, body, 1), tone);
-				for(int i = 0; i < ripple; ++i)
-					if(row >= surface[i])
-						to.drawColor(Rect(inner.x + body + i, inner.y + row, 1, 1), tone);
+				int reach = width;
+				if(!full)
+				{
+					const double wave = 1.3 * std::sin(t * 4.0 * speeds[seed] + phase - row * 0.8);
+					reach = width - slant / 2 + static_cast<int>(std::lround(slant * depth + wave));
+				}
+				reach = std::clamp(reach, 0, inner.w);
+				to.drawColor(Rect(inner.x, inner.y + row, reach, 1), tone);
+				if(row == 1 && reach > 2)
+					to.drawColor(Rect(inner.x, inner.y + 1, reach - 2, 1), highlight); // the soft highlight under the surface
 			}
-			to.drawColor(Rect(inner.x, inner.y + 1, body, 1), highlight); // the soft highlight under the surface
-			for(int i = 0; i < ripple; ++i)
-				to.drawColor(Rect(inner.x + body + i, inner.y + surface[i], 1, 1), highlight); // the bobbing surface catches the light
 		}
 	}
 

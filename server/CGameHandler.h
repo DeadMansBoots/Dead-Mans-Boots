@@ -215,6 +215,8 @@ public:
 	void init(StartInfo *si, Load::ProgressAccumulator & progressTracking);
 	void handleClientDisconnection(GameConnectionID connectionID, const std::vector<PlayerConnectionID> & disconnectedPlayerIds = {});
 	void handleReceivedPack(GameConnectionID connectionId, CPackForServer & pack);
+	/// DMB: a move refused by the game's rules (moveHero's simultaneous-turns checks): handleReceivedPack tells the mover this one line instead of complaining to all
+	std::string refusalForMover;
 	bool hasPlayerAt(PlayerColor player, GameConnectionID connectionId) const;
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const;
 

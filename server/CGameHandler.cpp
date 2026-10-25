@@ -521,6 +521,7 @@ void CGameHandler::handleReceivedPack(GameConnectionID connection, CPackForServe
 	else
 	{
 		bool result;
+		refusalForMover.clear();
 		try
 		{
 			ApplyGhNetPackVisitor applier(*this, connection);
@@ -534,6 +535,12 @@ void CGameHandler::handleReceivedPack(GameConnectionID connection, CPackForServe
 
 		if(result)
 			logGlobal->trace("Message %s successfully applied!", typeid(pack).name());
+		else if(!refusalForMover.empty())
+		{
+			// a refusal by the game's rules that the mover is told about, in one line, to the mover only
+			playerMessages->sendSystemMessage(connection, refusalForMover);
+			refusalForMover.clear();
+		}
 		else
 		{
 			complain((boost::format("Got false in applying %s... that request must have been fishy!")
@@ -945,21 +952,32 @@ bool CGameHandler::moveHero(ObjectInstanceID hid, int3 dst, EMovementMode moveme
 		return false;
 	};
 
+	// DMB (the lead, October 24th, the trade hunt: a third player's hero stepping into a hero in a trade put two lines in every player's chat and a report in Sentry):
+	// these refusals are the game's rules at work, not a fault: the move is refused as stock refuses it, and only the player who moved is told, in one line
+	// (handleReceivedPack sends refusalForMover to the mover's connection instead of the complaint)
+	const auto tellMoverRet = [&](const std::string & message)
+	{
+		logGlobal->info("Move refused: %s", message);
+		refusalForMover = message;
+		sendAndApply(tmh);
+		return false;
+	};
+
 	if (guardian && getVisitingHero(guardian) != nullptr)
-		return complainRet("You cannot move your hero there. Simultaneous turns are active and another player is interacting with this wandering monster!");
+		return tellMoverRet("You cannot move your hero there. Simultaneous turns are active and another player is interacting with this wandering monster!");
 
 	if (objectToVisit && getVisitingHero(objectToVisit) != nullptr && getVisitingHero(objectToVisit) != h)
-		return complainRet("You cannot move your hero there. Simultaneous turns are active and another player is interacting with this map object!");
+		return tellMoverRet("You cannot move your hero there. Simultaneous turns are active and another player is interacting with this map object!");
 
 	if (objectToVisit &&
 		objectToVisit->getOwner().isValidPlayer())
 	{
 		if (gameInfo().getPlayerRelations(objectToVisit->getOwner(), h->getOwner()) == PlayerRelations::ENEMIES &&
 		   !turnOrder->isContactAllowed(objectToVisit->getOwner(), h->getOwner()))
-			return complainRet("You cannot move your hero there. This object belongs to another player and simultaneous turns are still active!");
+			return tellMoverRet("You cannot move your hero there. This object belongs to another player and simultaneous turns are still active!");
 
 		if (gs->getBattle(objectToVisit->getOwner()) != nullptr)
-			return complainRet("You cannot move your hero there. This object belongs to another player who is engaged in battle and simultaneous turns are still active!");
+			return tellMoverRet("You cannot move your hero there. This object belongs to another player who is engaged in battle and simultaneous turns are still active!");
 	}
 
 	//it's a rock or blocked and not visitable tile

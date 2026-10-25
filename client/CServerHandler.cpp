@@ -235,6 +235,27 @@ void CServerHandler::startLocalServerAndConnect(bool connectToLobby)
 
 	auto lastDifficulty = settings["general"]["lastDifficulty"];
 	si->difficulty = lastDifficulty.Integer();
+	// DMB (the lead, October 24th): the turn timer and the simultaneous turns the host set last, as saved the moment they were set (setTurnTimerInfo, setSimturnsInfo)
+	{
+		const JsonNode & timer = persistentStorage["dmb"]["lobby"]["turnTimer"];
+		if(timer.isStruct())
+		{
+			si->turnTimerInfo.turnTimer = timer["turnTimer"].Integer();
+			si->turnTimerInfo.baseTimer = timer["baseTimer"].Integer();
+			si->turnTimerInfo.battleTimer = timer["battleTimer"].Integer();
+			si->turnTimerInfo.unitTimer = timer["unitTimer"].Integer();
+			si->turnTimerInfo.accumulatingTurnTimer = timer["accumulatingTurnTimer"].Bool();
+			si->turnTimerInfo.accumulatingUnitTimer = timer["accumulatingUnitTimer"].Bool();
+		}
+		const JsonNode & simturns = persistentStorage["dmb"]["lobby"]["simturns"];
+		if(simturns.isStruct())
+		{
+			si->simturnsInfo.requiredTurns = simturns["requiredTurns"].Integer();
+			si->simturnsInfo.optionalTurns = simturns["optionalTurns"].Integer();
+			si->simturnsInfo.allowHumanWithAI = simturns["allowHumanWithAI"].Bool();
+			si->simturnsInfo.ignoreAlliedContacts = simturns["ignoreAlliedContacts"].Bool();
+		}
+	}
 
 	logNetwork->trace("\tStarting local server");
 	serverRunner->start(loadMode == ELoadMode::MULTI, connectToLobby, si);
@@ -558,6 +579,14 @@ void CServerHandler::setDifficulty(int to) const
 
 void CServerHandler::setSimturnsInfo(const SimturnsInfo & info) const
 {
+	// DMB (the lead, October 24th): saved the moment the host sets it, so a crash or restart keeps it (as the difficulty)
+	{
+		Settings stored = persistentStorage.write["dmb"]["lobby"]["simturns"];
+		stored->Struct()["requiredTurns"].Integer() = info.requiredTurns;
+		stored->Struct()["optionalTurns"].Integer() = info.optionalTurns;
+		stored->Struct()["allowHumanWithAI"].Bool() = info.allowHumanWithAI;
+		stored->Struct()["ignoreAlliedContacts"].Bool() = info.ignoreAlliedContacts;
+	}
 	LobbySetSimturns pack;
 	pack.simturnsInfo = info;
 	sendLobbyPack(pack);
@@ -565,6 +594,16 @@ void CServerHandler::setSimturnsInfo(const SimturnsInfo & info) const
 
 void CServerHandler::setTurnTimerInfo(const TurnTimerInfo & info) const
 {
+	// DMB (the lead, October 24th): saved the moment the host sets it, so a crash or restart keeps it (as the difficulty)
+	{
+		Settings stored = persistentStorage.write["dmb"]["lobby"]["turnTimer"];
+		stored->Struct()["turnTimer"].Integer() = info.turnTimer;
+		stored->Struct()["baseTimer"].Integer() = info.baseTimer;
+		stored->Struct()["battleTimer"].Integer() = info.battleTimer;
+		stored->Struct()["unitTimer"].Integer() = info.unitTimer;
+		stored->Struct()["accumulatingTurnTimer"].Bool() = info.accumulatingTurnTimer;
+		stored->Struct()["accumulatingUnitTimer"].Bool() = info.accumulatingUnitTimer;
+	}
 	LobbySetTurnTime lstt;
 	lstt.turnTimerInfo = info;
 	sendLobbyPack(lstt);

@@ -16,6 +16,7 @@ class QString;
 class QIcon;
 class QToolButton;
 class QPushButton;
+class QTextDocument;
 
 /// DMB: the launcher's look (K, September 26th), the setting launcher.theme:
 ///  - "leather": the leather Heroes III fills its windows with, read from the player's own game files
@@ -25,8 +26,6 @@ class QPushButton;
 ///  - "system": the platform's own look, as stock VCMI's launcher has it.
 /// Applied after the game's filesystem is loaded and before the main window builds its widgets, and again
 /// whenever the Settings page's Launcher Look changes; every window and dialog of the launcher follows.
-class QTextDocument;
-
 namespace LauncherTheme
 {
 	void apply();

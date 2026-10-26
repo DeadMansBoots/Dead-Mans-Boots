@@ -265,6 +265,9 @@ void CGDwelling::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstan
 	if(relations == PlayerRelations::ENEMIES && ID != Obj::WAR_MACHINE_FACTORY && ID != Obj::REFUGEE_CAMP)
 	{
 		gameEvents.setOwner(this, h->tempOwner);
+		// A dwelling of tier 5 or higher stays guarded in its new colors, so retaking it is a fight again
+		// and does not wait for the next Monday's growth (K, October 25th).
+		updateGuards(gameEvents);
 	}
 
 	BlockingDialog bd (true,false);

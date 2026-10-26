@@ -518,7 +518,8 @@ void CGameHandler::forwardTradePointer(GameConnectionID connection, const TradeP
 			return;
 		shown.position = pointer.position;
 		shown.selection = pointer.selection;
-		gameServer().applyPack(shown);
+		// only the other player of the trade is sent it: up to 25 a second, and nobody else's business
+		gameServer().sendPackToPlayer(shown, shown.viewer);
 		return;
 	}
 }

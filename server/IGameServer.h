@@ -37,4 +37,7 @@ public:
 	virtual bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const = 0;
 	virtual void applyPack(CPackForClient & pack) = 0;
 	virtual void sendPack(CPackForClient & pack, GameConnectionID connectionID) = 0;
+	/// DMB: send a pack to the connections that control this player only, without applying it to the game state (a pack that only shows
+	/// something, like a shared trade's pointer); a server that cannot tell the connections apart sends it to all
+	virtual void sendPackToPlayer(CPackForClient & pack, const PlayerColor & player) { applyPack(pack); }
 };

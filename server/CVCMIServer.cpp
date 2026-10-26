@@ -1458,3 +1458,10 @@ void CVCMIServer::sendPack(CPackForClient & pack, GameConnectionID connectionID)
 		if (c->connectionID == connectionID)
 			c->sendPack(pack);
 }
+
+void CVCMIServer::sendPackToPlayer(CPackForClient & pack, const PlayerColor & player)
+{
+	for (const auto & c : activeConnections)
+		if (hasPlayerAt(player, c->connectionID))
+			c->sendPack(pack);
+}

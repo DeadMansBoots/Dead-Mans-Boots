@@ -82,6 +82,7 @@ public:
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const override;
 	void applyPack(CPackForClient & pack) override;
 	void sendPack(CPackForClient & pack, GameConnectionID connectionID) override;
+	void sendPackToPlayer(CPackForClient & pack, const PlayerColor & player) override;
 
 	/// DMB: a chat line goes only where its channel reaches (DmbChatRouting.h); the line is stamped with the channel it went out on
 	void sendChatMessage(PlayerMessageClient & pack, GameConnectionID senderConnection, EChatChannel requested);

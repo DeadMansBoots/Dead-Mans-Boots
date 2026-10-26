@@ -3,6 +3,7 @@
 		"index" : 42,
 		"handler" : "flaggable",
 		"base" : {
+			"popupDescription" : "(Every hero of its owner moves further at sea: +500 movement points)",
 			"sounds" : {
 				"visit" : ["LIGHTHOUSE"]
 			}

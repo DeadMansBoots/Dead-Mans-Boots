@@ -190,6 +190,7 @@
 		"index" :59,
 		"handler" : "sign",
 		"base" : {
+			"popupDescription" : "(A hero who visits reads the message inside)",
 			"sounds" : {
 				"visit" : ["STORE"]
 			}

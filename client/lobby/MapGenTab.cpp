@@ -942,7 +942,7 @@ void MapGenTab::chooseTeams()
 	auto options = GAME->server().si->mapGenOptions;
 	if(!options || options->getExternalGenerator() != generator.modID)
 		options = lobbyOptions();
-	ENGINE->windows().createAndPushWindow<TeamAlignments>(*options, [this](const std::vector<TeamID> & teams)
+	const auto store = [this](const std::vector<TeamID> & teams)
 	{
 		{
 			Settings stored = persistentStorage.write["mapGen"]["map"]["teams"];
@@ -956,7 +956,106 @@ void MapGenTab::chooseTeams()
 		}
 		refreshPages();
 		updateMapInfoByHost();
+	};
+
+	// DMB (K, the PRIORITY file's item 6(c): "the lobby team-grid preset popup (FFA, then team modes by player count)"; roster/SPEC-Team-Presets.md):
+	// a preset arranges the players the counts give, into the same store the grid writes, so the grid shows it and can change it after
+	const auto & seats = options->getPlayersSettings();
+	std::vector<PlayerColor> humans;
+	std::vector<PlayerColor> computers;
+	for(const auto & seat : seats)
+	{
+		const auto & infos = GAME->server().si->playerInfos;
+		const auto info = infos.find(seat.first);
+		const bool human = info != infos.end() && info->second.isControlledByHuman();
+		(human ? humans : computers).push_back(seat.first);
+	}
+	// humans first, so a split spreads them across the teams before the computers fill in
+	std::vector<PlayerColor> order = humans;
+	order.insert(order.end(), computers.begin(), computers.end());
+	const int count = static_cast<int>(order.size());
+
+	// the teams a player each, in colour order; -1 for a colour that is not in the game
+	const auto byColour = [](const std::map<PlayerColor, int> & teamOf)
+	{
+		std::vector<TeamID> teams;
+		for(int colour = 0; colour < PlayerColor::PLAYER_LIMIT_I; ++colour)
+		{
+			const auto found = teamOf.find(PlayerColor(colour));
+			teams.push_back(found == teamOf.end() ? TeamID(-1) : TeamID(found->second));
+		}
+		while(!teams.empty() && teams.back().getNum() < 0)
+			teams.pop_back();
+		return teams;
+	};
+	// round robin over `teamCount` teams in `order`
+	const auto split = [order, byColour](int teamCount)
+	{
+		std::map<PlayerColor, int> teamOf;
+		for(size_t i = 0; i < order.size(); ++i)
+			teamOf[order[i]] = static_cast<int>(i) % teamCount;
+		return byColour(teamOf);
+	};
+
+	std::vector<std::string> names;
+	std::vector<std::function<void()>> actions;
+	const auto offer = [&names, &actions](const std::string & name, const std::function<void()> & action)
+	{
+		names.push_back(name);
+		actions.push_back(action);
+	};
+	if(count >= 2)
+	{
+		offer(tabText("teams.preset.freeForAll"), [order, byColour, store]()
+		{
+			std::map<PlayerColor, int> teamOf;
+			for(size_t i = 0; i < order.size(); ++i)
+				teamOf[order[i]] = static_cast<int>(i);
+			store(byColour(teamOf));
+		});
+	}
+	if(count >= 3)
+		offer(tabText("teams.preset.twoTeams"), [split, store]() { store(split(2)); });
+	for(int size = 2; size <= 4; ++size)
+	{
+		// teams of `size` when the count divides into at least two of them; two teams of half the count is the preset above
+		if(count % size == 0 && count / size >= 2 && count / size != 2)
+		{
+			const int teamCount = count / size;
+			std::string name = tabText("teams.preset.teamsOf");
+			boost::replace_first(name, "%d", std::to_string(teamCount));
+			boost::replace_first(name, "%d", std::to_string(size));
+			offer(name, [split, store, teamCount]() { store(split(teamCount)); });
+		}
+	}
+	if(!humans.empty() && !computers.empty())
+	{
+		offer(tabText("teams.preset.humansAgainstComputers"), [humans, computers, byColour, store]()
+		{
+			std::map<PlayerColor, int> teamOf;
+			for(const auto & colour : humans)
+				teamOf[colour] = 0;
+			for(const auto & colour : computers)
+				teamOf[colour] = 1;
+			store(byColour(teamOf));
+		});
+	}
+	offer(tabText("teams.preset.byHand"), [options, store]()
+	{
+		ENGINE->windows().createAndPushWindow<TeamAlignments>(*options, store);
 	});
+
+	if(names.size() == 1)
+	{
+		actions.front()();
+		return;
+	}
+	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, tabText("teams.preset.title"), tabText("teams.preset.description"),
+		[actions](int index)
+		{
+			if(index >= 0 && index < static_cast<int>(actions.size()))
+				actions[index]();
+		});
 }
 
 void MapGenTab::chooseCustomSize()

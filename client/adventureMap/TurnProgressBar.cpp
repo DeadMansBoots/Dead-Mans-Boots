@@ -174,8 +174,10 @@ void TurnProgressBar::endTurn()
 	if(!GAME->interface() || !GAME->interface()->cb)
 		return;
 	endedDay = GAME->interface()->cb->getDate(Date::DAY);
+	// through compute(), which reads 100 for an ended turn and keeps a test's fixed fill (DMB_BAR_FORCE): setting 100 here could draw a held bar full
+	// until the next quarter-second update (the likely cause of the full tan and purple bars in the October 24th pictures)
 	if(endedDay == snapshotDay)
-		percent = 100;
+		percent = compute();
 }
 
 int TurnProgressBar::compute() const

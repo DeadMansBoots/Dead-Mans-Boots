@@ -127,7 +127,7 @@ AppSupportURL={#VCMIContact}
 AppComments={#AppComment}
 DefaultDirName={code:GetDefaultDir}
 DefaultGroupName={#DMBName}
-UninstallDisplayIcon={app}\VCMI_launcher.exe
+UninstallDisplayIcon={app}\DMB_launcher.exe
 OutputBaseFilename={#InstallerName}
 PrivilegesRequiredOverridesAllowed=commandline dialog
 ShowLanguageDialog=yes
@@ -194,10 +194,10 @@ Source: "{#UCRTFilesPath}\{#InstallerArch}\*"; DestDir: "{app}"; Flags: ignoreve
 
 [Icons]
 ; DMB: named for the product (the translated names say VCMI); the map editor only when a build ships it
-Name: "{group}\Dead Man's Boots{code:GetBranchSuffix}"; Filename: "{app}\VCMI_launcher.exe"; Comment: "Dead Man's Boots{code:GetBranchSuffix}";  Tasks: startmenu
-Name: "{group}\Dead Man's Boots Map Editor{code:GetBranchSuffix}"; Filename: "{app}\VCMI_mapeditor.exe"; Comment: "Dead Man's Boots Map Editor{code:GetBranchSuffix}";  Tasks: startmenu; Check: MapEditorInstalled
+Name: "{group}\Dead Man's Boots{code:GetBranchSuffix}"; Filename: "{app}\DMB_launcher.exe"; Comment: "Dead Man's Boots{code:GetBranchSuffix}";  Tasks: startmenu
+Name: "{group}\Dead Man's Boots Map Editor{code:GetBranchSuffix}"; Filename: "{app}\DMB_mapeditor.exe"; Comment: "Dead Man's Boots Map Editor{code:GetBranchSuffix}";  Tasks: startmenu; Check: MapEditorInstalled
 
-Name: "{code:GetUserDesktopFolder}\Dead Man's Boots{code:GetBranchSuffix}"; Filename: "{app}\VCMI_launcher.exe"; Comment: "Dead Man's Boots{code:GetBranchSuffix}"; Tasks: desktop
+Name: "{code:GetUserDesktopFolder}\Dead Man's Boots{code:GetBranchSuffix}"; Filename: "{app}\DMB_launcher.exe"; Comment: "Dead Man's Boots{code:GetBranchSuffix}"; Tasks: desktop
 
 
 [Tasks]
@@ -216,22 +216,22 @@ Root: HKCU; Subkey: "Software\{#DMBName}"; ValueType: string; ValueName: "Instal
 ; stock's association entries, under DMB's own ProgIDs (DMB.vmap, DMB.vcmp, DMB.h3m) so removing them never touches VCMI's
 Root: HKCU; Subkey: "Software\Classes\.vmap"; ValueType: string; ValueName: ""; ValueData: "DMB.vmap"; Flags: uninsdeletevalue; Tasks: fileassociation_vcmimap
 Root: HKCU; Subkey: "Software\Classes\DMB.vmap"; ValueType: string; ValueName: ""; ValueData: "{cm:VMAPDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_vcmimap
-Root: HKCU; Subkey: "Software\Classes\DMB.vmap\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_vcmimap
+Root: HKCU; Subkey: "Software\Classes\DMB.vmap\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DMB_mapeditor.exe"" ""%1"""; Tasks: fileassociation_vcmimap
 
 Root: HKCU; Subkey: "Software\Classes\.vcmp"; ValueType: string; ValueName: ""; ValueData: "DMB.vcmp"; Flags: uninsdeletevalue; Tasks: fileassociation_vcmimap
 Root: HKCU; Subkey: "Software\Classes\DMB.vcmp"; ValueType: string; ValueName: ""; ValueData: "{cm:VCMPDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_vcmimap
-Root: HKCU; Subkey: "Software\Classes\DMB.vcmp\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_vcmimap
+Root: HKCU; Subkey: "Software\Classes\DMB.vcmp\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DMB_mapeditor.exe"" ""%1"""; Tasks: fileassociation_vcmimap
 
 Root: HKCU; Subkey: "Software\Classes\.h3m"; ValueType: string; ValueName: ""; ValueData: "DMB.h3m"; Flags: uninsdeletevalue; Tasks: fileassociation_h3m
 Root: HKCU; Subkey: "Software\Classes\DMB.h3m"; ValueType: string; ValueName: ""; ValueData: "{cm:H3MDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_h3m
-Root: HKCU; Subkey: "Software\Classes\DMB.h3m\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_h3m
+Root: HKCU; Subkey: "Software\Classes\DMB.h3m\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DMB_mapeditor.exe"" ""%1"""; Tasks: fileassociation_h3m
 
 ; DMB (K, October 23rd): a .dmb package opens in the launcher, which shows it and asks before installing (launcher/modManager/dmbpackage.cpp). .dmb is
 ; also BYOND's extension for its game worlds: DMB adds itself to Open with on every PC and takes the double-click only where no other program holds .dmb
 ; (DmbExtensionFree); uninstalling removes DMB's ProgID and Open-with entry, and the default only while it still names DMB (CurUninstallStepChanged)
 Root: HKCU; Subkey: "Software\Classes\DMB.package"; ValueType: string; ValueName: ""; ValueData: "Dead Man's Boots package"; Flags: uninsdeletekey; Check: not IsPRInstaller
-Root: HKCU; Subkey: "Software\Classes\DMB.package\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\VCMI_launcher.exe,0"; Check: not IsPRInstaller
-Root: HKCU; Subkey: "Software\Classes\DMB.package\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_launcher.exe"" --install-package ""%1"""; Check: not IsPRInstaller
+Root: HKCU; Subkey: "Software\Classes\DMB.package\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\DMB_launcher.exe,0"; Check: not IsPRInstaller
+Root: HKCU; Subkey: "Software\Classes\DMB.package\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\DMB_launcher.exe"" --install-package ""%1"""; Check: not IsPRInstaller
 Root: HKCU; Subkey: "Software\Classes\.dmb\OpenWithProgids"; ValueType: string; ValueName: "DMB.package"; ValueData: ""; Flags: uninsdeletevalue; Check: not IsPRInstaller
 Root: HKCU; Subkey: "Software\Classes\.dmb"; ValueType: string; ValueName: ""; ValueData: "DMB.package"; Check: (not IsPRInstaller) and DmbExtensionFree
 
@@ -247,7 +247,7 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#DM
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#DMBName} server"" dir=in action=allow program=""{app}\vcmi_server.exe"" enable=yes profile=public,private"; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#DMBName} client"" dir=in action=allow program=""{app}\vcmi_client.exe"" enable=yes profile=public,private"; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
 
-Filename: "{app}\VCMI_launcher.exe"; Description: "{cm:RunVCMILauncherAfterInstall}"; Flags: nowait postinstall; Check: ShouldRunLauncher
+Filename: "{app}\DMB_launcher.exe"; Description: "{cm:RunVCMILauncherAfterInstall}"; Flags: nowait postinstall; Check: ShouldRunLauncher
 
 
 [UninstallRun]
@@ -275,6 +275,15 @@ DMBNotMovedUserFolder=Your saves, settings and mods are still in %1: a file in i
 
 
 [InstallDelete]
+; DMB: the programs under VCMI's file names, from every DMB before October 26th 2026 (K: "make sure that DMB feels, thoroughly, as its own
+; distinct application"); an install over one of them leaves only the DMB_ programs
+Type: files; Name: "{app}\VCMI_client.exe"
+Type: files; Name: "{app}\VCMI_server.exe"
+Type: files; Name: "{app}\VCMI_launcher.exe"
+Type: files; Name: "{app}\VCMI_mapeditor.exe"
+Type: files; Name: "{app}\VCMI_lobby.exe"
+Type: files; Name: "{app}\VCMI_lib.dll"
+Type: files; Name: "{app}\VCMI_vcmiqt.dll"
 ; DMB: test builds carried the map generator in {app}\mapgen; it is a mod now, so an install over
 ; one of them removes that folder
 Type: filesandordirs; Name: "{app}\mapgen"
@@ -385,7 +394,9 @@ end;
 /// DMB's catalog, which every DMB since 0.1.0-rc.1 has
 function DmbProgramsIn(const Dir: String): Boolean;
 begin
-  Result := FileExists(Dir + '\VCMI_launcher.exe') and FileExists(Dir + '\VCMI_client.exe') and
+  // DMB's programs are DMB_*.exe from October 26th 2026; every DMB before that used VCMI's file names
+  Result := ((FileExists(Dir + '\DMB_launcher.exe') and FileExists(Dir + '\DMB_client.exe')) or
+    (FileExists(Dir + '\VCMI_launcher.exe') and FileExists(Dir + '\VCMI_client.exe'))) and
     FileHolds(Dir + '\config\schemas\settings.json', 'DeadMansBoots');
 end;
 
@@ -1961,7 +1972,7 @@ end;
 function MapEditorInstalled(): Boolean;
 begin
   // DMB's builds may leave the map editor out; its shortcut appears only when it was installed
-  Result := FileExists(ExpandConstant('{app}\VCMI_mapeditor.exe'));
+  Result := FileExists(ExpandConstant('{app}\DMB_mapeditor.exe'));
 end;
 
 

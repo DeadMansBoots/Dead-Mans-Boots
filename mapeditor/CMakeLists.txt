@@ -243,8 +243,8 @@ ${rccQmFiles}
 endif()
 
 if(WIN32)
-	set(VCMI_FILE_DESCRIPTION "VCMI Map Editor")
-	set(VCMI_ORIGINAL_FILENAME "VCMI_mapeditor.exe")
+	set(VCMI_FILE_DESCRIPTION "Dead Man's Boots Map Editor")
+	set(VCMI_ORIGINAL_FILENAME "DMB_mapeditor.exe")
 	set(VCMI_ICON_RESOURCE "IDI_ICON1 ICON \"${CMAKE_CURRENT_SOURCE_DIR}/mapeditor.ico\"")
 	set(editor_ICON "${CMAKE_CURRENT_BINARY_DIR}/VCMI_mapeditor_versioninfo.rc")
 	configure_file("${CMAKE_SOURCE_DIR}/win/WindowsFileInfo.rc.in" "${editor_ICON}" @ONLY)
@@ -291,8 +291,8 @@ target_sources(vcmieditor PRIVATE
 if(WIN32)
 	set_target_properties(vcmieditor
 		PROPERTIES
-			OUTPUT_NAME "VCMI_mapeditor"
-			PROJECT_LABEL "VCMI_mapeditor"
+			OUTPUT_NAME "DMB_mapeditor"
+			PROJECT_LABEL "DMB_mapeditor"
 	)
 
 	# FIXME: Can't to get CMP0020 working with Vcpkg and CMake 3.8.2

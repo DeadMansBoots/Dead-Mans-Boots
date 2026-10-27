@@ -148,7 +148,7 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	// a player is asked to send them
 	// K, October 10th ("you can't see crashes you should"): the launcher is started at once, with no window, to build the report (the logs, the settings, the Mods
 	// listing and this dump) and send it; the player is told, and can add what they were doing with F12 or Help, Report a bug
-	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "DMB_launcher.exe").string();
 	// K, October 13th: "this is not the easy, one-click crash reporter I expected": the launcher shows one window (what happened, Send report, Don't send, what is sent
 	// and where the file stays; with the Settings switch on it sends at once and says so) instead of the plain message box below, which stays only as the fallback
 	{
@@ -225,7 +225,7 @@ const char* exceptionName(DWORD exc)
 #undef EXC_CASE
 }
 
-/// "VCMI_lib.dll+0x1a2b3c" plus the function name when a matching .pdb sits beside the program
+/// "DMB_lib.dll+0x1a2b3c" plus the function name when a matching .pdb sits beside the program
 static std::string describeAddress(HANDLE process, const void * address)
 {
 	std::string text = "?";

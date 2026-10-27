@@ -834,9 +834,9 @@ if(WIN32)
 	endif()
 
 	if(ENABLE_LAUNCHER)
-		set(VCMI_MAIN_EXECUTABLE "VCMI_launcher")
+		set(VCMI_MAIN_EXECUTABLE "DMB_launcher")
 	else()
-		set(VCMI_MAIN_EXECUTABLE "VCMI_client")
+		set(VCMI_MAIN_EXECUTABLE "DMB_client")
 	endif()
 	set(CPACK_PACKAGE_EXECUTABLES "${VCMI_MAIN_EXECUTABLE};VCMI")
 	set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
@@ -859,7 +859,7 @@ if(WIN32)
 
 	set(CPACK_NSIS_MENU_LINKS "http://vcmi.eu/" "VCMI Web Site")
 
-	set(CPACK_NSIS_INSTALLED_ICON_NAME "VCMI_client.exe")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "DMB_client.exe")
 	set(CPACK_NSIS_COMPRESSOR "/SOLID lzma")
 	set(CPACK_NSIS_DISPLAY_NAME "${CPACK_NSIS_PACKAGE_NAME}, open-source engine for Heroes of Might and Magic III ")
 	set(CPACK_NSIS_HELP_LINK "http://vcmi.eu/")

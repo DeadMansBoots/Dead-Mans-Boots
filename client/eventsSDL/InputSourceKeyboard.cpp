@@ -63,11 +63,11 @@ std::string InputSourceKeyboard::getKeyNameWithModifiers(const std::string & key
 	return result;
 }
 
-/// starts the launcher's bug report ("VCMI_launcher.exe --report", which asks what went wrong and sends the logs); Windows only for now
+/// starts the launcher's bug report ("DMB_launcher.exe --report", which asks what went wrong and sends the logs); Windows only for now
 static void startBugReport()
 {
 #ifdef VCMI_WINDOWS
-	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "DMB_launcher.exe").string();
 	std::string commandLine = "\"" + launcher + "\" --report";
 	STARTUPINFOA startup = {};
 	startup.cb = sizeof(startup);

@@ -28,16 +28,16 @@ else()
 endif()
 
 if(WIN32)
-	set(VCMI_FILE_DESCRIPTION "VCMI Qt Library")
-	set(VCMI_ORIGINAL_FILENAME "VCMI_vcmiqt.dll")
+	set(VCMI_FILE_DESCRIPTION "Dead Man's Boots Qt Library")
+	set(VCMI_ORIGINAL_FILENAME "DMB_qt.dll")
 	set(VCMI_ICON_RESOURCE "")
 	set(vcmiqt_ICON "${CMAKE_CURRENT_BINARY_DIR}/VCMI_vcmiqt_versioninfo.rc")
 	configure_file("${CMAKE_SOURCE_DIR}/win/WindowsFileInfo.rc.in" "${vcmiqt_ICON}" @ONLY)
 	target_sources(vcmiqt PRIVATE ${vcmiqt_ICON})
 	set_target_properties(vcmiqt
 		PROPERTIES
-			OUTPUT_NAME "VCMI_vcmiqt"
-			PROJECT_LABEL "VCMI_vcmiqt"
+			OUTPUT_NAME "DMB_qt"
+			PROJECT_LABEL "DMB_qt"
 	)
 endif()
 

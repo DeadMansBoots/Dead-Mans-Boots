@@ -80,7 +80,7 @@ void NotificationHandler::init(SDL_Window * window)
 
 	ZeroMemory(&niData, sizeof(NOTIFYICONDATA));
 
-	state.hInst = (HINSTANCE)GetModuleHandle("VCMI_client.exe");
+	state.hInst = (HINSTANCE)GetModuleHandle(nullptr);
 
 	niData.cbSize = sizeof(NOTIFYICONDATA);
 	niData.hWnd = info.info.win.window;

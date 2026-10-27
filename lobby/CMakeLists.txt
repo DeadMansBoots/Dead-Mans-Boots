@@ -62,8 +62,8 @@ target_include_directories(vcmilobby PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 if(WIN32)
 	set_target_properties(vcmilobby
 		PROPERTIES
-			OUTPUT_NAME "VCMI_lobby"
-			PROJECT_LABEL "VCMI_lobby"
+			OUTPUT_NAME "DMB_lobby"
+			PROJECT_LABEL "DMB_lobby"
 	)
 endif()
 

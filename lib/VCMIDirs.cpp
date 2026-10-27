@@ -425,9 +425,9 @@ std::vector<bfs::path> VCMIDirsWIN32::dataPaths() const
 	return std::vector<bfs::path>(1, bfs::path("."));
 }
 
-bfs::path VCMIDirsWIN32::clientPath() const { return binaryPath() / "VCMI_client.exe"; }
-bfs::path VCMIDirsWIN32::mapEditorPath() const { return binaryPath() / "VCMI_mapeditor.exe"; }
-bfs::path VCMIDirsWIN32::serverPath() const { return binaryPath() / "VCMI_server.exe"; }
+bfs::path VCMIDirsWIN32::clientPath() const { return binaryPath() / "DMB_client.exe"; }
+bfs::path VCMIDirsWIN32::mapEditorPath() const { return binaryPath() / "DMB_mapeditor.exe"; }
+bfs::path VCMIDirsWIN32::serverPath() const { return binaryPath() / "DMB_server.exe"; }
 
 bfs::path VCMIDirsWIN32::libraryPath() const { return "."; }
 bfs::path VCMIDirsWIN32::binaryPath() const { return ".";  }

@@ -49,15 +49,15 @@ target_include_directories(vcmiclient
 
 if(WIN32)
 	set(VCMI_FILE_DESCRIPTION "Dead Man's Boots")
-	set(VCMI_ORIGINAL_FILENAME "VCMI_client.exe")
+	set(VCMI_ORIGINAL_FILENAME "DMB_client.exe")
 	set(VCMI_ICON_RESOURCE "IDI_ICON1 ICON \"${CMAKE_CURRENT_SOURCE_DIR}/icons/vcmi.ico\"")
 	set(client_VERSIONINFO_RC "${CMAKE_CURRENT_BINARY_DIR}/VCMI_client_versioninfo.rc")
 	configure_file("${CMAKE_SOURCE_DIR}/win/WindowsFileInfo.rc.in" "${client_VERSIONINFO_RC}" @ONLY)
 	target_sources(vcmiclient PRIVATE "${client_VERSIONINFO_RC}")
 	set_target_properties(vcmiclient
 		PROPERTIES
-			OUTPUT_NAME "VCMI_client"
-			PROJECT_LABEL "VCMI_client"
+			OUTPUT_NAME "DMB_client"
+			PROJECT_LABEL "DMB_client"
 	)
 	set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT vcmiclient)
 	if(NOT ENABLE_DEBUG_CONSOLE)

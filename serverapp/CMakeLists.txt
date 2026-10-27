@@ -23,15 +23,15 @@ target_include_directories(vcmiserver
 
 if(WIN32)
 	set(VCMI_FILE_DESCRIPTION "Dead Man's Boots Server")
-	set(VCMI_ORIGINAL_FILENAME "VCMI_server.exe")
+	set(VCMI_ORIGINAL_FILENAME "DMB_server.exe")
 	set(VCMI_ICON_RESOURCE "")
 	set(server_VERSIONINFO_RC "${CMAKE_CURRENT_BINARY_DIR}/VCMI_server_versioninfo.rc")
 	configure_file("${CMAKE_SOURCE_DIR}/win/WindowsFileInfo.rc.in" "${server_VERSIONINFO_RC}" @ONLY)
 	target_sources(vcmiserver PRIVATE "${server_VERSIONINFO_RC}")
 	set_target_properties(vcmiserver
 		PROPERTIES
-			OUTPUT_NAME "VCMI_server"
-			PROJECT_LABEL "VCMI_server"
+			OUTPUT_NAME "DMB_server"
+			PROJECT_LABEL "DMB_server"
 	)
 endif()
 

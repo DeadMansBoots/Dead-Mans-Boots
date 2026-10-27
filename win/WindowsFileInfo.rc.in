@@ -19,7 +19,7 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "VCMI Team"
+            VALUE "CompanyName", "Dead Man's Boots (a fork of VCMI)"
             VALUE "FileDescription", "@VCMI_FILE_DESCRIPTION@"
             VALUE "FileVersion", "@VCMI_VERSION_STRING@"
             VALUE "InternalName", "@VCMI_ORIGINAL_FILENAME@"

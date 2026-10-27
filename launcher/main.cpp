@@ -109,8 +109,8 @@ int MAIN_EXPORT main(int argc, char * argv[])
 
 	launcher::prepare();
 
-	// DMB: "VCMI_launcher.exe --report" (started by the crash dialog) makes and sends a bug report and nothing else
-	// "VCMI_launcher.exe --report-crash" is started by the game's crash handler, with no window: it builds the report and sends it (K, October 10th: "you can't
+	// DMB: "DMB_launcher.exe --report" (started by the crash dialog) makes and sends a bug report and nothing else
+	// "DMB_launcher.exe --report-crash" is started by the game's crash handler, with no window: it builds the report and sends it (K, October 10th: "you can't
 	// see crashes you should")
 	if(vcmilauncher.arguments().contains("--report-crash"))
 	{
@@ -124,7 +124,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 		return 0;
 	}
 
-	// "VCMI_launcher.exe --report-event KIND REASON" is started by the game (lib/DmbIssueReport.h) when it detects an anomaly that is no crash: a lost connection, a
+	// "DMB_launcher.exe --report-event KIND REASON" is started by the game (lib/DmbIssueReport.h) when it detects an anomaly that is no crash: a lost connection, a
 	// request the server refused. The same report as for a crash (without a dump), under the same consent (K, October 19th: "VERBOSE, AND COMPLETE ISSUE REPORTING. AUTOMATICALLY")
 	const int eventAt = vcmilauncher.arguments().indexOf("--report-event");
 	if(eventAt >= 0 && eventAt + 2 < vcmilauncher.arguments().size())

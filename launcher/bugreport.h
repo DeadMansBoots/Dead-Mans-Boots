@@ -54,7 +54,7 @@ namespace BugReport
 	bool crashReportsEnabled();
 	/// the whole flow, with the questions and thanks a player sees; `parent` may be null
 	void run(QWidget * parent, const QString & why);
-	/// the window the game's crash handler starts (VCMI_launcher.exe --crash-window <dump>): what happened, Send report and Don't send, what is sent and where the crash file
+	/// the window the game's crash handler starts (DMB_launcher.exe --crash-window <dump>): what happened, Send report and Don't send, what is sent and where the crash file
 	/// stays; with the switch (crashReportsEnabled) on it sends at once and says so
 	void runCrashWindow(const QString & dumpPath);
 }

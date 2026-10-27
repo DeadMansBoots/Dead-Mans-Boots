@@ -8,7 +8,7 @@
 VCMI_LIB_NAMESPACE_BEGIN
 
 /// An anomaly the game can detect (a lost connection, a request the server refused) sent to the developers through the crash report path (K, October 19th:
-/// "we just need VERBOSE, AND COMPLETE ISSUE REPORTING. AUTOMATICALLY"). The game starts "VCMI_launcher.exe --report-event KIND REASON" with no window; the launcher
+/// "we just need VERBOSE, AND COMPLETE ISSUE REPORTING. AUTOMATICALLY"). The game starts "DMB_launcher.exe --report-event KIND REASON" with no window; the launcher
 /// builds the same report as for a crash (logs, settings, mod list, the Windows user and computer name removed) and sends it, under the same consent keys:
 /// launcher.sendCrashReports and launcher.crashReportsAsked (off until the player has said yes). Nothing is sent from a headless or --testmap client.
 /// Rate limit (DmbIssueReportLimit): per kind, 10 minutes apart and three in an hour; twenty an hour over all kinds, from one process. Never blocks and never throws.

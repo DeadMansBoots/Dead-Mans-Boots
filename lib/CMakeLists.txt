@@ -910,16 +910,16 @@ target_include_directories(vcmi
 )
 
 if(WIN32)
-	set(VCMI_FILE_DESCRIPTION "VCMI Core Library")
-	set(VCMI_ORIGINAL_FILENAME "VCMI_lib.dll")
+	set(VCMI_FILE_DESCRIPTION "Dead Man's Boots Core Library")
+	set(VCMI_ORIGINAL_FILENAME "DMB_lib.dll")
 	set(VCMI_ICON_RESOURCE "")
 	set(vcmi_ICON "${CMAKE_CURRENT_BINARY_DIR}/VCMI_lib_versioninfo.rc")
 	configure_file("${CMAKE_SOURCE_DIR}/win/WindowsFileInfo.rc.in" "${vcmi_ICON}" @ONLY)
 	target_sources(vcmi PRIVATE ${vcmi_ICON})
 	set_target_properties(vcmi
 		PROPERTIES
-			OUTPUT_NAME "VCMI_lib"
-			PROJECT_LABEL "VCMI_lib"
+			OUTPUT_NAME "DMB_lib"
+			PROJECT_LABEL "DMB_lib"
 	)
 	if (MINGW)
 		# Link Windows system libs: WinSock2 (ws2_32) + socket extensions (mswsock) + Debug Help API (dbghelp)

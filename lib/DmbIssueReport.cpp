@@ -41,7 +41,7 @@ void send(const std::string & kind, const std::string & reason) noexcept
 				return;
 		}
 
-		const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
+		const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "DMB_launcher.exe").string();
 		// the reason is one argument: quotes are dropped, line ends become spaces, and it is cut at 600 characters
 		std::string clean;
 		for(const char c : reason)

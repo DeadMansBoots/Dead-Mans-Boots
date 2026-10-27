@@ -291,12 +291,24 @@ Report build(const QString & why, const QString & description, bool includeDump,
 			report.parts.append({QString::fromStdString(fileName), bytes});
 		};
 
+		// DMB_Client_log.txt from October 26th 2026, VCMI_Client_log.txt before: on a folder updated from an earlier build both exist, and the crash summary
+		// reads the newer one (the stale one would summarise an old session)
+		QString clientLogName;
+		{
+			const QFileInfo dmbLog(logs + "/DMB_Client_log.txt");
+			const QFileInfo vcmiLog(logs + "/VCMI_Client_log.txt");
+			if(dmbLog.exists() && vcmiLog.exists())
+				clientLogName = dmbLog.lastModified() >= vcmiLog.lastModified() ? dmbLog.fileName() : vcmiLog.fileName();
+			else if(dmbLog.exists())
+				clientLogName = dmbLog.fileName();
+			else if(vcmiLog.exists())
+				clientLogName = vcmiLog.fileName();
+		}
 		QString clientLog;
 		for(const QFileInfo & file : QDir(logs).entryInfoList({"*.txt"}, QDir::Files, QDir::Name))
 		{
 			QByteArray text = tailOf(file.absoluteFilePath(), LOG_TAIL_BYTES);
-			// DMB_Client_log.txt from October 26th 2026; VCMI_Client_log.txt in every build before
-			if(file.fileName() == "DMB_Client_log.txt" || file.fileName() == "VCMI_Client_log.txt")
+			if(file.fileName() == clientLogName)
 				clientLog = QString::fromUtf8(text);
 			add("logs/" + file.fileName().toStdString(), redacted(text));
 		}

@@ -251,7 +251,7 @@ bool ModStateController::canEnableMod(QString modname)
 
 	//check for compatibility
 	if(!mod.isCompatible())
-		return addError(modname, tr("Mod is not compatible, please update VCMI and check the latest mod revisions"));
+		return addError(modname, tr("Mod is not compatible, please update Dead Man's Boots and check the latest mod revisions"));
 
 	if (mod.isTranslation() && CGeneralTextHandler::getPreferredLanguage() != mod.getBaseLanguage().toStdString())
 		return addError(modname, tr("Can not enable translation mod for a different language!"));

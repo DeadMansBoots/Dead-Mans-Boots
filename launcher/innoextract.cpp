@@ -55,7 +55,7 @@ QString Innoextract::extract(QString installer, QString outDir, std::function<vo
 		errorText = tr("Not a supported Inno Setup installer!");
 	}
 #else
-	errorText = tr("VCMI was compiled without innoextract support, which is needed to extract exe files!");
+	errorText = tr("Dead Man's Boots was compiled without innoextract support, which is needed to extract exe files!");
 #endif
 
 	return errorText;

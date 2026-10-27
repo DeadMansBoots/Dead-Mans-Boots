@@ -844,7 +844,7 @@ Offline installer consists of two files: &quot;.exe&quot; and &quot;.bin&quot; -
             </sizepolicy>
            </property>
            <property name="text">
-            <string>Heroes III Demo files detected. This mod is required to use demo assets in VCMI, or the game will crash</string>
+            <string>Heroes III Demo files detected. This mod is required to use demo assets in Dead Man's Boots, or the game will crash</string>
            </property>
            <property name="wordWrap">
             <bool>true</bool>

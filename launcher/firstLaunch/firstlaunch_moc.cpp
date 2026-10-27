@@ -520,7 +520,7 @@ bool FirstLaunchView::performCopyFlow(const QString& path, ProgressOverlay* over
 			return tr("Failed to detect valid Heroes III data in chosen directory.\nPlease select the directory with installed Heroes III data.");
 
 		if(anyHD)
-			return tr("Heroes III: HD Edition files are not supported by VCMI.\nPlease select the directory with Heroes III: Complete Edition or Heroes III: Shadow of Death.");
+			return tr("Heroes III: HD Edition files are not supported by Dead Man's Boots.\nPlease select the directory with Heroes III: Complete Edition or Heroes III: Shadow of Death.");
 
 		return tr("Unknown or unsupported Heroes III version found.\nPlease select the directory with Heroes III: Complete Edition or Heroes III: Shadow of Death.");
 	};

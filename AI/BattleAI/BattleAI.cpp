@@ -585,7 +585,10 @@ std::optional<BattleAction> CBattleAI::considerFleeingOrSurrendering(const Battl
 	// DMB: the 30-defend-turn retreat is VCMI's guard against a battle that never ends; the basegame has no such rule and no round
 	// limit (a battle ends by destruction, retreat or surrender). A human player's side, in auto or quick combat, never retreats by
 	// it: that is the player's decision. AI sides keep the guard.
-	const bool humanSide = env->game()->getStartInfo()->getIthPlayersSettings(playerID).isControlledByHuman();
+	// find, not getIthPlayersSettings: that throws for a colour the start info does not list, and an exception out of activeStack ends the game
+	const auto & playerInfos = env->game()->getStartInfo()->playerInfos;
+	const auto playerInfo = playerInfos.find(playerID);
+	const bool humanSide = playerInfo != playerInfos.end() && playerInfo->second.isControlledByHuman();
 	if(!result && !humanSide && bs.canFlee && bs.turnsSkippedByDefense > 30)
 	{
 		logAi->info("Battle AI: round %d, side %d retreats after %d defend turns per stack", cb->getBattle(battleID)->battleGetRound(),

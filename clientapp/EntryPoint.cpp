@@ -64,7 +64,7 @@ static std::optional<std::string> criticalInitializationError;
 
 /// The client's log is written fresh at every launch, so a crash was lost the moment the player started the game
 /// again (October 6th 2026, the log of a crash survived only as a copy made by hand). The last three runs' logs are
-/// kept beside it as VCMI_Client_log.1.txt (the previous run), .2.txt and .3.txt. Never throws: a log that cannot be
+/// kept beside it as DMB_Client_log.1.txt (the previous run), .2.txt and .3.txt. Never throws: a log that cannot be
 /// moved (another client has it open) is left as it is.
 static void keepPreviousLogs(const boost::filesystem::path & logPath, int keep)
 {
@@ -220,9 +220,9 @@ int main(int argc, char * argv[])
 	std::cout.flags(std::ios::unitbuf);
 
 	setThreadNameLoggingOnly("MainGUI");
-	boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "VCMI_Client_log.txt";
+	boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "DMB_Client_log.txt";
 	if(vm.count("logLocation"))
-		logPath = vm["logLocation"].as<std::string>() + "/VCMI_Client_log.txt";
+		logPath = vm["logLocation"].as<std::string>() + "/DMB_Client_log.txt";
 	keepPreviousLogs(logPath, 3);
 
 #ifndef VCMI_IOS

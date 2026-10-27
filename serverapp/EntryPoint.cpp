@@ -243,7 +243,7 @@ int main(int argc, const char * argv[])
 	boost::filesystem::current_path(boost::filesystem::system_complete(argv[0]).parent_path());
 
 	CConsoleHandler console;
-	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "VCMI_Server_log.txt", &console);
+	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "DMB_Server_log.txt", &console);
 	logConfigurator.configureDefault();
 	logGlobal->info(SERVER_NAME);
 

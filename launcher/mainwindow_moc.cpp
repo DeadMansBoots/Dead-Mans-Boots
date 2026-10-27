@@ -37,9 +37,9 @@ void MainWindow::load()
 
 #ifndef VCMI_MOBILE
 	console = std::make_unique<CConsoleHandler>();
-	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "VCMI_Launcher_log.txt", console.get());
+	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "DMB_Launcher_log.txt", console.get());
 #else
-	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "VCMI_Launcher_log.txt", nullptr);
+	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "DMB_Launcher_log.txt", nullptr);
 #endif
 
 	logConfigurator.configureDefault();

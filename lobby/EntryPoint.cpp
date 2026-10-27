@@ -31,7 +31,7 @@ int main(int argc, const char * argv[])
 #ifndef VCMI_IOS
 	CConsoleHandler console;
 #endif
-	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "VCMI_Lobby_log.txt", &console);
+	CBasicLogConfigurator logConfigurator(VCMIDirs::get().userLogsPath() / "DMB_Lobby_log.txt", &console);
 	logConfigurator.configureDefault();
 
 	auto databasePath = VCMIDirs::get().userDataPath() / "vcmiLobby.db";

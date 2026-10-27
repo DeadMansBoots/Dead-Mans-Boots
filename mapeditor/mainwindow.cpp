@@ -209,7 +209,7 @@ MainWindow::MainWindow(QWidget* parent) :
 	parseCommandLine(extractionOptions);
 
 	//configure logging
-	const boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "VCMI_Editor_log.txt";
+	const boost::filesystem::path logPath = VCMIDirs::get().userLogsPath() / "DMB_Editor_log.txt";
 	console = std::make_unique<CConsoleHandler>();
 	logConfig = std::make_unique<CBasicLogConfigurator>(logPath, console.get());
 	logConfig->configureDefault();

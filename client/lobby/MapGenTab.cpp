@@ -964,12 +964,7 @@ void MapGenTab::chooseTeams()
 	std::vector<PlayerColor> humans;
 	std::vector<PlayerColor> computers;
 	for(const auto & seat : seats)
-	{
-		const auto & infos = GAME->server().si->playerInfos;
-		const auto info = infos.find(seat.first);
-		const bool human = info != infos.end() && info->second.isControlledByHuman();
-		(human ? humans : computers).push_back(seat.first);
-	}
+		(seat.second.getPlayerType() == EPlayerType::HUMAN ? humans : computers).push_back(seat.first);
 	// humans first, so a split spreads them across the teams before the computers fill in
 	std::vector<PlayerColor> order = humans;
 	order.insert(order.end(), computers.begin(), computers.end());
@@ -982,7 +977,7 @@ void MapGenTab::chooseTeams()
 		for(int colour = 0; colour < PlayerColor::PLAYER_LIMIT_I; ++colour)
 		{
 			const auto found = teamOf.find(PlayerColor(colour));
-			teams.push_back(found == teamOf.end() ? TeamID(-1) : TeamID(found->second));
+			teams.push_back(found == teamOf.end() ? TeamID::NO_TEAM : TeamID(found->second));
 		}
 		while(!teams.empty() && teams.back().getNum() < 0)
 			teams.pop_back();

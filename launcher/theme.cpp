@@ -565,7 +565,7 @@ QString buttonFaceFamily()
 	return family;
 }
 
-/// DMB's text face (launcher/fonts/DMBTextFace.ttf, Playfair Display at weight 600 with lining figures, made by DMB/release/make_text_face.py; the
+/// DMB's text face (launcher/fonts/DMBTextFace.ttf, Playfair Display at weight 800 with lining figures (600 and 700 lost the H crossbar at small sizes), made by DMB/release/make_text_face.py; the
 /// licence text beside it): the launcher's running text (K, October 24th, via the lead: the game's small pixel font in a mod's description was hard to
 /// read). Empty when the file did not load: the game's MEDFONT stays.
 QString textFaceFamily()

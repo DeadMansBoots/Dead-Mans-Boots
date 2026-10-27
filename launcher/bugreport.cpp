@@ -295,7 +295,8 @@ Report build(const QString & why, const QString & description, bool includeDump,
 		for(const QFileInfo & file : QDir(logs).entryInfoList({"*.txt"}, QDir::Files, QDir::Name))
 		{
 			QByteArray text = tailOf(file.absoluteFilePath(), LOG_TAIL_BYTES);
-			if(file.fileName() == "VCMI_Client_log.txt")
+			// DMB_Client_log.txt from October 26th 2026; VCMI_Client_log.txt in every build before
+			if(file.fileName() == "DMB_Client_log.txt" || file.fileName() == "VCMI_Client_log.txt")
 				clientLog = QString::fromUtf8(text);
 			add("logs/" + file.fileName().toStdString(), redacted(text));
 		}

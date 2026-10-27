@@ -99,6 +99,9 @@ bool madeByDmb(const bfs::path & folder)
 		if(bfs::is_regular_file(folder / trace, ec))
 			return true;
 	const std::vector<std::pair<const char *, std::vector<std::string>>> logs = {
+		// DMB_ from October 26th 2026, VCMI_ in every build before
+		{"DMB_Launcher_log.txt", {"DMB's mod catalog", "Launcher look:"}},
+		{"DMB_Client_log.txt", {"OmniAI's folder:"}},
 		{"VCMI_Launcher_log.txt", {"DMB's mod catalog", "Launcher look:"}},
 		{"VCMI_Client_log.txt", {"OmniAI's folder:"}},
 	};

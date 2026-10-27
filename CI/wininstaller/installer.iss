@@ -386,7 +386,10 @@ begin
     FileExists(Dir + '\logs\extmapgen_log.txt') or FileExists(Dir + '\config\dmbTestedCode.json') or
     FileHolds(Dir + '\logs\VCMI_Launcher_log.txt', 'DMB''s mod catalog') or
     FileHolds(Dir + '\logs\VCMI_Launcher_log.txt', 'Launcher look:') or
-    FileHolds(Dir + '\logs\VCMI_Client_log.txt', 'OmniAI''s folder:'));
+    FileHolds(Dir + '\logs\VCMI_Client_log.txt', 'OmniAI''s folder:') or
+    FileHolds(Dir + '\logs\DMB_Launcher_log.txt', 'DMB''s mod catalog') or
+    FileHolds(Dir + '\logs\DMB_Launcher_log.txt', 'Launcher look:') or
+    FileHolds(Dir + '\logs\DMB_Client_log.txt', 'OmniAI''s folder:'));
 end;
 
 

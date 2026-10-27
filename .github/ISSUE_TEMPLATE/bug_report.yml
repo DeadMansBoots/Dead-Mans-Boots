@@ -111,8 +111,8 @@ body:
     attributes:
       label: Log excerpt
       description: >
-        The lines around the problem, pasted as text, from VCMI_Client_log.txt, VCMI_Server_log.txt or
-        VCMI_Launcher_log.txt in the folder the launcher's Help page shows as "Log files directory".
+        The lines around the problem, pasted as text, from DMB_Client_log.txt, DMB_Server_log.txt or
+        DMB_Launcher_log.txt (VCMI_Client_log.txt and so on in beta 16 and earlier) in the folder the launcher's Help page shows as "Log files directory".
         The whole set can go under "Anything else" as the zip from Help, "Export logs".
       render: text
 

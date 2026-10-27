@@ -244,8 +244,8 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=dmb_se
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=dmb_client program=""{code:EarlierAppDir}\vcmi_client.exe"""; Flags: runhidden; Check: IsAdmin
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#DMBName} server"""; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""{#DMBName} client"""; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#DMBName} server"" dir=in action=allow program=""{app}\vcmi_server.exe"" enable=yes profile=public,private"; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#DMBName} client"" dir=in action=allow program=""{app}\vcmi_client.exe"" enable=yes profile=public,private"; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#DMBName} server"" dir=in action=allow program=""{app}\DMB_server.exe"" enable=yes profile=public,private"; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""{#DMBName} client"" dir=in action=allow program=""{app}\DMB_client.exe"" enable=yes profile=public,private"; Flags: runhidden; Tasks: firewallrules; Check: IsAdmin
 
 Filename: "{app}\DMB_launcher.exe"; Description: "{cm:RunVCMILauncherAfterInstall}"; Flags: nowait postinstall; Check: ShouldRunLauncher
 

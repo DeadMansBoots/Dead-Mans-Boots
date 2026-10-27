@@ -231,6 +231,7 @@ void CPlayerInterface::playerEndsTurn(PlayerColor player)
 	if (player == playerID)
 	{
 		makingTurn = false;
+		++turnStartSerial;
 		closeAllDialogs();
 
 		// remove all pending dialogs that do not expect query answer
@@ -330,6 +331,8 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 	}
 	swapOwed.reset();
 	PlayRecorder::get().snapshot(playerID, "start of turn");
+	// a turn dialog still open from an earlier turn closes here, and must not answer that turn's query (turnStartSerial)
+	const uint32_t serial = ++turnStartSerial;
 	closeAllDialogs();
 	CTutorialWindow::openWindowFirstTime(TutorialMode::TOUCH_ADVENTUREMAP);
 
@@ -368,9 +371,12 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 			cmp.push_back(std::make_shared<CComponent>(ComponentType::FLAG, playerID));
 			auto dialog = CInfoWindow::create(msg, playerID, cmp);
 			turnDialogOpen = true;
-			dialog->onClose = [this, queryID]()
+			dialog->onClose = [this, queryID, serial]()
 			{
 				turnDialogOpen = false;
+				// closed by the end of this turn, or by the next turn's start: nothing of this turn is left to start or answer
+				if(serial != turnStartSerial)
+					return;
 				makingTurn = true;
 				adventureInt->onPlayerTurnStarted(playerID);
 				finishTurnStart(queryID);

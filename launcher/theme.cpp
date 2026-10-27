@@ -582,26 +582,6 @@ QString textFaceFamily()
 constexpr int TEXT_FACE_PIXELS = 17; // a paragraph at 100 percent (Qt scales it with the screen); .tmp/show/k1024/launcher-font/text-face-600-700-sample.png
 constexpr int TITLE_FACE_PIXELS = 24; // a title in the button face, half as large again as the text
 
-void LauncherTheme::styleTitles(QTextDocument * document)
-{
-	const QString title = buttonFaceFamily();
-	if(title.isEmpty() || document == nullptr)
-		return;
-	for(QTextBlock block = document->begin(); block.isValid(); block = block.next())
-	{
-		if(block.blockFormat().headingLevel() == 0)
-			continue;
-		QTextCursor cursor(block);
-		cursor.select(QTextCursor::BlockUnderCursor);
-		QFont font(title);
-		font.setPixelSize(TITLE_FACE_PIXELS);
-		font.setWeight(QFont::Normal);
-		font.setStyleStrategy(QFont::PreferAntialias);
-		QTextCharFormat format;
-		format.setFont(font, QTextCharFormat::FontPropertiesAll);
-		cursor.mergeCharFormat(format);
-	}
-}
 
 /// the height of a button word's capitals, as the game draws them on its bars: 22 rows on a 40 row bar (RANSHOW's own, the bar
 /// the launcher's buttons are cut from), so 22/40 of BAR_HEIGHT
@@ -1484,6 +1464,27 @@ static QString gameFontStyle()
 	if(!title.family.isEmpty())
 		style += QString("QLabel[dmbSettingsTitle=\"true\"] { font-family: \"%1\"; font-size: %2px; }").arg(title.family).arg(title.height);
 	return style;
+}
+
+void LauncherTheme::styleTitles(QTextDocument * document)
+{
+	const QString title = buttonFaceFamily();
+	if(title.isEmpty() || document == nullptr)
+		return;
+	for(QTextBlock block = document->begin(); block.isValid(); block = block.next())
+	{
+		if(block.blockFormat().headingLevel() == 0)
+			continue;
+		QTextCursor cursor(block);
+		cursor.select(QTextCursor::BlockUnderCursor);
+		QFont font(title);
+		font.setPixelSize(TITLE_FACE_PIXELS);
+		font.setWeight(QFont::Normal);
+		font.setStyleStrategy(QFont::PreferAntialias);
+		QTextCharFormat format;
+		format.setFont(font, QTextCharFormat::FontPropertiesAll);
+		cursor.mergeCharFormat(format);
+	}
 }
 
 void LauncherTheme::applySidebarIcon(QToolButton * button, const std::string & defName, int holeX, int holeY, int holeW, int holeH)

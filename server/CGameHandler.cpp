@@ -670,6 +670,25 @@ void CGameHandler::onPlayerTurnEnded(PlayerColor which)
 	newTurnProcessor->onPlayerTurnEnded(which);
 }
 
+void CGameHandler::onPlayerRejoined(PlayerColor player)
+{
+	rejoinedPlayers.insert(player);
+	// its interface is new: the dialog queries of the player prompt again when it says it is ready
+	uiReadyForDialogs.erase(player);
+}
+
+void CGameHandler::resendTurnToRejoined(GameConnectionID connection, PlayerColor player)
+{
+	if(!rejoinedPlayers.erase(player) || !turnOrder->isPlayerMakingTurn(player))
+		return;
+	// the turn is given to the returning client alone; everyone else keeps playing the turn they have
+	PlayerStartsTurn pst;
+	pst.player = player;
+	if(const auto pause = std::dynamic_pointer_cast<TimerPauseQuery>(queries->topQuery(player)))
+		pst.queryID = pause->queryID;
+	gameServer().sendPack(pst, connection);
+}
+
 void CGameHandler::onAdvInterfaceReady(PlayerColor player)
 {
 	if(uiReadyForDialogs.count(player))

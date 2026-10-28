@@ -619,6 +619,12 @@
 				"seed" : {
 					"type" : "number",
 					"default" : 0
+				},
+				// DMB: hot join step 1. On, the host's server keeps its door open in a running game: a player whose connection dropped can connect again with the
+				// same client session and take the seat back. Off, a connection after the start is closed, as in VCMI.
+				"allowRejoin" : {
+					"type" : "boolean",
+					"default" : false
 				}
 			}
 		},

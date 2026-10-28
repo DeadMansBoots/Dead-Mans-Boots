@@ -22,6 +22,7 @@ class CMapInfo;
 struct CPack;
 struct CPackForLobby;
 struct LobbyGuiAction;
+struct LobbyClientConnected;
 
 class GameConnection;
 struct StartInfo;
@@ -66,6 +67,15 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 	std::shared_ptr<IServerDiscoveryListener> discoveryListener;
 
 	bool loadSavedGame(CGameHandler & handler, const StartInfo & info);
+
+	/// DMB: hot join step 1, "come back" (setting server.allowRejoin). The seats a dropped connection had, by its client session (uuid); a connection that
+	/// arrives in a running game waits in pendingRejoin, outside activeConnections (so no game pack is sent to it), until its first pack names one of them.
+	std::map<std::string, std::vector<PlayerColor>> rejoinSeats;
+	std::vector<std::shared_ptr<GameConnection>> pendingRejoin;
+	bool rejoinOpen() const;
+	/// true when the message came from a connection that is waiting to come back (and was dealt with)
+	bool handleRejoinPack(const std::shared_ptr<INetworkConnection> & connection, const std::vector<std::byte> & message);
+	void rejoinConnected(const std::shared_ptr<GameConnection> & connection, const LobbyClientConnected & request);
 public:
 	uint16_t getPort() const override
 	{

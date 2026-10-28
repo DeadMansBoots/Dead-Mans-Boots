@@ -213,6 +213,10 @@ void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, con
 	reply.mode = EStartMode::LOAD_GAME;
 	reply.hostClientId = hostClientId;
 	reply.version = version;
+	// in the list first: if a send below fails, the connection's end is dealt with as any client's (its seats are kept again)
+	activeConnections.push_back(c);
+	try
+	{
 	c->sendPack(reply);
 
 	LobbyUpdateState lus;
@@ -227,7 +231,13 @@ void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, con
 	c->sendPack(start);
 
 	c->setCallback(gh->gameInfo());
-	activeConnections.push_back(c);
+	}
+	catch(const std::exception & e)
+	{
+		logNetwork->error("The returning connection %d failed while it was sent the game: %s", static_cast<int>(c->connectionID), e.what());
+		if(auto network = c->getConnection())
+			network->close();
+	}
 }
 
 void CVCMIServer::onPacketReceived(const std::shared_ptr<INetworkConnection> & connection, const std::vector<std::byte> & message)

@@ -382,9 +382,7 @@ std::string CGDwelling::getPopupText(const CGHeroInstance * hero) const
 
 std::vector<Component> CGDwelling::getPopupComponents(PlayerColor player) const
 {
-	// DMB: a dwelling's amount is shown to its owner and to the owner's allies (by ownership; no visit is needed); anyone else does not see it
-	bool visitedByOwner = getOwner() == player
-		|| (getOwner().isValidPlayer() && player.isValidPlayer() && cb->getPlayerRelations(getOwner(), player) == PlayerRelations::ALLIES);
+	bool visitedByOwner = getOwner() == player;
 	bool isDwelling = ID == Obj::CREATURE_GENERATOR1 || ID == Obj::CREATURE_GENERATOR4;
 	bool isRefugeeCamp = ID == Obj::REFUGEE_CAMP;
 	bool canSeeUnitTypes = isDwelling || (isRefugeeCamp && wasVisited(player));

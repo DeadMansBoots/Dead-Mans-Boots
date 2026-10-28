@@ -137,6 +137,10 @@ public:
 	void installDmbPackage(const QString & path);
 	/// an installed mod as a .dmb package, to a file the player picks
 	void exportDmbPackage(const QString & modName);
+	/// Settings, Saves: the saves the player picks as .dmb files in a folder the player picks
+	void exportDmbSaves();
+	/// Settings, Saves: a .dmb the player picks; a save package is imported, a mod package installed (installDmbPackage)
+	void importDmbSaveFile();
 
 public slots:
 	void enableModByName(QString modName);

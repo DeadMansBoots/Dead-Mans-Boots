@@ -221,6 +221,31 @@ int MAIN_EXPORT main(int argc, char * argv[])
 		return 0;
 	}
 
+	// DMB: "--make-save-package <save .vsgm1> <out.dmb> <verdict file>" and "--import-save <package> <saves folder> <verdict file>", for tests
+	const int makeSaveAt = vcmilauncher.arguments().indexOf("--make-save-package");
+	if(packageTests && makeSaveAt >= 0 && makeSaveAt + 3 < vcmilauncher.arguments().size())
+	{
+		const QStringList args = vcmilauncher.arguments();
+		QString reason;
+		const bool made = DmbPackage::makeSave(args.at(makeSaveAt + 1), args.at(makeSaveAt + 2), QString(DMB_VERSION_STRING), {{"test-mod", "1.0"}}, reason);
+		QFile out(args.at(makeSaveAt + 3));
+		if(out.open(QIODevice::WriteOnly))
+			out.write((made ? QString("ok made") : "refused " + reason).toUtf8());
+		return 0;
+	}
+	const int importSaveAt = vcmilauncher.arguments().indexOf("--import-save");
+	if(packageTests && importSaveAt >= 0 && importSaveAt + 3 < vcmilauncher.arguments().size())
+	{
+		const QStringList args = vcmilauncher.arguments();
+		QString reason;
+		QString importedAs;
+		const bool done = DmbPackage::installSave(args.at(importSaveAt + 1), args.at(importSaveAt + 2), QString(DMB_VERSION_STRING), reason, importedAs);
+		QFile out(args.at(importSaveAt + 3));
+		if(out.open(QIODevice::WriteOnly))
+			out.write((done ? "ok imported " + importedAs : "refused " + reason).toUtf8());
+		return 0;
+	}
+
 	MainWindow mainWindow;
 	mainWindow.show();
 	// DMB: "--install-package <file>" (a double-click on a .dmb): the launcher opens on the Mods page and shows the package; the file is taken as a

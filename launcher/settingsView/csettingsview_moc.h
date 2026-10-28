@@ -69,6 +69,8 @@ private slots:
 	void on_spinBoxInterfaceScaling_valueChanged(int arg1);
 	void on_refreshRepositoriesButton_clicked();
 	void on_buttonConfigEditor_clicked();
+	void on_buttonExportSaves_clicked();
+	void on_buttonImportSave_clicked();
 	void on_spinBoxFramerateLimit_valueChanged(int arg1);
 	void on_buttonVSync_toggled(bool value);
 	void on_buttonAutoSavePrefix_toggled(bool value);

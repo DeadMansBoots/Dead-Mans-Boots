@@ -27,6 +27,8 @@ namespace
 {
 const QString MANIFEST = "dmb-manifest.json";
 const QString MOD_FOLDER = "mod/";
+const QString SAVE_FOLDER = "save/";
+constexpr int MAX_NEEDS = 500;
 constexpr int MAX_FILES = 20000;
 constexpr qint64 MAX_FILE_SIZE = 512LL * 1024 * 1024;
 constexpr qint64 MAX_TOTAL_SIZE = 2LL * 1024 * 1024 * 1024;
@@ -204,9 +206,9 @@ bool readManifest(const QByteArray & bytes, Manifest & manifest, QString & reaso
 	manifest.dmbMin = range.value("min").toString();
 	manifest.dmbMax = range.value("max").toString();
 	manifest.signature = root.contains("signature") && !root.value("signature").isNull();
-	if(manifest.kind != "mod")
+	if(manifest.kind != "mod" && manifest.kind != "save")
 	{
-		reason = QObject::tr("This package contains a %1; this version of Dead Man's Boots installs mods only.").arg(manifest.kind.isEmpty() ? QObject::tr("thing of no named kind") : manifest.kind);
+		reason = QObject::tr("This package contains a %1; this version of Dead Man's Boots installs mods and saves only.").arg(manifest.kind.isEmpty() ? QObject::tr("thing of no named kind") : manifest.kind);
 		return false;
 	}
 	static const QRegularExpression idPattern("^[a-z0-9][a-z0-9_-]{0,63}$");
@@ -215,7 +217,7 @@ bool readManifest(const QByteArray & bytes, Manifest & manifest, QString & reaso
 		reason = QObject::tr("The package's mod id \"%1\" is not allowed: lowercase letters, digits, - and _ only.").arg(manifest.id);
 		return false;
 	}
-	if(manifest.id == "vcmi" || manifest.id == "core")
+	if(manifest.kind == "mod" && (manifest.id == "vcmi" || manifest.id == "core"))
 	{
 		reason = QObject::tr("The package would replace the game's own core mod \"%1\".").arg(manifest.id);
 		return false;
@@ -262,6 +264,46 @@ bool readManifest(const QByteArray & bytes, Manifest & manifest, QString & reaso
 	{
 		reason = QObject::tr("The package's manifest lists no files.");
 		return false;
+	}
+	if(manifest.kind == "save")
+	{
+		const auto save = root.value("save").toObject();
+		manifest.saveName = save.value("name").toString();
+		manifest.saveDate = save.value("date").toString();
+		if(manifest.saveName.trimmed().isEmpty() || manifest.saveName.size() > 100)
+		{
+			reason = QObject::tr("The package has no usable save name.");
+			return false;
+		}
+		if(manifest.saveDate.size() > 40)
+		{
+			reason = QObject::tr("The package's save date is not valid.");
+			return false;
+		}
+		const auto needs = root.value("needs").toArray();
+		if(needs.size() > MAX_NEEDS)
+		{
+			reason = QObject::tr("The package lists more than %1 mods the save needs.").arg(MAX_NEEDS);
+			return false;
+		}
+		for(const auto & value : needs)
+		{
+			const auto need = value.toObject();
+			const QString id = need.value("id").toString();
+			const QString version = need.value("version").toString();
+			if(id.isEmpty() || id.size() > 120 || version.size() > 40)
+			{
+				reason = QObject::tr("The package's list of needed mods is not valid.");
+				return false;
+			}
+			manifest.needs.push_back({id, version});
+		}
+		for(const auto & file : manifest.files)
+			if(file.path != "game.vsgm1" && file.path != "game.vcgm1")
+			{
+				reason = QObject::tr("A save package may carry game.vsgm1 and game.vcgm1 only; it lists \"%1\".").arg(file.path);
+				return false;
+			}
 	}
 	return true;
 }
@@ -329,6 +371,8 @@ Inspection inspect(const QString & packagePath, const QString & runningDmbVersio
 	QMap<QString, ZipEntry> files; // by the path inside mod/
 	qint64 packedTotal = 0;
 	bool hasManifest = false;
+	bool anyMod = false;
+	bool anySave = false;
 	for(const auto & entry : entries)
 	{
 		const QString problem = nameProblem(entry.name);
@@ -355,10 +399,12 @@ Inspection inspect(const QString & packagePath, const QString & runningDmbVersio
 			hasManifest = true;
 			continue;
 		}
-		if(!entry.name.startsWith(MOD_FOLDER))
-			return refuse(QObject::tr("The package contains \"%1\", outside its mod folder.").arg(entry.name));
+		const bool inSave = entry.name.startsWith(SAVE_FOLDER);
+		if(!inSave && !entry.name.startsWith(MOD_FOLDER))
+			return refuse(QObject::tr("The package contains \"%1\", outside its mod or save folder.").arg(entry.name));
+		(inSave ? anySave : anyMod) = true;
 		if(!entry.directory)
-			files.insert(entry.name.mid(MOD_FOLDER.size()), entry);
+			files.insert(entry.name.mid((inSave ? SAVE_FOLDER : MOD_FOLDER).size()), entry);
 	}
 	if(packedTotal > 0 && result.totalSize / packedTotal > MAX_RATIO)
 		return refuse(QObject::tr("The package expands far beyond its packed size; it is refused."));
@@ -370,6 +416,9 @@ Inspection inspect(const QString & packagePath, const QString & runningDmbVersio
 		return refuse(reason);
 	if(!readManifest(manifestBytes, result.manifest, reason))
 		return refuse(reason);
+
+	if(result.manifest.kind == "save" ? anyMod : anySave)
+		return refuse(QObject::tr("The package carries files of another kind than its manifest names."));
 
 	// the manifest is the authority: every file in it, nothing more, at the size it says
 	QSet<QString> listed;
@@ -384,6 +433,14 @@ Inspection inspect(const QString & packagePath, const QString & runningDmbVersio
 	for(const auto & path : files.keys())
 		if(!listed.contains(path))
 			return refuse(QObject::tr("The package contains \"%1\", which its manifest does not list.").arg(path));
+	if(result.manifest.kind == "save")
+	{
+		// a save never refuses on a version: the importer lists the differences (saveDifferences) and the player decides
+		if(!listed.contains("game.vsgm1"))
+			return refuse(QObject::tr("The package's save folder has no game.vsgm1."));
+		result.ok = true;
+		return result;
+	}
 	if(!listed.contains("mod.json"))
 		return refuse(QObject::tr("The package's mod folder has no mod.json."));
 
@@ -405,6 +462,11 @@ bool install(const QString & packagePath, const QString & modsDir, const QString
 		return false;
 	}
 	const Manifest & manifest = inspection.manifest;
+	if(manifest.kind != "mod")
+	{
+		reason = QObject::tr("This package is a save, not a mod.");
+		return false;
+	}
 	QDir mods(modsDir);
 	if(!mods.exists())
 	{
@@ -725,6 +787,276 @@ bool make(const QString & modFolder, const QString & outPath, const QString & dm
 		reason = QObject::tr("The package could not be written to %1.").arg(outPath);
 		return false;
 	}
+	return true;
+}
+
+QStringList saveDifferences(const Manifest & manifest, const QString & runningDmbVersion, const QMap<QString, QString> & installedMods)
+{
+	QStringList differences;
+	if(compareVersions(runningDmbVersion, manifest.dmbMin) != 0)
+		differences.push_back(QObject::tr("The save was made with Dead Man's Boots %1; this is %2.").arg(manifest.dmbMin, runningDmbVersion));
+	for(const auto & need : manifest.needs)
+	{
+		if(!installedMods.contains(need.first))
+			differences.push_back(QObject::tr("The mod \"%1\" (version %2) is not installed on this machine.").arg(need.first, need.second));
+		else if(installedMods.value(need.first) != need.second)
+			differences.push_back(QObject::tr("The mod \"%1\": the save has version %2, this machine has %3.").arg(need.first, need.second, installedMods.value(need.first)));
+	}
+	return differences;
+}
+
+namespace
+{
+/// the file name a save is imported under: what Windows allows, at most 80 characters
+QString safeFileName(QString name)
+{
+	name.replace(QRegularExpression("[<>:\"/\\\\|?*\\x00-\\x1f]"), "_");
+	name = name.trimmed();
+	while(name.endsWith('.') || name.endsWith(' '))
+		name.chop(1);
+	static const QRegularExpression reserved("^(con|prn|aux|nul|com[0-9]|lpt[0-9])$", QRegularExpression::CaseInsensitiveOption);
+	if(name.isEmpty())
+		name = "save";
+	if(reserved.match(name.section('.', 0, 0)).hasMatch())
+		name = "_" + name;
+	return name.left(80).trimmed();
+}
+
+/// one entry of the package written to `target` (which must not exist), its size and SHA-256 checked against the manifest's
+bool extractTo(unzFile zip, const QString & entryName, const QString & target, const FileEntry & file, QString & reason)
+{
+	QFile out(target);
+	if(!out.open(QIODevice::WriteOnly | QIODevice::NewOnly))
+	{
+		reason = QObject::tr("\"%1\" cannot be written.").arg(file.path);
+		return false;
+	}
+	if(unzLocateFile(zip, entryName.toUtf8().constData(), 1) != UNZ_OK || unzOpenCurrentFile(zip) != UNZ_OK)
+	{
+		reason = QObject::tr("\"%1\" cannot be read from the package.").arg(file.path);
+		return false;
+	}
+	std::array<char, 65536> buffer;
+	QCryptographicHash hash(QCryptographicHash::Sha256);
+	qint64 written = 0;
+	bool failed = false;
+	for(;;)
+	{
+		const int got = unzReadCurrentFile(zip, buffer.data(), static_cast<unsigned>(buffer.size()));
+		if(got < 0)
+		{
+			failed = true;
+			break;
+		}
+		if(got == 0)
+			break;
+		written += got;
+		if(written > file.size || out.write(buffer.data(), got) != got)
+		{
+			failed = true;
+			break;
+		}
+		hash.addData(buffer.data(), got);
+	}
+	const bool closedClean = unzCloseCurrentFile(zip) == UNZ_OK;
+	out.close();
+	if(failed || !closedClean || written != file.size || hash.result().toHex() != file.sha256)
+	{
+		reason = QObject::tr("\"%1\" does not match its manifest (size or SHA-256); nothing was imported.").arg(file.path);
+		return false;
+	}
+	return true;
+}
+}
+
+bool makeSave(const QString & savePath, const QString & outPath, const QString & dmbVersion, const QList<QPair<QString, QString>> & mods, QString & reason)
+{
+	const QFileInfo server(savePath);
+	if(!server.isFile() || isLink(server) || !server.fileName().endsWith(".vsgm1", Qt::CaseInsensitive))
+	{
+		reason = QObject::tr("The save cannot be read, or it is a link.");
+		return false;
+	}
+	QStringList sources = {server.absoluteFilePath()};
+	QStringList inside = {"game.vsgm1"};
+	const QFileInfo client(server.absoluteFilePath().chopped(6) + ".vcgm1");
+	if(client.isFile() && !isLink(client))
+	{
+		sources.push_back(client.absoluteFilePath());
+		inside.push_back("game.vcgm1");
+	}
+
+	QJsonArray listed;
+	QList<QByteArray> contents;
+	for(int i = 0; i < sources.size(); ++i)
+	{
+		QFile file(sources[i]);
+		if(!file.open(QIODevice::ReadOnly) || file.size() > MAX_FILE_SIZE)
+		{
+			reason = QObject::tr("\"%1\" cannot be read, or is larger than %2 MB.").arg(QFileInfo(sources[i]).fileName()).arg(MAX_FILE_SIZE / 1024 / 1024);
+			return false;
+		}
+		const QByteArray bytes = file.readAll();
+		QJsonObject entry;
+		entry["path"] = inside[i];
+		entry["size"] = static_cast<double>(bytes.size());
+		entry["sha256"] = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+		listed.append(entry);
+		contents.push_back(bytes);
+	}
+
+	const QString name = server.completeBaseName().left(100);
+	QString id = name.toLower();
+	id.replace(QRegularExpression("[^a-z0-9_-]+"), "-");
+	while(id.startsWith('-') || id.startsWith('_'))
+		id.remove(0, 1);
+	id = id.left(64);
+	if(id.isEmpty())
+		id = "save";
+
+	QJsonArray needs;
+	for(const auto & mod : mods)
+	{
+		if(needs.size() >= MAX_NEEDS)
+			break;
+		needs.append(QJsonObject{{"id", mod.first}, {"version", mod.second}});
+	}
+	QJsonObject manifest;
+	manifest["format"] = 1;
+	manifest["kind"] = "save";
+	manifest["id"] = id;
+	manifest["name"] = name.isEmpty() ? QString("save") : name;
+	manifest["version"] = "1";
+	manifest["dmbVersion"] = QJsonObject{{"min", dmbVersion}};
+	manifest["save"] = QJsonObject{{"name", name.isEmpty() ? QString("save") : name}, {"date", server.lastModified().toUTC().toString(Qt::ISODate)}};
+	manifest["needs"] = needs;
+	manifest["files"] = listed;
+
+	const QString partial = outPath + ".part";
+	QFile::remove(partial);
+	try
+	{
+		CZipSaver saver(std::make_shared<CDefaultIOApi>(), qstringToPath(partial));
+		{
+			const QByteArray bytes = QJsonDocument(manifest).toJson(QJsonDocument::Indented);
+			auto stream = saver.addFile(MANIFEST.toStdString());
+			stream->write(reinterpret_cast<const ui8 *>(bytes.constData()), bytes.size());
+		}
+		for(int i = 0; i < inside.size(); ++i)
+		{
+			auto stream = saver.addFile((SAVE_FOLDER + inside[i]).toStdString());
+			stream->write(reinterpret_cast<const ui8 *>(contents[i].constData()), contents[i].size());
+		}
+	}
+	catch(const std::exception & e)
+	{
+		QFile::remove(partial);
+		reason = QObject::tr("The package could not be written: %1").arg(QString::fromUtf8(e.what()));
+		return false;
+	}
+	if(QFileInfo::exists(outPath))
+	{
+		QFile::remove(partial);
+		reason = QObject::tr("%1 already exists; nothing was replaced.").arg(outPath);
+		return false;
+	}
+	if(!QFile::rename(partial, outPath))
+	{
+		QFile::remove(partial);
+		reason = QObject::tr("The package could not be written to %1.").arg(outPath);
+		return false;
+	}
+	return true;
+}
+
+bool installSave(const QString & packagePath, const QString & savesDir, const QString & runningDmbVersion, QString & reason, QString & importedAs)
+{
+	const Inspection inspection = inspect(packagePath, runningDmbVersion);
+	if(!inspection.ok)
+	{
+		reason = inspection.reason;
+		return false;
+	}
+	const Manifest & manifest = inspection.manifest;
+	if(manifest.kind != "save")
+	{
+		reason = QObject::tr("This package is a mod, not a save.");
+		return false;
+	}
+	const QString importedDir = savesDir + "/Imported";
+	if(!QDir().mkpath(importedDir))
+	{
+		reason = QObject::tr("The folder for imported saves cannot be made.");
+		return false;
+	}
+	// what an interrupted import left (its files end in .part, so the game never lists them)
+	for(const auto & name : QDir(savesDir).entryList({".dmb-staging-*"}, QDir::Dirs | QDir::Hidden | QDir::NoDotAndDotDot))
+		QDir(savesDir + "/" + name).removeRecursively();
+
+	// a name nothing of the player's has: the save's own, or with " (2)", " (3)" after it
+	const QString safe = safeFileName(manifest.saveName);
+	QString stem = importedDir + "/" + safe;
+	for(int n = 2; QFileInfo::exists(stem + ".vsgm1") || QFileInfo::exists(stem + ".vcgm1"); ++n)
+	{
+		if(n > 999)
+		{
+			reason = QObject::tr("Too many imported saves are already named \"%1\".").arg(safe);
+			return false;
+		}
+		stem = importedDir + "/" + safe + " (" + QString::number(n) + ")";
+	}
+	if(QDir::toNativeSeparators(stem + ".vcgm1").size() >= 250)
+	{
+		reason = QObject::tr("The save's name would make too long a path for Windows in this folder.");
+		return false;
+	}
+
+	const QString tag = QString::number(QRandomGenerator::global()->generate64(), 16);
+	const QString staging = savesDir + "/.dmb-staging-" + tag;
+	auto cleanStaging = [&staging]() { QDir(staging).removeRecursively(); };
+	if(!QDir().mkpath(staging))
+	{
+		reason = QObject::tr("A staging folder cannot be made in the saves folder.");
+		return false;
+	}
+	Zip zip(packagePath);
+	if(!zip.get())
+	{
+		cleanStaging();
+		reason = QObject::tr("The package cannot be opened.");
+		return false;
+	}
+	QStringList staged;
+	QStringList finals;
+	for(const auto & file : manifest.files)
+	{
+		const QString target = staging + "/" + file.path + ".part";
+		if(!extractTo(zip.get(), SAVE_FOLDER + file.path, target, file, reason))
+		{
+			cleanStaging();
+			return false;
+		}
+		staged.push_back(target);
+		finals.push_back(stem + file.path.mid(file.path.lastIndexOf('.')));
+	}
+	// the client's file first: the save shows in the game's list only when its .vsgm1 is in place
+	QStringList moved;
+	for(const QString ending : {QString(".vcgm1"), QString(".vsgm1")})
+		for(int i = 0; i < staged.size(); ++i)
+			if(finals[i].endsWith(ending))
+			{
+				if(!QFile::rename(staged[i], finals[i]))
+				{
+					for(const auto & done : moved)
+						QFile::remove(done);
+					cleanStaging();
+					reason = QObject::tr("The save could not be moved into place; nothing was imported.");
+					return false;
+				}
+				moved.push_back(finals[i]);
+			}
+	cleanStaging();
+	importedAs = stem + ".vsgm1";
 	return true;
 }
 }

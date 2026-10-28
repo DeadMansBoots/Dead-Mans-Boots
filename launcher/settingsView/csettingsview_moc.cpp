@@ -1283,6 +1283,18 @@ void CSettingsView::on_refreshRepositoriesButton_clicked()
 	mainWindow->getModView()->loadRepositories();
 }
 
+void CSettingsView::on_buttonExportSaves_clicked()
+{
+	if(auto * mainWindow = Helper::getMainWindow())
+		mainWindow->getModView()->exportDmbSaves();
+}
+
+void CSettingsView::on_buttonImportSave_clicked()
+{
+	if(auto * mainWindow = Helper::getMainWindow())
+		mainWindow->getModView()->importDmbSaveFile();
+}
+
 void CSettingsView::on_buttonConfigEditor_clicked()
 {
 	ConfigEditorDialog::showConfigEditorDialog();

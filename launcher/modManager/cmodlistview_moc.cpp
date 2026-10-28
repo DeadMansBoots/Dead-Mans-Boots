@@ -18,6 +18,12 @@
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QTabBar>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDirIterator>
+#include <QLabel>
+#include <QListWidget>
+#include <QVBoxLayout>
 
 #include "modstatemodel.h"
 #include "modstateitemmodel_moc.h"
@@ -1080,6 +1086,86 @@ void CModListView::exportDmbPackage(const QString & modName)
 		plainBox(this, QMessageBox::Warning, tr("The package was not made"), reason);
 }
 
+void CModListView::exportDmbSaves()
+{
+	const QString savesDir = pathToQString(VCMIDirs::get().userSavePath());
+	struct SaveItem
+	{
+		QString relative;
+		QString path;
+		QDateTime time;
+	};
+	QList<SaveItem> items;
+	QDirIterator found(savesDir, {"*.vsgm1"}, QDir::Files, QDirIterator::Subdirectories);
+	while(found.hasNext())
+	{
+		const QFileInfo info(found.next());
+		items.push_back({QDir(savesDir).relativeFilePath(info.absoluteFilePath()), info.absoluteFilePath(), info.lastModified()});
+	}
+	if(items.isEmpty())
+	{
+		plainBox(this, QMessageBox::Information, tr("No saves"), tr("There are no saves in %1 yet.").arg(QDir::toNativeSeparators(savesDir)));
+		return;
+	}
+	std::sort(items.begin(), items.end(), [](const SaveItem & a, const SaveItem & b) { return a.time > b.time; });
+
+	QDialog dialog(this);
+	dialog.setWindowTitle(tr("Export saves as .dmb"));
+	auto * layout = new QVBoxLayout(&dialog);
+	layout->addWidget(new QLabel(tr("Pick the saves to export. Each becomes one .dmb file; the file lists the mods the game was using.")));
+	auto * list = new QListWidget;
+	list->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	for(int i = 0; i < items.size(); ++i)
+	{
+		auto * row = new QListWidgetItem(QString("%1   (%2)").arg(items[i].relative.chopped(6), items[i].time.toString("yyyy-MM-dd HH:mm")));
+		row->setData(Qt::UserRole, i);
+		list->addItem(row);
+	}
+	layout->addWidget(list);
+	auto * buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+	connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+	connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+	layout->addWidget(buttons);
+	dialog.resize(560, 420);
+	if(dialog.exec() != QDialog::Accepted || list->selectedItems().isEmpty())
+		return;
+	const QString folder = QFileDialog::getExistingDirectory(this, tr("Export the saves to"), QDir::homePath());
+	if(folder.isEmpty())
+		return;
+
+	QList<QPair<QString, QString>> mods;
+	for(const auto & id : modStateModel->getAllMods())
+		if(id != "vcmi" && modStateModel->isModExists(id) && modStateModel->getMod(id).isInstalled() && modStateModel->isModEnabled(id))
+			mods.push_back({id, modStateModel->getMod(id).getVersion()});
+
+	int made = 0;
+	QStringList failed;
+	for(const auto * row : list->selectedItems())
+	{
+		const auto & item = items[row->data(Qt::UserRole).toInt()];
+		const QString stem = QDir(folder).filePath(QFileInfo(item.path).completeBaseName() + "-" + item.time.toString("yyyy-MM-dd"));
+		QString out = stem + ".dmb";
+		for(int n = 2; QFileInfo::exists(out) && n < 1000; ++n)
+			out = stem + " (" + QString::number(n) + ").dmb";
+		QString reason;
+		if(DmbPackage::makeSave(item.path, out, QString(DMB_VERSION_STRING), mods, reason))
+			made++;
+		else
+			failed.push_back(item.relative + ": " + reason);
+	}
+	QString text = tr("%1 saves are written to %2.").arg(made).arg(QDir::toNativeSeparators(folder));
+	if(!failed.isEmpty())
+		text += "\n\n" + tr("Not written:") + "\n" + failed.join("\n");
+	plainBox(this, failed.isEmpty() ? QMessageBox::Information : QMessageBox::Warning, tr("Exported"), text);
+}
+
+void CModListView::importDmbSaveFile()
+{
+	const QString path = QFileDialog::getOpenFileName(this, tr("Import a save"), QDir::homePath(), tr("Dead Man's Boots packages (*.dmb)"));
+	if(!path.isEmpty())
+		installDmbPackage(path);
+}
+
 void CModListView::installDmbPackage(const QString & path)
 {
 	const QString version = QString(DMB_VERSION_STRING);
@@ -1093,6 +1179,36 @@ void CModListView::installDmbPackage(const QString & path)
 		return;
 	}
 	const auto & manifest = inspection.manifest;
+	if(manifest.kind == "save")
+	{
+		QMap<QString, QString> installed;
+		for(const auto & id : modStateModel->getAllMods())
+			if(modStateModel->isModExists(id) && modStateModel->getMod(id).isInstalled())
+				installed.insert(id, modStateModel->getMod(id).getVersion());
+		const QStringList differences = DmbPackage::saveDifferences(manifest, version, installed);
+		QStringList needed;
+		for(const auto & need : manifest.needs)
+			needed.push_back(need.first + " " + need.second);
+		QString text = tr("Save \"%1\"").arg(manifest.saveName) + "\n" + tr("Saved %1 with Dead Man's Boots %2").arg(manifest.saveDate, manifest.dmbMin) + "\n"
+			+ tr("%1 MB").arg(QString::number(inspection.totalSize / 1048576.0, 'f', 1)) + "\n"
+			+ (needed.isEmpty() ? tr("It lists no mods.") : tr("Mods it lists: %1").arg(needed.join(", "))) + "\n"
+			+ (manifest.signature ? tr("Signature: not verified") : tr("Not signed"));
+		if(differences.isEmpty())
+			text += "\n\n" + tr("Nothing differs from this machine. Import it?");
+		else
+			text += "\n\n" + tr("This machine differs:") + "\n- " + differences.join("\n- ") + "\n\n" + tr("Import it anyway?");
+		if(plainBox(this, QMessageBox::Question, tr("Import a save"), text, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+			return;
+		QString reason;
+		QString importedAs;
+		if(!DmbPackage::installSave(path, pathToQString(VCMIDirs::get().userSavePath()), version, reason, importedAs))
+		{
+			plainBox(this, QMessageBox::Warning, tr("The save was not imported"), reason);
+			return;
+		}
+		plainBox(this, QMessageBox::Information, tr("Imported"), tr("The save is in %1. Load it from the game's Load screen.").arg(QDir::toNativeSeparators(importedAs)));
+		return;
+	}
 	QString installedNote;
 	if(modStateModel->isModExists(manifest.id) && modStateModel->getMod(manifest.id).isInstalled())
 	{

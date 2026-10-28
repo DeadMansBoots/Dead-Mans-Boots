@@ -33,6 +33,10 @@ struct Manifest
 	QString dmbMin;
 	QString dmbMax;
 	bool signature = false; // present, and not checked: the window says "not verified"
+	// kind "save": the save's own name and date, and what the game needs to load it (dmbMin is the DMB version it was saved with)
+	QString saveName;
+	QString saveDate; // ISO 8601, UTC
+	QList<QPair<QString, QString>> needs; // mod id, version
 	QList<FileEntry> files;
 };
 
@@ -57,6 +61,18 @@ bool install(const QString & packagePath, const QString & modsDir, const QString
 /// a .dmb made from a mod's folder (the folder's name is the id); false with a plain reason when the folder holds a link, has no mod.json, or a
 /// file carries the Windows user name, the computer name or a user folder path (K, October 11th: no personal information in what leaves the PC)
 bool make(const QString & modFolder, const QString & outPath, const QString & dmbMin, QString & reason);
+
+/// what differs between a save package and this machine, in plain words (empty when nothing does): the DMB version, and every mod the save needs that
+/// is missing here or at another version. A difference never refuses an import; the player decides.
+QStringList saveDifferences(const Manifest & manifest, const QString & runningDmbVersion, const QMap<QString, QString> & installedMods);
+
+/// a .dmb made from a save (the path of its .vsgm1; the .vcgm1 beside it travels too); `mods` are the enabled mods and their versions, written as what the
+/// save needs. No Windows user name or computer name goes into the list.
+bool makeSave(const QString & savePath, const QString & outPath, const QString & dmbVersion, const QList<QPair<QString, QString>> & mods, QString & reason);
+
+/// imports a save package into savesDir/Imported under the save's own name (a number is added when that name is taken, so nothing of the player's is
+/// replaced); every file's size and hash are checked before it is put in place. importedAs is the .vsgm1 that was written.
+bool installSave(const QString & packagePath, const QString & savesDir, const QString & runningDmbVersion, QString & reason, QString & importedAs);
 
 /// removes what an interrupted or failed install left in the mods folder (.dmb-staging-* and .dmb-old-* folders); the number removed
 int sweep(const QString & modsDir);

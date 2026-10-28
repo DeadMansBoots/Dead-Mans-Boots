@@ -460,6 +460,27 @@
          </property>
         </widget>
        </item>
+       <item row="69" column="0">
+        <widget class="QLabel" name="labelDmbSaves">
+         <property name="text">
+          <string>Saves (.dmb)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="69" column="1" colspan="2">
+        <widget class="QPushButton" name="buttonExportSaves">
+         <property name="text">
+          <string>Export saves...</string>
+         </property>
+        </widget>
+       </item>
+       <item row="69" column="3" colspan="3">
+        <widget class="QPushButton" name="buttonImportSave">
+         <property name="text">
+          <string>Import a save...</string>
+         </property>
+        </widget>
+       </item>
        <item row="68" column="1" colspan="5">
         <widget class="QPushButton" name="buttonConfigEditor">
          <property name="text">

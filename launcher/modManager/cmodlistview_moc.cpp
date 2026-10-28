@@ -180,7 +180,7 @@ CModListView::CModListView(QWidget * parent)
 	ui->updateButton->setIcon(QIcon{":/icons/mod-update.png"});
 	ui->installButton->setIcon(QIcon{":/icons/mod-download.png"});
 
-	// K, September 29th: "On the mod settings pages, the disable and uninstall button need to be the same
+	// the project owner, September 29th: "On the mod settings pages, the disable and uninstall button need to be the same
 	// standard vertical size". A button that carves its word (DMB's look) is shorter than one that shows its
 	// plain word beside its icon (Uninstall's does not fit carved), so each stood as high as its own content.
 	// All five stand as high as the tallest, taken now, before any look has carved a word.
@@ -198,7 +198,7 @@ CModListView::CModListView(QWidget * parent)
 	setupFilterModel();
 	setupModsView();
 
-	// DMB: tabs over the same list (K, September 26th and 27th): every mod on one page, VCMI's, or
+	// DMB: tabs over the same list (the project owner, September 26th and 27th): every mod on one page, VCMI's, or
 	// DMB's (its catalog's own and any mod made for DMB); the list's origin column tells them apart
 	auto * origins = new QTabBar(this);
 	origins->addTab(tr("All Mods"));
@@ -1729,7 +1729,7 @@ void CModListView::doUninstallMod(const QString & modName, bool silent)
 	if(wasEnabled)
 		manager->disableMod(modName);
 	// DMB: a refused uninstall leaves the mod as it was. It used to leave it disabled, which looks like a
-	// half-done uninstall (K, rc.1: the mod "should have already been gone")
+	// half-done uninstall (the project owner, rc.1: the mod "should have already been gone")
 	if(!manager->uninstallMod(modName) && wasEnabled)
 		manager->enableMods({modName});
 	reload(modName);

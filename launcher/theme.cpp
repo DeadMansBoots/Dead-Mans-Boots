@@ -88,7 +88,7 @@ void applyCarvedButtonWord(QPushButton * button, bool active);
 bool carvedWordTooWide(const QPushButton * button);
 
 /// frames every window as it first shows, dialogs included, and carves every button's word into the
-/// game's gold-button lettering (K's testing found the first cut of this missed the Settings page's
+/// game's gold-button lettering (the project owner's testing found the first cut of this missed the Settings page's
 /// own category buttons, September 28th: they sit on a tab that is not the one shown first, so the
 /// main window's own Show, the only signal read before this, came and went before they existed on a
 /// visible page at all). A button not yet on a shown page still fires its own Show once it is (Qt
@@ -335,7 +335,7 @@ QImage readH3DefFrame(const ui8 * def, size_t size, size_t wanted)
 /// Canvas/ColorRGBA to QImage/QRgb: the surrounding art's own colours interpolate across the hole
 /// instead of a flat fill, reading as continuous where the true content behind the hole was smooth (no
 /// hard internal edges). Used to remove text baked into a real game asset's own pixels, DMB's standing
-/// rule for this class of problem (K, September 28th; this file's own CLAUDE.md).
+/// rule for this class of problem (the project owner, September 28th; this file's own CLAUDE.md).
 void coonsPatchInpaint(QImage & image, int l, int t, int r, int b)
 {
 	struct Colour { double r, g, b; };
@@ -408,7 +408,7 @@ QImage wordlessBar(const QImage & frame, int height = BAR_HEIGHT)
 
 /// `base` (the one line bar) drawn `height` high with its scrollwork ends and brushed middle at the SAME size: the four pixel borders top and bottom kept, and the rows
 /// between them mirrored over and over, centred on the bar's middle, so the carved ornaments of a tall button are the ornaments of a short one and sit at the
-/// same place from the button's middle (K, October 16th: "this side garnish ... is visually out of sync with the rest just because the button is smaller
+/// same place from the button's middle (the project owner, October 16th: "this side garnish ... is visually out of sync with the rest just because the button is smaller
 /// vertically"; the tall bar used to be the game's frame scaled up to 52 px, its ornaments nearly twice the size of the one line bar's)
 QImage tallBar(const QImage & base, int height)
 {
@@ -451,7 +451,7 @@ QImage wordlessChoice(const QImage & frame)
 	return piece;
 }
 
-/// The colours a launcher slot (background, partitions, primary buttons, secondary buttons) can take, K, October 1st:
+/// The colours a launcher slot (background, partitions, primary buttons, secondary buttons) can take, the project owner, October 1st:
 /// "black is definitely allowed in the background slot, andi suppose silver can be too, why not ... everything is
 /// configurable now, so by default red with dark mode, but each should be changeable. One color per slot. max
 /// configurability." The eight hero colours are the game's own player colours: the six numbers each has in the
@@ -550,7 +550,7 @@ constexpr double SECONDARY_DARK_WEIGHT = 0.8; // the dark look's switches: the g
 
 
 /// DMB's own button face (launcher/fonts/DMBButtonFace.ttf, an open-licence heavy serif cut and renamed by DMB/release/make_button_face.py,
-/// licence text beside it): K, October 12th 2026, on the game's letters taken from the player's files and reduced to the launcher's size:
+/// licence text beside it): the project owner, October 12th 2026, on the game's letters taken from the player's files and reduced to the launcher's size:
 /// "WHAT PART OF BUILD OUR OWN FONT SET DID YOU NOT UNDERSTAND". Every letter, digit and mark of a button's word is drawn from one face at
 /// the size the button needs, with the carved look (a dark letter, a light edge on its lower left) put on after, so no stroke is a game
 /// letter shrunk and patched. Empty when the file did not load: the button keeps its plain text.
@@ -566,7 +566,7 @@ QString buttonFaceFamily()
 }
 
 /// DMB's text face (launcher/fonts/DMBTextFace.ttf, Playfair Display at weight 700 with lining figures and a thickened H crossbar (the face's own is a hairline, which vanished at launcher sizes), made by DMB/release/make_text_face.py; the
-/// licence text beside it): the launcher's running text (K, October 24th, via the lead: the game's small pixel font in a mod's description was hard to
+/// licence text beside it): the launcher's running text (the project owner, October 24th, via the lead: the game's small pixel font in a mod's description was hard to
 /// read). Empty when the file did not load: the game's MEDFONT stays.
 QString textFaceFamily()
 {
@@ -919,7 +919,7 @@ LookSlots lookSlots(const std::string & theme)
 	if(look_.dark)
 	{
 		// the dark look as it has been: silver edges and buttons, or the game's gold for the player who kept it
-		// (launcher.darkAccent, the setting this replaces), and K's red in the place of the blue (October 1st)
+		// (launcher.darkAccent, the setting this replaces), and the project owner's red in the place of the blue (October 1st)
 		const bool gold = settings["launcher"]["darkAccent"].String() == "gold";
 		look_.partitions = look_.primary = gold ? "default" : "silver";
 		look_.secondary = "red";
@@ -943,7 +943,7 @@ double slotWeight(const LookSlots & look_, const std::string & colour, double da
 	return look_.dark && colour != "silver" && colour != "black" ? dark : 1.0;
 }
 
-/// vanilla colour, and the grey it becomes in silver (the dark look's, as K approved it, September 27th)
+/// vanilla colour, and the grey it becomes in silver (the dark look's, as the project owner approved it, September 27th)
 const std::vector<std::pair<const char *, const char *>> & vanillaColours()
 {
 	static const std::vector<std::pair<const char *, const char *>> colours = {
@@ -1002,10 +1002,10 @@ struct ButtonStyles
 	QString secondary;
 };
 
-/// The launcher's buttons as the game's own gold bars (K, September 26th: "these buttons need to
+/// The launcher's buttons as the game's own gold bars (the project owner, September 26th: "these buttons need to
 /// actually mimic the heroes 3 buttons exactly"), from the player's own game files, written to the
 /// user's cache for the style sheet to name, in the primary slot's colour (gold when it is the default). The Settings
-/// page's categories are the same bars (K, September 27th). Empty before an import: then they keep the
+/// page's categories are the same bars (the project owner, September 27th). Empty before an import: then they keep the
 /// painted gold. The switches are the Random Map Setup's blue choices, in the secondary slot's colour.
 ButtonStyles gameButtonStyle(const LookSlots & look_)
 {
@@ -1101,7 +1101,7 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 		"QPushButton { color: %6; background: transparent; border-radius: 0; border-width: 4px %1px; padding: 1px 2px; %2 }"
 		"QPushButton:hover { %3 }"
 		"QPushButton:pressed { %4 }"
-		// Gemini's read of K's launcher screenshot, relayed by K overnight into September 28th: "Import
+		// Gemini's read of the project owner's launcher screenshot, relayed by the project owner overnight into September 28th: "Import
 		// from Clipboard" grayed out was dark text on the dimmed bar's own dark gold, hard to read. A
 		// light parchment tone (the same one the dark look already uses in gold's place) reads clearly
 		// against the dimmed bar in either look, where the near-black original barely stood out from it.
@@ -1134,7 +1134,7 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 	const auto & choiceData = *choiceRead;
 	const auto * choiceBytes = reinterpret_cast<const ui8 *>(choiceData.first.get());
 	const std::string secondary = look_.secondary;
-	// the blue choice art is dark in lightness, so silver on it would read near black: lifted (K's other colours get their
+	// the blue choice art is dark in lightness, so silver on it would read near black: lifted (the project owner's other colours get their
 	// own range, which does that)
 	const double secondaryWeight = secondary == "silver" ? 2.6 : slotWeight(look_, secondary, SECONDARY_DARK_WEIGHT);
 	const auto choice = [&](int frame)
@@ -1159,7 +1159,7 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 }
 
 /// The background slot: the game's leather as it is, or as `colour` (the game's player colours do the same to it for
-/// a player's windows). The dark look has its own: the leather tinted toward black (K, September 26th: one harvested
+/// a player's windows). The dark look has its own: the leather tinted toward black (the project owner, September 26th: one harvested
 /// texture in two tints, not a second dark design), the grain staying and the brown mostly going; a colour chosen
 /// there is the same grain in that colour, dark.
 QPixmap backgroundOf(const QPixmap & leather, const LookSlots & look_)
@@ -1398,7 +1398,7 @@ AppliedLook buildLook(const LookSlots & look_, const QPixmap & leather)
 		sheet += QString("#dmbSettingsPanel { border-color: %1; } CSettingsView QComboBox { border-color: %1; }"
 			" CSettingsView QComboBox QAbstractItemView { border-color: %1; }").arg(frameInk.name());
 	// the sliders of the Settings pages draw their handle and the empty part of the groove from the palette's button colour, which a
-	// black background makes black: both vanished on K's own look (October 3rd bug hunt, Audio page). Where the button colour does
+	// black background makes black: both vanished on the project owner's own look (October 3rd bug hunt, Audio page). Where the button colour does
 	// not stand out of the ground, the handle and the groove are the nearest tone that does, and the filled part keeps the accent.
 	if(contrastOf(ground(button), windowGround) < 1.6)
 	{
@@ -1426,7 +1426,7 @@ const char * const WIDGETS_WITH_OWN_FONTS[] = { "QAbstractItemView", "QListView"
 /// game draws them. Empty before the game's files are imported: the platform's font stays.
 static QString gameFontStyle()
 {
-	// DMB (K, October 24th): the text face for running text and the button face for titles, both shipped with the launcher; the game's own fonts below
+	// DMB (the project owner, October 24th): the text face for running text and the button face for titles, both shipped with the launcher; the game's own fonts below
 	// only when the text face did not load
 	if(const QString face = textFaceFamily(); !face.isEmpty())
 	{
@@ -1502,13 +1502,13 @@ void LauncherTheme::applySidebarIcon(QToolButton * button, const std::string & d
 	QImage frame = readH3DefFrame(bytes, data.second, 3).convertToFormat(QImage::Format_ARGB32);
 	if(frame.isNull() || holeX + holeW > frame.width() || holeY + holeH > frame.height())
 		return;
-	// the whole button face, kept (never a crop that loses part of the image, K's standing rule this
+	// the whole button face, kept (never a crop that loses part of the image, the project owner's standing rule this
 	// file records above coonsPatchInpaint): its own baked-in word sits in (holeX, holeY, holeW, holeH)
 	// and gets filled in from the real art surrounding it instead
 	coonsPatchInpaint(frame, holeX, holeY, holeX + holeW, holeY + holeH);
 	// the source is full painterly game art, several times a sidebar icon's own size; it reads as a
 	// soft, low-contrast blob at 40-48px, so push contrast and saturation before it ships this small
-	// (K's own screenshot review, September 28th)
+	// (the project owner's own screenshot review, September 28th)
 	constexpr double contrast = 1.35;
 	constexpr double saturation = 1.3;
 	for(int y = 0; y < frame.height(); ++y)

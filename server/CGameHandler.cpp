@@ -679,6 +679,10 @@ void CGameHandler::onPlayerRejoined(PlayerColor player)
 
 void CGameHandler::resendTurnToRejoined(GameConnectionID connection, PlayerColor player)
 {
+	// DMB: the connection's secret for coming back, sent once the client can take packs (a no-op with allowRejoin off)
+	if(auto * server = dynamic_cast<CVCMIServer *>(&gameServer()))
+		server->sendRejoinSecretTo(connection);
+
 	if(!rejoinedPlayers.erase(player) || !turnOrder->isPlayerMakingTurn(player))
 		return;
 	// the turn is given to the returning client alone; everyone else keeps playing the turn they have

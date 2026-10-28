@@ -12,6 +12,7 @@
 #include "PacksForClientBattle.h"
 #include "PacksForServer.h"
 #include "SaveLocalState.h"
+#include "DmbRejoin.h"
 #include "SetRewardableConfiguration.h"
 #include "PacksForLobby.h"
 #include "SetStackEffect.h"
@@ -67,6 +68,16 @@ bool CLobbyPackToServer::isForServer() const
 void SaveLocalState::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitSaveLocalState(*this);
+}
+
+void RejoinSecret::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitRejoinSecret(*this);
+}
+
+void RejoinProof::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitRejoinProof(*this);
 }
 
 void PackageApplied::visitTyped(ICPackVisitor & visitor)

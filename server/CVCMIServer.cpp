@@ -14,6 +14,7 @@
 
 #include "CGameHandler.h"
 #include "GlobalLobbyProcessor.h"
+#include "../lib/networkPacks/DmbRejoin.h"
 #include "../lib/CConfigHandler.h"
 #include "LobbyNetPackVisitors.h"
 #include "processors/PlayerMessageProcessor.h"
@@ -132,11 +133,14 @@ void CVCMIServer::onNewConnection(const std::shared_ptr<INetworkConnection> & co
 		activeConnections.push_back(std::make_shared<GameConnection>(connection));
 		activeConnections.back()->enterLobbyConnectionMode();
 	}
-	else if(rejoinOpen() && !rejoinSeats.empty() && pendingRejoin.size() < 8)
+	else if(rejoinOpen() && !rejoinSeats.empty() && (purgePendingRejoin(), pendingRejoin.size() < 8))
 	{
-		// DMB: a player who dropped may come back; the connection waits outside activeConnections until its first pack names a seat that was left
-		pendingRejoin.push_back(std::make_shared<GameConnection>(connection));
-		pendingRejoin.back()->enterLobbyConnectionMode();
+		// DMB: a player who dropped may come back; the connection waits outside activeConnections until it shows a secret that has kept seats
+		PendingRejoin waiting;
+		waiting.connection = std::make_shared<GameConnection>(connection);
+		waiting.connection->enterLobbyConnectionMode();
+		waiting.since = std::chrono::steady_clock::now();
+		pendingRejoin.push_back(waiting);
 	}
 	else
 	{
@@ -149,13 +153,31 @@ bool CVCMIServer::rejoinOpen() const
 	return getState() == EServerState::GAMEPLAY && gh && settings["server"]["allowRejoin"].Bool();
 }
 
+void CVCMIServer::purgePendingRejoin()
+{
+	// a connection that has not shown a secret and a request within 20 seconds is closed, so silent ones cannot fill the places
+	const auto now = std::chrono::steady_clock::now();
+	for(auto waiting = pendingRejoin.begin(); waiting != pendingRejoin.end();)
+	{
+		if(now - waiting->since > std::chrono::seconds(20))
+		{
+			if(auto network = waiting->connection->getConnection())
+				network->close();
+			waiting = pendingRejoin.erase(waiting);
+		}
+		else
+			++waiting;
+	}
+}
+
 bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & connection, const std::vector<std::byte> & message)
 {
-	auto waiting = std::find_if(pendingRejoin.begin(), pendingRejoin.end(), [&](const auto & each) { return each->isMyConnection(connection); });
+	purgePendingRejoin();
+	auto waiting = std::find_if(pendingRejoin.begin(), pendingRejoin.end(), [&](const auto & each) { return each.connection->isMyConnection(connection); });
 	if(waiting == pendingRejoin.end())
 		return false;
-	const auto candidate = *waiting;
-	pendingRejoin.erase(waiting);
+	const auto candidate = waiting->connection;
+	const std::string shown = waiting->secret;
 
 	std::unique_ptr<CPack> pack;
 	try
@@ -164,29 +186,57 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 	}
 	catch(const std::exception &)
 	{
+		pendingRejoin.erase(waiting);
 		connection->close();
 		return true;
 	}
+	if(const auto * proof = dynamic_cast<const RejoinProof *>(pack.get()))
+	{
+		// the secret comes first; one that has no kept seats ends the connection
+		if(!rejoinOpen() || !shown.empty() || !vstd::contains(rejoinSeats, proof->secret))
+		{
+			pendingRejoin.erase(waiting);
+			connection->close();
+			return true;
+		}
+		waiting->secret = proof->secret;
+		return true;
+	}
+	pendingRejoin.erase(waiting);
 	const auto * request = dynamic_cast<const LobbyClientConnected *>(pack.get());
-	if(!request || request->names.empty() || !rejoinOpen() || !vstd::contains(rejoinSeats, request->uuid))
+	if(!request || request->names.empty() || !rejoinOpen() || shown.empty() || !vstd::contains(rejoinSeats, shown))
 	{
 		connection->close();
 		return true;
 	}
-	rejoinConnected(candidate, *request);
+	rejoinConnected(candidate, *request, shown);
 	return true;
 }
 
-void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, const LobbyClientConnected & request)
+void CVCMIServer::sendRejoinSecretTo(GameConnectionID connectionID)
 {
-	const std::vector<PlayerColor> seats = rejoinSeats.at(request.uuid);
-	rejoinSeats.erase(request.uuid);
+	if(!rejoinOpen() || connectionID == hostClientId)
+		return;
+	auto known = connectionSecrets.find(connectionID);
+	if(known == connectionSecrets.end())
+		known = connectionSecrets.emplace(connectionID, boost::uuids::to_string(boost::uuids::random_generator()())).first;
+	RejoinSecret pack;
+	pack.secret = known->second;
+	sendPack(pack, connectionID);
+}
+
+void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, const LobbyClientConnected & request, const std::string & secret)
+{
+	const std::vector<PlayerColor> seats = rejoinSeats.at(secret);
+	rejoinSeats.erase(secret);
 
 	const auto version = std::min(request.version, ESerializationVersion::CURRENT);
 	c->setSerializationVersion(version);
 	c->connectionID = currentClientId;
 	currentClientId = vstd::next(currentClientId, 1);
 	c->uuid = request.uuid;
+	// the secret stays with the client: it serves again if this connection drops
+	connectionSecrets[c->connectionID] = secret;
 
 	std::vector<PlayerConnectionID> ids;
 	for(const auto & name : request.names)
@@ -350,6 +400,8 @@ void CVCMIServer::run()
 
 void CVCMIServer::onTimer()
 {
+	purgePendingRejoin();
+
 	// we might receive onTimer call after transitioning from GAMEPLAY to LOBBY state, e.g. on game restart
 	if (getState() != EServerState::GAMEPLAY)
 		return;
@@ -568,7 +620,7 @@ void CVCMIServer::onDisconnected(const std::shared_ptr<INetworkConnection> & con
 	std::shared_ptr<GameConnection> c = findConnection(connection);
 
 	// DMB: a connection that was waiting to come back and is gone
-	pendingRejoin.erase(std::remove_if(pendingRejoin.begin(), pendingRejoin.end(), [&](const auto & each) { return each->isMyConnection(connection); }), pendingRejoin.end());
+	pendingRejoin.erase(std::remove_if(pendingRejoin.begin(), pendingRejoin.end(), [&](const auto & each) { return each.connection->isMyConnection(connection); }), pendingRejoin.end());
 
 	// player may have already disconnected via clientDisconnected call
 	if (c)
@@ -728,11 +780,13 @@ void CVCMIServer::clientDisconnected(std::shared_ptr<GameConnection> connection)
 	assert(vstd::contains(activeConnections, connection));
 	logGlobal->trace("Received disconnection request");
 	// DMB: the seats this connection had are kept for its client session to come back to (setting server.allowRejoin); the host never comes back (the server ends with it)
-	if(rejoinOpen() && connection->connectionID != hostClientId && !connection->uuid.empty())
+	const auto secretOfConnection = connectionSecrets.find(connection->connectionID);
+	if(secretOfConnection != connectionSecrets.end())
 	{
 		const auto seats = getAllClientPlayers(connection->connectionID);
-		if(!seats.empty())
-			rejoinSeats[connection->uuid] = std::vector<PlayerColor>(seats.begin(), seats.end());
+		if(rejoinOpen() && connection->connectionID != hostClientId && !seats.empty())
+			rejoinSeats[secretOfConnection->second] = std::vector<PlayerColor>(seats.begin(), seats.end());
+		connectionSecrets.erase(secretOfConnection);
 	}
 	vstd::erase(activeConnections, connection);
 

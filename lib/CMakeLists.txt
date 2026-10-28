@@ -661,6 +661,7 @@ set(lib_MAIN_HEADERS
 	modding/ModVerificationInfo.h
 
 	networkPacks/ArtifactLocation.h
+	networkPacks/DmbRejoin.h
 	networkPacks/BattleChanges.h
 	networkPacks/Component.h
 	networkPacks/EInfoWindowMode.h

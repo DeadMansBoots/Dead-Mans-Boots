@@ -68,15 +68,26 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 
 	bool loadSavedGame(CGameHandler & handler, const StartInfo & info);
 
-	/// DMB: hot join step 1, "come back" (setting server.allowRejoin). The seats a dropped connection had, by its client session (uuid); a connection that
-	/// arrives in a running game waits in pendingRejoin, outside activeConnections (so no game pack is sent to it), until its first pack names one of them.
+	/// DMB: hot join step 1, "come back" (setting server.allowRejoin). Each connection with seats is given a secret (sendRejoinSecretTo), kept here and sent to
+	/// that connection alone; when the connection drops, its seats are kept under the secret. A connection that arrives in a running game waits in
+	/// pendingRejoin, outside activeConnections (so no game pack is sent to it), and is let in only when it shows a secret that has kept seats.
+	struct PendingRejoin
+	{
+		std::shared_ptr<GameConnection> connection;
+		std::chrono::steady_clock::time_point since;
+		std::string secret; // shown by the client, and found among the kept seats
+	};
+	std::map<GameConnectionID, std::string> connectionSecrets;
 	std::map<std::string, std::vector<PlayerColor>> rejoinSeats;
-	std::vector<std::shared_ptr<GameConnection>> pendingRejoin;
+	std::vector<PendingRejoin> pendingRejoin;
+	void purgePendingRejoin();
 	bool rejoinOpen() const;
 	/// true when the message came from a connection that is waiting to come back (and was dealt with)
 	bool handleRejoinPack(const std::shared_ptr<INetworkConnection> & connection, const std::vector<std::byte> & message);
-	void rejoinConnected(const std::shared_ptr<GameConnection> & connection, const LobbyClientConnected & request);
+	void rejoinConnected(const std::shared_ptr<GameConnection> & connection, const LobbyClientConnected & request, const std::string & secret);
 public:
+	/// DMB: hot join step 1. Gives the connection its secret (made on the first call) and sends it to that connection alone; the host gets none
+	void sendRejoinSecretTo(GameConnectionID connectionID);
 	uint16_t getPort() const override
 	{
 		return port;

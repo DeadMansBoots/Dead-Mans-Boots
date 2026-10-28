@@ -3600,7 +3600,7 @@ void CGameHandler::showObjectWindow(const CGObjectInstance * object, EOpenWindow
 	sendAndApply(pack);
 }
 
-bool CGameHandler::allyMayTake(PlayerColor actor, PlayerColor owner) const
+bool CGameHandler::allyMayTake(PlayerColor actor, PlayerColor owner)
 {
 	if(actor == owner || !actor.isValidPlayer() || !owner.isValidPlayer())
 		return false;

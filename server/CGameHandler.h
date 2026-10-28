@@ -318,7 +318,7 @@ public:
 	/// DMB: diplomacy control A. (owner, taker): the owner lets the taker take troops and artifacts from the owner's heroes and towns. Saved with the game.
 	std::set<std::pair<PlayerColor, PlayerColor>> allyTakeRules;
 	/// true when `actor` may take from an army or hero of `owner` that is not actor's own: allies only, the owner must be a person, the owner must have said yes
-	bool allyMayTake(PlayerColor actor, PlayerColor owner) const;
+	bool allyMayTake(PlayerColor actor, PlayerColor owner);
 	/// true when the rule was changed
 	bool setAllyTake(PlayerColor owner, PlayerColor taker, bool allowed);
 	void sendAllyTakeRules();

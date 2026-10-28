@@ -75,7 +75,7 @@ class CExchangeWindow : public CStatusbarWindow, public IGarrisonHolder, public 
 
 	QueryID queryID;
 
-	/// DMB: the other player's pointer in a shared trade (K, October 24th: "THEIR MOUSE SHOULD BE THEIR COLOR, ANYTHING THEY HAVE SELECTED/ARE MOVING
+	/// DMB: the other player's pointer in a shared trade (the project owner, October 24th: "THEIR MOUSE SHOULD BE THEIR COLOR, ANYTHING THEY HAVE SELECTED/ARE MOVING
 	/// SHOULD HAVE A OUTLINE WITH THEIR COLOR")
 	PlayerColor allyColor = PlayerColor::CANNOT_DETERMINE;
 	Point allyTarget = Point(-1, -1);

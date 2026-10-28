@@ -90,7 +90,7 @@ public:
 	/// List of all active connections
 	std::vector<std::shared_ptr<GameConnection>> activeConnections;
 
-	/// DMB (K, October 9th): the host's last LobbyGuiAction, told to a client that joins after it
+	/// DMB (the project owner, October 9th): the host's last LobbyGuiAction, told to a client that joins after it
 	std::shared_ptr<LobbyGuiAction> lastGuiAction;
 	std::shared_ptr<LobbyGuiAction> lastGeneratorAction; // the last OPEN_GENERATOR that carried settings
 	void replayLobbyView(GameConnectionID clientId);

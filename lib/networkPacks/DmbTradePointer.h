@@ -15,7 +15,7 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-/// DMB: a player's pointer and selected stack in a shared trade window (K, October 24th: "I SHOULD BE ABLE TO SEE EVERYTHING THE OTHER PLAYER IS
+/// DMB: a player's pointer and selected stack in a shared trade window (the project owner, October 24th: "I SHOULD BE ABLE TO SEE EVERYTHING THE OTHER PLAYER IS
 /// DOING"). The server passes it to the other player of the trade and answers nothing; a client sends it at most 25 times a second.
 struct DLL_LINKAGE TradePointer : public CPackForServer
 {

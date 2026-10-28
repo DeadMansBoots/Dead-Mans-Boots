@@ -406,7 +406,7 @@ bool CVCMIServer::prepareToStartGame()
 		}
 	}
 
-	// DMB (K, October 24th: a random map made with two human allies and no other player announced the victory on day 1): a new game whose players are all
+	// DMB (the project owner, October 24th: a random map made with two human allies and no other player announced the victory on day 1): a new game whose players are all
 	// in one team has nothing to win, so it does not start; every player in the lobby is told, and the lobby stays as it was. A loaded game starts as stock.
 	if(si->mode == EStartMode::NEW_GAME)
 	{
@@ -681,7 +681,7 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 		return;
 
 	auto namesIt = playerNames.cbegin();
-	// DMB (K, October 8th): a random map whose settings change keeps the players' own choices (town, hero, bonus, handicap,
+	// DMB (the project owner, October 8th): a random map whose settings change keeps the players' own choices (town, hero, bonus, handicap,
 	// who sits where); only a choice the new map cannot hold is reset, with a message saying which
 	const auto previousInfos = si->playerInfos;
 	const bool keepChoices = si->mode == EStartMode::NEW_GAME && si->mapGenOptions && mi->isRandomMap && mapGenOpts && !previousInfos.empty();

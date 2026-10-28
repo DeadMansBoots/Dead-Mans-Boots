@@ -483,7 +483,7 @@ void CExchangeWindow::deactivate()
 void CExchangeWindow::activate()
 {
 	CWindowWithArtifacts::activate();
-	// DMB: the chat works in a shared trade as over a battle (K, October 24th: "I SHOULD ALSO BE ABLE TO USE THE CHAT WHILE THE OTHER PLAYER IS
+	// DMB: the chat works in a shared trade as over a battle (the project owner, October 24th: "I SHOULD ALSO BE ABLE TO USE THE CHAT WHILE THE OTHER PLAYER IS
 	// MOVING STUFF"): Tab opens the line in this window's status bar, and the chat lines show over the window
 	if(sharesPointer())
 	{

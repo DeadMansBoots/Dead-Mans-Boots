@@ -137,7 +137,7 @@ void PlayerMessageProcessor::commandAllyTake(PlayerColor player, const std::vect
 	else
 	{
 		PlayerColor taker(PlayerColor::CANNOT_DETERMINE);
-		if(std::all_of(words[1].begin(), words[1].end(), ::isdigit))
+		if(words[1].size() <= 2 && std::all_of(words[1].begin(), words[1].end(), ::isdigit))
 			taker = PlayerColor(std::stoi(words[1]));
 		else
 			for(PlayerColor color : PlayerColor::ALL_PLAYERS())

@@ -96,13 +96,13 @@ public:
 namespace
 {
 /// DMB: the lobby has no status bar, so the hover text that every button and hover area writes to it showed
-/// nowhere, and the tab's settings had only their right-click popups (K, October 1st: "the mapgen tooltips"). This is
+/// nowhere, and the tab's settings had only their right-click popups (the project owner, October 1st: "the mapgen tooltips"). This is
 /// the tab's own status bar: a box beside the pointer with the control's name and, where the tab knows one, what it
 /// does. Like CGStatusBar it is the engine's status bar while it is active, which is while the tab is shown.
 class HoverTip : public CIntObject, public IStatusBar, public std::enable_shared_from_this<HoverTip>
 {
 	static constexpr int WRAP_WIDTH = 300;
-	/// K, October 1st: "the tooltip should only show up after a second, if the mouse doesn't move after it stops on a
+	/// the project owner, October 1st: "the tooltip should only show up after a second, if the mouse doesn't move after it stops on a
 	/// button/text/bar". Any movement hides the box and starts the wait again, so it is never drawn while the pointer moves.
 	static constexpr std::chrono::milliseconds STILL_FOR{1000};
 
@@ -241,7 +241,7 @@ public:
 static const std::string RANDOM_TEMPLATE = "random";
 
 /// OmniMapGen's Water page, as its own files number it (params/waterContent's stops, params/waterShape's stops).
-/// K, October 1st: None, Normal and Islands each set both the Water layout dropdown and the Amount slider to what the
+/// the project owner, October 1st: None, Normal and Islands each set both the Water layout dropdown and the Amount slider to what the
 /// original game's generator makes for that choice, measured by MapGen Dev's engine water sweep (93 templates at four
 /// sizes, 4 seeds each; DMB\docs\water-buttons.md has the table and where it comes from). This is THE one table of these
 /// numbers: change them here and in that file together.
@@ -287,8 +287,8 @@ MapGenPage::MapGenPage(const JsonNode & layout, const std::function<void(MapGenP
 		setup(*this);
 	build(layout);
 	// a setting's help area covered only its label, 138 pixels of a 312 pixel row: hover or right-click on the slider,
-	// its arrows or its value found nothing (K, October 1st: "the mapgen tooltips"). The whole row is the area now, up to the next help
-	// area on the same row (two settings share a row on the Map page: K, October 4th: "mod content tooltip ... shows the team setup
+	// its arrows or its value found nothing (the project owner, October 1st: "the mapgen tooltips"). The whole row is the area now, up to the next help
+	// area on the same row (two settings share a row on the Map page: the project owner, October 4th: "mod content tooltip ... shows the team setup
 	// tooltip instead"); the controls drawn over it keep their own help
 	std::vector<std::shared_ptr<LRClickableAreaWText>> helpAreas;
 	const auto widgets = namedWidgets();
@@ -436,7 +436,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	for(const auto & page : config["pages"].Vector())
 		pageFiles.push_back(page.String());
 	defaults = config["defaults"];
-	// K, October 4th: "reset should default all settings to the open template, with the most widest and varying settings we offer":
+	// the project owner, October 4th: "reset should default all settings to the open template, with the most widest and varying settings we offer":
 	// the module's "reset" block, beside its "defaults"; a module without one resets to its defaults
 	resetValues = config["reset"].isStruct() ? config["reset"] : config["defaults"];
 
@@ -462,7 +462,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 			clearCustomSize(); // a standard size picked after a custom one replaces it
 		if(setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
 		{
-			// a custom size typed (an inline "textInput" bound to these, K's "just a type entry box")
+			// a custom size typed (an inline "textInput" bound to these, the project owner's "just a type entry box")
 			// replaces any standard size picked, the same as the popup this replaces used to
 			Settings size = persistentStorage.write["mapGen"]["map"]["size"];
 			size->Integer() = 0;
@@ -483,12 +483,12 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		}
 		if(setting == "persistent:mapGen/params/waterContent")
 		{
-			// K, September 28th, and again on the 29th after two fixes that did not move it: "the old 'none'
+			// the project owner, September 28th, and again on the 29th after two fixes that did not move it: "the old 'none'
 			// 'Normal' 'Islands' should automatically move the slider to where the correlatory original game
 			// water content level was". Each choice sets the Water layout and the Amount to what the original
-			// generator makes for it (WATER_CHOICES, from the engine's water sweep of October 1st, K's order).
+			// generator makes for it (WATER_CHOICES, from the engine's water sweep of October 1st, the project owner's order).
 			// Every time it is picked, whatever the slider was:
-			// a saved preset comes back with its own amount, so a rule that waited for 0% never fired for K, and
+			// a saved preset comes back with its own amount, so a rule that waited for 0% never fired for the project owner, and
 			// None did nothing at all. Random leaves both as they are.
 			const JsonNode & params = persistentStorage["mapGen"]["params"];
 			const int content = static_cast<int>(params["waterContent"].Integer());
@@ -512,7 +512,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 				shapeSetting->Integer() = wantedShape;
 				// Writing the settings is not enough: buildSlider (InterfaceObjectConfigurable.cpp) reads its
 				// bound setting once, at construction, into its own fixed "start" position, and nothing makes
-				// a CSlider notice a later write to the same JSON path (K, September 28th: "literally did
+				// a CSlider notice a later write to the same JSON path (the project owner, September 28th: "literally did
 				// nothing"). The page is built again to show them. Not from inside this call: the toggle that
 				// made it is on the page being rebuilt, and this closure is a copy held by that page, so
 				// rebuilding here frees them while they still run. That crashed the game at 150% scale (an
@@ -523,7 +523,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		}
 		if(setting == "persistent:mapGen/params/waterShape")
 		{
-			// K, October 5th: "setting the water content to islands and then setting the water layout to anything but islands should take
+			// the project owner, October 5th: "setting the water content to islands and then setting the water layout to anything but islands should take
 			// water content back to normal" (the generator holds Islands content and Islands layout as one state). Any layout but Islands
 			// (Mediterranean, Random, Template, the rest) while the content is Islands puts the content back to Normal; the amount stays as
 			// the player set it. The page is shown again so the content buttons follow at once, after this call (see above).
@@ -845,7 +845,7 @@ void MapGenTab::updateMapInfoByHost()
 	description.appendRawString(LIBRARY->modh->getModInfo(generator.modID).getLocalizedDescription().String());
 	GAME->server().setMapInfo(RandomMapTab::createRandomMapInfo(*options, name, description), options);
 	if(onSettingsChanged)
-		onSettingsChanged(); // the guests are sent the settings too (K, October 10th)
+		onSettingsChanged(); // the guests are sent the settings too (the project owner, October 10th)
 }
 
 std::shared_ptr<CMapGenOptions> MapGenTab::lobbyOptions() const
@@ -883,7 +883,7 @@ std::shared_ptr<CMapGenOptions> MapGenTab::lobbyOptions() const
 	{
 		// A generator that takes the colours the seated humans chose rolls a count left on Random itself,
 		// at Begin (MapGenerators::generateForGame), so the count stays a surprise until then, as VCMI's
-		// own random map keeps it (K, September 27th), and the lobby offers every slot
+		// own random map keeps it (the project owner, September 27th), and the lobby offers every slot
 		const int humanSlots = humans < 0 ? CMapGenOptions::RANDOM_SIZE : std::clamp<int>(humans, 1, PlayerColor::PLAYER_LIMIT_I);
 		options->setHumanOrCpuPlayerCount(humanSlots);
 		const int room = PlayerColor::PLAYER_LIMIT_I - std::max(humanSlots, 1);
@@ -958,7 +958,7 @@ void MapGenTab::chooseTeams()
 		updateMapInfoByHost();
 	};
 
-	// DMB (K, the PRIORITY file's item 6(c): "the lobby team-grid preset popup (FFA, then team modes by player count)"; roster/SPEC-Team-Presets.md):
+	// DMB (the project owner, the PRIORITY file's item 6(c): "the lobby team-grid preset popup (FFA, then team modes by player count)"; roster/SPEC-Team-Presets.md):
 	// a preset arranges the players the counts give, into the same store the grid writes, so the grid shows it and can change it after
 	const auto & seats = options->getPlayersSettings();
 	std::vector<PlayerColor> humans;
@@ -1158,7 +1158,7 @@ void MapGenTab::loadPreset()
 			ENGINE->statusbar()->write(loaded.toString());
 			logGlobal->info("Map generator %s: settings loaded from %s", generator.name, path.string());
 		}, 0, std::vector<std::shared_ptr<IImage>>(), true, false, true);
-	// DMB: "Delete Profile" (K, September 28th), the "remove" button CObjectListWindow builds when
+	// DMB: "Delete Profile" (the project owner, September 28th), the "remove" button CObjectListWindow builds when
 	// asked to; erases the saved file and reopens this same dialog so the list shows without it,
 	// the simplest correct refresh (this window has no public way to drop one of its own rows)
 	window->onDelete = [this, names](int index)
@@ -1197,8 +1197,8 @@ int MapGenTab::mapSetting(const std::string & key) const
 
 std::vector<std::string> MapGenTab::approvedNames() const
 {
-	// K, October 3rd: "ONLY THOSE THAT HAVE BEEN APPROVED GO IN". The generator's module names them in
-	// approved-templates.json beside its mod.json, {"approved": {"Template name": "date K approved it"}}; names are
+	// the project owner, October 3rd: "ONLY THOSE THAT HAVE BEEN APPROVED GO IN". The generator's module names them in
+	// approved-templates.json beside its mod.json, {"approved": {"Template name": "date the project owner approved it"}}; names are
 	// compared without regard to case (the install's own spelling is the one returned), and a module without the file
 	// approves none.
 	std::set<std::string> approved;
@@ -1246,7 +1246,7 @@ std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
 		return entries;
 	// the open layout's row is the entry the module names in open-template-name.json (OmniMapGen 0.3.18: "Classic"), else the first entry marked
 	// openLayout. OmniMapGen 0.3.16 marks its two interim Nostalgia entries openLayout too, and taking the last one marked labelled the open layout's
-	// row "Nostalgia (approximate)" while the panel beside it, which took the first, described Classic (K, October 22nd 17:4x)
+	// row "Nostalgia (approximate)" while the panel beside it, which took the first, described Classic (the project owner, October 22nd 17:4x)
 	const auto nameFile = read("open-template-name.json");
 	const std::string named = nameFile && (*nameFile)["name"].isString() ? (*nameFile)["name"].String() : std::string();
 	std::optional<std::string> random;
@@ -1278,7 +1278,7 @@ std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
 void MapGenTab::dropUnapprovedTemplate() const
 {
 	// the template the tab stands on is written back where it differs from what is stored: an unapproved choice cleared, and,
-	// with one template approved, that one for an empty store (K's stored "" kept the free layout and four maps reached the
+	// with one template approved, that one for an empty store (the project owner's stored "" kept the free layout and four maps reached the
 	// generator with no template option, October 3rd)
 	const JsonNode & stored = persistentStorage["mapGen"]["map"]["template"];
 	const std::string current = stored.isString() ? stored.String() : std::string();
@@ -1330,7 +1330,7 @@ std::string MapGenTab::preset() const
 
 namespace
 {
-/// K, October 5th: "we should expand the template selection window with a side window that gives some details on the template: original game
+/// the project owner, October 5th: "we should expand the template selection window with a side window that gives some details on the template: original game
 /// size, player counts, underground on/off, etc and also give a description of what makes it unique as a template". The panel stands to the right
 /// of the template list and shows the entry that is selected; its facts and description are the module's own template-info.json
 class TemplateInfoPanel : public CIntObject
@@ -1353,7 +1353,7 @@ class TemplateInfoPanel : public CIntObject
 	}
 
 	/// the Zones line: the count and the count of each kind; an entry with no fixed zones (the open layout and Random, "zones": 0) has no Zones line,
-	/// where it read "Zones 0 ()" (K's picture, October 22nd 17:4x)
+	/// where it read "Zones 0 ()" (the project owner's picture, October 22nd 17:4x)
 	static std::string zoneCount(const JsonNode & block)
 	{
 		if(!block["zones"].isNumber() || block["zones"].Float() <= 0)
@@ -1389,11 +1389,11 @@ public:
 	{
 		OBJECT_CONSTRUCTION;
 		body = std::make_shared<CTextBox>(text, Rect(14, top, area.w - 28, area.h - top - 14), 1);
-		// the scrollbar's track is the game's black, which beside the blue handle read as a black block over half the bar (K, October 6th); a dark blue of the panel's own
+		// the scrollbar's track is the game's black, which beside the blue handle read as a black block over half the bar (the project owner, October 6th); a dark blue of the panel's own
 		body->setSliderTrackColor(ColorRGBA(10, 20, 60, 255));
 	}
 
-	/// the box of the original game's facts (K, October 6th: "i think everything in this box should be original game spec"); none when `lines` is empty
+	/// the box of the original game's facts (the project owner, October 6th: "i think everything in this box should be original game spec"); none when `lines` is empty
 	void setSpecs(const std::string & lines)
 	{
 		specsFrame.reset();
@@ -1566,8 +1566,8 @@ public:
 
 void MapGenTab::chooseTemplate()
 {
-	// only the templates K approved (approved-templates.json), whatever the install offers; the generator fits the template
-	// to the map instead of refusing it (MapGen, September 27th, for K's "never refuse"). With one approved there is nothing
+	// only the templates the project owner approved (approved-templates.json), whatever the install offers; the generator fits the template
+	// to the map instead of refusing it (MapGen, September 27th, for the project owner's "never refuse"). With one approved there is nothing
 	// to choose between: it is the only entry. With none or several: None (the generator's own layout), Random (which it
 	// rolls from the templates that fit) and then each.
 	const auto approved = approvedNames();
@@ -1752,7 +1752,7 @@ void MapGenTab::generate()
 		{
 			const std::string title = "{" + tabText("generate.hover") + "}\n\n";
 
-			// DMB's mod catalog is asked first (K, October 18th: never a refusal). The check hashes the whole
+			// DMB's mod catalog is asked first (the project owner, October 18th: never a refusal). The check hashes the whole
 			// generator folder, so it runs here, off the game's main thread; a mismatch is a notice the player
 			// answers on the main thread (check mark: run it anyway and remember this version; cross: cancel),
 			// waited for here for ten minutes at most.

@@ -77,7 +77,7 @@ AdventureMapInterface::AdventureMapInterface():
 	if(GAME->interface()->cb->getStartInfo()->turnTimerInfo.turnTimer != 0)
 		watches = std::make_shared<TurnTimerWidget>(Point(24, 24));
 
-	// DMB (K, October 16th to 18th): the turn progress bars, top left of the map, below the turn timer when there is one: this player's and one per ally, in a game
+	// DMB (the project owner, October 16th to 18th): the turn progress bars, top left of the map, below the turn timer when there is one: this player's and one per ally, in a game
 	// with more than one human player or where this player has an ally. The list picks its players from the game state and places each bar by all it draws
 	// (TurnProgressBars)
 	{
@@ -88,7 +88,7 @@ AdventureMapInterface::AdventureMapInterface():
 		turnBars = std::make_shared<TurnProgressBars>(watches ? std::optional<Rect>(watches->pos) : std::nullopt, widget->getMapView()->pos, humans);
 	}
 	
-	// DMB observer mode (K, October 20th): in a game the client only watches, the bar with Pause, Step and the day, at the top of the map view
+	// DMB observer mode (the project owner, October 20th): in a game the client only watches, the bar with Pause, Step and the day, at the top of the map view
 	if(settings["session"]["spectate"].Bool())
 		observerBar = std::make_shared<ObserverBar>(widget->getMapView()->pos);
 

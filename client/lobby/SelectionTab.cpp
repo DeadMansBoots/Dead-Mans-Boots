@@ -70,7 +70,7 @@ public:
 
 		build(JsonNode(JsonPath::builtin("config/widgets/scenarioTab.json")));
 
-		// K, September 29th, on the list's size filter row: "the ones for the extra map sizes" are the "vcmi
+		// the project owner, September 29th, on the list's size filter row: "the ones for the extra map sizes" are the "vcmi
 		// characters" he keeps seeing. Those buttons (H, XH, G) are VCMI Extras' Extended Lobby art, whose layout
 		// replaces this one's, so they are swapped here once it is built: all seven take DMB's own size buttons, the
 		// set the Random Map pages use, so the row is one style, the game's lettering on the game's frame.

@@ -268,7 +268,7 @@ void InfoCard::changeSelection()
 	std::string mapSizeText = std::to_string(header->width) + "x" + std::to_string(header->height);
 	if(header->levels() > 1)
 		mapSizeText += "x" + std::to_string(header->levels());
-	// a map generator's size left on Random is rolled when the game begins: the card says so (K, October 4th)
+	// a map generator's size left on Random is rolled when the game begins: the card says so (the project owner, October 4th)
 	if(mapInfo->isRandomMap && GAME->server().si && GAME->server().si->mapGenOptions && !GAME->server().si->mapGenOptions->getExternalGenerator().empty())
 	{
 		const JsonNode & chosen = GAME->server().si->mapGenOptions->getExternalSettings()["map"];

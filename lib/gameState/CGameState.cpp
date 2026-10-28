@@ -638,7 +638,7 @@ void CGameState::placeStartingHeroes(vstd::RNG & randomGenerator)
 {
 	logGlobal->debug("\tGiving starting hero");
 
-	// DMB (K, October 14th: "a random hero instead of the hero they pick", on the first start of a game): a hero a player picked in the lobby that
+	// DMB (the project owner, October 14th: "a random hero instead of the hero they pick", on the first start of a game): a hero a player picked in the lobby that
 	// the map already holds as a prisoner belongs to the player; the prisoner becomes another hero. The lobby cannot know: a map generator makes the map
 	// at Begin, after the picks, and pickNextHeroType below drops a pick that is "used" by any hero object, prisons included.
 	for(auto & playerSettingPair : scenarioOps->playerInfos)
@@ -1316,7 +1316,7 @@ EVictoryLossCheckResult CGameState::checkForVictoryAndLoss(const PlayerColor & p
 	{
 		if (event.trigger.test(evaluateEvent))
 		{
-			// DMB (K, October 17th: "do it how VCMI does it"): a JSON map whose event carries no text (a generator module's map writer wrote none, and the JSON
+			// DMB (the project owner, October 17th: "do it how VCMI does it"): a JSON map whose event carries no text (a generator module's map writer wrote none, and the JSON
 			// reader drops a missing one) gets what CMapHeader::setupEvents gives an H3M map: genrltxt .659 to the winner and .5 to the others on victory, .7 to the
 			// loser and .8 to the others on defeat. A text the map does carry is used as written
 			if (event.effect.type == EventEffect::VICTORY)

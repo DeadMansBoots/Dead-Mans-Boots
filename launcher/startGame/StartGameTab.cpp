@@ -85,7 +85,7 @@ StartGameTab::StartGameTab(QWidget * parent)
 void StartGameTab::clipboardDataChanged()
 {
 	// reset the "copied" check mark. A carved button (the dark and leather looks) shows its word as its icon, so clearing the icon
-	// blanked the button ("Export to Clipboard" had no word when nothing valid was in the clipboard, K, October 9th): its word is carved again
+	// blanked the button ("Export to Clipboard" had no word when nothing valid was in the clipboard, the project owner, October 9th): its word is carved again
 	{
 		const QVariant carvedWord = ui->buttonPresetExport->property("dmbCarvedFrom");
 		if(carvedWord.isValid())

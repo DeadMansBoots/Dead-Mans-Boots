@@ -104,17 +104,17 @@ MainWindow::MainWindow(QWidget * parent)
 
 	setWindowIcon(QIcon{":/icons/menu-game.png"});
 	ui->modslistButton->setIcon(QIcon{":/icons/menu-mods.png"});
-	// K, October 4th: "the quill in help makes no sense, but the crystal ball with the scroll and book makes more sense for help
+	// the project owner, October 4th: "the quill in help makes no sense, but the crystal ball with the scroll and book makes more sense for help
 	// (checking multiple things)": the two icons swapped
 	ui->settingsButton->setIcon(QIcon{":/icons/about-project.png"});
 	ui->aboutButton->setIcon(QIcon{":/icons/menu-settings.png"});
 	ui->startGameButton->setIcon(QIcon{":/icons/menu-game.png"});
 	// DMB: real game art in place of the stock icons above, where there is a game to read one from
-	// (Gemini's launcher feedback via K, September 28th: the stock icons clash with the fantasy
+	// (Gemini's launcher feedback via the project owner, September 28th: the stock icons clash with the fantasy
 	// look). "Game" keeps its own boots icon, already on-theme. First tried as half-crops around
-	// GTBACK/GTTUTOR's own baked-in word; K rejected them on sight ("CUT IN HALF") and gave the
+	// GTBACK/GTTUTOR's own baked-in word; the project owner rejected them on sight ("CUT IN HALF") and gave the
 	// standing rule now in this file's own CLAUDE.md: inpaint the word out, never crop around it.
-	// Mods (GTBACK, "BACK"): tried, K rejected the inpainted result too ("looks like somebody
+	// Mods (GTBACK, "BACK"): tried, the project owner rejected the inpainted result too ("looks like somebody
 	// swished water colors around"), back on its stock icon for 0.1.0. Real inpainted sidebar icons
 	// are a later problem (DMB-Deliverables.md has the ComfyUI/silhouette-plus-SDXL approach as a
 	// shortlist candidate); `applySidebarIcon`/`coonsPatchInpaint` (theme.cpp) stay for that attempt.
@@ -153,7 +153,7 @@ MainWindow::MainWindow(QWidget * parent)
 	if(settings["launcher"]["updateOnStartup"].Bool())
 		UpdateDialog::showUpdateDialog(false);
 
-	// DMB (K, October 17th): automatic crash reports are off until the player says yes; this asks once (a first install, or a start that finds no stored answer)
+	// DMB (the project owner, October 17th): automatic crash reports are off until the player says yes; this asks once (a first install, or a start that finds no stored answer)
 	if(!settings["launcher"]["crashReportsAsked"].Bool())
 	{
 		QTimer::singleShot(0, this, [this]()

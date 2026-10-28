@@ -55,7 +55,7 @@ UpdateDialog::UpdateDialog(bool calledManually, QWidget *parent):
 		ui->checkOnStartup->setCheckState(Qt::CheckState::Checked);
 	
 	// DMB's own number: the update feed lists DMB releases, which all run on the same VCMI version
-	// the beta too (K, October 10th: "he should be able to auto update"): DMB_RELEASE_LABEL is "beta.4" and so on; the feed names the newest
+	// the beta too (the project owner, October 10th: "he should be able to auto update"): DMB_RELEASE_LABEL is "beta.4" and so on; the feed names the newest
 	currentVersion = "DMB " DMB_VERSION_STRING "-" DMB_RELEASE_LABEL_TEXT;
 	
 	setWindowTitle(QString::fromStdString(currentVersion));
@@ -148,7 +148,7 @@ void UpdateDialog::loadFromJson(const JsonNode & node)
 	
 	const auto updateType = node["updateType"].String();
 	
-	// DMB (K, October 10th, on a grey box with black type: "we should fix it so it looks proper"): a dark panel with gold type, the update's
+	// DMB (the project owner, October 10th, on a grey box with black type: "we should fix it so it looks proper"): a dark panel with gold type, the update's
 	// weight shown by the colour of its left edge
 	QString accent = "#d9a83e";
 	if(updateType == "major")

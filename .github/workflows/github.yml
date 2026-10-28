@@ -25,8 +25,8 @@ jobs:
       # the fork lost every build to a macOS error)
       fail-fast: false
       matrix:
-        # DMB (K, October 10th: "windows for now, linux, mac, android later"): only the Windows builds are listed; the other platforms' entries
-        # are kept in .github/disabled-build-platforms.txt, to paste back under include when K says so
+        # DMB (the project owner, October 10th: "windows for now, linux, mac, android later"): only the Windows builds are listed; the other platforms' entries
+        # are kept in .github/disabled-build-platforms.txt, to paste back under include when the project owner says so
         include:
           - platform: msvc-x64
             arch: x64
@@ -454,7 +454,7 @@ jobs:
             path: .summary/source.json
 
   test:
-    # DMB: the tests run on Linux, which is off for now (K, October 10th); they come back with it
+    # DMB: the tests run on Linux, which is off for now (the project owner, October 10th); they come back with it
     if: ${{ false }}
     name: Test (${{ matrix.platform }})
     strategy:
@@ -581,7 +581,7 @@ jobs:
         fi
 
   lobby:
-    # DMB: a Linux package, off for now (K, October 10th)
+    # DMB: a Linux package, off for now (the project owner, October 10th)
     if: ${{ false }}
     name: Build VCMI Lobby
     # Warning: Lobby .deb must be build on the same Ubuntu version and arch as our server. Do not change to ubuntu-latest
@@ -819,11 +819,11 @@ jobs:
         asset="Dead-Mans-Boots-${TAG#v}-Setup-x64.exe"
         title_candidate="Dead Man's Boots ${TAG#v} (test candidate)"
         title_release="Dead Man's Boots $version"
-        # DMB (K, October 9th): a release goes by a name too ("Straker Beta"), set once in VersionDefinition.cmake; the asset and the title carry it
+        # DMB (the project owner, October 9th): a release goes by a name too ("Straker Beta"), set once in VersionDefinition.cmake; the asset and the title carry it
         release_name=$(grep -m 1 "set(DMB_RELEASE_NAME" cmake_modules/VersionDefinition.cmake | cut -d'"' -f2 || true)
         if [ -n "$release_name" ]; then
           asset="Dead-Mans-Boots-${release_name// /-}-Setup-x64.exe"
-          # K, October 10th: the build's name in quotes, "Dead Man's Boots 'Straker' Beta (0.1.0-beta.6)"
+          # the project owner, October 10th: the build's name in quotes, "Dead Man's Boots 'Straker' Beta (0.1.0-beta.6)"
           title_release="Dead Man's Boots '${release_name%% *}' ${release_name#* } (${TAG#v})"
           title_candidate="$title_release"
         fi

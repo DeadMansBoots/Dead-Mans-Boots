@@ -172,7 +172,7 @@ public:
 	void setState(EClientState newState);
 
 	bool isHost() const;
-	/// DMB (K, October 9th): the page the host's lobby shows, as the last LobbyGuiAction said (a guest's screen follows it; kept here
+	/// DMB (the project owner, October 9th): the page the host's lobby shows, as the last LobbyGuiAction said (a guest's screen follows it; kept here
 	/// because the pack can arrive before the guest's lobby screen exists). 0 (LobbyGuiAction::NONE) until the host has said.
 	ui8 hostViewAction = 0;
 	std::string hostViewGenerator;
@@ -215,7 +215,7 @@ public:
 	void sendGuiAction(ui8 action, const std::string & generator = "", int page = -1, const std::string & state = "") const override;
 	void sendRestartGame() const override;
 	bool sendStartGame(bool allowOnlyAI = false, bool verify = true) const override;
-	/// DMB (rule 38, K, October 18th): true when no AI plugin the settings choose needs the player's answer. Else false, and the player is asked
+	/// DMB (rule 38, the project owner, October 18th): true when no AI plugin the settings choose needs the player's answer. Else false, and the player is asked
 	/// (one notice each, on the main thread): the check mark runs it anyway and calls `then`, the cross leaves things as they are. A host with no
 	/// window to ask in (headless) is refused, never given a stock AI in its place. Only the host is asked: its start is the one the server takes,
 	/// and its client runs the AI players

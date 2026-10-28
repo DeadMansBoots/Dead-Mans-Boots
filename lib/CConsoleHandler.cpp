@@ -144,12 +144,12 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 		return;
 	}
 	pruneOldDumps(folder, prefix, 5);
-	// DMB (K, October 9th: "dmb also reports 'VCMI has crashed' we want to update that"): the game's own name, and where the files are, since
+	// DMB (the project owner, October 9th: "dmb also reports 'VCMI has crashed' we want to update that"): the game's own name, and where the files are, since
 	// a player is asked to send them
-	// K, October 10th ("you can't see crashes you should"): the launcher is started at once, with no window, to build the report (the logs, the settings, the Mods
+	// the project owner, October 10th ("you can't see crashes you should"): the launcher is started at once, with no window, to build the report (the logs, the settings, the Mods
 	// listing and this dump) and send it; the player is told, and can add what they were doing with F12 or Help, Report a bug
 	const std::string launcher = (VCMIDirs::get().clientPath().parent_path() / "VCMI_launcher.exe").string();
-	// K, October 13th: "this is not the easy, one-click crash reporter I expected": the launcher shows one window (what happened, Send report, Don't send, what is sent
+	// the project owner, October 13th: "this is not the easy, one-click crash reporter I expected": the launcher shows one window (what happened, Send report, Don't send, what is sent
 	// and where the file stays; with the Settings switch on it sends at once and says so) instead of the plain message box below, which stays only as the fallback
 	{
 		std::string windowLine = "\"" + launcher + "\" --crash-window \"" + dumpPath.string() + "\"";
@@ -173,7 +173,7 @@ static void createMemoryDump(MINIDUMP_EXCEPTION_INFORMATION * meinfo)
 	// an automatic test (--testmap) or a headless client has nobody to read a box and nothing worth reporting: neither a report nor a window
 	if(settings["session"]["headless"].Bool() || !settings["session"]["testmap"].isNull())
 		return;
-	// a stored "true" counts only once the player has answered the launcher's question (crashReportsAsked): a file written by an earlier beta, whose default was on, stays off until then (K, October 18th)
+	// a stored "true" counts only once the player has answered the launcher's question (crashReportsAsked): a file written by an earlier beta, whose default was on, stays off until then (the project owner, October 18th)
 	const bool allowed = settings["launcher"]["sendCrashReports"].Bool() && settings["launcher"]["crashReportsAsked"].Bool();
 	const bool sending = allowed && CreateProcessA(launcher.c_str(), commandLine.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &started);
 	if(sending)
@@ -289,7 +289,7 @@ LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* exception)
 #endif
 
 #ifdef USE_UNHANDLED_EXCEPTION_FILTER
-/// every other way the program can be ended by itself (K, October 10th: "you can't see crashes you should"): a failed runtime check, a pure virtual call, abort():
+/// every other way the program can be ended by itself (the project owner, October 10th: "you can't see crashes you should"): a failed runtime check, a pure virtual call, abort():
 /// the same log lines and dump as an exception, then the program ends
 [[noreturn]] static void onFatal(const char * what)
 {

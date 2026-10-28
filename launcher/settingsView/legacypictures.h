@@ -17,7 +17,7 @@ class QDropEvent;
 
 class QNetworkAccessManager;
 
-/// DMB: "Get legacy menu themes and load screens" (K, October 4th: one button, the launcher does the rest). Downloads the original main
+/// DMB: "Get legacy menu themes and load screens" (the project owner, October 4th: one button, the launcher does the rest). Downloads the original main
 /// menu pictures and loading screens of the releases the player owns from the Heroes III wiki (one request at a time, a pause between
 /// them, a User-Agent naming the project, a hash for each file), puts them where the game looks for a player's own pictures
 /// (MenuBackgrounds, LoadingScreens), cuts the menu buttons out of the player's own game files and sharpens all of it 4x with
@@ -40,7 +40,7 @@ public:
 	/// the folder everything of this step is kept in (the player's DMB folder, LegacyPictures)
 	static QString baseFolder();
 
-	/// K, October 6th: "allow the user to provide their own copies of the ROE and SOD copies to the launcher (should the wiki sources ever go down,
+	/// the project owner, October 6th: "allow the user to provide their own copies of the ROE and SOD copies to the launcher (should the wiki sources ever go down,
 	/// this is where my offline backups would come in)". The player's own copies of the pictures are kept in LegacyPictures/Own, under the wiki's name
 	/// of each picture, and a run uses them in place of the wiki's file (and without the wiki, where it cannot be reached).
 	static QString ownFolder();

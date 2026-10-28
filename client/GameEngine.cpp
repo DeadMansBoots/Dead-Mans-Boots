@@ -115,7 +115,7 @@ void GameEngine::fakeMouseMove()
 [[noreturn]] void GameEngine::mainLoop()
 {
 	// DMB: a frame that kept the game busy for over 40 ms is written to the log with its parts (events, drawing, presenting), at most one line
-	// a second, so that a report of choppy hero movement says where the time went (K, October 9th playtest)
+	// a second, so that a report of choppy hero movement says where the time went (the project owner, October 9th playtest)
 	using Clock = std::chrono::steady_clock;
 	const auto millis = [](Clock::time_point from, Clock::time_point to) { return std::chrono::duration<double, std::milli>(to - from).count(); };
 	Clock::time_point lastSlowLine = Clock::now() - std::chrono::seconds(2);

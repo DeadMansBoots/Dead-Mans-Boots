@@ -167,7 +167,7 @@
 					"default": true
 				},
 				"buildingInfo" : {
-					// DMB (K, October 8th): the building pop-up says what the building does, who guards it, the prize and the threat
+					// DMB (the project owner, October 8th): the building pop-up says what the building does, who guards it, the prize and the threat
 					"type": "boolean",
 					"default": true
 				},
@@ -842,13 +842,13 @@
 					"enum" : [ "leather", "dark", "system" ],
 					"default" : "leather"
 				},
-				// DMB: the dark look's buttons and edges: silver, or the game's gold (K, September 27th)
+				// DMB: the dark look's buttons and edges: silver, or the game's gold (the project owner, September 27th)
 				"darkAccent" : {
 					"type" : "string",
 					"enum" : [ "silver", "gold" ],
 					"default" : "silver"
 				},
-				// DMB: the launcher's four colour slots (K, October 1st: "everything is configurable now ... One color per
+				// DMB: the launcher's four colour slots (the project owner, October 1st: "everything is configurable now ... One color per
 				// slot"). Each is "default" (the slot's own in the look), a hero colour, silver or black; a slot left
 				// empty takes what the look gives it (red switches and silver edges in the dark look, the game's own in leather)
 				"look" : {
@@ -900,18 +900,18 @@
 					"default" : true
 				},
 				"sendCrashReports" : {
-					// DMB (K, October 10th; October 17th: off until the player says yes, as stock sends nothing): when the game crashes the launcher sends a
+					// DMB (the project owner, October 10th; October 17th: off until the player says yes, as stock sends nothing): when the game crashes the launcher sends a
 					// report to the developers by itself
 					"type" : "boolean",
 					"default" : false
 				},
 				"crashReportsAsked" : {
-					// DMB (K, October 17th): the launcher asks once whether to send crash reports by itself; this is set when that question has been answered
+					// DMB (the project owner, October 17th): the launcher asks once whether to send crash reports by itself; this is set when that question has been answered
 					"type" : "boolean",
 					"default" : false
 				},
 				"keepRunning" : {
-					// DMB (K, October 6th): the launcher stays open when the game starts; off is how it always was (it closes)
+					// DMB (the project owner, October 6th): the launcher stays open when the game starts; off is how it always was (it closes)
 					"type" : "boolean",
 					"default" : false
 				},

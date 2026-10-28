@@ -1570,7 +1570,7 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 
 	if (gameInfo().getPlayerRelations(h1->getOwner(), h2->getOwner()) != PlayerRelations::ENEMIES)
 	{
-		// DMB: one hero is in one trade at a time; a third hero reaching for one already trading is told so, once (K, October 24th). Every open
+		// DMB: one hero is in one trade at a time; a third hero reaching for one already trading is told so, once (the project owner, October 24th). Every open
 		// exchange of two heroes counts, shared or not (one with a computer ally's hero has the window on one screen only).
 		for(const auto & open : queries->allQueries())
 			if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(open.get());
@@ -1582,7 +1582,7 @@ void CGameHandler::heroExchange(ObjectInstanceID hero1, ObjectInstanceID hero2)
 						return;
 					}
 
-		// DMB: an allied trade is one window that both players have open (K, October 24th: "THE TRADE WINDOW TO BE PERFECTLY SYNCED"). The changes
+		// DMB: an allied trade is one window that both players have open (the project owner, October 24th: "THE TRADE WINDOW TO BE PERFECTLY SYNCED"). The changes
 		// either makes reach both, as every change of an army does, and either player's OK ends it for both (CGarrisonDialogQuery::onRemoval).
 		// The ally's window would open over a battle of his and hold the battle up, so the trade waits for the battle's end. An ally who is not
 		// acting (turns one player at a time) could not make a move in it (every one is refused as not his turn), so he is left as stock leaves him,
@@ -2152,7 +2152,7 @@ bool CGameHandler::arrangeStacks(ObjectInstanceID id1, ObjectInstanceID id2, ui8
 				// The split window lets the destination end up with fewer creatures than it has now (the slider
 				// goes either way), which means creatures go back to the source. The pack used to be sent with the
 				// negative count, and applying it divided by zero in CStackInstance's constructor, killing the
-				// server and the client (K's Death Valley crash, October 6th 2026).
+				// server and the client (the project owner's Death Valley crash, October 6th 2026).
 				if (notRemovable(s2))
 					return false;
 
@@ -4371,7 +4371,7 @@ bool CGameHandler::isBlockedByQueries(const CPackForServer *pack, PlayerColor pl
 	if (query && query->blocksPack(pack))
 	{
 		// DMB: a shared trade window opens on the ally's screen while his own requests may be on their way (a step of his hero, often towards the
-		// same trade); such a request is dropped with a log line, without the broadcast to every player's chat (K, October 24th: "fishy" spam)
+		// same trade); such a request is dropped with a log line, without the broadcast to every player's chat (the project owner, October 24th: "fishy" spam)
 		if(const auto * trade = dynamic_cast<const CGarrisonDialogQuery *>(query.get()); trade && trade->sharedWith.isValidPlayer())
 		{
 			logGlobal->info("Player %s is in a trade; dropped %s", player.toString(), typeid(*pack).name());

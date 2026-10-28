@@ -434,7 +434,7 @@ void MinimapWithIcons::addIcon(const int3 & coordinates, const ImagePath & image
 	icons.push_back({coordinates, image});
 }
 
-/// DMB (K, October 24th: the whirlpool's pop-up drew its name and description as one line off both edges of the window): a map-picture pop-up's description,
+/// DMB (the project owner, October 24th: the whirlpool's pop-up drew its name and description as one line off both edges of the window): a map-picture pop-up's description,
 /// wrapped to the window's width under the name. The text below the name's line (an empty line first is dropped), the height it takes once wrapped (0 for none).
 namespace
 {

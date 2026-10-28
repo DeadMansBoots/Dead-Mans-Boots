@@ -376,7 +376,7 @@ CInfoBar::~CInfoBar()
 
 void CInfoBar::show(Canvas & to)
 {
-	// DMB (K, October 8th: the status panel's morale was out of step with the hero's): the panel is rebuilt by the game's hero events, and
+	// DMB (the project owner, October 8th: the status panel's morale was out of step with the hero's): the panel is rebuilt by the game's hero events, and
 	// whatever way the numbers change that does not send one, the next frame drawn notices that they differ from the hero's own and rebuilds it
 	if(state == EState::HERO)
 	{
@@ -585,7 +585,7 @@ void CInfoBar::showHeroSelection(const CGHeroInstance * hero)
 	}
 	redraw();
 	// DMB: redraw() does nothing for a widget that is not active, and the adventure map is not while a window such as the hero window is on top;
-	// the rebuilt panel then stayed on screen as it was last drawn, beside the window (K's October 8th picture: the hero window said +1 morale, the panel did not)
+	// the rebuilt panel then stayed on screen as it was last drawn, beside the window (the project owner's October 8th picture: the hero window said +1 morale, the panel did not)
 	if(!isActive())
 		ENGINE->windows().totalRedraw();
 }

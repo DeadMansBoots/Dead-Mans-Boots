@@ -11,7 +11,7 @@
 
 #include "../StdInc.h"
 
-/// DMB (K, October 23rd: "the addition of DMB mods and .DMB files and an installer that registers it with the system"): a .dmb file is a zip with
+/// DMB (the project owner, October 23rd: "the addition of DMB mods and .DMB files and an installer that registers it with the system"): a .dmb file is a zip with
 /// dmb-manifest.json at its top and the mod's own folder under mod/. The manifest names the kind ("mod" for now), the id, name and version, the DMB
 /// versions it works with, and every file with its size and SHA-256. Everything is checked before anything is written (the Reviewer's list,
 /// .tmp\review-1021\DMB-FILE-SAFETY-CHECKS-1023.md), and the install goes through a staging folder so a failure leaves the installed mod as it was.
@@ -55,7 +55,7 @@ Inspection inspect(const QString & packagePath, const QString & runningDmbVersio
 bool install(const QString & packagePath, const QString & modsDir, const QString & runningDmbVersion, QString & reason);
 
 /// a .dmb made from a mod's folder (the folder's name is the id); false with a plain reason when the folder holds a link, has no mod.json, or a
-/// file carries the Windows user name, the computer name or a user folder path (K, October 11th: no personal information in what leaves the PC)
+/// file carries the Windows user name, the computer name or a user folder path (the project owner, October 11th: no personal information in what leaves the PC)
 bool make(const QString & modFolder, const QString & outPath, const QString & dmbMin, QString & reason);
 
 /// removes what an interrupted or failed install left in the mods folder (.dmb-staging-* and .dmb-old-* folders); the number removed

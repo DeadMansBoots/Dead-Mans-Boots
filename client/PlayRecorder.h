@@ -17,7 +17,7 @@ struct CPackForServer;
 struct CPackForClient;
 VCMI_LIB_NAMESPACE_END
 
-/// The play recorder (K, October 8th 2026: "if i do something in game, you all should know about it, even if its changing a system setting
+/// The play recorder (the project owner, October 8th 2026: "if i do something in game, you all should know about it, even if its changing a system setting
 /// or moving a item into a slot, then out of it"). One JSON line per event in
 /// Documents\My Games\Dead Man's Boots\PlayLogs\<date>_<time>_<map>.jsonl: every request the player's client sends (moves, builds, recruits,
 /// stack and artifact moves, trades, spells, battle commands, end of turn), what the game answered (the packs applied: fights with both

@@ -84,19 +84,19 @@ QImage rgbPicture(const QString & path)
 	return image.isNull() ? image : image.convertToFormat(QImage::Format_RGB888);
 }
 
-// The progress bar of a loading picture (K, October 8th: "legacy image pipeline needs to put progress bar imprints on art that doesn't have them").
+// The progress bar of a loading picture (the project owner, October 8th: "legacy image pipeline needs to put progress bar imprints on art that doesn't have them").
 // Horn of the Abyss's picture, the Armageddon's Blade, Shadow of Death and Complete ones carry a frame painted into them, at x 390 to 757 and
 // y 543 to 567 of the 800x600 picture, and the game's progress blocks (x 395 y 548) fill it; the other pictures have none, so the blocks and the text
 // float on the art. Such a picture gets the same frame, cut from the player's own Horn of the Abyss picture when there is one, else drawn.
 const QRect BAR_FRAME(390, 543, 368, 25); // 800x600 pixels
-/// Horn of the Abyss's whole bar: the frame and its gold cartouches at the ends, the top and the bottom (K, October 14th: "upgrade all of the load screens to the HOTA compiled look so they all match")
+/// Horn of the Abyss's whole bar: the frame and its gold cartouches at the ends, the top and the bottom (the project owner, October 14th: "upgrade all of the load screens to the HOTA compiled look so they all match")
 const QRect ORNATE_RECT(368, 528, 412, 54);
 /// recorded in the pictures' index.json: a set made before the frames were stamped is made again by the pictures button (the client keeps using it meanwhile)
 const int LOAD_BARS_VERSION = 4; // 3 (October 14th): the Restoration of Erathia picture's own dark bar is taken out and it gets the common frame too; 4: the common frame is Horn of the Abyss's whole ornate bar
 
 /// Whether the picture (800x600) already has a bar of its own near the bottom: a straight horizontal edge, strong over a stretch of the width,
 /// which two pictures have (the Horn of the Abyss one 203 and the Restoration of Erathia one 97 as the mean change of grey between two rows) and the six without do not (under 4);
-/// the Armageddon's Blade, Shadow of Death and Complete pictures carry only a faint, see-through ghost of a frame there (52 to 55: K, October 12th, Armageddon's Blade
+/// the Armageddon's Blade, Shadow of Death and Complete pictures carry only a faint, see-through ghost of a frame there (52 to 55: the project owner, October 12th, Armageddon's Blade
 /// "still needs a load bar imprint"), which is no bar, so they get the frame like the others
 bool hasOwnBar(const QImage & picture)
 {
@@ -146,7 +146,7 @@ QImage stampBarFrame(const QImage & picture, const QImage & frame, const QPoint 
 	return stamped.convertToFormat(QImage::Format_RGB888);
 }
 
-/// The bar every loading picture gets, in two layers so that either can be changed on its own (K, October 14th: the fill may become another material, "onyx black marble", and later
+/// The bar every loading picture gets, in two layers so that either can be changed on its own (the project owner, October 14th: the fill may become another material, "onyx black marble", and later
 /// a setting, the frame following the gold trim of the interface): the frame (the gold and black lines and the cartouches, transparent where the fill shows and around them) and the fill
 /// (the material inside the frame, opaque a little under the frame's lines). Both are `scale` times 800x600 and drawn at `origin`, the fill first
 struct BarArt
@@ -234,7 +234,7 @@ BarArt ornateBar(const QImage & big)
 }
 
 /// The bar a picture carries of its own that is not the one every screen gets: where it is (800x600 pixels, the frame's outer edge, inclusive) and what it does to the art behind it.
-/// K, October 14th: "we should definitely make all the originals and SOD+ROE load screen bars look the same": the Restoration of Erathia picture has a dark see-through bar of its own
+/// the project owner, October 14th: "we should definitely make all the originals and SOD+ROE load screen bars look the same": the Restoration of Erathia picture has a dark see-through bar of its own
 /// (x 330 to 694, y 524 to 546), away from the place the game draws its progress blocks, so it is taken out before the common frame is stamped
 struct OwnBar
 {
@@ -401,7 +401,7 @@ QString LegacyPicturesWorker::slugOf(const QString & name)
 QVector<LegacyPicturesWorker::Picture> LegacyPicturesWorker::selection()
 {
 	// the releases the game holds a menu or loading screen of (always), and the mods whose own pictures these are (only where installed):
-	// the lists show what the player has (K, October 4th: "why do we have wake of gods? that's not in my mods list")
+	// the lists show what the player has (the project owner, October 4th: "why do we have wake of gods? that's not in my mods list")
 	QVector<Picture> all;
 	const auto add = [&all](const char * wiki, const char * title, bool loading, const char * mod = "")
 	{
@@ -875,7 +875,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 	for(const auto & p : pictures)
 	{
 		const QImage original = rgbPicture(p.originalPath);
-		// every loading picture except Horn of the Abyss's carries the same frame (K, October 14th): the ones with none get it, and a bar of another kind (the Restoration of Erathia
+		// every loading picture except Horn of the Abyss's carries the same frame (the project owner, October 14th): the ones with none get it, and a bar of another kind (the Restoration of Erathia
 		// picture's dark one) is taken out first, so that the frame sits where the game's progress blocks are drawn; Horn of the Abyss's own ornate bar stays as it is
 		const bool plain = p.loading && original.size() == QSize(OWN_WIDTH, OWN_HEIGHT);
 		const bool hota = p.title == "Horn of the Abyss loading screen";
@@ -911,7 +911,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 	return true;
 }
 
-/// K, October 5th: "these cutouts still have some really nasty jagged edges". The cut-out's alpha comes from the 1x sprite's hard mask, so each
+/// the project owner, October 5th: "these cutouts still have some really nasty jagged edges". The cut-out's alpha comes from the 1x sprite's hard mask, so each
 /// 1x pixel of its outline shows as a 4 px stair. The alpha is blurred (a gaussian of `sigma` pixels) and made sharp again with a smooth step:
 /// the contour is a smooth line with a feather of about 2 px; the colours, the artist's dark outline among them, are left as they are
 static void smoothContour(QImage & image, double sigma)
@@ -1080,7 +1080,7 @@ static double hotaScale(const QString & name)
 	return scales.value(name, 0.85);
 }
 
-/// K, October 5th and 6th: "we want to iterate until we get icons that look as good as HOTA's". The method of HotA's own button art
+/// the project owner, October 5th and 6th: "we want to iterate until we get icons that look as good as HOTA's". The method of HotA's own button art
 /// (Research/2026-10-05-HotA-Main-Menu-Buttons.md), applied to a button cut out at 4x: the floating bits are dropped, the button is
 /// drawn smaller (its centre kept) so its edge is a soft ramp of alpha, the baked reddish ring inside the outline is painted over with the
 /// colours next to it, a soft near-black shadow sits in the alpha channel under it, and the hover frame adds a soft white glow.

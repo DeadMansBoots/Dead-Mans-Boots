@@ -1,4 +1,4 @@
-# Build matrix entries taken out of .github/workflows/github.yml on October 10th, 2026 (K: Windows only for now).
+# Build matrix entries taken out of .github/workflows/github.yml on October 10th, 2026 (the project owner: Windows only for now).
 # Paste them back under `include:` of the build job to switch a platform on.
 
           - platform: mac-intel

@@ -111,7 +111,7 @@ void CBattleAI::yourTacticPhase(const BattleID & battleID, int distance)
 	cb->battleMakeTacticAction(battleID, BattleAction::makeEndOFTacticPhase(cb->getBattle(battleID)->battleGetTacticsSide()));
 }
 
-// DMB: the tactics phase used as a player uses it (K's by-hand fights in his October 23rd play log, battles 53, 55, 61, 128 and 139: all
+// DMB: the tactics phase used as a player uses it (the project owner's by-hand fights in his October 23rd play log, battles 53, 55, 61, 128 and 139: all
 // seven stacks moved to the front of the zone, then the enemy destroyed before it acted; DESIGN-DMB-auto-combat-1023.md section 8). Each
 // stack that walks and does not shoot, fastest first, goes to the free hex of the tactics zone nearest an enemy stack; shooters keep
 // their place; war machines do not move. Moves are sent without waiting for them to apply, so the hexes already taken are tracked here.

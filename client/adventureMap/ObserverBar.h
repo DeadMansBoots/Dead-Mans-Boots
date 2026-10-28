@@ -12,7 +12,7 @@
 class CLabel;
 class TransparentFilledRectangle;
 
-/// DMB observer mode (K, October 20th: "in these tests I need the ability to stop time, examine heroes, look in towns, etc."): a bar at the top of the adventure map in a
+/// DMB observer mode (the project owner, October 20th: "in these tests I need the ability to stop time, examine heroes, look in towns, etc."): a bar at the top of the adventure map in a
 /// game the client only watches (settings session.spectate: a game with no human player). Pause / Resume holds the whole game: the server in this client holds every player's request
 /// and its timers (DmbObserverPause); Step lets one request through. It also writes the PAUSE and STEP flag files in OmniAI's folder, which OmniAI polls
 /// (roster\NOTE-OmniAI-Observer-Contract-for-DMB-Dev.md), and follows the PAUSE file, so the watch console's p and Enter pause the game as well. The bar
@@ -29,7 +29,7 @@ class ObserverBar : public CIntObject
 	Rect pauseArea;
 	Rect stepArea;
 	bool paused = false;
-	/// only the host's machine runs the AI, and so only it can stop one: the flag files are read on that machine (K, October 22nd: pause is for the host)
+	/// only the host's machine runs the AI, and so only it can stop one: the flag files are read on that machine (the project owner, October 22nd: pause is for the host)
 	bool canPause = false;
 	int shownDay = -1;
 	uint32_t sinceFlagCheck = 0;

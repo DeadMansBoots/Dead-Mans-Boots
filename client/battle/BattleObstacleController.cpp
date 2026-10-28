@@ -57,7 +57,7 @@ void BattleObstacleController::loadObstacleImage(const CObstacleInstance & oi)
 		obstacleImages[oi.uniqueID] = obstacleAnimations[oi.uniqueID]->getImage(0);
 	}
 
-	// DMB (K, October 10th: "plumb in more verbose logging, as apparently you can't see crashes you should"): what each obstacle of the battle is and whether its
+	// DMB (the project owner, October 10th: "plumb in more verbose logging, as apparently you can't see crashes you should"): what each obstacle of the battle is and whether its
 	// picture loaded, so a report names the obstacle, its mod's entry and its file
 	const auto & shown = obstacleImages[oi.uniqueID];
 	const size_t frames = obstacleAnimations.count(oi.uniqueID) ? obstacleAnimations[oi.uniqueID]->size(0) : (shown ? 1 : 0);

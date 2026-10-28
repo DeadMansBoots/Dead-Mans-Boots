@@ -80,7 +80,7 @@ void ApplyOnServerNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected
 void ApplyOnServerAfterAnnounceNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected & pack)
 {
 	srv.updateAndPropagateLobbyState();
-	srv.replayLobbyView(pack.clientId); // the page the host is on (K, October 9th)
+	srv.replayLobbyView(pack.clientId); // the page the host is on (the project owner, October 9th)
 }
 
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyClientDisconnected(LobbyClientDisconnected & pack)

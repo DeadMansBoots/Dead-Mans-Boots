@@ -44,7 +44,7 @@ const Point FRAME_SIZE(120, 18);
 const int END_PIECE = 9;
 /// the player's name is centred this far above the frame's top
 const int NAME_ABOVE = 8;   // the small font's line is taller than the tiny one's: its bottom stays clear of the frame
-/// the name and the percent use the font of the resource bar and the date beside it (FONT_TINY drew a smooth sans face at 150 and 200 percent, K's
+/// the name and the percent use the font of the resource bar and the date beside it (FONT_TINY drew a smooth sans face at 150 and 200 percent, the project owner's
 /// screen, while the stock text around it is the game's serif: the Reviewer's pre-read, October 22nd)
 const EFonts LABEL_FONT = FONT_SMALL;
 }
@@ -311,7 +311,7 @@ void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::
 
 int TurnProgressBar::trimStyle(const PlayerColor & player)
 {
-	// the trim candidates (October 22nd, K: the bar's trim must match the game's own ornate frame): 0 the first trim, 1 the stock red and gold band, 2 the stock gold band;
+	// the trim candidates (October 22nd, the project owner: the bar's trim must match the game's own ornate frame): 0 the first trim, 1 the stock red and gold band, 2 the stock gold band;
 	// chosen by DMB_BAR_TRIM while the candidates are compared
 	static const char * value = std::getenv("DMB_BAR_TRIM");
 	if(value && std::string(value) == "mix")
@@ -340,7 +340,7 @@ void TurnProgressBar::drawStockTrim(Canvas & to, const Rect & outer, int style)
 	const int srcX = 300;
 	// the gems' size: the screen frame's corner jewel, cut as a disc of this radius and centred a pixel outside each side
 	const int radius = 7;   // the jewel stays inside the frame's 18 pixels (at 8 its ring stood out by a pixel above and below)
-	// the ends (K, October 22nd 17:5x: "the corners of the progress bars look like they need some fill on the corners"): the rails run on to the gems' outer edge
+	// the ends (the project owner, October 22nd 17:5x: "the corners of the progress bars look like they need some fill on the corners"): the rails run on to the gems' outer edge
 	// and the sides close the frame there, so each gem is set in the frame's metal and the corners above and below it show the rails and the side instead of the
 	// terrain under the bar
 	const int reach = radius + 1;
@@ -419,19 +419,19 @@ void TurnProgressBar::show(Canvas & to)
 	to.drawColorBlended(inner, ColorRGBA(0, 0, 0, 77));
 
 	const double t = clockMs / 1000.0;
-	// the liquid is one colour at every fill and whoever is acting: the dim for a player who waits or has ended the turn made every full bar dark (K, October
+	// the liquid is one colour at every fill and whoever is acting: the dim for a player who waits or has ended the turn made every full bar dark (the project owner, October
 	// 23rd 15:2x: "oh the bar gets darker the fuller it gets. yeah we need to do away with that")
 	const double dim = 1.0;
 	{
-		// at 100 the liquid is whole: no ripple and no glass showing at the end (the eased fill used to stop short of the end; K, October 23rd 13:2x: "it
+		// at 100 the liquid is whole: no ripple and no glass showing at the end (the eased fill used to stop short of the end; the project owner, October 23rd 13:2x: "it
 		// shouldn't be visible at all (that is to say, no see-through gaps) when the bar is at 100%")
 		const bool full = percent >= 100 && shown >= 99.0;
 		const int width = full ? inner.w : std::clamp(static_cast<int>(std::lround(inner.w * shown / 100.0)), 0, inner.w);
 		if(width > 0)
 		{
-			// the liquid: lighter at the top, darker at the bottom. Its leading edge is Gen 3 of the edge's history (K, October 24th, picking it from the GIFs of
+			// the liquid: lighter at the top, darker at the bottom. Its leading edge is Gen 3 of the edge's history (the project owner, October 24th, picking it from the GIFs of
 			// 42f0ba701: "looks the cleanest"): it slants from the top down to the right across the whole height of the bar, a ripple running down it (his October
-			// 23rd words: "the wavy part goes horizontally from the top down and to the right"). Beyond the edge is the plain glass of the empty trough (K, October
+			// 23rd words: "the wavy part goes horizontally from the top down and to the right"). Beyond the edge is the plain glass of the empty trough (the project owner, October
 			// 23rd 18:5x: "get rid of the player-colorish transparency layer over or behind the bar where the waviness is")
 			const int slant = full ? 0 : std::min(width, std::max(4, inner.h / 2));
 			// brightening mixes toward white, so a colour keeps its hue: multiplied and clamped per channel, tan's highlight turned yellow-green beside the gold
@@ -442,7 +442,7 @@ void TurnProgressBar::show(Canvas & to)
 				return ColorRGBA(mix(c.r), mix(c.g), mix(c.b), 255);
 			};
 			const ColorRGBA highlight = lighten(base, 0.45);
-			// every bar ripples on its own: a phase a golden angle apart and a speed of its own per player, so no two bars bob in step (K, October 24th 08:0x:
+			// every bar ripples on its own: a phase a golden angle apart and a speed of its own per player, so no two bars bob in step (the project owner, October 24th 08:0x:
 			// "the waviness of the fluid on the different players' bars must not sync up")
 			static constexpr std::array<double, 8> speeds = {1.00, 0.86, 1.13, 0.93, 1.07, 0.81, 1.19, 0.97};
 			const int seed = player.isValidPlayer() ? player.getNum() % 8 : 0;

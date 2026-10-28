@@ -33,7 +33,7 @@ public:
 	/// Begin is blocked or not by what the lobby shows: a scenario needs a map and, for a host in a network lobby, a remote client
 	void updateStartButtonState();
 	void onRemoteClientLobbyStateChanged();
-	/// DMB (K, October 9th): a guest's screen shows the page the host's shows (CServerHandler::hostViewAction): the tab, and a map generator
+	/// DMB (the project owner, October 9th): a guest's screen shows the page the host's shows (CServerHandler::hostViewAction): the tab, and a map generator
 	/// tab's page. Nothing for the host.
 	void showHostView();
 	/// the host's page of a generator's tab and its settings, to the guests
@@ -55,7 +55,7 @@ private:
 	// own headline sits (its first row of settings is lower: config/widgets/randomMapTab.json)
 	static constexpr int MODE_ARROW_LEFT = 66;
 	static constexpr int MODE_ARROW_RIGHT = 362;
-	// K, September 29th: "arrows and omni map gen text still sitting on the bottom of their box". Measured at
+	// the project owner, September 29th: "arrows and omni map gen text still sitting on the bottom of their box". Measured at
 	// his screen (3440x1440, UI 200%), in this layout's pixels: the box is 22 to 47 (centre 34.5); the arrows'
 	// gold glyph stood 33.5 to 41.5 and the name's capitals 35.5 to 45.5, both low, the descender of the "p"
 	// below the box's edge. The arrows now stand with their glyph centred at 34.5, and the name's centre line

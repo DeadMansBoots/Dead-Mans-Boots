@@ -74,7 +74,7 @@ public:
 
 	// DMB: what this start did to an earlier DMB's user folders, for the launcher to tell the player:
 	// renamed them to the current name, or could not, and then this run keeps the earlier name. Empty
-	// when there was nothing to move, and then the player hears nothing (K, September 27th).
+	// when there was nothing to move, and then the player hears nothing (the project owner, September 27th).
 	const std::vector<std::string> & earlierFolderSteps() const { return renameSteps; }
 	bool keptEarlierFolders() const { return keptEarlierNames; }
 

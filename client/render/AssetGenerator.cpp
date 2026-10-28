@@ -43,7 +43,7 @@ void AssetGenerator::initialize()
 	if(boost::filesystem::is_directory(VCMIDirs::get().userDataPath() / "Generated"))
 		boost::filesystem::remove_all(VCMIDirs::get().userDataPath() / "Generated");
 
-	// DMB: the pictures the launcher's pictures step made are used only when the current pipeline made them (K, October 6th: his first look
+	// DMB: the pictures the launcher's pictures step made are used only when the current pipeline made them (the project owner, October 6th: his first look
 	// at a new build showed the buttons of his run of the day before, so he judged old art); an older set stays unused, and the launcher's
 	// pictures button says an update is ready, until the step is run again
 	const bool picturesCurrent = MenuBackgrounds::picturesAreCurrent();
@@ -196,7 +196,7 @@ void AssetGenerator::initialize()
 		const std::string name = "RanButton" + std::to_string(width);
 		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANWEAK", width, 6, {6, 15}, {70, 77});
 	}
-	// 120: the saved settings dialog's Delete button (K, September 29th: black lettering on gold, like the
+	// 120: the saved settings dialog's Delete button (the project owner, September 29th: black lettering on gold, like the
 	// rest of the menus)
 	for(int width : {337, 166, 120})
 	{
@@ -204,9 +204,9 @@ void AssetGenerator::initialize()
 		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANSHOW", width, 21, {110, 111}, {110, 111});
 	}
 	animationFiles[AnimationPath::builtin("SPRITES/MapGenButton190")] = createMapGenButton(190);
-	// DMB: map size buttons for generators with sizes past XL (K, September 27th: lettered to match the
+	// DMB: map size buttons for generators with sizes past XL (the project owner, September 27th: lettered to match the
 	// game's own), every size from the one XL frame with its letters drawn in the game's own lettering.
-	// K, September 29th, looking at S, M, L and XL in the row: "the icons for the map sized under H look like
+	// the project owner, September 29th, looking at S, M, L and XL in the row: "the icons for the map sized under H look like
 	// trash. AGAIN, WE GENERATED H AND ABOVE, IT SHOULD BE FUCKING SIMPLE TO GENERATE THE ONES BELOW IT BASED
 	// ON THE SAME PROCEDURE". The first cuts kept the game's own S, M and L frames (stripes and corner marks
 	// behind the letter) and gave the real letter shadow passes, which doubled it; all eight are now the one
@@ -351,7 +351,7 @@ AssetGenerator::CanvasPtr AssetGenerator::createAdventureOptionsCleanBackground(
 
 AssetGenerator::CanvasPtr AssetGenerator::createMapGenBackground() const
 {
-	// DMB, the map generator tab's background (K, October 22nd 17:4x: the size and player buttons "ride too low on their bounding ui boxes and
+	// DMB, the map generator tab's background (the project owner, October 22nd 17:4x: the size and player buttons "ride too low on their bounding ui boxes and
 	// should be given a tad more breathing room...all the buttons should have a unified margin with their containing bounding box"). The tab
 	// draws on VCMI Extras' lobby background (RanMapBk_new, 575 by 585), whose six boxes leave a row of 32 high buttons 32 rows between a
 	// box's divider and its bottom edge, so a row touches one line or the other. This copy moves each box's bottom edge (its inner bevel and
@@ -1510,7 +1510,7 @@ std::vector<std::vector<bool>> sizeLetters(const std::string & text, int widest)
 /// own edges (their colours blended across it, the dotted border's dots smoothed out), then the letters
 /// embossed as the game's are; a pressed frame's letters sit a pixel lower and to the right. `narrower`:
 /// how many columns the frame lost out of its middle. `enhanceOnly`: keep the frame's own real letter and
-/// only add the shadow/highlight passes on top. Nothing asks for it now: S/M/L/XL were made so and K
+/// only add the shadow/highlight passes on top. Nothing asks for it now: S/M/L/XL were made so and the project owner
 /// rejected them (September 29th: "IT SHOULD BE FUCKING SIMPLE"), and are lettered like H/XH/G/C.
 void letterSizeButton(Canvas & canvas, const std::string & text, bool pressed, int narrower = 0, bool enhanceOnly = false)
 {
@@ -1633,7 +1633,7 @@ void letterSizeButton(Canvas & canvas, const std::string & text, bool pressed, i
 AssetGenerator::AnimationLayoutMap AssetGenerator::createSizeButton(const std::string & name, const std::string & source, const std::string & text, int width, bool enhanceOnly, int iconFrame)
 {
 	auto baseImg = ENGINE->renderHandler().loadAnimation(AnimationPath::builtin(source), EImageBlitMode::OPAQUE);
-	// DMB: K, October 3rd, on the map size icons: "B. idk why we didn't do this to begin with. it's the best icon set": the game's own
+	// DMB: the project owner, October 3rd, on the map size icons: "B. idk why we didn't do this to begin with. it's the best icon set": the game's own
 	// map size icon of the scenario panel (SCNRMPSZ, one frame a size) on the button's face, drawn once. Where the game has no such
 	// frame (H, XH and G come with VCMI Extras) the lettering stays.
 	decltype(baseImg) icons;

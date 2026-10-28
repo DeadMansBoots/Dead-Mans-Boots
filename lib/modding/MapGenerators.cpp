@@ -273,14 +273,14 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 		args.push_back(teamList);
 	}
 	// the colours the seated humans took in the lobby, for a generator that takes them: the player count
-	// stays a surprise until Begin, as in VCMI, so the humans are not always the first colours (K)
+	// stays a surprise until Begin, as in VCMI, so the humans are not always the first colours (the project owner)
 	if(takesColours && !humanColors.empty())
 	{
 		args.push_back("--humanColors");
 		args.push_back(boost::algorithm::join(humanColors, ","));
 	}
 	// the heroes the players picked in the lobby, for a generator that declares the "heroes" argument: it never places those heroes (a prison hero equal to a
-	// pick cost the player the pick, K, October 14th). Colour=hero pairs, only the players who picked one.
+	// pick cost the player the pick, the project owner, October 14th). Colour=hero pairs, only the players who picked one.
 	if(generator->arguments.count("heroes"))
 	{
 		std::vector<std::string> picked;

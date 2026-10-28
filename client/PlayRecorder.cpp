@@ -588,7 +588,7 @@ struct PlayRecorder::Impl
 	int64_t lines = 0;
 	std::string seat;
 	/// when the file was last flushed: a hero's step is several events, and a flush each (a system call, and a virus scanner's look) made
-	/// moving a hero choppy (K, October 10th, a first suspect); the file is flushed at the player's own actions, snapshots and the end, and
+	/// moving a hero choppy (the project owner, October 10th, a first suspect); the file is flushed at the player's own actions, snapshots and the end, and
 	/// at most half a second apart in between
 	std::chrono::steady_clock::time_point lastFlush = std::chrono::steady_clock::now();
 };

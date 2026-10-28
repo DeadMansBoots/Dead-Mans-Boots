@@ -63,7 +63,7 @@ class MapGenTab : public InterfaceObjectConfigurable
 	/// the hover box (HoverTip, MapGenTab.cpp): the engine's status bar while the tab is shown
 	std::shared_ptr<IStatusBar> hoverTip;
 	/// a control's name, as it is written to the status bar, to what the control does: the tab's own layout (its page buttons),
-	/// and each page's own, since a page's control can carry the name of its page button (K, October 4th: the Underground
+	/// and each page's own, since a page's control can carry the name of its page button (the project owner, October 4th: the Underground
 	/// check showed the page button's help)
 	std::map<std::string, std::string> helpBodies;
 	std::vector<std::map<std::string, std::string>> pageHelpBodies;
@@ -112,7 +112,7 @@ class MapGenTab : public InterfaceObjectConfigurable
 public:
 	explicit MapGenTab(const MapGeneratorInfo & generator);
 
-	/// DMB (K, October 18th: never lock the player out): the notice for a generator whose code DMB's mod catalog does not vouch for
+	/// DMB (the project owner, October 18th: never lock the player out): the notice for a generator whose code DMB's mod catalog does not vouch for
 	/// (AddonCode::trustProblem gave problem). The check mark runs it anyway (onRun), the cross or Escape cancels (onCancel); each
 	/// of the two is called once. Main thread only.
 	static void askRunAnyway(const MapGeneratorInfo & generator, const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel);
@@ -123,12 +123,12 @@ public:
 		const std::string & problem, std::function<void()> onRun, std::function<void()> onCancel);
 
 	const MapGeneratorInfo & getGenerator() const;
-	/// DMB (K, October 9th): the page of the tab shown now, and a way to show one (the guests' lobby follows the host's page); and who is told
+	/// DMB (the project owner, October 9th): the page of the tab shown now, and a way to show one (the guests' lobby follows the host's page); and who is told
 	/// when a page is shown
 	size_t currentPage() const;
 	void showPage(size_t index);
 	std::function<void(size_t)> onPageShown;
-	/// the host's settings of this generator as JSON text, for the guests (K, October 10th); told to onSettingsChanged when the host changes them
+	/// the host's settings of this generator as JSON text, for the guests (the project owner, October 10th); told to onSettingsChanged when the host changes them
 	std::string stateText() const;
 	std::function<void()> onSettingsChanged;
 	/// a guest: shows the host's settings in place of its own (kept in memory, and put back by restoreOwnState when the lobby closes)

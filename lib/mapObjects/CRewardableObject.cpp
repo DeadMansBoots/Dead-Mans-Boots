@@ -217,7 +217,7 @@ bool CRewardableObject::wasVisited(const CGHeroInstance * h) const
 
 namespace
 {
-/// DMB (K, October 8th, item 21): what an adventure map building does, shown under its pop-up text. The prize comes from the building TYPE's own reward table,
+/// DMB (the project owner, October 8th, item 21): what an adventure map building does, shown under its pop-up text. The prize comes from the building TYPE's own reward table,
 /// sampled with a randomizer of its own (never the roll this building has: that would give the prize away), as ranges; the guards are named with the game's
 /// quantity words, and the threat against the selected hero is worded as upstream words it for wandering monsters.
 struct Range
@@ -513,7 +513,7 @@ std::vector<std::string> prizeParts(const PrizeSummary & prize, bool alternative
 		}
 		else
 		{
-			// named by what the pool holds, the class only for ordinary artifacts (K, October 14th: "war machines are not artifacts"; the Siege
+			// named by what the pool holds, the class only for ordinary artifacts (the project owner, October 14th: "war machines are not artifacts"; the Siege
 			// Workshop printed "an artifact (special class)" and the Treasure Pile "(treasure class)")
 			bool machines = false;
 			bool scrolls = false;
@@ -742,11 +742,11 @@ std::string CRewardableObject::getBuildingInfoText(PlayerColor player, const CGH
 			if(info.visitType == Rewardable::EEventType::EVENT_FIRST_VISIT)
 				++firstVisitRewards;
 		// a "select first" table gives only the first reward whose condition passes (the Idol of Fortune: luck on some days, morale on others), so
-		// its rewards are alternatives too (K, October 22nd: the Idol's window said "+1 luck ... and +1 morale")
+		// its rewards are alternatives too (the project owner, October 22nd: the Idol's window said "+1 luck ... and +1 morale")
 		const bool alternatives = firstVisitRewards > 1 && (configuration.selectMode == Rewardable::SELECT_PLAYER || configuration.selectMode == Rewardable::SELECT_RANDOM
 			|| configuration.selectMode == Rewardable::SELECT_FIRST);
 		const auto parts = prizeParts(prize, alternatives, learnsSpell);
-		// the prize is not said twice: when the object's own description already states every part of it (K: "too redundant for a basegame heroes
+		// the prize is not said twice: when the object's own description already states every part of it (the project owner: "too redundant for a basegame heroes
 		// entry"), the Gives line is left out, as costText leaves out a price the description states
 		const std::string description = getDescriptionMessage(player, hero);
 		const bool alreadySaid = !parts.empty() && std::all_of(parts.begin(), parts.end(), [&description](const std::string & part) { return statedIn(part, description); });

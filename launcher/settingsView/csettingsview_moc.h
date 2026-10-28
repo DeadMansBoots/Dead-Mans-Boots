@@ -111,7 +111,7 @@ private:
 	Ui::CSettingsView * ui;
 
 	/// DMB: the settings in pages, one a category, picked from a narrow bar of categories on the left
-	/// (K, September 26th: real submenus, not one long scrolling list). The .ui keeps its one long
+	/// (the project owner, September 26th: real submenus, not one long scrolling list). The .ui keeps its one long
 	/// grid, and each header label there starts a category.
 	void buildCategoryPages();
 	/// a category's button shows while any of its settings shows, named as its header; the page shown
@@ -133,7 +133,7 @@ private:
 	void fitCategoryBar();
 
 	/// DMB: the look's four colour slots (launcher/theme.h), a dropdown each below Launcher Look
-	/// (K, October 1st: "max configurability"), made with the pages
+	/// (the project owner, October 1st: "max configurability"), made with the pages
 	struct LookSlotRow
 	{
 		const char * slot;
@@ -143,7 +143,7 @@ private:
 	/// the dropdowns showing what each slot holds now, in the current look
 	void fillLookSlots();
 
-	/// DMB: the main menu's background (general.mainMenuBackground, K, October 1st): random, as the mods set it, or one
+	/// DMB: the main menu's background (general.mainMenuBackground, the project owner, October 1st): random, as the mods set it, or one
 	/// release's own picture from the player's game files; the dropdown below the look's slots
 	QComboBox * menuBackgroundCombo = nullptr;
 	void fillMenuBackgrounds();

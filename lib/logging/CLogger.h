@@ -222,7 +222,7 @@ private:
 	std::fstream file;
 	CLogFormatter formatter;
 	mutable std::mutex mx;
-	/// DMB (K, October 10th, a first suspect for choppy hero movement: a hero's step logs several trace lines): the file is flushed at
+	/// DMB (the project owner, October 10th, a first suspect for choppy hero movement: a hero's step logs several trace lines): the file is flushed at
 	/// a warning or worse (a crash writes errors) and at most a quarter of a second apart otherwise, not at every line
 	std::chrono::steady_clock::time_point lastFlush = std::chrono::steady_clock::now();
 };

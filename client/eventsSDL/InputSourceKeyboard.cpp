@@ -129,7 +129,7 @@ void InputSourceKeyboard::handleEventKeyDown(const SDL_KeyboardEvent & key)
 	if (vstd::contains(shortcutsVector, EShortcut::GLOBAL_SCREENSHOT))
 		ENGINE->screenHandler().screenShot();
 
-	// DMB (K, October 10th: "is the bug reporting process as easy as it can get?"): F12 anywhere in the game starts the launcher's bug report. The key is
+	// DMB (the project owner, October 10th: "is the bug reporting process as easy as it can get?"): F12 anywhere in the game starts the launcher's bug report. The key is
 	// fixed here, not a shortcut setting, so a player whose key bindings file was made before this build still has it.
 	if (keyName == "F12" && !key.repeat)
 		startBugReport();

@@ -382,7 +382,7 @@ void CEngravedLabel::showAll(Canvas & to)
 	{
 		carvedText = shown;
 		carving = nullptr;
-		// a gold button's big words in the game's own lettering, where the button has room for it (K,
+		// a gold button's big words in the game's own lettering, where the button has room for it (the project owner,
 		// September 27th: "the text also almost takes up the whole vertical width in the game i believe,
 		// and its a bold, and specific font (that we should match)")
 		if(font == FONT_BIG)

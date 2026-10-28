@@ -45,7 +45,7 @@ struct DLL_LINKAGE MenuFile
 	boost::filesystem::path path;
 };
 
-/// DMB: the main menu's backgrounds, found in the installed game's files when the game starts (nothing is shipped, K,
+/// DMB: the main menu's backgrounds, found in the installed game's files when the game starts (nothing is shipped, the project owner,
 /// September 26th: "occasionally see the real Heroes III main menu splash screens from RoE, Armageddon's Blade, Shadow of
 /// Death and other release eras"). Archives are found, not named: every .lod in the game's Data folders that holds a
 /// GamSelBk is an era, so a game with another archive, or with fewer, shows what it has. A picture that another archive
@@ -80,7 +80,7 @@ public:
 	static void rescan();
 
 	/// the version of the launcher's pictures pipeline (the menu pictures and loading screens enlarged, and the sharpened menu buttons), raised
-	/// whenever its output changes; the launcher writes it into LegacyPictures\index.json when a run finishes (K, October 6th: "we should add a
+	/// whenever its output changes; the launcher writes it into LegacyPictures\index.json when a run finishes (the project owner, October 6th: "we should add a
 	/// system ... to track the state of the users latest image acquisition/sharpening pipeline run")
 	static constexpr int PICTURES_PIPELINE_VERSION = 6;
 

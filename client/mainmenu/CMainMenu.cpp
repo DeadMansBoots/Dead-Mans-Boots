@@ -336,7 +336,7 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 	return campaignSets;
 }
 
-/// DMB: the main menu window, with the picture behind it chosen from a pool (K, September 26th and October 1st: the real
+/// DMB: the main menu window, with the picture behind it chosen from a pool (the project owner, September 26th and October 1st: the real
 /// splash screens of the game's release eras, a mod's own menu art included, "cycling randomly on each startup by default
 /// or set manually"). The pool is
 ///  - "default": the window as the active mods configure it (the base game's, or a mod's own main menu, buttons and all);
@@ -472,7 +472,7 @@ static JsonNode mainMenuWindow()
 		window["background"] = std::move(picture);
 	}
 	// the release's own buttons, from its own sprite archive, where it has them (the buttons of the one set the game resolves carry a
-	// pink glow made for the Shadow of Death picture, which shows as a halo on any other picture: K, October 3rd)
+	// pink glow made for the Shadow of Death picture, which shows as a halo on any other picture: the project owner, October 3rd)
 	// (a dropped or mod-listed picture has no release of its own: it takes the first release's buttons)
 	// every picture, a release's own main picture included, has the buttons with their glow, which was made to match one picture only,
 	// turned into a soft shadow (and the sharpened, HotA-sized set the launcher makes where it has run): the release's own sprites were
@@ -499,7 +499,7 @@ static JsonNode mainMenuWindow()
 				return;
 			// a release's own button is used on its own picture only where it is a cut-out: Armageddon's Blade's buttons (main and sub
 			// menu) have a piece of its 800x600 picture drawn round them, which shows as a box on any other size or sharpening of that
-			// picture (K, October 4th: "hella fucked up"). The Complete release's buttons, cut out and made neutral, are drawn instead;
+			// picture (the project owner, October 4th: "hella fucked up"). The Complete release's buttons, cut out and made neutral, are drawn instead;
 			// that release's glow is dark on dark pictures and made neutral on every other
 			std::string prefix = buttonsPrefix;
 			std::string source = era.id;
@@ -988,7 +988,7 @@ static std::string customLoadingPicture;
 /// DMB: the loading pictures of the game's releases carry their own bar, a dark or gold frame painted into the picture, and the game's
 /// progress blocks (config "loadbar", x 395 y 548 in the 800x600 layout) are meant to fill it: that is where it stands in Armageddon's Blade,
 /// Shadow of Death, Heroes III Complete and Horn of the Abyss (the frame at x 392 y 546). The Restoration of Erathia picture has its frame
-/// higher and further left (x 330 y 524), so the blocks and the stage text hung below it and the text stood on its edge (K, October 10th:
+/// higher and further left (x 330 y 524), so the blocks and the stage text hung below it and the text stood on its edge (the project owner, October 10th:
 /// "this is still an issue"). By picture: how far the frame is from that usual place. Any other picture keeps the usual place.
 static Point loadBarShift(const std::string & pictureName)
 {
@@ -1041,7 +1041,7 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	// DMB: the bar's settings sit under "loadbar" in the game's mainmenu.json, and straight under "loading" in
 	// the older form, with "name" one word. Tides of War's main menu mod has only that, and its file stands in
 	// for the game's whole (the file system gives the last mod's copy, no merge): the bar drew no block and
-	// the phase text sat at the window's centre (K, September 29th: "load screen text font is still not
+	// the phase text sat at the window's centre (the project owner, September 29th: "load screen text font is still not
 	// centered, and there was no load bar action")
 	const JsonNode & loadbarConfig = (!conf["loadbar"].isStruct() && conf["amount"].isNumber()) ? conf : conf["loadbar"];
 	const Point barShift = customPicture ? loadBarShift(customLoadingPicture) : Point(0, 0);
@@ -1071,7 +1071,7 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	else if(loadbarConfig.isStruct())
 		phasePos = Point(loadbarConfig["x"].Integer() + loadbarConfig["size"].Integer() * loadbarConfig["amount"].Integer() / 2, loadbarConfig["y"].Integer() - 12) + barShift;
 	// the player's loading pictures: Horn of the Abyss's carry a gold frame of their own round the bar, with an ornament standing
-	// above its middle, and the stage text sat on that ornament (K, October 6th: "our map generation/loading screen text
+	// above its middle, and the stage text sat on that ornament (the project owner, October 6th: "our map generation/loading screen text
 	// overlaps with their cool bar"); the text goes above the ornament, 12 px higher in the 800x600 layout
 	if(customPicture && !conf["phase"].isStruct())
 		phasePos.y -= 12;

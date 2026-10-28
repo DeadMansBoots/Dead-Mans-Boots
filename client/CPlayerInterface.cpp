@@ -259,7 +259,7 @@ void CPlayerInterface::playerStartsTurn(PlayerColor player)
 		bool isHuman = cb->getStartInfo()->playerInfos.count(player) && cb->getStartInfo()->playerInfos.at(player).isControlledByHuman();
 
 		// DMB: while this player's own turn dialog is open (the network game's dialog of 5db85dfaf) the screen stays in the turn-start wait with its black
-		// fill, as stock, whose network thread waits at that dialog with makingTurn already set and so never gets here (K, October 23rd 14:0x: "why are we
+		// fill, as stock, whose network thread waits at that dialog with makingTurn already set and so never gets here (the project owner, October 23rd 14:0x: "why are we
 		// diverting from base behavior again"; the Reviewer's REVIEW-turnstart-black-screen-1023.md)
 		if (makingTurn == false && !turnDialogOpen)
 			adventureInt->onEnemyTurnStarted(player, isHuman);
@@ -352,7 +352,7 @@ void CPlayerInterface::yourTurn(QueryID queryID)
 
 		if (hotseatWait && GAME->server().howManyPlayerInterfaces() <= 1 && !settings["session"]["autoSkip"].Bool())
 		{
-			// DMB (K, October 23rd 02:43: "if the host or another (any other i think) player hasn't hit the checkmark, they can't enter combat. we need
+			// DMB (the project owner, October 23rd 02:43: "if the host or another (any other i think) player hasn't hit the checkmark, they can't enter combat. we need
 			// actual resolution to this problem, not just removing basegame functionality"): a network game shows the same dialog, and the turn starts
 			// at the same click, but the dialog no longer holds this client's network thread until the click. acceptTurn's wait held it, and the
 			// host's client also runs every AI player and the neutral monsters' battle AI, so another player's fight with a monster waited for the
@@ -2172,9 +2172,9 @@ std::optional<BattleAction> CPlayerInterface::makeSurrenderRetreatDecision(const
 	// here waits. The question goes up on the main thread and this stack's turn is held (the NO_ACTION marker: BattleAI sends nothing);
 	// the answer acts within the same turn (answerRetreat), since the server takes a retreat only from the side whose stack is active.
 	// Windows that all close unanswered count as "fight on". One question per battle; none headless.
-	// DMB (K, October 24th, via the lead: an "are you sure you want to retreat" message when entering a battle, which he never asked for and does not want):
+	// DMB (the project owner, October 24th, via the lead: an "are you sure you want to retreat" message when entering a battle, which he never asked for and does not want):
 	// the question is off, as stock has it: in auto or quick combat the player's side is never asked, and the battle window's Retreat button asks as it always did.
-	// The code below stays for a later setting, if K ever wants it.
+	// The code below stays for a later setting, if the project owner ever wants it.
 	if(constexpr bool askRetreatInAutoCombat = false; !askRetreatInAutoCombat)
 		return std::nullopt;
 	if(settings["session"]["headless"].Bool() || !ENGINE)

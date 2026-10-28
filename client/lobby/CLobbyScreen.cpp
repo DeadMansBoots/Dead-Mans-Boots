@@ -99,7 +99,7 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 		// beside VCMI's own: a mode. The Random Map button opens the random map window in the mode last
 		// used, and closes it, as in VCMI. Golden arrows at the top of that window, with the mode's name
 		// between them, step through the modes, VCMI's own and then the generators in load order, round
-		// again (K, September 27th: "the golden arrows should pick map generation mode"; a generator's own
+		// again (the project owner, September 27th: "the golden arrows should pick map generation mode"; a generator's own
 		// pages have buttons of their own). The mode stays until changed, between games and sessions
 		// (docs/modders/DMB_Map_Generation_Modes.md). Only the host sees the arrows. A generator that makes
 		// the map at Begin (atBegin) gets its tab's settings as the lobby's random map; the players who
@@ -138,7 +138,7 @@ CLobbyScreen::CLobbyScreen(ESelectionScreen screenType, bool hideScreen)
 			tabRand->setRedrawParent(true);
 			for(const auto & tab : generatorTabs)
 				tab->setRedrawParent(true);
-			// the host's page of a generator's tab goes to the guests (K, October 9th)
+			// the host's page of a generator's tab goes to the guests (the project owner, October 9th)
 			for(const auto & tab : generatorTabs)
 			{
 				std::weak_ptr<MapGenTab> weak = tab;
@@ -337,7 +337,7 @@ void CLobbyScreen::updateModeBar()
 {
 	if(!modeName)
 		return;
-	// the arrows are the host's; the mode's name is shown to every player while the random map window is open (K,
+	// the arrows are the host's; the mode's name is shown to every player while the random map window is open (the project owner,
 	// October 14th: a guest saw an empty box over the host's generator page, and VCMI's own headline in VCMI's mode)
 	const bool host = GAME->server().isHost();
 	const bool shown = randomWindowShown();
@@ -370,7 +370,7 @@ void CLobbyScreen::updateModeBar()
 			hostModeText = GAME->server().hostMode; // the host's generator is not among this guest's mods: its id is all there is
 	}
 	modeName->setText(tab ? tab->getGenerator().name : !hostModeText.empty() ? hostModeText : LIBRARY->generaltexth->translate("vcmi.dmb.randomMode.vcmi"));
-	// K, September 27th/28th: "omni map gen needs centered in the box at the top, as do the arrows, and
+	// the project owner, September 27th/28th: "omni map gen needs centered in the box at the top, as do the arrows, and
 	// the arrows should land just a few mm (maybe 5) from the text on each side, and should scale
 	// dynamically with the text of whatever menu name is being displayed." The name is already centered
 	// on MODE_NAME_CENTRE (CENTER alignment centers on its own x); only the arrows, fixed before, move
@@ -378,7 +378,7 @@ void CLobbyScreen::updateModeBar()
 	// moveTo takes screen-absolute coordinates (CIntObject::moveTo's own doc comment), but
 	// MODE_NAME_CENTRE/MODE_ARROW_TOP are the local offsets given at construction, inside whatever was on
 	// the construction stack then; moveTo'ing straight to those local numbers landed the arrows at the
-	// screen's own top-left corner instead (K, September 28th, live testing: "THE ARROWS GOT
+	// screen's own top-left corner instead (the project owner, September 28th, live testing: "THE ARROWS GOT
 	// SIGNIFICANTLY WORSE"). modeName is never moved, so its own pos is still the correct absolute
 	// placement from construction; anchor the arrows on that instead of re-deriving the parent offset.
 	constexpr int nameArrowGap = 8;
@@ -496,7 +496,7 @@ void CLobbyScreen::startScenario(bool allowOnlyAI)
 
 void CLobbyScreen::startScenarioGenerator(bool allowOnlyAI)
 {
-	// DMB (K, October 18th: "we should never lock the user out"): a map generator whose code DMB's mod catalog does not vouch for
+	// DMB (the project owner, October 18th: "we should never lock the user out"): a map generator whose code DMB's mod catalog does not vouch for
 	// is a notice with a choice, asked here because the server that runs the generator at Begin has no window. Run it anyway is
 	// remembered for that exact code (AddonCode::rememberRunAnyway), and the server then accepts it.
 	if(GAME->server().si->mapGenOptions && !GAME->server().si->mapGenOptions->getExternalGenerator().empty())
@@ -734,7 +734,7 @@ void CLobbyScreen::updateAfterStateChange()
 	if(curTab && curTab == tabRand && GAME->server().si->mapGenOptions)
 		tabRand->setMapGenOptions(GAME->server().si->mapGenOptions);
 
-	// DMB (K, October 9th): whatever the new state did to the page this screen shows, a guest's screen goes back to the host's page
+	// DMB (the project owner, October 9th): whatever the new state did to the page this screen shows, a guest's screen goes back to the host's page
 	showHostView();
 }
 

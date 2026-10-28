@@ -135,7 +135,7 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyGuiAction(LobbyGuiAction & pack
 	if(!handler.isGuest())
 		return;
 
-	// DMB (K, October 9th): the host's page is remembered, and shown now, and again after every change of the lobby's state (a new map
+	// DMB (the project owner, October 9th): the host's page is remembered, and shown now, and again after every change of the lobby's state (a new map
 	// closed the page a guest had open) and when the lobby screen is made after the host said (a guest who joins)
 	handler.hostViewAction = pack.action;
 	handler.hostViewGenerator = pack.generator;

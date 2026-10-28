@@ -599,7 +599,7 @@ ui32 CUnitState::getMovementRange(int turn) const
 		return 0;
 
 	// a speed pushed below zero by slowing effects is no movement at all: as the unsigned value it wrapped to 4294967291, the AI took every hex for reachable
-	// and asked for moves the server refused ("Given destination is not reachable!", "that request must have been fishy!", K, October 14th)
+	// and asked for moves the server refused ("Given destination is not reachable!", "that request must have been fishy!", the project owner, October 14th)
 	return static_cast<ui32>(std::max(0, stackSpeedPerTurn.getValue(0)));
 }
 

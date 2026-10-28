@@ -93,7 +93,7 @@
 ; data" option removes this folder)
 #define VCMIFilesFolder "My Games\" + DMBName
 
-; DMB: the name DMB used on disk until September 27th, 2026, when K ruled "DMB" too likely to be some
+; DMB: the name DMB used on disk until September 27th, 2026, when the project owner ruled "DMB" too likely to be some
 ; other program's. An install over an earlier DMB renames its user folder and moves an install folder
 ; of that name, once it has checked they are DMB's (UserFolderMadeByDmb, DmbProgramsIn); the game
 ; renames the user folder the same way on its first start (lib/VCMIDirs.cpp).
@@ -163,7 +163,7 @@ VersionInfoOriginalFileName={#InstallerName}.exe
 
 
 [Messages]
-; DMB (K, October 9th): this release goes by the name "Straker Beta"; the wizard's title says so
+; DMB (the project owner, October 9th): this release goes by the name "Straker Beta"; the wizard's title says so
 SetupWindowTitle=Setup - {#DMBName} Straker Beta
 
 
@@ -226,7 +226,7 @@ Root: HKCU; Subkey: "Software\Classes\.h3m"; ValueType: string; ValueName: ""; V
 Root: HKCU; Subkey: "Software\Classes\DMB.h3m"; ValueType: string; ValueName: ""; ValueData: "{cm:H3MDescription}"; Flags: uninsdeletekey; Tasks: fileassociation_h3m
 Root: HKCU; Subkey: "Software\Classes\DMB.h3m\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\VCMI_mapeditor.exe"" ""%1"""; Tasks: fileassociation_h3m
 
-; DMB (K, October 23rd): a .dmb package opens in the launcher, which shows it and asks before installing (launcher/modManager/dmbpackage.cpp). .dmb is
+; DMB (the project owner, October 23rd): a .dmb package opens in the launcher, which shows it and asks before installing (launcher/modManager/dmbpackage.cpp). .dmb is
 ; also BYOND's extension for its game worlds: DMB adds itself to Open with on every PC and takes the double-click only where no other program holds .dmb
 ; (DmbExtensionFree); uninstalling removes DMB's ProgID and Open-with entry, and the default only while it still names DMB (CurUninstallStepChanged)
 Root: HKCU; Subkey: "Software\Classes\DMB.package"; ValueType: string; ValueName: ""; ValueData: "Dead Man's Boots package"; Flags: uninsdeletekey; Check: not IsPRInstaller
@@ -262,14 +262,14 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=dmb_cl
 
 
 [CustomMessages]
-; DMB: what an install over an earlier DMB moves, shown only when it moves something (K, September 27th)
+; DMB: what an install over an earlier DMB moves, shown only when it moves something (the project owner, September 27th)
 DMBMovingCaption=New folder names
 DMBMovingDescription=Earlier versions used the short name "DMB" on disk. This install moves them to "Dead Man's Boots".
 DMBMovingText=This install moves:%n%n%1%nYour saves, settings and mods come along unchanged.
 DMBMovingUserFolder=your saves, settings and mods%n    from %1%n    to %2%n%n
 DMBMovingProgramFolder=the program%n    from %1%n    to %2%n    (the old program folder is deleted once the new one is installed)%n%n
 DMBMovedUserFolder=Your saves, settings and mods are now in %1.
-; DMB (K, October 8th): the same version is already installed
+; DMB (the project owner, October 8th): the same version is already installed
 DMBRepairQuestion=Dead Man's Boots %1 is already installed.%n%nContinue with the installation (repair)?
 DMBNotMovedUserFolder=Your saves, settings and mods are still in %1: a file in it was in use. Dead Man's Boots moves them to %2 the next time it starts.
 
@@ -298,7 +298,7 @@ var
   EarlierUserFolder, EarlierProgramFolder: String;
   EarlierKeyIsDmb, UserFolderMoved, UserFolderNotMoved: Boolean;
 
-  // DMB (K, October 9th): the first-time setup. A VCMI install found on this PC, what the player chose
+  // DMB (the project owner, October 9th): the first-time setup. A VCMI install found on this PC, what the player chose
   // (0 copy, 1 copy and then remove VCMI, 2 neither: the usual install), and what became of it
   VcmiFound, VcmiDataFound, VcmiUsesDirsJson, RemoveConfirmed: Boolean;
   VcmiName, VcmiVersion, VcmiInstallDir, VcmiUninstallExe, VcmiUninstallParams, VcmiUserDir, VcmiConfigDir, VcmiSavesDir, VcmiKeyPath: String;
@@ -370,7 +370,7 @@ end;
 
 /// DMB: whether a user folder was made by DMB. It holds what no other program leaves there, the traces
 /// the game looks for too (lib/VCMIDirs.cpp): the catalog's pins, a map generator's log, a build
-/// approved for testing, or a line only DMB logs. K: an upgrade checks a folder's contents, not its name.
+/// approved for testing, or a line only DMB logs. the project owner: an upgrade checks a folder's contents, not its name.
 function UserFolderMadeByDmb(const Dir: String): Boolean;
 begin
   Result := DirExists(Dir) and (FileExists(Dir + '\cache\downloads\dmbCodePins.json') or
@@ -460,7 +460,7 @@ begin
 end;
 
 
-/// DMB (K, October 8th: "I notice DMB launcher just blindly reinstalls over existing installs"): the version of the install on this PC,
+/// DMB (the project owner, October 8th: "I notice DMB launcher just blindly reinstalls over existing installs"): the version of the install on this PC,
 /// read from the key every Inno Setup install writes (an install for all users or for this user only), or '' when there is none
 function InstalledDisplayVersion(): String;
 var
@@ -483,12 +483,12 @@ begin
 end;
 
 
-/// DMB (K, October 9th: "NEED TO OFFER THE USER A FIRST-TIME SETUP SPECIFIC OPTIONS"): a first install on a PC that has VCMI offers to
+/// DMB (the project owner, October 9th: "NEED TO OFFER THE USER A FIRST-TIME SETUP SPECIFIC OPTIONS"): a first install on a PC that has VCMI offers to
 /// copy VCMI's mods and settings, or to copy them and remove VCMI, or to install with neither. Everything below runs only on that
 /// choice; the third choice, a silent install and an upgrade never reach it. Nothing here deletes a folder: VCMI is removed by its
 /// own uninstaller and only after every copied file has been checked. Heroes III's files, Steam and GOG folders are never touched.
 ///
-/// Where VCMI's files are (K, October 9th: "intelligently determines where all the local files are"): the install folder comes from VCMI's
+/// Where VCMI's files are (the project owner, October 9th: "intelligently determines where all the local files are"): the install folder comes from VCMI's
 /// own entry in Windows' list of installed programs, checked against the files in it. The user folders come from the rules VCMI itself
 /// follows (lib/VCMIDirs.cpp): the keys of <install folder>\config\dirs.json when that file names them, otherwise the Documents folder
 /// Windows reports for the user (a moved or OneDrive Documents folder included), \My Games\vcmi, with config, Saves, Mods and Maps in it.
@@ -1732,7 +1732,7 @@ begin
       InstallModePage.CheckListBox.Invalidate();
     end;
 
-    // DMB (K, October 9th): the first-time setup, offered when VCMI or its files were found. The first choice is the harmless one; the
+    // DMB (the project owner, October 9th): the first-time setup, offered when VCMI or its files were found. The first choice is the harmless one; the
     // removal needs the second page's own answer, and exists only when VCMI is installed (an uninstaller to run).
     if VcmiFound or VcmiDataFound then
     begin
@@ -1876,7 +1876,7 @@ begin
   // DMB: once the new install is in place, the earlier install folder and registry key go
   if CurStep = ssPostInstall then
   begin
-    // the first-time setup (K, October 9th): copy from VCMI, and remove it when that was asked for and the copy checked out
+    // the first-time setup (the project owner, October 9th): copy from VCMI, and remove it when that was asked for and the copy checked out
     if (SetupChoice < 2) and (VcmiFound or VcmiDataFound) then
     begin
       WizardForm.StatusLabel.Caption := 'Copying from VCMI and checking every file...';

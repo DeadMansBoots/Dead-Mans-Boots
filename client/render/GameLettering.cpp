@@ -158,7 +158,7 @@ std::shared_ptr<IImage> GameLettering::carved(EFonts font, const std::string & t
 namespace
 {
 /// DMB's own button face (Data/DMBButtonFace.ttf in the vcmi mod: an open-licence heavy serif cut and renamed by DMB/release/make_button_face.py, licence
-/// text beside it), the same face the launcher draws its buttons' words in (launcher/theme.cpp). K, October 12th 2026, on the game's letters taken
+/// text beside it), the same face the launcher draws its buttons' words in (launcher/theme.cpp). the project owner, October 12th 2026, on the game's letters taken
 /// from the player's files and patched: "WHAT PART OF BUILD OUR OWN FONT SET DID YOU NOT UNDERSTAND". Loaded once for the screen's scale; its
 /// capitals are as tall as the game's own on a 40 pixel bar.
 struct ButtonFace

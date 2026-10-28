@@ -64,7 +64,7 @@ static ui32 loadJsonOrMax(const JsonNode & input)
 
 void AObjectTypeHandler::init(const JsonNode & input)
 {
-	// DMB (K, October 23rd: "den of thieves needs a description"): the pop-up's line under the name, translatable like the name
+	// DMB (the project owner, October 23rd: "den of thieves needs a description"): the pop-up's line under the name, translatable like the name
 	if(input["popupDescription"].isString() && !input["popupDescription"].String().empty())
 	{
 		LIBRARY->generaltexth->registerString(modScope, getPopupDescriptionTextID(), input["popupDescription"]);

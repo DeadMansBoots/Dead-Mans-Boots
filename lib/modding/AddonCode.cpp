@@ -440,7 +440,7 @@ std::string AddonCode::trustProblem(const std::string & modID, const boost::file
 	const std::vector<std::string> accepted = hashesFor(catalog);
 	// builds a tester runs before the catalog lists them, each approved on this PC by its exact hash
 	const std::vector<std::string> tested = hashesFor(read(testedPinsFile()));
-	// versions the player answered "Run it anyway" for (K, October 18th), by exact hash
+	// versions the player answered "Run it anyway" for (the project owner, October 18th), by exact hash
 	std::vector<std::string> remembered = hashesFor(read(runAnywayFile()));
 	// and those answered in this run, which hold even when the file could not keep them
 	{

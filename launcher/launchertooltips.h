@@ -11,8 +11,8 @@
 
 #include "StdInc.h"
 
-/// DMB: a plain tooltip for each launcher control, one line each, from tooltips.json (made from `For K\Launcher-Tooltips-To-Edit.md` by
-/// DMB\release\tooltips_from_md.py; K edits the file, the script makes the json). A control that already has a tooltip keeps it.
+/// DMB: a plain tooltip for each launcher control, one line each, from tooltips.json (made from a Markdown list by
+/// DMB\release\tooltips_from_md.py; the project owner edits the file, the script makes the json). A control that already has a tooltip keeps it.
 namespace LauncherTooltips
 {
 /// the controls of one window, named as its .ui file names them: the key in the json is "<ui file>/<control name>"

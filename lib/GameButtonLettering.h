@@ -13,7 +13,7 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 
-/// DMB: the letters of the game's own gold buttons (K, September 27th: "its a bold, and specific font
+/// DMB: the letters of the game's own gold buttons (the project owner, September 27th: "its a bold, and specific font
 /// (that we should match)"), harvested from the player's own copies of them. Reading the buttons
 /// themselves into pixels is the caller's own job (the game client and the Qt launcher each read the
 /// player's files a different way); everything from there, matching letters across buttons and building

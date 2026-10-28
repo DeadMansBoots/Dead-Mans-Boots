@@ -23,7 +23,7 @@ private:
 		EChatChannel channel = EChatChannel::ALL; // DMB: the colour of the line
 	};
 
-	/// DMB (K, October 21st: a team chat mode): the channel the next line goes to; Tab with nothing typed yet cycles it, a prefix a: t: s: picks it for one line and keeps it
+	/// DMB (the project owner, October 21st: a team chat mode): the channel the next line goes to; Tab with nothing typed yet cycles it, a prefix a: t: s: picks it for one line and keeps it
 	EChatChannel currentChannel = EChatChannel::ALL;
 
 	static std::string channelLabel(EChatChannel channel);

@@ -12,7 +12,7 @@
 #include <QByteArray>
 #include <QString>
 
-/// DMB: the game's own fonts for the launcher (K, September 27th: "we need to get the font from
+/// DMB: the game's own fonts for the launcher (the project owner, September 27th: "we need to get the font from
 /// in-game heroes, and increase the font size...we want to match in-game heroes aesthetic exactly").
 /// Heroes III draws its text from bitmap fonts in its data files (Data\MEDFONT.FNT and the like),
 /// which Qt cannot load, so the launcher makes a TrueType font of one from the player's own files as

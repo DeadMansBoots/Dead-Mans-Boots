@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <vector>
 
-/// DMB (K, October 21st: 'We also need a "team" chat mode like a lot of other modern retro competitive strategy games'): the channel of a chat line.
+/// DMB (the project owner, October 21st: 'We also need a "team" chat mode like a lot of other modern retro competitive strategy games'): the channel of a chat line.
 enum class EChatChannel : int8_t
 {
 	ALL = 0, // every player and watcher, as before
@@ -18,7 +18,7 @@ enum class EChatChannel : int8_t
 };
 
 /// A connection, as the chat router sees it: the team of each player colour the connection controls (-1: a player without a team). A connection that controls no colour has
-/// no slot, which makes it a spectator (K: a player connected to the lobby and not assigned a slot is a spectator).
+/// no slot, which makes it a spectator (the project owner: a player connected to the lobby and not assigned a slot is a spectator).
 struct DmbChatConnection
 {
 	int id = 0;

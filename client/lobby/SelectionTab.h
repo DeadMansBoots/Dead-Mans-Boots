@@ -131,7 +131,7 @@ private:
 	Rect inputNameRect;
 
 	std::shared_ptr<CButton> buttonDeleteMode;
-	/// DMB: rename mode (K, September 29th: "to the left of the header/title text, on the opposite side of the
+	/// DMB: rename mode (the project owner, September 29th: "to the left of the header/title text, on the opposite side of the
 	/// delete x"), for the maps the generators made (the list's RandomMaps folder); the title says so while it is on
 	std::shared_ptr<CButton> buttonRenameMode;
 	bool renameMode = false;

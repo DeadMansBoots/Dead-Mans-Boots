@@ -23,7 +23,7 @@ class CursorHardware : public ICursor
 
 	SDL_Cursor * cursor;
 
-	/// DMB (K, October 22nd 17:5x: "my cursor is flickering nonstop"): each change of the cursor's picture made a new OS cursor and freed the old one, and
+	/// DMB (the project owner, October 22nd 17:5x: "my cursor is flickering nonstop"): each change of the cursor's picture made a new OS cursor and freed the old one, and
 	/// his recording shows the cursor gone for a frame at each change as the mouse crosses tiles. A picture's OS cursor is now made once and kept; a change
 	/// only switches to it (SDL_SetCursor), the same pictures and hotspots as before. Used on the main thread only.
 	struct CachedCursor

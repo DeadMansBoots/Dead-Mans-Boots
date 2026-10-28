@@ -21,7 +21,7 @@ class CMapGenOptions;
 struct StartInfo;
 
 /// DMB: a map generator is a mod that carries a program making random maps, and the layout of the
-/// lobby tab that drives it (K, September 26th: MapGen is an addon, installed like any other mod).
+/// lobby tab that drives it (the project owner, September 26th: MapGen is an addon, installed like any other mod).
 /// Its mod.json declares it:
 ///     "mapGenerator" : { "name" : "MapGen", "command" : "generator/generate.cmd", "tab" : "config/widgets/mapGen/mapGenTab.json" }
 /// Everything that runs lives in the mod's "generator" folder, the command included; DMB's mod
@@ -85,7 +85,7 @@ namespace MapGenerators
 
 	/// A stage of the generator's work. A generator announces each stage it enters with a line
 	///     [phase] <n>/<total> <id>
-	/// in its output (OmniMapGen writes 23; K, September 27th: the load screen should say what the
+	/// in its output (OmniMapGen writes 23; the project owner, September 27th: the load screen should say what the
 	/// generator is doing while the bar waits). The text is the generator mod's translation of
 	/// vcmi.mapGen.phase.<id>, empty when the mod has none.
 	struct DLL_LINKAGE Phase

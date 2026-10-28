@@ -362,7 +362,7 @@ bool CGDwelling::wasVisited (PlayerColor player) const
 	return cb->getPlayerState(player)->visitedObjects.count(id) != 0;
 }
 
-/// DMB (K, October 12th: 'Creature generation structures need a "Creature Generation Structure - Generates Creatures" type tooltip as well'): every
+/// DMB (the project owner, October 12th: 'Creature generation structures need a "Creature Generation Structure - Generates Creatures" type tooltip as well'): every
 /// dwelling pop-up says what kind of building it is, as the other buildings' pop-ups say what they do (the same settings switch)
 std::string CGDwelling::getPopupText(PlayerColor player) const
 {

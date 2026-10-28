@@ -964,7 +964,7 @@ std::shared_ptr<CTextInput> InterfaceObjectConfigurable::buildTextInput(const Js
 	// DMB: this constructor always grabs keyboard focus on creation (CTextInput::createLabel); a page
 	// with more than one, or any single-key lobby shortcut (Begin, Advanced Options), stops working the
 	// moment the page opens, silently, since a digit-only field just swallows a non-digit key and does
-	// nothing visible. Found building the custom-size fields (K, September 27th/28th): the width field's
+	// nothing visible. Found building the custom-size fields (the project owner, September 27th/28th): the width field's
 	// own focus alone stopped "B" for Begin. A player still gets it by clicking into the field, same as
 	// any other text box.
 	result->removeFocus();
@@ -977,7 +977,7 @@ std::shared_ptr<CTextInput> InterfaceObjectConfigurable::buildTextInput(const Js
 	if(!config["setting"].isNull())
 	{
 		// DMB: a whole number, written to the setting as it's typed, kept within valueMin..valueMax on
-		// the way in (K, September 27th/28th: "custom size should just be a type entry box", no popup).
+		// the way in (the project owner, September 27th/28th: "custom size should just be a type entry box", no popup).
 		// The box's own live filter (CTextInput::numberFilter) is given 0 as its floor regardless of
 		// valueMin: it snaps an out-of-range value to the floor on every keystroke, so a real floor
 		// above 0 (a map's real minimum width) turns typing a multi-digit number from empty into a

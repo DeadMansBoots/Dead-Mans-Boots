@@ -82,7 +82,7 @@ static void addAIPlugins(QComboBox * comboBox, bool battle)
 		}
 		if (plugin.untrusted)
 		{
-			// DMB's mod catalog does not list this code (a new or modified version): selectable all the same, the game asks before it runs it (rule 38, K, October 18th)
+			// DMB's mod catalog does not list this code (a new or modified version): selectable all the same, the game asks before it runs it (rule 38, the project owner, October 18th)
 			comboBox->addItem(QObject::tr("%1 (from the mod %2, not in DMB's mod catalog)").arg(name, QString::fromStdString(plugin.modID)), name);
 			comboBox->setItemData(comboBox->count() - 1, QObject::tr("DMB's mod catalog does not list this AI's code (%1). It may be a custom or modified version. You can choose it: the game asks before it runs it, and you can run it anyway.")
 				.arg(QString::fromStdString(plugin.problem)), Qt::ToolTipRole);
@@ -695,7 +695,7 @@ void CSettingsView::buildCategoryPages()
 		legacyButton->setObjectName("buttonGetLegacyPictures");
 		cells.push_back({new QWidgetItem(legacyLabel), row + 2, 0, 1, 1});
 		cells.push_back({new QWidgetItem(legacyButton), row + 2, 1, 1, 5});
-		// K, October 6th: "we should add a system for our project to track the state of the users latest image acquisition/sharpening pipeline run,
+		// the project owner, October 6th: "we should add a system for our project to track the state of the users latest image acquisition/sharpening pipeline run,
 		// that way if we make any changes, we can mark the button as 'pending updates ready for you - rerun the acquisition' or something more
 		// intuitive and concise". The last run's pipeline version and date are in LegacyPictures\index.json (MenuBackgrounds::lastPicturesRun);
 		// when that is not the launcher's current version, or a set exists with no record, the button says an update is ready, and the game does
@@ -734,7 +734,7 @@ void CSettingsView::buildCategoryPages()
 			showLegacyState();
 		});
 
-		// K, October 6th: a setting for the launcher's behaviour, an on/off toggle "Keep Dead Man's Boots Launcher running when you launch the
+		// the project owner, October 6th: a setting for the launcher's behaviour, an on/off toggle "Keep Dead Man's Boots Launcher running when you launch the
 		// game". Off is how it always was: the launcher closes once the game has started
 		auto * keepLabel = new QLabel(tr("Keep Dead Man's Boots Launcher running when you launch the game"), this);
 		keepLabel->setWordWrap(true);
@@ -752,7 +752,7 @@ void CSettingsView::buildCategoryPages()
 			updateCheckbuttonText(keepButton);
 		});
 
-		// K, October 8th: a building's pop-up on the adventure map says what the building does, who guards it, the prize and the threat to the selected
+		// the project owner, October 8th: a building's pop-up on the adventure map says what the building does, who guards it, the prize and the threat to the selected
 		// hero; on by default, and this switch gives the pop-up its old wording
 		auto * infoLabel = new QLabel(tr("Adventure map buildings: pop-ups say what they do, their guards and prize"), this);
 		infoLabel->setWordWrap(true);
@@ -770,7 +770,7 @@ void CSettingsView::buildCategoryPages()
 			updateCheckbuttonText(infoButton);
 		});
 
-		// K, October 10th: crash reports are sent by the launcher by itself in the early beta (logs, settings, the Mods listing and the crash file, with the
+		// the project owner, October 10th: crash reports are sent by the launcher by itself in the early beta (logs, settings, the Mods listing and the crash file, with the
 		// Windows user name and computer name removed); this is the one switch that turns it off
 		auto * crashLabel = new QLabel(tr("Send crash reports to the developers automatically"), this);
 		crashLabel->setWordWrap(true);
@@ -847,7 +847,7 @@ void CSettingsView::buildCategoryPages()
 		auto * scroll = new QScrollArea();
 		scroll->setWidgetResizable(true);
 		scroll->setFrameShape(QFrame::NoFrame);
-		// K, October 18th: a page wider than its window (a larger system text size, a narrow window) was cut at the right edge with
+		// the project owner, October 18th: a page wider than its window (a larger system text size, a narrow window) was cut at the right edge with
 		// nothing to show it; it scrolls sideways now, and only then
 		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		scroll->setWidget(page);
@@ -865,7 +865,7 @@ void CSettingsView::buildCategoryPages()
 		categories.push_back(category);
 	}
 	// Qt sizes the bar to whichever category name is widest in its own, plain font (General fits
-	// easily; Artificial Intelligence does not once carved: K, September 28th, live testing, found
+	// easily; Artificial Intelligence does not once carved: the project owner, September 28th, live testing, found
 	// carving landing on some category buttons and not others in the very same list under the very
 	// same look). The carved-gold word is the game's own bitmap font, not Qt's, and wider per letter;
 	// reserve room for the widest one now, so every button here is wide enough once carving turns on,

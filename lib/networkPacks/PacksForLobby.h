@@ -93,11 +93,11 @@ struct DLL_LINKAGE LobbyGuiAction : public CLobbyPackToPropagate
 		NONE, NO_TAB, OPEN_OPTIONS, OPEN_SCENARIO_LIST, OPEN_RANDOM_MAP_OPTIONS, OPEN_TURN_OPTIONS, OPEN_EXTRA_OPTIONS, BATTLE_MODE,
 		OPEN_GENERATOR
 	} action = NONE;
-	/// DMB (K, October 9th: "the people joined to the game should be able to see the same page as the host"): with OPEN_GENERATOR,
+	/// DMB (the project owner, October 9th: "the people joined to the game should be able to see the same page as the host"): with OPEN_GENERATOR,
 	/// the map generator mod whose tab the host has open, and the page of it (-1 when it has none)
 	std::string generator;
 	int32_t page = -1;
-	/// DMB (K, October 10th: "get full multiplayer lobby sync for omni map gen"): with OPEN_GENERATOR, the host's settings of that generator (its
+	/// DMB (the project owner, October 10th: "get full multiplayer lobby sync for omni map gen"): with OPEN_GENERATOR, the host's settings of that generator (its
 	/// persistentStorage mapGen subtree as JSON text), so a guest's tab shows the host's values, not its own; empty for every other action
 	std::string state;
 

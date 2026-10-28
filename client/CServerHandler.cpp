@@ -463,7 +463,7 @@ void CServerHandler::sendClientDisconnecting()
 
 	setState(EClientState::DISCONNECTING);
 	mapToStart = nullptr;
-	// DMB (Meg's crash, October 24th, Sentry DMB-4): a connection that was lost already (onDisconnected reset it) has nothing to send the goodbye on or to close; a
+	// DMB (a player's crash, October 24th, Sentry DMB-4): a connection that was lost already (onDisconnected reset it) has nothing to send the goodbye on or to close; a
 	// guest whose host went away and who then pressed the lobby's back button crashed here on the throw of a send on a closed connection
 	if(networkConnection && logicConnection)
 	{
@@ -566,7 +566,7 @@ void CServerHandler::setPlayerOption(ui8 what, int32_t value, PlayerColor player
 
 void CServerHandler::setDifficulty(int to) const
 {
-	// DMB (K, October 24th: the multiplayer difficulty must survive shutdowns, restarts and crashes): the choice is saved the moment it is made, not only when
+	// DMB (the project owner, October 24th: the multiplayer difficulty must survive shutdowns, restarts and crashes): the choice is saved the moment it is made, not only when
 	// the game starts (stock saves lastDifficulty at Begin); a new lobby opens with it (the server's StartInfo above reads it)
 	{
 		Settings lastDifficulty = settings.write["general"]["lastDifficulty"];
@@ -1207,7 +1207,7 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 	}
 
 	logNetwork->error("Lost connection to server! Connection has been closed");
-	// DMB (K, October 19th: M3G's connection to his host died, "The semaphore timeout period has expired"): the developers hear of a lost connection
+	// DMB (the project owner, October 19th: M3G's connection to his host died, "The semaphore timeout period has expired"): the developers hear of a lost connection
 	{
 		// what the developers need to place it: who was in the game and how its turns were set (in a game; the lobby has no game state)
 		std::string context;
@@ -1300,7 +1300,7 @@ void CServerHandler::sendLobbyPack(const CPackForLobby & pack) const
 		return;
 	}
 
-	// DMB: a connection lost a moment ago (the host went away) throws on a send; a button pressed in that moment must not crash the game (Meg's crash, October 24th)
+	// DMB: a connection lost a moment ago (the host went away) throws on a send; a button pressed in that moment must not crash the game (a player's crash, October 24th)
 	try
 	{
 		logicConnection->sendPack(pack);
@@ -1326,7 +1326,7 @@ void CServerHandler::sendGamePack(const CPackForServer & pack) const
 	if (networkLagCompensator)
 		networkLagCompensator->tryPredictReply(pack);
 
-	// DMB: as sendLobbyPack, a request made in the moment the connection is lost is logged, not thrown into the game (Meg's crash, October 24th)
+	// DMB: as sendLobbyPack, a request made in the moment the connection is lost is logged, not thrown into the game (a player's crash, October 24th)
 	if(!logicConnection)
 	{
 		logNetwork->warn("A game pack (%s) was not sent: there is no connection to the server", typeid(pack).name());

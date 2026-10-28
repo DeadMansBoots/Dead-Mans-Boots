@@ -148,7 +148,7 @@ QVariant ModStateItemModel::getIcon(const ModState & mod, int field) const
 			return QIcon(iconDownload);
 	}
 
-	// DMB: where the mod comes from, as K drew it: VCMI's shield, or DMB's boots
+	// DMB: where the mod comes from, as the project owner drew it: VCMI's shield, or DMB's boots
 	if(field == ModFields::ORIGIN)
 		return QIcon(isDmbMod(mod) ? ":/icons/menu-game.png" : ":/icons/origin-vcmi.png");
 

@@ -14,7 +14,7 @@
 
 class IImage;
 
-/// DMB: the lettering Heroes III bakes into its own buttons, for words DMB draws in their place (K,
+/// DMB: the lettering Heroes III bakes into its own buttons, for words DMB draws in their place (the project owner,
 /// September 27th: DMB's art matches the game's own lettering). The letters come from the game's own
 /// bitmap fonts, read from its font files at their own pixel size, so they come out the same at any
 /// screen scale (the fonts VCMI draws text with are already scaled to the screen).
@@ -43,7 +43,7 @@ namespace GameLettering
 	};
 
 	/// `text` in capitals in DMB's own button face (Data/DMBButtonFace.ttf, the face the launcher's buttons use), its capitals 22
-	/// game pixels tall as the lettering of the game's gold buttons on their 40 pixel bars (K, October 12th 2026: "build OUR OWN FONT SET"),
+	/// game pixels tall as the lettering of the game's gold buttons on their 40 pixel bars (the project owner, October 12th 2026: "build OUR OWN FONT SET"),
 	/// carved: a dark letter with a light edge to its lower left, smoothed at the screen's scale. Every letter, digit and mark the face
 	/// has, the accented capitals included. No image when the face's file is missing or the text has a character the face lacks.
 	ButtonWords buttonWords(const std::string & text);

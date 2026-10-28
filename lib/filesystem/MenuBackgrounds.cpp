@@ -150,7 +150,7 @@ void scanMods(const boost::filesystem::path & folder, const std::string & parent
 }
 
 /// The Main Menu Themes Pack carries a theme for every release and mod of the game, but a player's list is the menus of what they have
-/// (K, October 4th: "why do we have wake of gods? that's not in my mods list"): the four releases whose files the game itself holds
+/// (the project owner, October 4th: "why do we have wake of gods? that's not in my mods list"): the four releases whose files the game itself holds
 /// (Restoration of Erathia, Armageddon's Blade, Shadow of Death, Complete) always, any other theme only where the mod it is the menu of is
 /// installed (Horn of the Abyss, Tides of War); a theme this does not know is left out.
 bool packThemeWanted(const std::string & id)
@@ -851,7 +851,7 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 
 	// the icon's drop shadow, tinted by the glow, that reaches the cleared glow (at most fourteen pixels in) goes too, and a one pixel edge
 	// of the outline colour is put where it met the icon; the first version turned it into an outline and left a fat black halo round
-	// the buttons of Armageddon's Blade (K, October 4th)
+	// the buttons of Armageddon's Blade (the project owner, October 4th)
 	if(outline != 0)
 	{
 		std::vector<int> depth(pix.size(), -1);
@@ -898,7 +898,7 @@ void removeGlow(const ui8 * palette, std::vector<ui8> & pix, const std::vector<u
 		}
 
 		// what is left of a removed shadow can be a speck made of nothing but the outline colour: pieces of 24 pixels or fewer that are
-		// all outline colour are taken away (K, October 4th: "pristine")
+		// all outline colour are taken away (the project owner, October 4th: "pristine")
 		std::vector<ui8> checked(pix.size(), 0);
 		for(int y0 = 0; y0 < h; ++y0)
 			for(int x0 = 0; x0 < w; ++x0)

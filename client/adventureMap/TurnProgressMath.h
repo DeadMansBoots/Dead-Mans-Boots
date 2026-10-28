@@ -50,11 +50,11 @@ struct TownNow
 	bool canBuild = true;
 };
 
-/// a town's weight in the bar from what is left on its list (K, October 23rd 13:0x: "weighted down as the number of buildings that can be built dwindle
+/// a town's weight in the bar from what is left on its list (the project owner, October 23rd 13:0x: "weighted down as the number of buildings that can be built dwindle
 /// (going to 0% of the total at 1-3 buildings or upgrades left to build)"): 0 at 3 or fewer, full at 10 or more, a straight fade between
 double townWeight(int remaining);
 
-/// how much of the turn is done, 0 to 100 (K, October 23rd 13:0x: "i mainly just want the turn progress bar to track: 1. Heroes to move 2. Towns that can
+/// how much of the turn is done, 0 to 100 (the project owner, October 23rd 13:0x: "i mainly just want the turn progress bar to track: 1. Heroes to move 2. Towns that can
 /// be built in"; roster\NOTE-turnbar-formula-1023.md). H: the movement the heroes have spent of what they had at dawn (a hero with no affordable step
 /// counts as spent). T: the weighted share of towns that could build at dawn and have built today or can build nothing now; W: their weights summed, at
 /// most 1. The bar is (H + T * W) / (1 + W), or T alone when no hero had movement at dawn, and 100 when neither applies.

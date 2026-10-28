@@ -12,7 +12,7 @@
 VCMI_LIB_NAMESPACE_BEGIN
 
 /// DMB: the code an addon mod brings (an AI plugin's "ai" folder, a map generator's "generator" folder)
-/// runs without a question only when DMB's mod catalog vouches for it (K, September 26th; October 18th: "we should never
+/// runs without a question only when DMB's mod catalog vouches for it (the project owner, September 26th; October 18th: "we should never
 /// lock the user out": a mismatch is a notice the player answers, with Run it anyway always offered, never a refusal;
 /// the lobby asks before Begin and the answer is remembered for that exact code, runAnywayFile). A catalog entry pins its mod's
 /// code with "codeSha256", one hash or a list of them; the launcher saves the pins of the default

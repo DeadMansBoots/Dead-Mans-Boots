@@ -282,7 +282,7 @@ std::string CGObjectInstance::getHoverText(const CGHeroInstance * hero) const
 	return getHoverText(hero->tempOwner);
 }
 
-/// DMB: the object type's own line under the name ("popupDescription"), for an object whose pop-up said only its name (K, October 23rd: "den of thieves
+/// DMB: the object type's own line under the name ("popupDescription"), for an object whose pop-up said only its name (the project owner, October 23rd: "den of thieves
 /// needs a description")
 static std::string withPopupDescription(const CGObjectInstance & object, std::string text)
 {

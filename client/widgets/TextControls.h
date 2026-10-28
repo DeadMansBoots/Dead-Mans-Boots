@@ -68,7 +68,7 @@ public:
 
 /// DMB: a label carved into the gold as the game's own gold buttons carve their words
 /// (GameLettering::carved), for text over gold bars; a layout asks for it with "style": "engraved"
-/// (K, September 27th: "we missed the mark on the black on gold font")
+/// (the project owner, September 27th: "we missed the mark on the black on gold font")
 class CEngravedLabel : public CLabel
 {
 	std::shared_ptr<IImage> carving;

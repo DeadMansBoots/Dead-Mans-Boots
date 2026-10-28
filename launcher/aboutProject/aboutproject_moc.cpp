@@ -135,7 +135,7 @@ void AboutProjectView::on_pushButtonHomepage_clicked()
 
 void AboutProjectView::on_pushButtonBugreport_clicked()
 {
-	// DMB (K, October 10th: "prefer automated one-click bug submission"): builds the report and sends it
+	// DMB (the project owner, October 10th: "prefer automated one-click bug submission"): builds the report and sends it
 	BugReport::run(this, "Help page, Report a bug");
 }
 

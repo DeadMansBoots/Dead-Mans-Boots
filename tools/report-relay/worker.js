@@ -1,4 +1,4 @@
-// Dead Man's Boots report relay: a Cloudflare Worker on the free plan (no card, no GitHub, no key the players or K have to make).
+// Dead Man's Boots report relay: a Cloudflare Worker on the free plan (no card, no GitHub, no key the players or the project owner have to make).
 //
 // The launcher POSTs a bug report (a zip) to /report. The worker stores it in a Workers KV namespace (binding REPORTS). The developers read the reports back from the
 // same worker: GET /reports lists them, GET /reports/<name> gives one, DELETE /reports/<name> removes it, all behind the Bearer secret READ_SECRET (a random secret that

@@ -176,6 +176,7 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 	auto waiting = std::find_if(pendingRejoin.begin(), pendingRejoin.end(), [&](const auto & each) { return each.connection->isMyConnection(connection); });
 	if(waiting == pendingRejoin.end())
 		return false;
+	logNetwork->info("A connection that waits to come back sent a pack");
 	const auto candidate = waiting->connection;
 	const std::string shown = waiting->secret;
 
@@ -195,6 +196,8 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 		// the secret comes first; one that has no kept seats ends the connection
 		if(!rejoinOpen() || !shown.empty() || !vstd::contains(rejoinSeats, proof->secret))
 		{
+			logNetwork->info("A connection that wanted to come back was refused: door open %d, secret shown before %d, secret has kept seats %d (%d sets of seats are kept)",
+				rejoinOpen(), !shown.empty(), vstd::contains(rejoinSeats, proof->secret), rejoinSeats.size());
 			pendingRejoin.erase(waiting);
 			connection->close();
 			return true;
@@ -222,6 +225,7 @@ void CVCMIServer::sendRejoinSecretTo(GameConnectionID connectionID)
 		known = connectionSecrets.emplace(connectionID, boost::uuids::to_string(boost::uuids::random_generator()())).first;
 	RejoinSecret pack;
 	pack.secret = known->second;
+	logNetwork->info("Connection %d is sent its rejoin secret", static_cast<int>(connectionID));
 	sendPack(pack, connectionID);
 }
 
@@ -786,6 +790,7 @@ void CVCMIServer::clientDisconnected(std::shared_ptr<GameConnection> connection)
 		const auto seats = getAllClientPlayers(connection->connectionID);
 		if(rejoinOpen() && connection->connectionID != hostClientId && !seats.empty())
 			rejoinSeats[secretOfConnection->second] = std::vector<PlayerColor>(seats.begin(), seats.end());
+		logNetwork->info("Connection %d had a rejoin secret; %d seat(s) kept for it (door open %d)", static_cast<int>(connection->connectionID), static_cast<int>(seats.size()), rejoinOpen());
 		connectionSecrets.erase(secretOfConnection);
 	}
 	vstd::erase(activeConnections, connection);

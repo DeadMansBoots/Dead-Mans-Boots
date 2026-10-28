@@ -118,7 +118,7 @@ void PlayerMessageProcessor::commandKick(PlayerColor player, const std::vector<s
 void PlayerMessageProcessor::commandAllyTake(PlayerColor player, const std::vector<std::string> & words, bool allow)
 {
 	const auto & game = gameHandler->gameInfo();
-	const auto * state = game.getPlayerState(player);
+	const auto * state = game.getPlayerState(player, false);
 	if(!state || !state->isHuman())
 		return;
 	if(words.size() != 2)

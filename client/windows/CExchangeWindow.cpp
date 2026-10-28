@@ -400,7 +400,7 @@ void CExchangeWindow::closeTrade()
 bool CExchangeWindow::isHeroBlocked(size_t leftRight) const
 {
 	const PlayerColor owner = heroInst.at(leftRight)->tempOwner;
-	return owner != GAME->interface()->cb->getPlayerID() && !DmbAllyTake::allowed(owner, GAME->interface()->cb->getPlayerID());
+	return owner != GAME->interface()->cb->getPlayerID() && !DmbAllyTake::allowed(owner, GAME->interface()->playerID);
 }
 
 const CGarrisonSlot * CExchangeWindow::getSelectedSlotID() const

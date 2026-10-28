@@ -69,6 +69,8 @@
 
 #include <vcmi/events/EventBus.h>
 #include <SDL_thread.h>
+#include <cstdlib>
+#include <fstream>
 #include "DmbRejoin.h"
 
 #include <boost/lexical_cast.hpp>
@@ -145,6 +147,9 @@ CServerHandler::CServerHandler()
 	, client(nullptr)
 {
 	uuid = boost::uuids::to_string(boost::uuids::random_generator()());
+	// HARNESS ONLY (dmb-rejoin-harness-1027, never ships): a test can give a client a known session id
+	if(const char * forced = std::getenv("DMB_TEST_FORCE_UUID"))
+		uuid = forced;
 }
 
 void CServerHandler::threadRunNetwork()
@@ -446,6 +451,15 @@ ui16 CServerHandler::getCurrentPort() const
 
 void CServerHandler::sendClientConnecting() const
 {
+	// HARNESS ONLY (dmb-rejoin-harness-1027, never ships): a new process reads the secret a killed one saved
+	if(DmbRejoin::secret().empty())
+		if(const char * file = std::getenv("DMB_TEST_REJOIN_FILE"))
+		{
+			std::ifstream in(file);
+			std::string saved;
+			if(in >> saved)
+				DmbRejoin::secret() = saved;
+		}
 	// DMB: hot join step 1. A client that was given a secret shows it first; a server that has no use for it ignores it
 	if(!DmbRejoin::secret().empty())
 	{

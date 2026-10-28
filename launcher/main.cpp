@@ -110,7 +110,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	launcher::prepare();
 
 	// DMB: "DMB_launcher.exe --report" (started by the crash dialog) makes and sends a bug report and nothing else
-	// "DMB_launcher.exe --report-crash" is started by the game's crash handler, with no window: it builds the report and sends it (K, October 10th: "you can't
+	// "DMB_launcher.exe --report-crash" is started by the game's crash handler, with no window: it builds the report and sends it (the project owner, October 10th: "you can't
 	// see crashes you should")
 	if(vcmilauncher.arguments().contains("--report-crash"))
 	{
@@ -125,7 +125,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 	}
 
 	// "DMB_launcher.exe --report-event KIND REASON" is started by the game (lib/DmbIssueReport.h) when it detects an anomaly that is no crash: a lost connection, a
-	// request the server refused. The same report as for a crash (without a dump), under the same consent (K, October 19th: "VERBOSE, AND COMPLETE ISSUE REPORTING. AUTOMATICALLY")
+	// request the server refused. The same report as for a crash (without a dump), under the same consent (the project owner, October 19th: "VERBOSE, AND COMPLETE ISSUE REPORTING. AUTOMATICALLY")
 	const int eventAt = vcmilauncher.arguments().indexOf("--report-event");
 	if(eventAt >= 0 && eventAt + 2 < vcmilauncher.arguments().size())
 	{
@@ -154,7 +154,7 @@ int MAIN_EXPORT main(int argc, char * argv[])
 			out.write((report.zipPath + "\n" + report.error + "\n" + sent + "\n" + report.crash).toUtf8());
 		return 0;
 	}
-	// "--crash-window <dump>" is started by the game's crash handler, in the player's view (K, October 13th): one window with Send report and Don't send
+	// "--crash-window <dump>" is started by the game's crash handler, in the player's view (the project owner, October 13th): one window with Send report and Don't send
 	const int crashWindow = vcmilauncher.arguments().indexOf("--crash-window");
 	if(crashWindow >= 0 && crashWindow + 1 < vcmilauncher.arguments().size())
 	{

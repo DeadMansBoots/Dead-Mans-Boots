@@ -12,7 +12,7 @@
 
 class QWidget;
 
-/// DMB (K, October 10th: "auto-bug reporting ... so we can iterate on issues more quickly between userside error and live patch distribution",
+/// DMB (the project owner, October 10th: "auto-bug reporting ... so we can iterate on issues more quickly between userside error and live patch distribution",
 /// "prefer automated one-click bug submission"): one button, or the launcher started with --report after a crash, builds a report from the
 /// player's own logs and sends it.
 ///

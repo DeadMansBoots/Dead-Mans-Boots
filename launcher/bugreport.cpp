@@ -325,7 +325,7 @@ Report build(const QString & why, const QString & description, bool includeDump,
 
 		if(!description.trimmed().isEmpty())
 			add("description.txt", redacted(description.toUtf8()));
-		// every file of the user's Mods folder with its size (K, October 10th, on a crash that only one player had): a mod that is incomplete or different
+		// every file of the user's Mods folder with its size (the project owner, October 10th, on a crash that only one player had): a mod that is incomplete or different
 		// on one PC shows up against another player's listing; paths are relative to the user folder, so no Windows user name is in them
 		{
 			QString listing;
@@ -535,13 +535,13 @@ bool send(const Report & report, QString & message)
 
 bool crashReportsEnabled()
 {
-	// a stored "true" counts only once the player has answered the launcher's question (crashReportsAsked): a file written by an earlier beta, whose default was on, stays off until then (K, October 18th)
+	// a stored "true" counts only once the player has answered the launcher's question (crashReportsAsked): a file written by an earlier beta, whose default was on, stays off until then (the project owner, October 18th)
 	return launcherSettings()["sendCrashReports"].toBool(false) && launcherSettings()["crashReportsAsked"].toBool(false);
 }
 
 void run(QWidget * parent, const QString & why)
 {
-	// the player's own words are the most useful part of a report (K, October 10th: "we want to be able to solve bugs quick"); empty is allowed, Cancel stops
+	// the player's own words are the most useful part of a report (the project owner, October 10th: "we want to be able to solve bugs quick"); empty is allowed, Cancel stops
 	bool asked = false;
 	const QString description = QInputDialog::getMultiLineText(parent, QObject::tr("Report a bug"),
 		QObject::tr("What went wrong? A sentence or two helps a lot (what you were doing, what you expected). You can leave this empty.\n\nThe report also holds the game's logs and settings, with your Windows user name and computer name removed."),
@@ -601,7 +601,7 @@ void run(QWidget * parent, const QString & why)
 
 void runCrashWindow(const QString & dumpPath)
 {
-	// K, October 13th: "this is not the easy, one-click crash reporter I expected to see triggered on a crash"
+	// the project owner, October 13th: "this is not the easy, one-click crash reporter I expected to see triggered on a crash"
 	QDialog dialog;
 	dialog.setWindowTitle(QObject::tr("Dead Man's Boots crashed"));
 	dialog.setMinimumWidth(520);
@@ -637,7 +637,7 @@ void runCrashWindow(const QString & dumpPath)
 		detail->setText(automatic ? QObject::tr("Sending a report by itself (the \"General\" button on the \"Settings\" tab switches this off)...") : QObject::tr("Sending..."));
 		detail->show();
 		QApplication::processEvents();
-		// DMB (Meg, October 24th: "the crash reporter crashed too"): nothing the building or the sending throws may take this window down; what went wrong is said,
+		// DMB (a player, October 24th: "the crash reporter crashed too"): nothing the building or the sending throws may take this window down; what went wrong is said,
 		// and the saved zip (if the report was made) is named
 		Report report;
 		QString problem;
@@ -660,7 +660,7 @@ void runCrashWindow(const QString & dumpPath)
 				report.error = problem;
 		}
 		// the crash text opens with the log's lines ("[2026-Oct-14 08:42:28.739218] ERROR [39436] global - Disaster happened."): the exception line without its stamp says more
-		// (K, October 14th: "Exception EXCEPTION_ACCESS_VIOLATION (0xc0000005) at ? (Attempt to read from 0x0000000000000000)")
+		// (the project owner, October 14th: "Exception EXCEPTION_ACCESS_VIOLATION (0xc0000005) at ? (Attempt to read from 0x0000000000000000)")
 		static const QRegularExpression stamp("^\\[[^\\]]+\\]\\s+\\w+\\s+\\[[^\\]]+\\]\\s+\\w+\\s+-\\s+");
 		const QStringList crashLines = report.crash.split('\n');
 		QString cause;

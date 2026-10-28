@@ -24,7 +24,7 @@ namespace bfs = boost::filesystem;
 
 // Dead Man's Boots keeps its own user folders beside stock VCMI's, so the two never share settings,
 // mods or saves (stock VCMI drops every setting its schema does not list). They were "DMB" and "dmb"
-// until K ruled the acronym too likely to be another program's folder (September 27th); an earlier
+// until the project owner ruled the acronym too likely to be another program's folder (September 27th); an earlier
 // DMB's folders take the new names on the first start (renameEarlierFolders).
 static const char * const USER_DIR_NAME = "Dead Man's Boots"; // Windows (Documents\My Games) and macOS
 static const char * const USER_DIR_NAME_XDG = "dead-mans-boots"; // Linux, lower case and plain like the XDG folders around it
@@ -87,7 +87,7 @@ bfs::path IVCMIDirs::stockVcmiPath(const bfs::path & path) const
 namespace
 {
 /// Whether a folder by DMB's earlier name was made by DMB: it holds what no other program leaves there
-/// (K: an upgrade checks a folder's contents, not its name). Every DMB since 0.1.0-rc.1 leaves at least
+/// (the project owner: an upgrade checks a folder's contents, not its name). Every DMB since 0.1.0-rc.1 leaves at least
 /// one: the catalog's pins, a map generator's log, a build approved for testing, or a line only DMB
 /// logs (the launcher's catalog pins and look, the client's OmniAI folder). The paths cover Windows,
 /// where logs and cache are inside the data folder, and the separate cache and logs folders elsewhere.

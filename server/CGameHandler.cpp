@@ -4390,6 +4390,11 @@ bool CGameHandler::isBlockedByQueries(const CPackForServer *pack, PlayerColor pl
 	if (dynamic_cast<const SaveLocalState *>(pack) != nullptr)
 		return false;
 
+	// DMB: a returning player's interface says it is ready while the query it left (a trade, a dialog) is still the top one; the answer is what prompts that
+	// query again (onAdvInterfaceReady), so no query may refuse it (found by the open-trade drop test: "Player blue is in a trade; dropped AdvInterfaceReady")
+	if (dynamic_cast<const AdvInterfaceReady *>(pack) != nullptr)
+		return false;
+
 	auto query = queries->topQuery(player);
 	if (query && query->blocksPack(pack))
 	{

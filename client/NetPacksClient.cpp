@@ -51,6 +51,9 @@
 #include "DmbRejoin.h"
 #include <cstdlib>
 #include <fstream>
+#include "windows/InfoWindows.h"
+#include "widgets/TextControls.h"
+#include "../lib/texts/MetaString.h"
 
 // TODO: as Tow suggested these template should all be part of CClient
 // This will require rework spectator interface properly though
@@ -731,6 +734,20 @@ void ApplyClientNetPackVisitor::visitGarrisonDialog(GarrisonDialog & pack)
 	const CArmedInstance *obj = static_cast<const CArmedInstance*>(cl.gameInfo().getObj(pack.objid));
 
 	callOnlyThatInterface(cl, h->getOwner(), &CGameInterface::showGarrisonDialog, obj, h, pack.removableUnits, pack.queryID, pack.customTitle);
+}
+
+void ApplyClientNetPackVisitor::visitPlayerBack(PlayerBack & pack)
+{
+	if(!ENGINE)
+		return;
+	// the window the server showed when this player's connection ended (CGameHandler::handleClientDisconnection) closes: nobody has to click away a notice that is no longer true
+	MetaString left;
+	left.appendTextID("vcmi.server.errors.playerLeft");
+	left.replaceName(pack.player);
+	const std::string expected = left.toString();
+	for(const auto & window : ENGINE->windows().findWindows<CInfoWindow>())
+		if(window->text && window->text->label && window->text->label->getText() == expected)
+			window->close();
 }
 
 void ApplyClientNetPackVisitor::visitRejoinSecret(RejoinSecret & pack)

@@ -80,6 +80,11 @@ void RejoinProof::visitTyped(ICPackVisitor & visitor)
 	visitor.visitRejoinProof(*this);
 }
 
+void PlayerBack::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitPlayerBack(*this);
+}
+
 void PackageApplied::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitPackageApplied(*this);

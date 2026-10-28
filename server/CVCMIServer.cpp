@@ -285,6 +285,15 @@ void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, con
 	c->sendPack(start);
 
 	c->setCallback(gh->gameInfo());
+	// the others are told the seat has its player again, so the notice that it left can go
+	for(const auto & seat : seats)
+	{
+		PlayerBack back;
+		back.player = seat;
+		for(const auto & other : activeConnections)
+			if(other != c)
+				other->sendPack(back);
+	}
 	}
 	catch(const std::exception & e)
 	{

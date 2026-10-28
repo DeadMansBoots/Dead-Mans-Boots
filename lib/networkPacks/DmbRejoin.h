@@ -41,4 +41,17 @@ struct DLL_LINKAGE RejoinProof : public CLobbyPackToServer
 	}
 };
 
+/// DMB: hot join step 1. A seat has its player again: the others' "player left" windows for that colour close
+struct DLL_LINKAGE PlayerBack : public CPackForClient
+{
+	PlayerColor player;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & player;
+	}
+};
+
 VCMI_LIB_NAMESPACE_END

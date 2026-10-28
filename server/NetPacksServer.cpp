@@ -100,7 +100,7 @@ void ApplyGhNetPackVisitor::visitArrangeStacks(ArrangeStacks & pack)
 
 void ApplyGhNetPackVisitor::visitBulkMoveArmy(BulkMoveArmy & pack)
 {
-	gh.throwIfWrongOwner(connection, &pack, pack.srcArmy);
+	gh.throwIfWrongOwnerUnlessAllied(connection, &pack, pack.srcArmy);
 	gh.throwIfPlayerNotActive(connection, &pack);
 
 	result = gh.bulkMoveArmy(pack.srcArmy, pack.destArmy, pack.srcSlot);
@@ -191,7 +191,13 @@ void ApplyGhNetPackVisitor::visitGarrisonHeroSwap(GarrisonHeroSwap & pack)
 void ApplyGhNetPackVisitor::visitExchangeArtifacts(ExchangeArtifacts & pack)
 {
 	if(gh.gameInfo().getHero(pack.src.artHolder))
-		gh.throwIfWrongPlayer(connection, &pack, gh.gameState().getOwner(pack.src.artHolder)); //second hero can be ally
+	{
+		const PlayerColor srcOwner = gh.gameState().getOwner(pack.src.artHolder);
+		if(gh.allyMayTake(pack.player, srcOwner)) // the ally said yes: the sender is the one who has to be on the connection
+			gh.throwIfWrongPlayer(connection, &pack);
+		else
+			gh.throwIfWrongPlayer(connection, &pack, srcOwner); //second hero can be ally
+	}
 	gh.throwIfPlayerNotActive(connection, &pack);
 
 	result = gh.moveArtifact(pack.player, pack.src, pack.dst);
@@ -200,9 +206,9 @@ void ApplyGhNetPackVisitor::visitExchangeArtifacts(ExchangeArtifacts & pack)
 void ApplyGhNetPackVisitor::visitBulkExchangeArtifacts(BulkExchangeArtifacts & pack)
 {
 	if(gh.gameState().getMarket(pack.srcHero) == nullptr)
-		gh.throwIfWrongOwner(connection, &pack, pack.srcHero);
+		gh.throwIfWrongOwnerUnlessAllied(connection, &pack, pack.srcHero);
 	if(pack.swap)
-		gh.throwIfWrongOwner(connection, &pack, pack.dstHero);
+		gh.throwIfWrongOwnerUnlessAllied(connection, &pack, pack.dstHero);
 
 	gh.throwIfPlayerNotActive(connection, &pack);
 	result = gh.bulkMoveArtifacts(pack.player, pack.srcHero, pack.dstHero, pack.swap, pack.equipped, pack.backpack);

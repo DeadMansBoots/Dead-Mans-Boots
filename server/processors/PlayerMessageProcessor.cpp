@@ -113,6 +113,62 @@ void PlayerMessageProcessor::commandKick(PlayerColor player, const std::vector<s
 	}
 }
 
+/// DMB: diplomacy control A. `!allowtake <colour>` lets that ally take troops and artifacts from the sender's heroes and towns, `!denytake <colour>` takes it
+/// back, `all` is every ally. A colour is its number or its name, the way !kick takes it.
+void PlayerMessageProcessor::commandAllyTake(PlayerColor player, const std::vector<std::string> & words, bool allow)
+{
+	const auto & game = gameHandler->gameInfo();
+	const auto * state = game.getPlayerState(player);
+	if(!state || !state->isHuman())
+		return;
+	if(words.size() != 2)
+	{
+		broadcastSystemMessage(allow ? "Use !allowtake <colour or all>" : "Use !denytake <colour or all>");
+		return;
+	}
+
+	std::vector<PlayerColor> targets;
+	if(words[1] == "all")
+	{
+		for(PlayerColor color : PlayerColor::ALL_PLAYERS())
+			if(game.getPlayerState(color, false) && game.getPlayerRelations(player, color) == PlayerRelations::ALLIES && color != player)
+				targets.push_back(color);
+	}
+	else
+	{
+		PlayerColor taker(PlayerColor::CANNOT_DETERMINE);
+		if(std::all_of(words[1].begin(), words[1].end(), ::isdigit))
+			taker = PlayerColor(std::stoi(words[1]));
+		else
+			for(PlayerColor color : PlayerColor::ALL_PLAYERS())
+				if(color.toString() == words[1])
+					taker = color;
+		if(taker == PlayerColor::CANNOT_DETERMINE || !game.getPlayerState(taker, false) || taker == player
+			|| game.getPlayerRelations(player, taker) != PlayerRelations::ALLIES)
+		{
+			broadcastSystemMessage("That is not one of your allies");
+			return;
+		}
+		targets.push_back(taker);
+	}
+
+	for(PlayerColor taker : targets)
+		if(gameHandler->setAllyTake(player, taker, allow))
+			broadcastSystemMessage(player.toString() + (allow ? " lets " : " no longer lets ") + taker.toString() + " take troops and artifacts from "
+				+ player.toString() + "'s heroes and towns");
+}
+
+void PlayerMessageProcessor::commandTakeRules(PlayerColor player)
+{
+	if(gameHandler->allyTakeRules.empty())
+	{
+		broadcastSystemMessage("No ally may take from another player's heroes and towns");
+		return;
+	}
+	for(const auto & rule : gameHandler->allyTakeRules)
+		broadcastSystemMessage(rule.first.toString() + " lets " + rule.second.toString() + " take troops and artifacts");
+}
+
 void PlayerMessageProcessor::commandSave(PlayerColor player, const std::vector<std::string> & words)
 {
 	bool isHost = gameHandler->gameServer().isPlayerHost(player);
@@ -362,6 +418,12 @@ void PlayerMessageProcessor::handleCommand(PlayerColor player, const std::string
 		commandKick(player, words);
 	if(words[0] == "!save")
 		commandSave(player, words);
+	if(words[0] == "!allowtake")
+		commandAllyTake(player, words, true);
+	if(words[0] == "!denytake")
+		commandAllyTake(player, words, false);
+	if(words[0] == "!takerules")
+		commandTakeRules(player);
 	if(words[0] == "!cheaters")
 		commandCheaters(player, words);
 	if(words[0] == "!statistic")

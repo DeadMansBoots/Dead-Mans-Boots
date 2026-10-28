@@ -48,6 +48,7 @@
 #include "../lib/battle/BattleInfo.h"
 #include "../lib/GameConstants.h"
 #include "../lib/CPlayerState.h"
+#include "DmbAllyTake.h"
 
 // TODO: as Tow suggested these template should all be part of CClient
 // This will require rework spectator interface properly though
@@ -728,6 +729,13 @@ void ApplyClientNetPackVisitor::visitGarrisonDialog(GarrisonDialog & pack)
 	const CArmedInstance *obj = static_cast<const CArmedInstance*>(cl.gameInfo().getObj(pack.objid));
 
 	callOnlyThatInterface(cl, h->getOwner(), &CGameInterface::showGarrisonDialog, obj, h, pack.removableUnits, pack.queryID, pack.customTitle);
+}
+
+void ApplyClientNetPackVisitor::visitAllyTakeRules(AllyTakeRules & pack)
+{
+	DmbAllyTake::table().clear();
+	for(const auto & rule : pack.rules)
+		DmbAllyTake::table().insert(rule);
 }
 
 void ApplyClientNetPackVisitor::visitExchangeDialog(ExchangeDialog & pack)

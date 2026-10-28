@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "CGameHandler.h"
+#include "../lib/networkPacks/DmbAllyTake.h"
 #include "../lib/DmbIssueReport.h"
 
 #include "CVCMIServer.h"
@@ -660,6 +661,7 @@ void CGameHandler::onPlayerTurnStarted(PlayerColor which)
 	events::PlayerGotTurn::defaultExecute(serverEventBus.get(), which);
 	turnTimerHandler->onPlayerGetTurn(which);
 	newTurnProcessor->onPlayerTurnStarted(which);
+	sendAllyTakeRules();
 }
 
 void CGameHandler::onPlayerTurnEnded(PlayerColor which)
@@ -821,6 +823,7 @@ void CGameHandler::start(bool resume)
 	}
 
 	turnOrder->onGameStarted();
+	sendAllyTakeRules();
 }
 
 void CGameHandler::tick(int millisecondsPassed)
@@ -2073,8 +2076,8 @@ bool CGameHandler::arrangeStacks(ObjectInstanceID id1, ObjectInstanceID id2, ui8
 
 	if (what==1) //swap
 	{
-		if (((s1->tempOwner != player && s1->tempOwner != PlayerColor::UNFLAGGABLE) && s1->getStackCount(p1))
-		  || ((s2->tempOwner != player && s2->tempOwner != PlayerColor::UNFLAGGABLE) && s2->getStackCount(p2)))
+		if (((s1->tempOwner != player && s1->tempOwner != PlayerColor::UNFLAGGABLE && !allyMayTake(player, s1->tempOwner)) && s1->getStackCount(p1))
+		  || ((s2->tempOwner != player && s2->tempOwner != PlayerColor::UNFLAGGABLE && !allyMayTake(player, s2->tempOwner)) && s2->getStackCount(p2)))
 		{
 			complain("Can't take troops from another player!");
 			return false;
@@ -2101,7 +2104,7 @@ bool CGameHandler::arrangeStacks(ObjectInstanceID id1, ObjectInstanceID id2, ui8
 	else if (what==2)//merge
 	{
 		if ((s1->getCreature(p1) != s2->getCreature(p2) && complain("Cannot merge different creatures stacks!"))
-		|| (((s1->tempOwner != player && s1->tempOwner != PlayerColor::UNFLAGGABLE) && s2->getStackCount(p2)) && complain("Can't take troops from another player!")))
+		|| (((s1->tempOwner != player && s1->tempOwner != PlayerColor::UNFLAGGABLE && !allyMayTake(player, s1->tempOwner)) && s2->getStackCount(p2)) && complain("Can't take troops from another player!")))
 			return false;
 
 		if (s1->slotEmpty(p1) || s2->slotEmpty(p2))
@@ -2119,8 +2122,8 @@ bool CGameHandler::arrangeStacks(ObjectInstanceID id1, ObjectInstanceID id2, ui8
 		const int countToMove = val - s2->getStackCount(p2);
 		const int countLeftOnSrc = s1->getStackCount(p1) - countToMove;
 
-		if (  (s1->tempOwner != player && countLeftOnSrc < s1->getStackCount(p1))
-			|| (s2->tempOwner != player && val < s2->getStackCount(p2)))
+		if (  ((s1->tempOwner != player && !allyMayTake(player, s1->tempOwner)) && countLeftOnSrc < s1->getStackCount(p1))
+			|| ((s2->tempOwner != player && !allyMayTake(player, s2->tempOwner)) && val < s2->getStackCount(p2)))
 		{
 			complain("Can't move troops of another player!");
 			return false;
@@ -2751,7 +2754,8 @@ bool CGameHandler::moveArtifact(const PlayerColor & player, const ArtifactLocati
 	const bool isDstSlotOccupied = dstArtSet->bearerType() == ArtBearer::ALTAR ? false : dstArtifact != nullptr;
 	const bool isDstSlotBackpack = dstArtSet->bearerType() == ArtBearer::HERO ? ArtifactUtils::isSlotBackpack(dstSlot) : false;
 
-	if(isDstSlotOccupied && gameState().getOwner(src.artHolder) != gameState().getOwner(dst.artHolder) && !isDstSlotBackpack)
+	if(isDstSlotOccupied && gameState().getOwner(src.artHolder) != gameState().getOwner(dst.artHolder) && !isDstSlotBackpack
+		&& !(allyMayTake(player, gameState().getOwner(dst.artHolder)) && (gameState().getOwner(src.artHolder) == player || allyMayTake(player, gameState().getOwner(src.artHolder)))))
 		COMPLAIN_RET("Can't touch artifact on hero of another player!");
 
 	// Check if src/dest slots are appropriate for the artifacts exchanged.
@@ -3594,6 +3598,44 @@ void CGameHandler::showObjectWindow(const CGObjectInstance * object, EOpenWindow
 		queries->addQuery(windowQuery);
 	}
 	sendAndApply(pack);
+}
+
+bool CGameHandler::allyMayTake(PlayerColor actor, PlayerColor owner) const
+{
+	if(actor == owner || !actor.isValidPlayer() || !owner.isValidPlayer())
+		return false;
+	if(gameInfo().getPlayerRelations(actor, owner) != PlayerRelations::ALLIES)
+		return false;
+	const auto * ownerState = gameInfo().getPlayerState(owner);
+	if(!ownerState || !ownerState->isHuman()) // a computer ally never gives
+		return false;
+	return vstd::contains(allyTakeRules, std::make_pair(owner, actor));
+}
+
+bool CGameHandler::setAllyTake(PlayerColor owner, PlayerColor taker, bool allowed)
+{
+	const auto rule = std::make_pair(owner, taker);
+	const bool changed = allowed ? allyTakeRules.insert(rule).second : allyTakeRules.erase(rule) > 0;
+	if(changed)
+		sendAllyTakeRules();
+	return changed;
+}
+
+void CGameHandler::sendAllyTakeRules()
+{
+	AllyTakeRules pack;
+	pack.rules.assign(allyTakeRules.begin(), allyTakeRules.end());
+	sendAndApply(pack);
+}
+
+void CGameHandler::throwIfWrongOwnerUnlessAllied(GameConnectionID connectionID, const CPackForServer * pack, ObjectInstanceID id)
+{
+	if(!isPlayerOwns(connectionID, pack, id) && allyMayTake(pack->player, gameState().getOwner(id)))
+	{
+		throwIfWrongPlayer(connectionID, pack);
+		return;
+	}
+	throwIfWrongOwner(connectionID, pack, id);
 }
 
 bool CGameHandler::isAllowedExchange(ObjectInstanceID id1, ObjectInstanceID id2)

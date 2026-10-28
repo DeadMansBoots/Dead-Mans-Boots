@@ -36,6 +36,7 @@
 #include "../lib/mapObjects/CGHeroInstance.h"
 #include "../lib/texts/CGeneralTextHandler.h"
 #include "../lib/texts/TextOperations.h"
+#include "../DmbAllyTake.h"
 
 static const std::string QUICK_EXCHANGE_BG = "quick-exchange/TRADEQE";
 
@@ -398,7 +399,8 @@ void CExchangeWindow::closeTrade()
 
 bool CExchangeWindow::isHeroBlocked(size_t leftRight) const
 {
-	return heroInst.at(leftRight)->tempOwner != GAME->interface()->cb->getPlayerID();
+	const PlayerColor owner = heroInst.at(leftRight)->tempOwner;
+	return owner != GAME->interface()->cb->getPlayerID() && !DmbAllyTake::allowed(owner, GAME->interface()->cb->getPlayerID());
 }
 
 const CGarrisonSlot * CExchangeWindow::getSelectedSlotID() const

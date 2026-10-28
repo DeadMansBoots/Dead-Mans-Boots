@@ -12,6 +12,7 @@
 #include "PacksForClientBattle.h"
 #include "PacksForServer.h"
 #include "SaveLocalState.h"
+#include "DmbAllyTake.h"
 #include "SetRewardableConfiguration.h"
 #include "PacksForLobby.h"
 #include "SetStackEffect.h"
@@ -67,6 +68,11 @@ bool CLobbyPackToServer::isForServer() const
 void SaveLocalState::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitSaveLocalState(*this);
+}
+
+void AllyTakeRules::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitAllyTakeRules(*this);
 }
 
 void PackageApplied::visitTyped(ICPackVisitor & visitor)

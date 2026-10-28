@@ -281,6 +281,11 @@ public:
 			h & *statistics;
 		}
 
+		if (h.hasFeature(Handler::Version::DMB_ALLY_TAKE_RULES))
+		{
+			h & allyTakeRules;
+		}
+
 
 #if SCRIPTING_ENABLED
 		JsonNode scriptsState;
@@ -307,6 +312,16 @@ public:
 	/// Throws if player is not present on connection of this pack
 	void throwIfWrongPlayer(GameConnectionID connectionID, const CPackForServer * pack, PlayerColor player);
 	void throwIfWrongPlayer(GameConnectionID connectionID, const CPackForServer * pack);
+	/// Like throwIfWrongOwner, but passes when the owner is an ally who let the pack's player take (diplomacy control A)
+	void throwIfWrongOwnerUnlessAllied(GameConnectionID connectionID, const CPackForServer * pack, ObjectInstanceID id);
+
+	/// DMB: diplomacy control A. (owner, taker): the owner lets the taker take troops and artifacts from the owner's heroes and towns. Saved with the game.
+	std::set<std::pair<PlayerColor, PlayerColor>> allyTakeRules;
+	/// true when `actor` may take from an army or hero of `owner` that is not actor's own: allies only, the owner must be a person, the owner must have said yes
+	bool allyMayTake(PlayerColor actor, PlayerColor owner) const;
+	/// true when the rule was changed
+	bool setAllyTake(PlayerColor owner, PlayerColor taker, bool allowed);
+	void sendAllyTakeRules();
 	[[noreturn]] void throwAndComplain(GameConnectionID connectionID, const std::string & txt);
 
 	bool isPlayerOwns(GameConnectionID connectionID, const CPackForServer * pack, ObjectInstanceID id);

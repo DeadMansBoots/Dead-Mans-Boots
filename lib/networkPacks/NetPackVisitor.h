@@ -14,6 +14,7 @@
 #include "PacksForServer.h"
 #include "PacksForLobby.h"
 #include "SaveLocalState.h"
+#include "DmbAllyTake.h"
 #include "SetRewardableConfiguration.h"
 #include "SetStackEffect.h"
 
@@ -190,6 +191,7 @@ public:
 	virtual void visitLobbyDelete(LobbyDelete & pack) {}
 	virtual void visitLobbyRename(LobbyRename & pack) {}
 	virtual void visitSaveLocalState(SaveLocalState & pack) {}
+	virtual void visitAllyTakeRules(AllyTakeRules & pack) {}
 	virtual void visitBattleCancelled(BattleCancelled & pack) {}
 	virtual void visitBattleResultAccepted(BattleResultAccepted & pack) {}
 	virtual void visitBattleStackMoved(BattleLogMessage & pack) {}

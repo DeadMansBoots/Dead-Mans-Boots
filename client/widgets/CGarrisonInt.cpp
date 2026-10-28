@@ -23,6 +23,7 @@
 #include "../windows/CWindowWithArtifacts.h"
 #include "../windows/GUIClasses.h"
 #include "../CPlayerInterface.h"
+#include "../DmbAllyTake.h"
 
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/texts/TextOperations.h"
@@ -833,6 +834,10 @@ bool CGarrisonInt::isArmyOwned(EGarrisonType which) const
 		return true;
 
 	if (object->tempOwner == PlayerColor::UNFLAGGABLE)
+		return true;
+
+	// diplomacy control A: an ally who let this player take is treated as this player's own army
+	if (DmbAllyTake::allowed(object->tempOwner, GAME->interface()->playerID))
 		return true;
 
 	return false;

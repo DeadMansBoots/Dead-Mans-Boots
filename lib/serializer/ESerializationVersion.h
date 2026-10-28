@@ -67,10 +67,11 @@ enum class ESerializationVersion : int32_t
 	DMB_LOAD_PHASES, // DMB: the load screen's progress carries the stage a map generator has reached
 	DMB_ARTIFACT_TRANSITION_SLOT, // DMB: an artifact set saves its transition slot, so a picked artifact survives a save
 	DMB_CHAT_CHANNELS, // DMB: a chat line carries its channel (all, team, spectators)
+	DMB_ALLY_TAKE_RULES, // DMB: the game saves which allies may take troops and artifacts from whom (diplomacy control A)
 
 	RELEASE_170 = HOTA_MAP_STACK_COUNT,
 	RELEASE_174 = CUSTOM_GARRISON_TITLE,
-	CURRENT = DMB_CHAT_CHANNELS,
+	CURRENT = DMB_ALLY_TAKE_RULES,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

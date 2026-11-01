@@ -195,6 +195,7 @@ public:
 	virtual void visitRejoinProof(RejoinProof & pack) {}
 	virtual void visitPlayerBack(PlayerBack & pack) {}
 	virtual void visitRejoinOffer(RejoinOffer & pack) {}
+	virtual void visitAiTakeOver(AiTakeOver & pack) {}
 	virtual void visitRejoinAnswer(RejoinAnswer & pack) {}
 	virtual void visitBattleCancelled(BattleCancelled & pack) {}
 	virtual void visitBattleResultAccepted(BattleResultAccepted & pack) {}

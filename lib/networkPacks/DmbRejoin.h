@@ -81,4 +81,20 @@ struct DLL_LINKAGE RejoinAnswer : public CLobbyPackToServer
 	}
 };
 
+/// DMB (K, October 31st: a player who left stops the game for the others): the seat of a player who left is played by an AI from the host's client until the player
+/// comes back. Sent to the host's connection alone: take = install an AI interface for the seat and give it the turn; not take = the player is back, let the AI go.
+struct DLL_LINKAGE AiTakeOver : public CPackForClient
+{
+	PlayerColor player;
+	bool take = true;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & player;
+		h & take;
+	}
+};
+
 VCMI_LIB_NAMESPACE_END

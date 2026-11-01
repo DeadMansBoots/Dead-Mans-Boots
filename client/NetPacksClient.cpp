@@ -748,6 +748,17 @@ void ApplyClientNetPackVisitor::visitPlayerBack(PlayerBack & pack)
 			window->close();
 }
 
+void ApplyClientNetPackVisitor::visitAiTakeOver(AiTakeOver & pack)
+{
+	// only the host's client plays the AI seats
+	if(!GAME->server().isHost())
+		return;
+	if(pack.take)
+		cl.takeOverByAI(pack.player);
+	else
+		cl.releaseAI(pack.player);
+}
+
 void ApplyClientNetPackVisitor::visitRejoinSecret(RejoinSecret & pack)
 {
 	DmbRejoin::secret() = pack.secret;

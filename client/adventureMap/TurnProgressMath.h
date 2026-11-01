@@ -50,14 +50,15 @@ struct TownNow
 	bool canBuild = true;
 };
 
-/// a town's weight in the bar from what is left on its list (K, October 23rd 13:0x: "weighted down as the number of buildings that can be built dwindle
-/// (going to 0% of the total at 1-3 buildings or upgrades left to build)"): 0 at 3 or fewer, full at 10 or more, a straight fade between
+/// a town's weight in the bar from what is left on its list (K, October 31st 19:49: "the town build ratio should shrink on a per town basis when it gets down
+/// to just 3-4 more buildings left to be built, and go away completely when all that can be built are built"): full at 5 or more, then remaining / 5
+/// (0.8 at 4, 0.6 at 3, 0.4 at 2, 0.2 at 1), and 0 when nothing is left
 double townWeight(int remaining);
 
 /// how much of the turn is done, 0 to 100 (K, October 23rd 13:0x: "i mainly just want the turn progress bar to track: 1. Heroes to move 2. Towns that can
 /// be built in"; roster\NOTE-turnbar-formula-1023.md). H: the movement the heroes have spent of what they had at dawn (a hero with no affordable step
 /// counts as spent). T: the weighted share of towns that could build at dawn and have built today or can build nothing now; W: their weights summed, at
-/// most 1. The bar is (H + T * W) / (1 + W), or T alone when no hero had movement at dawn, and 100 when neither applies.
+/// most 1. The bar is (H + T * W) / (1 + W), or T alone when no hero had movement at dawn; at most 99, and 99 when neither applies (K, October 31st: the meter is never 100% unless the player ended the turn).
 int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> & towns, const std::vector<HeroNow> & heroesNow, const std::vector<TownNow> & townsNow);
 
 /// a bar's size and where its top left goes, in screen pixels

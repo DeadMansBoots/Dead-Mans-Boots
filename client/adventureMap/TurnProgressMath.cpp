@@ -13,9 +13,9 @@ namespace TurnProgressMath
 {
 double townWeight(int remaining)
 {
-	if(remaining <= 3)
+	if(remaining <= 0)
 		return 0.0;
-	return std::min(1.0, (remaining - 3) / 7.0);
+	return std::min(1.0, remaining / 5.0);
 }
 
 int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> & towns, const std::vector<HeroNow> & heroesNow, const std::vector<TownNow> & townsNow)
@@ -73,9 +73,10 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 	const double townShare = weights > 0.0 ? doneWeights / weights : 0.0;
 
 	const double denominator = heroWeight + townsWeight;
+	// never 100 here: only the player's End Turn fills the bar (TurnProgressBar::compute), so a turn with everything done reads 99 and a turn with nothing to do too
 	if(denominator <= 0.0)
-		return 100; // nothing to move and nothing worth building
-	return std::clamp(static_cast<int>(100.0 * (heroShare * heroWeight + townShare * townsWeight) / denominator + 0.5), 0, 100);
+		return 99;
+	return std::clamp(static_cast<int>(100.0 * (heroShare * heroWeight + townShare * townsWeight) / denominator + 0.5), 0, 99);
 }
 
 std::vector<Place> layout(const std::vector<Size> & bars, const Place & origin, int gap, int maxBottom)

@@ -212,6 +212,22 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 		connection->close();
 		return true;
 	}
+	// DMB (R12, October 31st: a client that came back with its battle open got no battle window, only a black screen): a seat that is in a battle cannot come back
+	// until the battle ends. The seat stays kept for its secret, the player is told why in one line, and the connection waits (closed by the 20 second purge)
+	for(const PlayerColor & seat : rejoinSeats.at(shown))
+	{
+		if(!gh || !gh->gameState().getBattle(seat))
+			continue;
+		logNetwork->info("Connection that wanted to come back was told to wait: seat %s is in a battle", seat.toString());
+		LobbyShowMessage why;
+		why.message.appendRawString("Your seat is in a battle that is still going on. You can come back when it ends, try again then.");
+		candidate->sendPack(why);
+		PendingRejoin again;
+		again.connection = candidate;
+		again.since = std::chrono::steady_clock::now();
+		pendingRejoin.push_back(again);
+		return true;
+	}
 	rejoinConnected(candidate, *request, shown);
 	return true;
 }

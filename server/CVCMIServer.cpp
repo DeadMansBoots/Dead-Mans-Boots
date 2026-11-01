@@ -319,6 +319,11 @@ void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, con
 	for(size_t i = 0; i < seats.size(); ++i)
 	{
 		setPlayerConnectedId(si->playerInfos[seats[i]], ids[std::min(i, ids.size() - 1)]);
+		// the host's AI that played the seat while the player was away lets go
+		AiTakeOver letGo;
+		letGo.player = seats[i];
+		letGo.take = false;
+		sendPack(letGo, hostClientId);
 		gh->onPlayerRejoined(seats[i]);
 	}
 	logNetwork->info("Connection %d came back to a running game and took %d seat(s)", static_cast<int>(c->connectionID), static_cast<int>(seats.size()));
@@ -854,6 +859,8 @@ void CVCMIServer::clientDisconnected(std::shared_ptr<GameConnection> connection)
 {
 	assert(vstd::contains(activeConnections, connection));
 	logGlobal->trace("Received disconnection request");
+	// DMB (K, October 31st): the seats this connection plays, taken before its players are erased below: an AI takes them over from the host's client
+	const auto seatsOfLeaver = getAllClientPlayers(connection->connectionID);
 	// DMB: the seats this connection had are kept for its client session to come back to (setting server.allowRejoin); the host never comes back (the server ends with it)
 	const auto secretOfConnection = connectionSecrets.find(connection->connectionID);
 	if(secretOfConnection != connectionSecrets.end())
@@ -902,6 +909,25 @@ void CVCMIServer::clientDisconnected(std::shared_ptr<GameConnection> connection)
 		auto & connectedPlayerIDs = playerInfoEntry.second.connectedPlayerIDs;
 		for(const auto & playerId : disconnectedPlayerIds)
 			connectedPlayerIDs.erase(playerId);
+	}
+
+	// the seats with no player now read as AI seats (the host is credited with them); the host's client makes the AI and the turn is given to it
+	if(gh && getState() == EServerState::GAMEPLAY)
+	{
+		for(const PlayerColor & seat : seatsOfLeaver)
+		{
+			if(!seat.isValidPlayer())
+				continue;
+			const auto * state = gh->gameInfo().getPlayerState(seat, false);
+			if(!state || state->status != EPlayerStatus::INGAME)
+				continue;
+			AiTakeOver takeOver;
+			takeOver.player = seat;
+			takeOver.take = true;
+			logNetwork->info("Seat %s has no player: the host's AI takes it over", seat.toString());
+			gh->onPlayerRejoined(seat); // its interface will say it is ready, and be given the turn if it is the seat's
+			sendPack(takeOver, hostClientId);
+		}
 	}
 }
 

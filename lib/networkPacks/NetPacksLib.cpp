@@ -85,6 +85,11 @@ void PlayerBack::visitTyped(ICPackVisitor & visitor)
 	visitor.visitPlayerBack(*this);
 }
 
+void AiTakeOver::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitAiTakeOver(*this);
+}
+
 void RejoinOffer::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitRejoinOffer(*this);

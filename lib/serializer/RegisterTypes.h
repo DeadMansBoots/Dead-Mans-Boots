@@ -312,6 +312,7 @@ void registerTypes(Serializer &s)
 	s.template registerType<PlayerBack>(312);
 	s.template registerType<RejoinOffer>(313);
 	s.template registerType<RejoinAnswer>(314);
+	s.template registerType<AiTakeOver>(315);
 }
 
 VCMI_LIB_NAMESPACE_END

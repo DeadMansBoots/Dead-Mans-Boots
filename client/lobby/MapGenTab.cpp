@@ -592,6 +592,11 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 				body = find(helpBodies);
 			for(size_t i = 0; body.empty() && i < pageHelpBodies.size(); ++i)
 				body = find(pageHelpBodies[i]);
+			// the module's help text can name the chosen template's rule: read again at every hover, so it follows a change of template
+			const std::string marker = "{templatePreference}";
+			const auto at = body.find(marker);
+			if(at != std::string::npos)
+				body.replace(at, marker.size(), templatePreferenceSentence());
 			return body;
 		});
 	};
@@ -1131,6 +1136,38 @@ std::vector<std::string> MapGenTab::approvedNames() const
 	return names;
 }
 
+std::string MapGenTab::templatePreferenceSentence() const
+{
+	const std::string fallback = "the chosen template's own rule";
+	const auto folder = AddonCode::modFolder(generator.modID);
+	if(!folder)
+		return fallback;
+	std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
+	if(!in)
+		return fallback;
+	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+	const JsonNode info(text.data(), text.size(), "template-info.json");
+	if(!info["templates"].isStruct())
+		return fallback;
+	// the value stored for the choice: empty is the open layout's entry, RANDOM_TEMPLATE the Random entry, else the template of that name
+	const std::string chosen = templateName();
+	std::string key = chosen;
+	if(chosen.empty() || chosen == RANDOM_TEMPLATE)
+	{
+		key.clear();
+		for(const auto & [name, isRandom] : listEntries())
+			if(isRandom == (chosen == RANDOM_TEMPLATE))
+			{
+				key = name;
+				break;
+			}
+	}
+	for(const auto & item : info["templates"].Struct())
+		if(boost::iequals(item.first, key) && item.second["templatePreference"].isString() && !item.second["templatePreference"].String().empty())
+			return item.second["templatePreference"].String();
+	return fallback;
+}
+
 std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
 {
 	// DMB (OmniMapGen 0.3.15, MapGen Dev's roster\OPEN-ENTRY-NAMES.md): Throwback (the open layout) and Random are entries of the module's template list, named in
@@ -1593,7 +1630,11 @@ public:
 		if(entry["description"].isString())
 			text += entry["description"].String();
 		const int top = specsFrame ? specsFrame->pos.h + 46 + 10 : 44;
-		setBody(placeTemplatePicture(top, value, entry), text);
+		int next = placeTemplatePicture(top, value, entry);
+		// the module's open layout is an entry of the list now (Classic), with no picture of its own: the gallery of generated examples stands there, as it did on "None"
+		if(next == top && entry["openLayout"].isBool() && entry["openLayout"].Bool())
+			next = placeGallery(top);
+		setBody(next, text);
 	}
 };
 

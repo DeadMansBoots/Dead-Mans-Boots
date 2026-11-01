@@ -39,6 +39,7 @@ public:
 	void visitLobbyPrepareStartGame(LobbyPrepareStartGame & pack) override;
 	void visitLobbyStartGame(LobbyStartGame & pack) override;
 	void visitLobbyUpdateState(LobbyUpdateState & pack) override;
+	void visitRejoinOffer(RejoinOffer & pack) override;
 };
 
 class ApplyOnLobbyScreenNetPackVisitor : public VCMI_LIB_WRAP_NAMESPACE(ICPackVisitor)

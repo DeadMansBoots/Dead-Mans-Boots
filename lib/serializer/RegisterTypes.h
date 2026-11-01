@@ -310,6 +310,8 @@ void registerTypes(Serializer &s)
 	s.template registerType<RejoinSecret>(310);
 	s.template registerType<RejoinProof>(311);
 	s.template registerType<PlayerBack>(312);
+	s.template registerType<RejoinOffer>(313);
+	s.template registerType<RejoinAnswer>(314);
 }
 
 VCMI_LIB_NAMESPACE_END

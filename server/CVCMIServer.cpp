@@ -14,6 +14,7 @@
 
 #include "CGameHandler.h"
 #include "GlobalLobbyProcessor.h"
+#include <cctype>
 #include "../lib/networkPacks/DmbRejoin.h"
 #include "../lib/CConfigHandler.h"
 #include "LobbyNetPackVisitors.h"
@@ -159,7 +160,8 @@ void CVCMIServer::purgePendingRejoin()
 	const auto now = std::chrono::steady_clock::now();
 	for(auto waiting = pendingRejoin.begin(); waiting != pendingRejoin.end();)
 	{
-		if(now - waiting->since > std::chrono::seconds(20))
+		// a connection that was offered its seats has a person to answer: 3 minutes
+		if(now - waiting->since > std::chrono::seconds(waiting->offered ? 180 : 20))
 		{
 			if(auto network = waiting->connection->getConnection())
 				network->close();
@@ -205,6 +207,34 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 		waiting->secret = proof->secret;
 		return true;
 	}
+	if(waiting->offered)
+	{
+		// the answer to the offer: a yes gives the seats back, anything else ends this connection and leaves the seats kept
+		const auto kept = waiting->request;
+		pendingRejoin.erase(waiting);
+		const auto * answer = dynamic_cast<const RejoinAnswer *>(pack.get());
+		if(!answer || !answer->accept || !kept || !rejoinOpen() || !vstd::contains(rejoinSeats, shown))
+		{
+			logNetwork->info("A connection that was offered its seats back did not take them");
+			connection->close();
+			return true;
+		}
+		for(const PlayerColor & seat : rejoinSeats.at(shown))
+			if(gh && gh->gameState().getBattle(seat))
+			{
+				// a battle opened while the player was deciding: the same one-line answer as before the offer
+				LobbyShowMessage why;
+				why.message.appendRawString("Your seat is in a battle that is still going on. You can come back when it ends, try again then.");
+				candidate->sendPack(why);
+				PendingRejoin again;
+				again.connection = candidate;
+				again.since = std::chrono::steady_clock::now();
+				pendingRejoin.push_back(again);
+				return true;
+			}
+		rejoinConnected(candidate, *kept, shown);
+		return true;
+	}
 	pendingRejoin.erase(waiting);
 	const auto * request = dynamic_cast<const LobbyClientConnected *>(pack.get());
 	if(!request || request->names.empty() || !rejoinOpen() || shown.empty() || !vstd::contains(rejoinSeats, shown))
@@ -228,7 +258,23 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 		pendingRejoin.push_back(again);
 		return true;
 	}
-	rejoinConnected(candidate, *request, shown);
+	// K, October 31st: "rejoins should be a prompt to the player that dropped": the client is asked before it takes its seats back
+	RejoinOffer offer;
+	for(const PlayerColor & seat : rejoinSeats.at(shown))
+	{
+		std::string name = seat.toString();
+		if(!name.empty())
+			name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+		offer.colours.push_back(name);
+	}
+	candidate->sendPack(offer);
+	PendingRejoin asked;
+	asked.connection = candidate;
+	asked.since = std::chrono::steady_clock::now();
+	asked.secret = shown;
+	asked.offered = true;
+	asked.request = std::make_shared<LobbyClientConnected>(*request);
+	pendingRejoin.push_back(asked);
 	return true;
 }
 

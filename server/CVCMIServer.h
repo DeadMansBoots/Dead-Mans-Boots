@@ -76,6 +76,9 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 		std::shared_ptr<GameConnection> connection;
 		std::chrono::steady_clock::time_point since;
 		std::string secret; // shown by the client, and found among the kept seats
+		/// the player was offered the seats and has not answered: the request the client sent, kept until it does
+		bool offered = false;
+		std::shared_ptr<LobbyClientConnected> request;
 	};
 	std::map<GameConnectionID, std::string> connectionSecrets;
 	std::map<std::string, std::vector<PlayerColor>> rejoinSeats;

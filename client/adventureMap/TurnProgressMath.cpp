@@ -76,7 +76,9 @@ int percent(const std::vector<HeroStart> & heroes, const std::vector<TownStart> 
 	// never 100 here: only the player's End Turn fills the bar (TurnProgressBar::compute), so a turn with everything done reads 99 and a turn with nothing to do too
 	if(denominator <= 0.0)
 		return 99;
-	return std::clamp(static_cast<int>(100.0 * (heroShare * heroWeight + townShare * townsWeight) / denominator + 0.5), 0, 99);
+	// 99 means everything is done; rounding never lets a bar with something left read as much
+	const bool everythingDone = (heroWeight <= 0.0 || spent >= total) && (townsWeight <= 0.0 || doneWeights >= weights);
+	return std::clamp(static_cast<int>(100.0 * (heroShare * heroWeight + townShare * townsWeight) / denominator + 0.5), 0, everythingDone ? 99 : 98);
 }
 
 std::vector<Place> layout(const std::vector<Size> & bars, const Place & origin, int gap, int maxBottom)

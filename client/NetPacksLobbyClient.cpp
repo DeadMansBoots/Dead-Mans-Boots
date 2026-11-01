@@ -205,6 +205,28 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyLoadProgress(LobbyLoadProgress 
 	}
 }
 
+void ApplyOnLobbyHandlerNetPackVisitor::visitRejoinOffer(RejoinOffer & pack)
+{
+	// the lobby screen has nothing to do with it
+	result = false;
+	CServerHandler * server = &handler;
+	const auto answer = [server](bool accept)
+	{
+		RejoinAnswer reply;
+		reply.accept = accept;
+		server->sendLobbyPack(reply);
+	};
+	if(!ENGINE)
+	{
+		answer(true); // no screen to ask on: a headless client takes its seats back
+		return;
+	}
+	std::string colours;
+	for(const auto & colour : pack.colours)
+		colours += (colours.empty() ? "" : ", ") + colour;
+	CInfoWindow::showYesNoDialog("You were disconnected from this game. Rejoin as " + colours + "?", {}, [answer]() { answer(true); }, [answer]() { answer(false); });
+}
+
 void ApplyOnLobbyHandlerNetPackVisitor::visitLobbyUpdateState(LobbyUpdateState & pack)
 {
 	pack.hostChanged = pack.state.hostClientId != handler.hostClientId;

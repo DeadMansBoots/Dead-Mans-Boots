@@ -85,6 +85,16 @@ void PlayerBack::visitTyped(ICPackVisitor & visitor)
 	visitor.visitPlayerBack(*this);
 }
 
+void RejoinOffer::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitRejoinOffer(*this);
+}
+
+void RejoinAnswer::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitRejoinAnswer(*this);
+}
+
 void PackageApplied::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitPackageApplied(*this);

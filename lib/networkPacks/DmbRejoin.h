@@ -54,4 +54,31 @@ struct DLL_LINKAGE PlayerBack : public CPackForClient
 	}
 };
 
+/// DMB: a client that came back to a running game is asked, on its own screen, whether it takes its seats back (K, October 31st: "rejoins should be a prompt to the
+/// player that dropped"). The server sends the colours it kept for that client.
+struct DLL_LINKAGE RejoinOffer : public CLobbyPackToPropagate
+{
+	std::vector<std::string> colours;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & colours;
+	}
+};
+
+/// DMB: the player's answer to the offer; only a yes gives the seats back, a no leaves them kept for the next time
+struct DLL_LINKAGE RejoinAnswer : public CLobbyPackToServer
+{
+	bool accept = false;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & accept;
+	}
+};
+
 VCMI_LIB_NAMESPACE_END

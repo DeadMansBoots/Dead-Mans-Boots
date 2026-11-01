@@ -116,6 +116,9 @@ TurnProgressMath::TownStart TurnProgressBar::readTownStart(const CGTownInstance 
 		if(town->built == 0 && buildState == EBuildingState::ALLOWED)
 			start.canBuild = true;
 	}
+	// a town that built today could build today: seen after the building, it reads the same as seen before it, on every client (Reviewer Pass 19)
+	if(town->built > 0)
+		start.canBuild = true;
 	return start;
 }
 
@@ -178,7 +181,7 @@ void TurnProgressBar::update()
 				const auto known = std::find_if(towns.begin(), towns.end(), [town](const TurnProgressMath::TownStart & start) { return start.id == town->id.getNum(); });
 				if(known == towns.end())
 					towns.push_back(readTownStart(town));
-				else if(!known->canBuild && town->built == 0 && readTownStart(town).canBuild)
+				else if(!known->canBuild && readTownStart(town).canBuild)
 					known->canBuild = true;
 			}
 		}

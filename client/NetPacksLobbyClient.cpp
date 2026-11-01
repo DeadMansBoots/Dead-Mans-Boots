@@ -35,6 +35,7 @@
 #include "media/CMusicHandler.h"
 #include "media/IVideoPlayer.h"
 #include "windows/GUIClasses.h"
+#include "windows/InfoWindows.h"
 
 #include "../lib/CConfigHandler.h"
 #include "../lib/campaign/CampaignState.h"

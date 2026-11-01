@@ -253,7 +253,12 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyUpdateState(LobbyUpdateState & 
 void ApplyOnLobbyScreenNetPackVisitor::visitLobbyShowMessage(LobbyShowMessage & pack)
 {
 	if(!lobby) //stub: ignore message for game mode
+	{
+		// DMB: a player coming back to a running game is told by the server why it cannot yet (its seat is in a battle); the lobby screen is not open then
+		if(handler.getState() == EClientState::CONNECTING)
+			handler.showServerError(pack.message.toString());
 		return;
+	}
 	
 	lobby->buttonStart->block(false);
 	handler.showServerError(pack.message.toString());

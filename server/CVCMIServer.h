@@ -22,6 +22,7 @@ class CMapInfo;
 struct CPack;
 struct CPackForLobby;
 struct LobbyGuiAction;
+struct LobbyClientConnected;
 
 class GameConnection;
 struct StartInfo;
@@ -66,7 +67,30 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 	std::shared_ptr<IServerDiscoveryListener> discoveryListener;
 
 	bool loadSavedGame(CGameHandler & handler, const StartInfo & info);
+
+	/// DMB: hot join step 1, "come back" (setting server.allowRejoin). Each connection with seats is given a secret (sendRejoinSecretTo), kept here and sent to
+	/// that connection alone; when the connection drops, its seats are kept under the secret. A connection that arrives in a running game waits in
+	/// pendingRejoin, outside activeConnections (so no game pack is sent to it), and is let in only when it shows a secret that has kept seats.
+	struct PendingRejoin
+	{
+		std::shared_ptr<GameConnection> connection;
+		std::chrono::steady_clock::time_point since;
+		std::string secret; // shown by the client, and found among the kept seats
+		/// the player was offered the seats and has not answered: the request the client sent, kept until it does
+		bool offered = false;
+		std::shared_ptr<LobbyClientConnected> request;
+	};
+	std::map<GameConnectionID, std::string> connectionSecrets;
+	std::map<std::string, std::vector<PlayerColor>> rejoinSeats;
+	std::vector<PendingRejoin> pendingRejoin;
+	void purgePendingRejoin();
+	bool rejoinOpen() const;
+	/// true when the message came from a connection that is waiting to come back (and was dealt with)
+	bool handleRejoinPack(const std::shared_ptr<INetworkConnection> & connection, const std::vector<std::byte> & message);
+	void rejoinConnected(const std::shared_ptr<GameConnection> & connection, const LobbyClientConnected & request, const std::string & secret);
 public:
+	/// DMB: hot join step 1. Gives the connection its secret (made on the first call) and sends it to that connection alone; the host gets none
+	void sendRejoinSecretTo(GameConnectionID connectionID);
 	uint16_t getPort() const override
 	{
 		return port;

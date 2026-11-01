@@ -69,6 +69,7 @@
 
 #include <vcmi/events/EventBus.h>
 #include <SDL_thread.h>
+#include "DmbRejoin.h"
 
 #include <boost/lexical_cast.hpp>
 
@@ -445,6 +446,13 @@ ui16 CServerHandler::getCurrentPort() const
 
 void CServerHandler::sendClientConnecting() const
 {
+	// DMB: hot join step 1. A client that was given a secret shows it first; a server that has no use for it ignores it
+	if(!DmbRejoin::secret().empty())
+	{
+		RejoinProof proof;
+		proof.secret = DmbRejoin::secret();
+		sendLobbyPack(proof);
+	}
 	LobbyClientConnected lcc;
 	lcc.uuid = uuid;
 	lcc.names = localPlayerNames;

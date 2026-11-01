@@ -670,6 +670,29 @@ void CGameHandler::onPlayerTurnEnded(PlayerColor which)
 	newTurnProcessor->onPlayerTurnEnded(which);
 }
 
+void CGameHandler::onPlayerRejoined(PlayerColor player)
+{
+	rejoinedPlayers.insert(player);
+	// its interface is new: the dialog queries of the player prompt again when it says it is ready
+	uiReadyForDialogs.erase(player);
+}
+
+void CGameHandler::resendTurnToRejoined(GameConnectionID connection, PlayerColor player)
+{
+	// DMB: the connection's secret for coming back, sent once the client can take packs (a no-op with allowRejoin off)
+	if(auto * server = dynamic_cast<CVCMIServer *>(&gameServer()))
+		server->sendRejoinSecretTo(connection);
+
+	if(!rejoinedPlayers.erase(player) || !turnOrder->isPlayerMakingTurn(player))
+		return;
+	// the turn is given to the returning client alone; everyone else keeps playing the turn they have
+	PlayerStartsTurn pst;
+	pst.player = player;
+	if(const auto pause = std::dynamic_pointer_cast<TimerPauseQuery>(queries->topQuery(player)))
+		pst.queryID = pause->queryID;
+	gameServer().sendPack(pst, connection);
+}
+
 void CGameHandler::onAdvInterfaceReady(PlayerColor player)
 {
 	if(uiReadyForDialogs.count(player))
@@ -4365,6 +4388,11 @@ bool CGameHandler::isBlockedByQueries(const CPackForServer *pack, PlayerColor pl
 		return false;
 
 	if (dynamic_cast<const SaveLocalState *>(pack) != nullptr)
+		return false;
+
+	// DMB: a returning player's interface says it is ready while the query it left (a trade, a dialog) is still the top one; the answer is what prompts that
+	// query again (onAdvInterfaceReady), so no query may refuse it (found by the open-trade drop test: "Player blue is in a trade; dropped AdvInterfaceReady")
+	if (dynamic_cast<const AdvInterfaceReady *>(pack) != nullptr)
 		return false;
 
 	auto query = queries->topQuery(player);

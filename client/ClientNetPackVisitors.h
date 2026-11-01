@@ -74,6 +74,9 @@ public:
 	void visitBlockingDialog(BlockingDialog & pack) override;
 	void visitGarrisonDialog(GarrisonDialog & pack) override;
 	void visitExchangeDialog(ExchangeDialog & pack) override;
+	void visitRejoinSecret(RejoinSecret & pack) override;
+	void visitPlayerBack(PlayerBack & pack) override;
+	void visitAiTakeOver(AiTakeOver & pack) override;
 	void visitTeleportDialog(TeleportDialog & pack) override;
 	void visitMapObjectSelectDialog(MapObjectSelectDialog & pack) override;
 	void visitBattleStart(BattleStart & pack) override;

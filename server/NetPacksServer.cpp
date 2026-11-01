@@ -427,6 +427,7 @@ void ApplyGhNetPackVisitor::visitAdvInterfaceReady(AdvInterfaceReady &pack)
 	gh.throwIfWrongPlayer(connection, &pack);
 
 	gh.onAdvInterfaceReady(pack.player);
+	gh.resendTurnToRejoined(connection, pack.player);
 
 	result = true;
 }

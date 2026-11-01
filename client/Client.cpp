@@ -306,6 +306,33 @@ void CClient::initPlayerInterfaces()
 	logNetwork->trace("Initialized player interfaces %d ms", GAME->server().th->getDiff());
 }
 
+void CClient::takeOverByAI(PlayerColor color)
+{
+	const auto & infos = gameState().getStartInfo()->playerInfos;
+	const auto info = infos.find(color);
+	if(info == infos.end() || vstd::contains(playerint, color))
+		return;
+	// the seat's own start info says human; the AI is picked as for an AI that plays beside a human
+	const std::string aiName = aiNameForPlayer(info->second, false, true);
+	logNetwork->info("Player %s left the game: %s takes over the seat", color.toString(), aiName);
+	// this client made environments only for the seats it had at the start (R13: playerEnvironments.at threw out_of_range and ended the host's game)
+	if(!playerEnvironments.count(color))
+		playerEnvironments[color] = std::make_shared<CPlayerEnvironment>(color, this, std::make_shared<CCallback>(gamestate, color, this));
+	installNewPlayerInterface(CDynLibHandler::getNewAI(aiName), color);
+	advInterfaceReadySent.insert(color);
+	AdvInterfaceReady air;
+	sendRequest(air, color, /* waitTillRealize = */ false);
+}
+
+void CClient::releaseAI(PlayerColor color)
+{
+	logNetwork->info("Player %s is back: the AI lets go of the seat", color.toString());
+	playerint.erase(color);
+	battleints.erase(color);
+	battleCallbacks.erase(color);
+	advInterfaceReadySent.erase(color);
+}
+
 std::string CClient::aiNameForPlayer(const PlayerSettings & ps, bool battleAI, bool alliedToHuman) const
 {
 	// DMB: an AI plugin from an active mod counts as installed too (CDynLibHandler::findAILibrary)

@@ -35,6 +35,7 @@
 #include "media/CMusicHandler.h"
 #include "media/IVideoPlayer.h"
 #include "windows/GUIClasses.h"
+#include "windows/InfoWindows.h"
 
 #include "../lib/CConfigHandler.h"
 #include "../lib/campaign/CampaignState.h"
@@ -205,6 +206,28 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyLoadProgress(LobbyLoadProgress 
 	}
 }
 
+void ApplyOnLobbyHandlerNetPackVisitor::visitRejoinOffer(RejoinOffer & pack)
+{
+	// the lobby screen has nothing to do with it
+	result = false;
+	CServerHandler * server = &handler;
+	const auto answer = [server](bool accept)
+	{
+		RejoinAnswer reply;
+		reply.accept = accept;
+		server->sendLobbyPack(reply);
+	};
+	if(!ENGINE)
+	{
+		answer(true); // no screen to ask on: a headless client takes its seats back
+		return;
+	}
+	std::string colours;
+	for(const auto & colour : pack.colours)
+		colours += (colours.empty() ? "" : ", ") + colour;
+	CInfoWindow::showYesNoDialog("You were disconnected from this game. Rejoin as " + colours + "?", {}, [answer]() { answer(true); }, [answer]() { answer(false); });
+}
+
 void ApplyOnLobbyHandlerNetPackVisitor::visitLobbyUpdateState(LobbyUpdateState & pack)
 {
 	pack.hostChanged = pack.state.hostClientId != handler.hostClientId;
@@ -253,7 +276,12 @@ void ApplyOnLobbyScreenNetPackVisitor::visitLobbyUpdateState(LobbyUpdateState & 
 void ApplyOnLobbyScreenNetPackVisitor::visitLobbyShowMessage(LobbyShowMessage & pack)
 {
 	if(!lobby) //stub: ignore message for game mode
+	{
+		// DMB: a player coming back to a running game is told by the server why it cannot yet (its seat is in a battle); the lobby screen is not open then
+		if(handler.getState() == EClientState::CONNECTING)
+			handler.showServerError(pack.message.toString());
 		return;
+	}
 	
 	lobby->buttonStart->block(false);
 	handler.showServerError(pack.message.toString());

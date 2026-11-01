@@ -87,6 +87,8 @@ public:
 	QueryID QID;
 
 	std::set<PlayerColor> uiReadyForDialogs;
+	/// DMB: players whose client came back and has not yet said its interface is ready
+	std::set<PlayerColor> rejoinedPlayers;
 
 	const Services * services() const override;
 	const BattleCb * battle(const BattleID & battleID) const override;
@@ -257,6 +259,9 @@ public:
 	void onPlayerTurnStarted(PlayerColor which);
 	void onPlayerTurnEnded(PlayerColor which);
 	void onAdvInterfaceReady(PlayerColor player);
+	/// DMB: hot join step 1. The player's seat has a client again: its interface will say it is ready (AdvInterfaceReady) and be given the turn again if it is theirs
+	void onPlayerRejoined(PlayerColor player);
+	void resendTurnToRejoined(GameConnectionID connection, PlayerColor player);
 	void onNewTurn();
 	void addStatistics(StatisticDataSet &stat) const;
 

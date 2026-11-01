@@ -637,7 +637,8 @@ InfoWindow NewTurnProcessor::createInfoWindow(EWeekType weekType, CreatureID cre
 			iw.text.replaceNameSingular(creatureWeek);
 			break;
 		case EWeekType::PLAGUE:
-			iw.text.appendLocalString(EMetaText::ARRAY_TXT, 132);
+			// DMB (K, October 31st): stock's text (ARRAY_TXT 132) says only "populations halved"; this says both effects. Stock files stay stock: the text is DMB's own key
+			iw.text.appendTextID("vcmi.dmb.week.plague");
 			break;
 		case EWeekType::BONUS_GROWTH:
 			iw.text.appendLocalString(EMetaText::ARRAY_TXT, 134);

@@ -99,6 +99,29 @@ void TurnProgressBar::fitName()
 	pos.w = std::max({pos.w, frameReach, nameReach});
 }
 
+TurnProgressMath::TownStart TurnProgressBar::readTownStart(const CGTownInstance * town)
+{
+	const auto & cb = GAME->interface()->cb;
+	TurnProgressMath::TownStart start;
+	start.id = town->id.getNum();
+	for(const auto & building : town->getTown()->buildings)
+	{
+		if(building.second->mode != CBuilding::BUILD_NORMAL || town->hasBuilt(building.first))
+			continue;
+		const EBuildingState buildState = cb->canBuildStructure(town, building.first);
+		// still on the town's list: allowed now, or waiting for gold, a prerequisite or the next day; not forbidden there, not impossible on its ground
+		if(buildState == EBuildingState::ALLOWED || buildState == EBuildingState::NO_RESOURCES || buildState == EBuildingState::CANT_BUILD_TODAY
+			|| buildState == EBuildingState::PREREQUIRES || buildState == EBuildingState::MISSING_BASE || buildState == EBuildingState::ADD_MAGES_GUILD)
+			start.remaining++;
+		if(town->built == 0 && buildState == EBuildingState::ALLOWED)
+			start.canBuild = true;
+	}
+	// a town that built today could build today: seen after the building, it reads the same as seen before it, on every client (Reviewer Pass 19)
+	if(town->built > 0)
+		start.canBuild = true;
+	return start;
+}
+
 void TurnProgressBar::takeSnapshot(int day)
 {
 	heroes.clear();
@@ -129,21 +152,7 @@ void TurnProgressBar::takeSnapshot(int day)
 
 	for(const CGTownInstance * town : state->getTowns())
 	{
-		TurnProgressMath::TownStart start;
-		start.id = town->id.getNum();
-		for(const auto & building : town->getTown()->buildings)
-		{
-			if(building.second->mode != CBuilding::BUILD_NORMAL || town->hasBuilt(building.first))
-				continue;
-			const EBuildingState buildState = cb->canBuildStructure(town, building.first);
-			// still on the town's list: allowed now, or waiting for gold, a prerequisite or the next day; not forbidden there, not impossible on its ground
-			if(buildState == EBuildingState::ALLOWED || buildState == EBuildingState::NO_RESOURCES || buildState == EBuildingState::CANT_BUILD_TODAY
-				|| buildState == EBuildingState::PREREQUIRES || buildState == EBuildingState::MISSING_BASE || buildState == EBuildingState::ADD_MAGES_GUILD)
-				start.remaining++;
-			if(town->built == 0 && buildState == EBuildingState::ALLOWED)
-				start.canBuild = true;
-		}
-		towns.push_back(start);
+		towns.push_back(readTownStart(town));
 	}
 	snapshotTaken = true;
 }
@@ -162,9 +171,20 @@ void TurnProgressBar::update()
 	{
 		// a hero hired or freed during the turn joins the bar with the movement it has when first seen
 		if(const PlayerState * state = cb->getPlayerState(player, false))
+		{
 			for(const CGHeroInstance * hero : state->getHeroes())
 				if(std::none_of(heroes.begin(), heroes.end(), [hero](const TurnProgressMath::HeroStart & start) { return start.id == hero->id.getNum(); }))
 					heroes.push_back({hero->id.getNum(), hero->movementPointsRemaining()});
+			// a town taken during the turn joins with what it can build when first seen; a town that could not build at dawn (no gold yet) joins when it can
+			for(const CGTownInstance * town : state->getTowns())
+			{
+				const auto known = std::find_if(towns.begin(), towns.end(), [town](const TurnProgressMath::TownStart & start) { return start.id == town->id.getNum(); });
+				if(known == towns.end())
+					towns.push_back(readTownStart(town));
+				else if(!known->canBuild && readTownStart(town).canBuild)
+					known->canBuild = true;
+			}
+		}
 	}
 	acting = cb->isPlayerMakingTurn(player);
 }
@@ -174,8 +194,10 @@ void TurnProgressBar::endTurn()
 	if(!GAME->interface() || !GAME->interface()->cb)
 		return;
 	endedDay = GAME->interface()->cb->getDate(Date::DAY);
+	// through compute(), which reads 100 for an ended turn and keeps a test's fixed fill (DMB_BAR_FORCE): setting 100 here could draw a held bar full
+	// until the next quarter-second update (the likely cause of the full tan and purple bars in the October 24th pictures)
 	if(endedDay == snapshotDay)
-		percent = 100;
+		percent = compute();
 }
 
 int TurnProgressBar::compute() const

@@ -25,6 +25,7 @@ class IImage;
 
 VCMI_LIB_NAMESPACE_BEGIN
 class CGHeroInstance;
+class CGTownInstance;
 VCMI_LIB_NAMESPACE_END
 
 class TurnProgressBar : public CIntObject
@@ -69,6 +70,8 @@ class TurnProgressBar : public CIntObject
 
 	/// reads the player's heroes and towns as they are now and hands them, with the snapshot, to TurnProgressMath::percent
 	int compute() const;
+	/// a town's list as it is now: how many structures are left on it, and whether one can be built now
+	static TurnProgressMath::TownStart readTownStart(const CGTownInstance * town);
 	/// a step to a neighbouring tile is still affordable with the hero's movement left
 	static bool canStillMove(const CGHeroInstance * hero);
 	/// the name the lobby shows for the player, and pos fitted to it

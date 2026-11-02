@@ -65,6 +65,7 @@
 #include "../../lib/json/JsonUtils.h"
 
 #include <boost/lexical_cast.hpp>
+#include <SDL_image.h>
 
 ISelectionScreenInfo * SEL = nullptr;
 
@@ -990,6 +991,83 @@ static std::string customLoadingPicture;
 /// Shadow of Death, Heroes III Complete and Horn of the Abyss (the frame at x 392 y 546). The Restoration of Erathia picture has its frame
 /// higher and further left (x 330 y 524), so the blocks and the stage text hung below it and the text stood on its edge (K, October 10th:
 /// "this is still an issue"). By picture: how far the frame is from that usual place. Any other picture keeps the usual place.
+/// DMB (Meg's 2560x1440 picture, November 1st): the picture says where its bar is. The slot (a dark or teal bar about 365 pixels wide and 20 high in the 800x600
+/// layout) is looked for in the picture's own file, whichever picture it is: two different images have carried the name of the Restoration of Erathia one, one
+/// with its slot at x 330 y 524 and a remastered one with a gold frame at x 392 y 545, and a table by name was right for only one of them. Returns where the
+/// progress blocks' first block goes (in 800x600 units), or nothing when no slot is found (the usual place then).
+static std::optional<Point> findBarSlot(const boost::filesystem::path & file)
+{
+	SDL_Surface * loaded = IMG_Load(file.string().c_str());
+	if(!loaded)
+		return std::nullopt;
+	SDL_Surface * rgba = SDL_ConvertSurfaceFormat(loaded, SDL_PIXELFORMAT_RGBA32, 0);
+	SDL_FreeSurface(loaded);
+	if(!rgba)
+		return std::nullopt;
+	std::optional<Point> found;
+	const double sx = rgba->w / 800.0;
+	const double sy = rgba->h / 600.0;
+	const auto dark = [&](int x, int y)
+	{
+		const uint8_t * p = static_cast<const uint8_t *>(rgba->pixels) + y * rgba->pitch + x * 4;
+		return (p[0] * 30 + p[1] * 59 + p[2] * 11) / 100 < 100 && p[3] > 200;
+	};
+	int bandStart = -1, bandRun = 0, bandX = 0, bandRows = 0;
+	const auto closeBand = [&]()
+	{
+		if(!found && bandStart >= 0 && bandRows >= static_cast<int>(12 * sy) && bandRows <= static_cast<int>(40 * sy))
+			found = Point(static_cast<int>(bandX / sx), static_cast<int>(bandStart / sy));
+		bandStart = -1;
+		bandRows = 0;
+	};
+	for(int y = static_cast<int>(rgba->h * 0.8); y < rgba->h && !found; ++y)
+	{
+		// the longest dark run of this row that is about a slot wide
+		int bestStart = -1, bestLen = 0, runStart = -1;
+		for(int x = 0; x <= rgba->w; ++x)
+		{
+			if(x < rgba->w && dark(x, y))
+			{
+				if(runStart < 0)
+					runStart = x;
+				continue;
+			}
+			if(runStart >= 0 && x - runStart > bestLen)
+			{
+				bestLen = x - runStart;
+				bestStart = runStart;
+			}
+			runStart = -1;
+		}
+		const bool slotWide = bestLen >= static_cast<int>(340 * sx) && bestLen <= static_cast<int>(400 * sx);
+		if(slotWide && (bandStart < 0 || std::abs(bestStart - bandX) <= static_cast<int>(4 * sx)))
+		{
+			if(bandStart < 0)
+			{
+				bandStart = y;
+				bandX = bestStart;
+			}
+			++bandRows;
+			bandRun = bestLen;
+		}
+		else
+			closeBand();
+	}
+	closeBand();
+	(void)bandRun;
+	SDL_FreeSurface(rgba);
+	return found;
+}
+
+/// the file of the custom loading picture chosen for this load (customLoadingPicture is "DMBLoad-" and its slug)
+static boost::filesystem::path customLoadingPicturePath()
+{
+	for(const auto & picture : MenuBackgrounds::loadingScreens())
+		if("DMBLoad-" + picture.slug == customLoadingPicture)
+			return picture.path;
+	return {};
+}
+
 static Point loadBarShift(const std::string & pictureName)
 {
 	static const std::vector<std::pair<std::string, Point>> shifts = {
@@ -1044,7 +1122,18 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	// the phase text sat at the window's centre (K, September 29th: "load screen text font is still not
 	// centered, and there was no load bar action")
 	const JsonNode & loadbarConfig = (!conf["loadbar"].isStruct() && conf["amount"].isNumber()) ? conf : conf["loadbar"];
-	const Point barShift = customPicture ? loadBarShift(customLoadingPicture) : Point(0, 0);
+	Point barShift = customPicture ? loadBarShift(customLoadingPicture) : Point(0, 0);
+	if(customPicture && loadbarConfig.isStruct())
+	{
+		// the picture's own slot, found in its file, wins over the table by name
+		const auto path = customLoadingPicturePath();
+		if(!path.empty())
+			if(const auto slot = findBarSlot(path))
+			{
+				barShift = Point(slot->x + 3 - static_cast<int>(loadbarConfig["x"].Integer()), slot->y + 3 - static_cast<int>(loadbarConfig["y"].Integer()));
+				logGlobal->info("Loading screen bar found at %d,%d in the picture", slot->x, slot->y);
+			}
+	}
 	if (loadbarConfig.isStruct())
 	{
 		const JsonNode & loadbarNames = loadbarConfig["name"];

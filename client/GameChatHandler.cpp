@@ -50,6 +50,7 @@ JsonNode GameChatHandler::toJson() const
 		line["c"].Integer() = static_cast<int>(chatHistory[i].channel);
 		result.Vector().push_back(line);
 	}
+	logGlobal->info("Chat saved with the game: %d line(s), the last one \"%s\"", result.Vector().size(), result.Vector().empty() ? std::string() : result.Vector().back()["t"].String());
 	return result;
 }
 
@@ -66,6 +67,7 @@ void GameChatHandler::fromJson(const JsonNode & node)
 		message.channel = static_cast<EChatChannel>(line["c"].Integer());
 		chatHistory.push_back(std::move(message));
 	}
+	logGlobal->info("Chat restored from the save: %d line(s), the last one \"%s\"", chatHistory.size(), chatHistory.empty() ? std::string() : chatHistory.back().messageText);
 }
 
 void GameChatHandler::sendMessageGameplay(const std::string & messageText, EChatChannel channel)

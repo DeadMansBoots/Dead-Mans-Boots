@@ -49,6 +49,8 @@
 #include "../lib/GameConstants.h"
 #include "../lib/CPlayerState.h"
 #include "DmbRejoin.h"
+#include <cstdlib>
+#include <fstream>
 #include "windows/InfoWindows.h"
 #include "windows/GUIClasses.h"
 #include "CServerHandler.h"
@@ -809,6 +811,12 @@ void ApplyClientNetPackVisitor::visitJoinAdmitted(JoinAdmitted & pack)
 void ApplyClientNetPackVisitor::visitRejoinSecret(RejoinSecret & pack)
 {
 	DmbRejoin::secret() = pack.secret;
+	// HARNESS ONLY (dmb-rejoin-harness-1027, never ships): a test keeps the secret in a file so a new process can show it
+	if(const char * file = std::getenv("DMB_TEST_REJOIN_FILE"))
+	{
+		std::ofstream out(file, std::ios::trunc);
+		out << pack.secret;
+	}
 }
 
 void ApplyClientNetPackVisitor::visitExchangeDialog(ExchangeDialog & pack)

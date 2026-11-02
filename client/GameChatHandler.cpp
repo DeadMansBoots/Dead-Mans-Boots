@@ -37,6 +37,37 @@ void GameChatHandler::resetMatchState()
 	chatHistory.clear();
 }
 
+JsonNode GameChatHandler::toJson() const
+{
+	JsonNode result;
+	const size_t first = chatHistory.size() > 2000 ? chatHistory.size() - 2000 : 0;
+	for(size_t i = first; i < chatHistory.size(); ++i)
+	{
+		JsonNode line;
+		line["s"].String() = chatHistory[i].senderName;
+		line["t"].String() = chatHistory[i].messageText;
+		line["d"].String() = chatHistory[i].dateFormatted;
+		line["c"].Integer() = static_cast<int>(chatHistory[i].channel);
+		result.Vector().push_back(line);
+	}
+	return result;
+}
+
+void GameChatHandler::fromJson(const JsonNode & node)
+{
+	if(!chatHistory.empty() || !node.isVector())
+		return;
+	for(const auto & line : node.Vector())
+	{
+		GameChatMessage message;
+		message.senderName = line["s"].String();
+		message.messageText = line["t"].String();
+		message.dateFormatted = line["d"].String();
+		message.channel = static_cast<EChatChannel>(line["c"].Integer());
+		chatHistory.push_back(std::move(message));
+	}
+}
+
 void GameChatHandler::sendMessageGameplay(const std::string & messageText, EChatChannel channel)
 {
 	GAME->interface()->cb->sendChatMessage(messageText, GAME->interface()->localState->getCurrentArmy(), channel);

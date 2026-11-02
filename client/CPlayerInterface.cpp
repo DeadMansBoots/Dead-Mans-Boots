@@ -2048,6 +2048,7 @@ void CPlayerInterface::quickSaveGame()
 	txt.appendTextID("vcmi.adventureMap.savingQuickSave");
 	txt.replaceRawString(QUICKSAVE_PATH);
 	GAME->server().getGameChat().sendMessageGameplay(txt.toString());
+	localState->synchronizeState(); // the console's history goes into the save (DMB)
 	GAME->interface()->cb->save(QUICKSAVE_PATH, false);
 	hasQuickSave = true;
 	if(adventureInt)

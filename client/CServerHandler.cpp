@@ -16,6 +16,7 @@
 #include "GameChatHandler.h"
 #include "GameEngine.h"
 #include "GameInstance.h"
+#include "adventureMap/AdventureMapInterface.h"
 #include "LobbyClientNetPackVisitors.h"
 #include "ServerRunner.h"
 #include "Discord.h"
@@ -874,6 +875,14 @@ void CServerHandler::startGameplay(std::shared_ptr<CGameState> gameState)
 
 	// After everything initialized we can accept CPackToClient netpacks
 	setState(EClientState::GAMEPLAY);
+
+	// DMB: a client with no seat that the host let into a running game has no turn start coming for it until the next day, and the map window
+	// opens at a turn start (CPlayerInterface::playerStartsTurn), so it stayed on the lobby: show the map now
+	if(ENGINE && settings["session"]["spectate"].Bool() && adventureInt && ENGINE->windows().findWindows<AdventureMapInterface>().empty())
+	{
+		ENGINE->windows().clear();
+		ENGINE->windows().pushWindow(adventureInt);
+	}
 }
 
 void CServerHandler::showHighScoresAndEndGameplay(PlayerColor player, bool victory, const StatisticDataSet & statistic)

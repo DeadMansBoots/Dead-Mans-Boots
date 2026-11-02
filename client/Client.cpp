@@ -324,7 +324,7 @@ void CClient::takeOverByAI(PlayerColor color)
 	sendRequest(air, color, /* waitTillRealize = */ false);
 }
 
-std::vector<PlayerColor> CClient::aiSeats() const
+std::vector<PlayerColor> CClient::aiSeats()
 {
 	std::vector<PlayerColor> seats;
 	for(const auto & each : playerint)

@@ -23,6 +23,8 @@ struct CPack;
 struct CPackForLobby;
 struct LobbyGuiAction;
 struct LobbyClientConnected;
+struct JoinRequestAnswer;
+struct AssignSeat;
 
 class GameConnection;
 struct StartInfo;

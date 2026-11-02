@@ -324,6 +324,20 @@ void CClient::takeOverByAI(PlayerColor color)
 	sendRequest(air, color, /* waitTillRealize = */ false);
 }
 
+std::vector<PlayerColor> CClient::aiSeats() const
+{
+	std::vector<PlayerColor> seats;
+	for(const auto & each : playerint)
+	{
+		if(!each.first.isValidPlayer() || dynamic_cast<CPlayerInterface *>(each.second.get()))
+			continue;
+		const auto * state = gameInfo().getPlayerState(each.first, false);
+		if(state && state->status == EPlayerStatus::INGAME)
+			seats.push_back(each.first);
+	}
+	return seats;
+}
+
 void CClient::releaseAI(PlayerColor color)
 {
 	logNetwork->info("Player %s is back: the AI lets go of the seat", color.toString());

@@ -598,7 +598,7 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "localHostname", "localPort", "remoteHostname", "remotePort", "seed", "allowRejoin"],
+			"required" : [ "localHostname", "localPort", "remoteHostname", "remotePort", "seed", "allowRejoin", "allowJoin"],
 			"properties" : {
 				"localHostname" : {
 					"type" : "string",
@@ -623,6 +623,12 @@
 				// DMB: hot join step 1. On, the host's server keeps its door open in a running game: a player whose connection dropped can connect again with the
 				// same client session and take the seat back. Off, a connection after the start is closed, as in VCMI.
 				"allowRejoin" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				// DMB: hot join step 2. On, a new player may connect to the running game: the host is asked, and a newcomer let in watches until the host gives it
+				// the seat of an AI. Off (the default), a connection after the start is closed, as in VCMI (unless it is a dropped player coming back).
+				"allowJoin" : {
 					"type" : "boolean",
 					"default" : false
 				}

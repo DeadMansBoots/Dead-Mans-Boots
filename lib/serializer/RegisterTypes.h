@@ -313,6 +313,10 @@ void registerTypes(Serializer &s)
 	s.template registerType<RejoinOffer>(313);
 	s.template registerType<RejoinAnswer>(314);
 	s.template registerType<AiTakeOver>(315);
+	s.template registerType<JoinRequestNotice>(316);
+	s.template registerType<JoinRequestAnswer>(317);
+	s.template registerType<JoinAdmitted>(318);
+	s.template registerType<AssignSeat>(319);
 }
 
 VCMI_LIB_NAMESPACE_END

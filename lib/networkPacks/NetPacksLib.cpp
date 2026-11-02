@@ -85,6 +85,26 @@ void PlayerBack::visitTyped(ICPackVisitor & visitor)
 	visitor.visitPlayerBack(*this);
 }
 
+void JoinRequestNotice::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitJoinRequestNotice(*this);
+}
+
+void JoinRequestAnswer::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitJoinRequestAnswer(*this);
+}
+
+void JoinAdmitted::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitJoinAdmitted(*this);
+}
+
+void AssignSeat::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitAssignSeat(*this);
+}
+
 void AiTakeOver::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitAiTakeOver(*this);

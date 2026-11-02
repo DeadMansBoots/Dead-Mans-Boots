@@ -196,6 +196,10 @@ public:
 	virtual void visitPlayerBack(PlayerBack & pack) {}
 	virtual void visitRejoinOffer(RejoinOffer & pack) {}
 	virtual void visitAiTakeOver(AiTakeOver & pack) {}
+	virtual void visitJoinRequestNotice(JoinRequestNotice & pack) {}
+	virtual void visitJoinRequestAnswer(JoinRequestAnswer & pack) {}
+	virtual void visitJoinAdmitted(JoinAdmitted & pack) {}
+	virtual void visitAssignSeat(AssignSeat & pack) {}
 	virtual void visitRejoinAnswer(RejoinAnswer & pack) {}
 	virtual void visitBattleCancelled(BattleCancelled & pack) {}
 	virtual void visitBattleResultAccepted(BattleResultAccepted & pack) {}

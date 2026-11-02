@@ -97,4 +97,64 @@ struct DLL_LINKAGE AiTakeOver : public CPackForClient
 	}
 };
 
+/// DMB hot join: a new player connected to the running game; the host is asked (server to the host's client)
+struct DLL_LINKAGE JoinRequestNotice : public CPackForClient
+{
+	uint32_t requestId = 0;
+	std::string name;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & requestId;
+		h & name;
+	}
+};
+
+/// DMB hot join: the host's answer to a join request (client to server)
+struct DLL_LINKAGE JoinRequestAnswer : public CLobbyPackToServer
+{
+	uint32_t requestId = 0;
+	bool accept = false;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & requestId;
+		h & accept;
+	}
+};
+
+/// DMB hot join: the newcomer was let in and watches (server to the host's client): the host can give it a seat
+struct DLL_LINKAGE JoinAdmitted : public CPackForClient
+{
+	int32_t spectator = 0;
+	std::string name;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & spectator;
+		h & name;
+	}
+};
+
+/// DMB hot join: the host gives a watching newcomer the seat of an AI (client to server)
+struct DLL_LINKAGE AssignSeat : public CLobbyPackToServer
+{
+	int32_t spectator = 0;
+	PlayerColor seat;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & spectator;
+		h & seat;
+	}
+};
+
 VCMI_LIB_NAMESPACE_END

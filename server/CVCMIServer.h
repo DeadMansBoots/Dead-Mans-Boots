@@ -79,7 +79,14 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 		/// the player was offered the seats and has not answered: the request the client sent, kept until it does
 		bool offered = false;
 		std::shared_ptr<LobbyClientConnected> request;
+		/// hot join: a new player waiting for the host's answer (requestId names the request the host was shown)
+		bool joiner = false;
+		uint32_t requestId = 0;
 	};
+	uint32_t nextJoinRequest = 1;
+	bool joinOpen() const;
+	void answerJoin(const std::shared_ptr<GameConnection> & host, const JoinRequestAnswer & answer);
+	void assignSeat(const std::shared_ptr<GameConnection> & host, const AssignSeat & assign);
 	std::map<GameConnectionID, std::string> connectionSecrets;
 	std::map<std::string, std::vector<PlayerColor>> rejoinSeats;
 	std::vector<PendingRejoin> pendingRejoin;

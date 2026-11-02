@@ -163,6 +163,8 @@ public:
 	/// DMB (K, October 31st): the seat of a player who left is played by an AI from this client, the host's, until the player comes back (AiTakeOver)
 	void takeOverByAI(PlayerColor color);
 	void releaseAI(PlayerColor color);
+	/// DMB hot join: the seats this client plays with an AI (the host's), which the host may give to a newcomer
+	std::vector<PlayerColor> aiSeats() const;
 	std::string aiNameForPlayer(const PlayerSettings & ps, bool battleAI, bool alliedToHuman) const; //empty means no AI -> human
 	std::string aiNameForPlayer(bool battleAI, bool alliedToHuman) const;
 	void installNewPlayerInterface(std::shared_ptr<CGameInterface> gameInterface, PlayerColor color, bool battlecb = false);

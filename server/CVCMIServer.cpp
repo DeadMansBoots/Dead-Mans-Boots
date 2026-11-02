@@ -134,7 +134,7 @@ void CVCMIServer::onNewConnection(const std::shared_ptr<INetworkConnection> & co
 		activeConnections.push_back(std::make_shared<GameConnection>(connection));
 		activeConnections.back()->enterLobbyConnectionMode();
 	}
-	else if(rejoinOpen() && !rejoinSeats.empty() && (purgePendingRejoin(), pendingRejoin.size() < 8))
+	else if(((rejoinOpen() && !rejoinSeats.empty()) || joinOpen()) && (purgePendingRejoin(), pendingRejoin.size() < 8))
 	{
 		// DMB: a player who dropped may come back; the connection waits outside activeConnections until it shows a secret that has kept seats
 		PendingRejoin waiting;
@@ -149,6 +149,11 @@ void CVCMIServer::onNewConnection(const std::shared_ptr<INetworkConnection> & co
 	}
 }
 
+bool CVCMIServer::joinOpen() const
+{
+	return getState() == EServerState::GAMEPLAY && gh && settings["server"]["allowJoin"].Bool();
+}
+
 bool CVCMIServer::rejoinOpen() const
 {
 	return getState() == EServerState::GAMEPLAY && gh && settings["server"]["allowRejoin"].Bool();
@@ -161,7 +166,7 @@ void CVCMIServer::purgePendingRejoin()
 	for(auto waiting = pendingRejoin.begin(); waiting != pendingRejoin.end();)
 	{
 		// a connection that was offered its seats has a person to answer: 3 minutes
-		if(now - waiting->since > std::chrono::seconds(waiting->offered ? 180 : 20))
+		if(now - waiting->since > std::chrono::seconds((waiting->offered || waiting->joiner) ? 180 : 20))
 		{
 			if(auto network = waiting->connection->getConnection())
 				network->close();
@@ -206,6 +211,34 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 		}
 		waiting->secret = proof->secret;
 		return true;
+	}
+	if(waiting->joiner)
+		return true; // it waits for the host's answer
+	if(const auto * joinRequest = dynamic_cast<const LobbyClientConnected *>(pack.get()))
+	{
+		if(shown.empty() && !joinRequest->names.empty() && joinOpen())
+		{
+			std::shared_ptr<GameConnection> host;
+			for(const auto & each : activeConnections)
+				if(each->connectionID == hostClientId)
+					host = each;
+			if(host)
+			{
+				waiting->joiner = true;
+				waiting->requestId = nextJoinRequest++;
+				waiting->request = std::make_shared<LobbyClientConnected>(*joinRequest);
+				waiting->since = std::chrono::steady_clock::now();
+				JoinRequestNotice notice;
+				notice.requestId = waiting->requestId;
+				notice.name = joinRequest->names.front();
+				logNetwork->info("A new player '%s' asks to join the running game (request %d); the host is asked", notice.name, notice.requestId);
+				host->sendPack(notice);
+				LobbyShowMessage wait;
+				wait.message.appendRawString("Waiting for the host to let you in.");
+				candidate->sendPack(wait);
+				return true;
+			}
+		}
 	}
 	if(waiting->offered)
 	{
@@ -289,6 +322,111 @@ void CVCMIServer::sendRejoinSecretTo(GameConnectionID connectionID)
 	pack.secret = known->second;
 	logNetwork->info("Connection %d is sent its rejoin secret", static_cast<int>(connectionID));
 	sendPack(pack, connectionID);
+}
+
+void CVCMIServer::answerJoin(const std::shared_ptr<GameConnection> & host, const JoinRequestAnswer & answer)
+{
+	if(!isClientHost(host->connectionID) || !gh)
+		return;
+	auto waiting = std::find_if(pendingRejoin.begin(), pendingRejoin.end(), [&](const auto & each) { return each.joiner && each.requestId == answer.requestId; });
+	if(waiting == pendingRejoin.end())
+		return;
+	const auto c = waiting->connection;
+	const auto request = waiting->request;
+	pendingRejoin.erase(waiting);
+	if(!answer.accept || !joinOpen() || !request)
+	{
+		logNetwork->info("The host did not let the new player in");
+		try
+		{
+			LobbyShowMessage no;
+			no.message.appendRawString("The host did not let you in.");
+			c->sendPack(no);
+		}
+		catch(const std::exception &)
+		{
+		}
+		if(auto network = c->getConnection())
+			network->close();
+		return;
+	}
+	// let in as a spectator: what a returning guest is sent, with no seat
+	const auto version = std::min(request->version, ESerializationVersion::CURRENT);
+	c->setSerializationVersion(version);
+	c->connectionID = currentClientId;
+	currentClientId = vstd::next(currentClientId, 1);
+	c->uuid = request->uuid;
+	for(const auto & name : request->names)
+	{
+		PlayerConnectionID id = currentPlayerId;
+		currentPlayerId = vstd::next(currentPlayerId, 1);
+		ClientPlayer cp;
+		cp.connection = c->connectionID;
+		cp.name = name;
+		playerNames.try_emplace(id, cp);
+	}
+	logNetwork->info("Connection %d joined the running game as a spectator", static_cast<int>(c->connectionID));
+	LobbyClientConnected reply = *request;
+	reply.clientId = c->connectionID;
+	reply.mode = EStartMode::LOAD_GAME;
+	reply.hostClientId = hostClientId;
+	reply.version = version;
+	activeConnections.push_back(c);
+	try
+	{
+		c->sendPack(reply);
+
+		LobbyUpdateState lus;
+		lus.state = *static_cast<LobbyState *>(this);
+		lus.state.si = std::make_shared<StartInfo>(*si);
+		lus.state.si->mode = EStartMode::LOAD_GAME;
+		c->sendPack(lus);
+
+		LobbyStartGame start;
+		start.initializedStartInfo = std::make_shared<StartInfo>(*gh->gameState().getInitialStartInfo());
+		start.initializedGameState = gh->gs;
+		c->sendPack(start);
+
+		c->setCallback(gh->gameInfo());
+		JoinAdmitted admitted;
+		admitted.spectator = static_cast<int32_t>(c->connectionID);
+		admitted.name = request->names.empty() ? std::string() : request->names.front();
+		host->sendPack(admitted);
+	}
+	catch(const std::exception & e)
+	{
+		logNetwork->error("The new connection %d failed while it was sent the game: %s", static_cast<int>(c->connectionID), e.what());
+		if(auto network = c->getConnection())
+			network->close();
+	}
+}
+
+void CVCMIServer::assignSeat(const std::shared_ptr<GameConnection> & host, const AssignSeat & assign)
+{
+	if(!isClientHost(host->connectionID) || !gh)
+		return;
+	std::shared_ptr<GameConnection> target;
+	for(const auto & each : activeConnections)
+		if(static_cast<int32_t>(each->connectionID) == assign.spectator)
+			target = each;
+	const auto info = si->playerInfos.find(assign.seat);
+	const auto * state = gh->gameInfo().getPlayerState(assign.seat, false);
+	if(!target || info == si->playerInfos.end() || !state || state->status != EPlayerStatus::INGAME || !info->second.connectedPlayerIDs.empty() || gh->gameState().getBattle(assign.seat))
+	{
+		logNetwork->info("The host's seat assignment was refused: newcomer found %d, seat found %d, seat held by an AI %d", target != nullptr, info != si->playerInfos.end(),
+			info != si->playerInfos.end() && info->second.connectedPlayerIDs.empty());
+		return;
+	}
+	// the seat is kept for a secret; the newcomer takes it through the same door as a player who dropped (it leaves and joins again, shows the secret and is asked)
+	const std::string secret = boost::uuids::to_string(boost::uuids::random_generator()());
+	rejoinSeats[secret] = { assign.seat };
+	logNetwork->info("The host gave seat %s to connection %d: it is kept for its secret", assign.seat.toString(), static_cast<int>(target->connectionID));
+	RejoinSecret rs;
+	rs.secret = secret;
+	target->sendPack(rs);
+	LobbyShowMessage told;
+	told.message.appendRawString("The host gave you a seat: " + assign.seat.toString() + ". Leave the game and join it again to take it.");
+	target->sendPack(told);
 }
 
 void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, const LobbyClientConnected & request, const std::string & secret)
@@ -379,6 +517,17 @@ void CVCMIServer::onPacketReceived(const std::shared_ptr<INetworkConnection> & c
 		throw std::out_of_range("Unknown connection received in CVCMIServer::findConnection");
 
 	auto pack = c->retrievePack(message);
+	// DMB hot join: the host's answers
+	if(const auto * answer = dynamic_cast<const JoinRequestAnswer *>(pack.get()))
+	{
+		answerJoin(c, *answer);
+		return;
+	}
+	if(const auto * assign = dynamic_cast<const AssignSeat *>(pack.get()))
+	{
+		assignSeat(c, *assign);
+		return;
+	}
 	// DMB: while the host's observer bar pauses a watched game, a player's request waits here (and every one after it, so the order holds); the watcher's own
 	// requests (chat) pass
 	const auto * request = dynamic_cast<const CPackForServer *>(pack.get());

@@ -50,6 +50,8 @@
 #include "../lib/CPlayerState.h"
 #include "DmbRejoin.h"
 #include "windows/InfoWindows.h"
+#include "windows/GUIClasses.h"
+#include "CServerHandler.h"
 #include "widgets/TextControls.h"
 #include "../lib/texts/MetaString.h"
 
@@ -757,6 +759,51 @@ void ApplyClientNetPackVisitor::visitAiTakeOver(AiTakeOver & pack)
 		cl.takeOverByAI(pack.player);
 	else
 		cl.releaseAI(pack.player);
+}
+
+void ApplyClientNetPackVisitor::visitJoinRequestNotice(JoinRequestNotice & pack)
+{
+	// only the host is asked
+	if(!GAME->server().isHost() || !ENGINE)
+		return;
+	const uint32_t id = pack.requestId;
+	const auto answer = [id](bool accept)
+	{
+		JoinRequestAnswer reply;
+		reply.requestId = id;
+		reply.accept = accept;
+		GAME->server().sendLobbyPack(reply);
+	};
+	CInfoWindow::showYesNoDialog(pack.name + " wants to join the game. Let in?", {}, [answer]() { answer(true); }, [answer]() { answer(false); });
+}
+
+void ApplyClientNetPackVisitor::visitJoinAdmitted(JoinAdmitted & pack)
+{
+	if(!GAME->server().isHost() || !ENGINE)
+		return;
+	// the host picks one of the seats its AI plays; closing the list leaves the newcomer watching
+	const auto seats = cl.aiSeats();
+	if(seats.empty())
+		return;
+	std::vector<std::string> names;
+	for(const auto & seat : seats)
+	{
+		std::string name = seat.toString();
+		if(!name.empty())
+			name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+		names.push_back(name);
+	}
+	const int32_t spectator = pack.spectator;
+	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, pack.name + " is watching", "Choose the seat to give " + pack.name,
+		[seats, spectator](int index)
+		{
+			if(index < 0 || index >= static_cast<int>(seats.size()))
+				return;
+			AssignSeat assign;
+			assign.spectator = spectator;
+			assign.seat = seats[index];
+			GAME->server().sendLobbyPack(assign);
+		});
 }
 
 void ApplyClientNetPackVisitor::visitRejoinSecret(RejoinSecret & pack)

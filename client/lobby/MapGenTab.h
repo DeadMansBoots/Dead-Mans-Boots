@@ -103,6 +103,8 @@ class MapGenTab : public InterfaceObjectConfigurable
 
 	int mapSetting(const std::string & key) const;
 	std::string templateName() const;
+	/// DMB (K, November 1st): the sentence the module's help text takes for {templatePreference}: the chosen template's own start rule (template-info.json)
+	std::string templatePreferenceSentence() const;
 	/// the chosen template as a label shows it: its name, "(Random)" or the tab's "none" text
 	std::string templateLabel() const;
 	std::string preset() const;

@@ -1123,7 +1123,8 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	// centered, and there was no load bar action")
 	const JsonNode & loadbarConfig = (!conf["loadbar"].isStruct() && conf["amount"].isNumber()) ? conf : conf["loadbar"];
 	Point barShift = customPicture ? loadBarShift(customLoadingPicture) : Point(0, 0);
-	if(customPicture && loadbarConfig.isStruct())
+	// only the pictures the table names (the Restoration of Erathia one, whose frame has been in two places) are looked at; every other picture keeps the usual place, as it did
+	if(customPicture && loadbarConfig.isStruct() && barShift != Point(0, 0))
 	{
 		// the picture's own slot, found in its file, wins over the table by name
 		const auto path = customLoadingPicturePath();

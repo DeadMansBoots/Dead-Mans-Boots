@@ -51,8 +51,9 @@ class PlayerLocalState
 
 	SpellID currentSpell;
 
-	void synchronizeState();
 public:
+	/// DMB: also called before a save, so the console's history is in it
+	void synchronizeState();
 
 	explicit PlayerLocalState(CPlayerInterface & owner);
 

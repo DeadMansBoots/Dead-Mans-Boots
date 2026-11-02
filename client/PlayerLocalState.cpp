@@ -16,6 +16,9 @@
 #include "../lib/mapObjects/CGTownInstance.h"
 #include "../lib/pathfinder/CGPathNode.h"
 #include "CPlayerInterface.h"
+#include "GameInstance.h"
+#include "CServerHandler.h"
+#include "GameChatHandler.h"
 #include "PlayRecorder.h"
 #include "adventureMap/AdventureMapInterface.h"
 
@@ -358,10 +361,16 @@ void PlayerLocalState::serialize(JsonNode & dest) const
 
 	if (currentSelection)
 		dest["currentSelection"].Integer() = currentSelection->id.getNum();
+
+	// DMB (K, November 1st): the console's history goes into the save with the rest of this player's local state
+	dest["chat"] = GAME->server().getGameChat().toJson();
 }
 
 void PlayerLocalState::deserialize(const JsonNode & source)
 {
+	if(source["chat"].isVector())
+		GAME->server().getGameChat().fromJson(source["chat"]);
+
 	// this method must be called after player state has been initialized
 	assert(currentSelection != nullptr);
 	assert(!ownedTowns.empty() || !wanderingHeroes.empty());

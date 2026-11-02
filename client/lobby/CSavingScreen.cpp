@@ -15,6 +15,7 @@
 #include "../CPlayerInterface.h"
 #include "../GameEngine.h"
 #include "../GameInstance.h"
+#include "../PlayerLocalState.h"
 #include "../gui/Shortcut.h"
 #include "../widgets/Buttons.h"
 #include "../widgets/CTextInput.h"
@@ -85,6 +86,7 @@ void CSavingScreen::saveGame()
 	{
 		Settings lastSave = settings.write["general"]["lastSave"];
 		lastSave->String() = path;
+		GAME->interface()->localState->synchronizeState(); // the console's history goes into the save (DMB)
 		GAME->interface()->cb->save(path, true);
 		close();
 	};

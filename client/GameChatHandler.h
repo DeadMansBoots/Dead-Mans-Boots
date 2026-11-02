@@ -11,6 +11,7 @@
 
 #include "../lib/constants/EntityIdentifiers.h"
 #include "../lib/DmbChatRouting.h"
+#include "../lib/json/JsonNode.h"
 
 struct GameChatMessage
 {
@@ -31,6 +32,11 @@ public:
 
 	/// Erases any local state, must be called when client disconnects from match server
 	void resetMatchState();
+
+	/// DMB (K, November 1st: the console's scrollback survives a save): the history as JSON, the last 2000 lines, kept in the player's local state that stock puts in the save
+	JsonNode toJson() const;
+	/// a loaded game's history, taken when this session has no lines of its own yet
+	void fromJson(const JsonNode & node);
 
 	/// Must be called when local player sends new message into chat from gameplay mode (adventure map)
 	/// DMB: on a channel; only the all channel is also given to the global lobby (a team or spectator line must not leave the game)

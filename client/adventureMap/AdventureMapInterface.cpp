@@ -525,6 +525,7 @@ void AdventureMapInterface::hotkeyEndingTurn()
 	if(settings["session"]["spectate"].Bool())
 		return;
 
+	GAME->interface()->localState->synchronizeState(); // the console's history is in the autosave below (DMB)
 	if(!settings["general"]["startTurnAutosave"].Bool())
 	{
 		GAME->interface()->performAutosave();

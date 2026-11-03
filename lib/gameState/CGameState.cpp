@@ -493,6 +493,13 @@ void CGameState::initDifficulty()
 
 void CGameState::initGrailPosition(vstd::RNG & randomGenerator)
 {
+	if(map->grailRadius < 0)
+	{
+		// DMB: the map turned the Grail off (a grail object with the radius -1, MapFormatJson); nothing is picked and no dig finds it
+		map->grailPos = int3(-1, -1, -1);
+		logGlobal->info("Grail is off for this map: no position picked");
+		return;
+	}
 	logGlobal->debug("\tPicking grail position");
 	//pick grail location
 	if(map->grailPos.x < 0 || map->grailRadius) //grail not set or set within a radius around some place

@@ -26,7 +26,14 @@ struct GameChatMessage
 class GameChatHandler : boost::noncopyable
 {
 	std::vector<GameChatMessage> chatHistory;
+	int unreadLines = 0;
+	bool consoleWindowOpen = false;
 public:
+	/// DMB (chat console, phase 1): lines that arrived from the game while the console window was closed; the chip on the adventure map shows the count
+	int getUnreadLines() const { return unreadLines; }
+	/// the console window sets this while it is open (its lines are read as they come) and clears the count on opening
+	void setConsoleWindowOpen(bool open) { consoleWindowOpen = open; if(open) unreadLines = 0; }
+
 	/// Returns all message history for current match
 	const std::vector<GameChatMessage> & getChatHistory() const;
 

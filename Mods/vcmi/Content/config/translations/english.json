@@ -829,6 +829,8 @@
 	"vcmi.chat.channel.all": "All",
 	"vcmi.chat.channel.team": "Team",
 	"vcmi.chat.channel.spectators": "Spectators",
+	"vcmi.chat.window.title": "Chat",
+	"vcmi.chat.window.to": "To:",
 	"vcmi.lobby.login.title": "VCMI Online Lobby",
 	"vcmi.lobby.login.username": "Username:",
 	"vcmi.lobby.mapPreview": "Map preview",

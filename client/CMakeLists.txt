@@ -12,6 +12,7 @@ set(vcmiclientcommon_SRCS
 	adventureMap/CResDataBar.cpp
 	adventureMap/MapAudioPlayer.cpp
 	adventureMap/ObserverBar.cpp
+	adventureMap/ChatChip.cpp
 	adventureMap/TurnProgressBar.cpp
 	adventureMap/TurnProgressMath.cpp
 	adventureMap/TurnTimerWidget.cpp
@@ -134,6 +135,7 @@ set(vcmiclientcommon_SRCS
 	globalLobby/GlobalLobbyServerSetup.cpp
 	globalLobby/GlobalLobbyWidget.cpp
 	globalLobby/GlobalLobbyWindow.cpp
+	windows/ChatConsoleWindow.cpp
 
 	widgets/Buttons.cpp
 	widgets/CComponent.cpp
@@ -243,6 +245,7 @@ set(vcmiclientcommon_HEADERS
 	adventureMap/CResDataBar.h
 	adventureMap/MapAudioPlayer.h
 	adventureMap/ObserverBar.h
+	adventureMap/ChatChip.h
 	adventureMap/TurnProgressBar.h
 	adventureMap/TurnProgressMath.h
 	adventureMap/TurnTimerWidget.h
@@ -387,6 +390,7 @@ set(vcmiclientcommon_HEADERS
 	globalLobby/GlobalLobbyObserver.h
 	globalLobby/GlobalLobbyWidget.h
 	globalLobby/GlobalLobbyWindow.h
+	windows/ChatConsoleWindow.h
 
 	widgets/Buttons.h
 	widgets/CComponent.h

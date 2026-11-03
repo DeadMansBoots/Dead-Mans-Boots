@@ -42,6 +42,7 @@ class MapAudioPlayer;
 class TurnTimerWidget;
 class TurnProgressBars;
 class ObserverBar;
+class ChatChip;
 enum class EAdventureState;
 
 struct MapDrawingInfo;
@@ -72,6 +73,7 @@ private:
 	std::shared_ptr<AdventureMapShortcuts> shortcuts;
 	std::shared_ptr<TurnTimerWidget> watches;
 	std::shared_ptr<TurnProgressBars> turnBars; // DMB: how much of the turn this player and each ally have done (display only)
+	std::shared_ptr<ChatChip> chatChip; // DMB (chat console, phase 1): the chip at the bottom left of the map
 	std::shared_ptr<ObserverBar> observerBar; // DMB: pause, step and the day, in a game the client only watches (settings session.spectate)
 	bool observerStateApplied = false;
 

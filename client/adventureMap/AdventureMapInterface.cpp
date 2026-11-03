@@ -39,6 +39,7 @@
 #include "../CPlayerInterface.h"
 
 #include "ObserverBar.h"
+#include "ChatChip.h"
 #include "../../lib/mapping/CMap.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/IGameSettings.h"
@@ -91,6 +92,8 @@ AdventureMapInterface::AdventureMapInterface():
 	// DMB observer mode (K, October 20th): in a game the client only watches, the bar with Pause, Step and the day, at the top of the map view
 	if(settings["session"]["spectate"].Bool())
 		observerBar = std::make_shared<ObserverBar>(widget->getMapView()->pos);
+
+	chatChip = std::make_shared<ChatChip>(widget->getMapView()->pos);
 
 	addUsedEvents(KEYBOARD | TIME);
 }
@@ -188,6 +191,8 @@ void AdventureMapInterface::show(Canvas & to)
 	if(turnBars)
 		for(const Rect & area : turnBars->takeRepaintAreas())
 			widget->getMapView()->repaintArea(area);
+	if(chatChip)
+		widget->getMapView()->repaintArea(chatChip->pos);
 	if(observerBar)
 	{
 		// a watcher is told no turn of its own (onEnemyTurnStarted returns early for it), so nothing ever applied the state to the widget: the world view's legend

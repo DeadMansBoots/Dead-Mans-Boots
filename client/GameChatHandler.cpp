@@ -35,6 +35,8 @@ const std::vector<GameChatMessage> & GameChatHandler::getChatHistory() const
 void GameChatHandler::resetMatchState()
 {
 	chatHistory.clear();
+	unreadLines = 0;
+	consoleWindowOpen = false;
 }
 
 JsonNode GameChatHandler::toJson() const
@@ -130,6 +132,8 @@ void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::st
 		playerName = LIBRARY->generaltexth->translate("vcmi.lobby.login.spectator");
 
 	chatHistory.push_back({playerName, messageText, timeFormatted, channel});
+	if(!consoleWindowOpen)
+		unreadLines++;
 
 	GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText, channel);
 }

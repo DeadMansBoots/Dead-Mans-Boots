@@ -37,6 +37,25 @@
 			"help": "vcmi.otherOptions.compactTownCreatureInfo",
 			"position": {"x": 25, "y": 59},
 			"callback": "compactTownCreatureInfoChanged"
+		},
+
+		{
+			"name": "allowJoinLabel",
+			"type": "label",
+			"font": "medium",
+			"alignment": "left",
+			"color": "white",
+			"text": "vcmi.otherOptions.allowJoin.hover",
+			"position": {"x": 61, "y": 93}
+		},
+
+		{
+			"name": "allowJoinCheckbox",
+			"type": "toggleButton",
+			"image": "sysopchk.def",
+			"help": "vcmi.otherOptions.allowJoin",
+			"position": {"x": 25, "y": 92},
+			"callback": "allowJoinChanged"
 		}
 	]
 }

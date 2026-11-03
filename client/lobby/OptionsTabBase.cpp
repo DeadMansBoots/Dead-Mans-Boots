@@ -27,6 +27,7 @@
 #include "../../lib/texts/Languages.h"
 #include "../../lib/texts/MetaString.h"
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/networkPacks/DmbRejoin.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/IGameSettings.h"
 
@@ -119,6 +120,18 @@ OptionsTabBase::OptionsTabBase(const JsonPath & configPath)
 		ExtraOptionsInfo info = SEL->getStartInfo()->extraOptionsInfo;
 		info.cheatsAllowed = index;
 		GAME->server().setExtraOptionsInfo(info);
+	});
+
+	addCallback("setAllowJoin", [&](int index){
+		for(const char * key : {"allowJoin", "allowRejoin"})
+		{
+			Settings entry = settings.write["server"][key];
+			entry->Bool() = index != 0;
+		}
+		// DMB hot join control (K, November 2nd): the host lets players join and come back, kept as the settings server.allowJoin and server.allowRejoin and told to the server
+		JoinPolicy policy;
+		policy.allowJoin = policy.allowRejoin = index != 0;
+		GAME->server().sendLobbyPack(policy);
 	});
 
 	addCallback("setUnlimitedReplay", [&](int index){
@@ -420,6 +433,12 @@ void OptionsTabBase::recreate(bool campaign)
 	{
 		buttonCheatAllowed->setSelectedSilent(SEL->getStartInfo()->extraOptionsInfo.cheatsAllowed);
 		buttonCheatAllowed->block(GAME->server().isGuest());
+	}
+
+	if(auto buttonAllowJoin = widget<CToggleButton>("buttonAllowJoin"))
+	{
+		buttonAllowJoin->setSelectedSilent(settings["server"]["allowJoin"].Bool());
+		buttonAllowJoin->block(GAME->server().isGuest());
 	}
 
 	if(auto buttonUnlimitedReplay = widget<CToggleButton>("buttonUnlimitedReplay"))

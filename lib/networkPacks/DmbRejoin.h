@@ -157,4 +157,20 @@ struct DLL_LINKAGE AssignSeat : public CLobbyPackToServer
 	}
 };
 
+/// DMB hot join control: the host's choice to let players join (a new player, asked of the host) and come back (a dropped player) in the running game, set in the lobby's
+/// extra options and the in-game settings window (client to server; only the host's is obeyed). Without one the settings server.allowJoin and server.allowRejoin decide.
+struct DLL_LINKAGE JoinPolicy : public CLobbyPackToServer
+{
+	bool allowJoin = false;
+	bool allowRejoin = false;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler & h)
+	{
+		h & allowJoin;
+		h & allowRejoin;
+	}
+};
+
 VCMI_LIB_NAMESPACE_END

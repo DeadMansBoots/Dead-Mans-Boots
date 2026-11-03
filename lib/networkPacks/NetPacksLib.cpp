@@ -105,6 +105,11 @@ void AssignSeat::visitTyped(ICPackVisitor & visitor)
 	visitor.visitAssignSeat(*this);
 }
 
+void JoinPolicy::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitJoinPolicy(*this);
+}
+
 void AiTakeOver::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitAiTakeOver(*this);

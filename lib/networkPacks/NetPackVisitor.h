@@ -200,6 +200,7 @@ public:
 	virtual void visitJoinRequestAnswer(JoinRequestAnswer & pack) {}
 	virtual void visitJoinAdmitted(JoinAdmitted & pack) {}
 	virtual void visitAssignSeat(AssignSeat & pack) {}
+	virtual void visitJoinPolicy(JoinPolicy & pack) {}
 	virtual void visitRejoinAnswer(RejoinAnswer & pack) {}
 	virtual void visitBattleCancelled(BattleCancelled & pack) {}
 	virtual void visitBattleResultAccepted(BattleResultAccepted & pack) {}

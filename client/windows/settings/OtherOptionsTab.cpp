@@ -14,6 +14,9 @@
 #include "../../../lib/filesystem/ResourcePath.h"
 #include "../../GameEngine.h"
 #include "../../widgets/Buttons.h"
+#include "../../CServerHandler.h"
+#include "../../GameInstance.h"
+#include "../../../lib/networkPacks/DmbRejoin.h"
 #include "CConfigHandler.h"
 
 static void setBoolSetting(std::string group, std::string field, bool value)
@@ -35,10 +38,25 @@ OtherOptionsTab::OtherOptionsTab() : InterfaceObjectConfigurable()
 	{
 		return setBoolSetting("gameTweaks", "compactTownCreatureInfo", value);
 	});
+	// DMB hot join control (K, November 2nd): the host opens or closes the running game to new and returning players; a guest sees the box but cannot change it
+	addCallback("allowJoinChanged", [](bool value)
+	{
+		setBoolSetting("server", "allowJoin", value);
+		setBoolSetting("server", "allowRejoin", value);
+		JoinPolicy policy;
+		policy.allowJoin = policy.allowRejoin = value;
+		GAME->server().sendLobbyPack(policy);
+	});
 	build(config);
 
 	std::shared_ptr<CToggleButton> availableCreaturesAsDwellingLabelCheckbox = widget<CToggleButton>("availableCreaturesAsDwellingLabelCheckbox");
 	availableCreaturesAsDwellingLabelCheckbox->setSelected(settings["gameTweaks"]["availableCreaturesAsDwellingLabel"].Bool());
+
+	if(auto allowJoin = widget<CToggleButton>("allowJoinCheckbox"))
+	{
+		allowJoin->setSelectedSilent(settings["server"]["allowJoin"].Bool());
+		allowJoin->block(!GAME->server().isHost());
+	}
 
 	std::shared_ptr<CToggleButton> compactTownCreatureInfo = widget<CToggleButton>("compactTownCreatureInfoCheckbox");
 	compactTownCreatureInfo->setSelected(settings["gameTweaks"]["compactTownCreatureInfo"].Bool());

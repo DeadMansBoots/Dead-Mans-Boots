@@ -317,6 +317,7 @@ void registerTypes(Serializer &s)
 	s.template registerType<JoinRequestAnswer>(317);
 	s.template registerType<JoinAdmitted>(318);
 	s.template registerType<AssignSeat>(319);
+	s.template registerType<JoinPolicy>(320);
 }
 
 VCMI_LIB_NAMESPACE_END

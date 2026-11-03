@@ -151,12 +151,12 @@ void CVCMIServer::onNewConnection(const std::shared_ptr<INetworkConnection> & co
 
 bool CVCMIServer::joinOpen() const
 {
-	return getState() == EServerState::GAMEPLAY && gh && settings["server"]["allowJoin"].Bool();
+	return getState() == EServerState::GAMEPLAY && gh && (joinPolicy ? *joinPolicy : settings["server"]["allowJoin"].Bool());
 }
 
 bool CVCMIServer::rejoinOpen() const
 {
-	return getState() == EServerState::GAMEPLAY && gh && settings["server"]["allowRejoin"].Bool();
+	return getState() == EServerState::GAMEPLAY && gh && (rejoinPolicy ? *rejoinPolicy : settings["server"]["allowRejoin"].Bool());
 }
 
 void CVCMIServer::purgePendingRejoin()
@@ -521,6 +521,21 @@ void CVCMIServer::onPacketReceived(const std::shared_ptr<INetworkConnection> & c
 	if(const auto * answer = dynamic_cast<const JoinRequestAnswer *>(pack.get()))
 	{
 		answerJoin(c, *answer);
+		return;
+	}
+	if(const auto * policy = dynamic_cast<const JoinPolicy *>(pack.get()))
+	{
+		// DMB hot join control: only the host's choice counts; it works in the lobby and in the running game
+		if(isClientHost(c->connectionID))
+		{
+			joinPolicy = policy->allowJoin;
+			rejoinPolicy = policy->allowRejoin;
+			logNetwork->info("The host set joining to %d and coming back to %d", policy->allowJoin, policy->allowRejoin);
+			// opened in a running game: every connection is given its secret for coming back now (the game gave them out only while the door was open)
+			if(rejoinOpen())
+				for(const auto & each : activeConnections)
+					sendRejoinSecretTo(each->connectionID);
+		}
 		return;
 	}
 	if(const auto * assign = dynamic_cast<const AssignSeat *>(pack.get()))

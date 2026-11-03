@@ -968,6 +968,12 @@
 	"vcmi.optionsTab.unlimitedReplay.help": "{Unlimited battle replay}\nNo limit of replaying battles.",
 	"vcmi.optionsTab.unlimitedReplay.hover": "Unlimited battle replay",
 	"vcmi.otherOptions.availableCreaturesAsDwellingLabel.help": "{Show Available Creatures}\n\nShow the number of creatures available to purchase instead of their growth in town summary (bottom-left corner of town screen).",
+	"vcmi.otherOptions.allowJoin.hover": "Allow players to join",
+	"vcmi.otherOptions.allowJoin.help": "{Allow players to join}
+On: a new player may connect to this running game (you are asked) and a dropped player may come back. Off: the game is closed to both. Only the host can change it.",
+	"vcmi.optionsTab.allowJoin.hover": "Allow players to join after the start",
+	"vcmi.optionsTab.allowJoin.help": "{Allow players to join}
+On: a new player may connect once the game has started (the host is asked) and a dropped player may come back. Off: closed. The host can change it in the game's settings window too.",
 	"vcmi.otherOptions.availableCreaturesAsDwellingLabel.hover": "Show Available Creatures",
 	"vcmi.otherOptions.compactTownCreatureInfo.help": "{Compact Creature Info}\n\nShow smaller information for town creatures in town summary (bottom-left corner of town screen).",
 	"vcmi.otherOptions.compactTownCreatureInfo.hover": "Compact Creature Info",

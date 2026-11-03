@@ -25,6 +25,7 @@ struct LobbyGuiAction;
 struct LobbyClientConnected;
 struct JoinRequestAnswer;
 struct AssignSeat;
+struct JoinPolicy;
 
 class GameConnection;
 struct StartInfo;
@@ -87,6 +88,9 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 	};
 	uint32_t nextJoinRequest = 1;
 	bool joinOpen() const;
+	/// the host's choice (JoinPolicy), when it made one: it replaces the settings server.allowJoin and server.allowRejoin
+	std::optional<bool> joinPolicy;
+	std::optional<bool> rejoinPolicy;
 	void answerJoin(const std::shared_ptr<GameConnection> & host, const JoinRequestAnswer & answer);
 	void assignSeat(const std::shared_ptr<GameConnection> & host, const AssignSeat & assign);
 	std::map<GameConnectionID, std::string> connectionSecrets;

@@ -55,6 +55,12 @@
 					"callback" : "setUnlimitedReplay",
 					"help" : "vcmi.optionsTab.unlimitedReplay",
 					"selected" : true
+				},
+				{
+					"name": "buttonAllowJoin",
+					"image": "lobby/checkbox",
+					"callback" : "setAllowJoin",
+					"help" : "vcmi.optionsTab.allowJoin"
 				}
 			]
 		},
@@ -78,6 +84,13 @@
 					"alignment": "left",
 					"color": "yellow",
 					"text": "vcmi.optionsTab.unlimitedReplay.hover"
+				},
+				{
+					"name": "labelAllowJoin",
+					"font": "small",
+					"alignment": "left",
+					"color": "yellow",
+					"text": "vcmi.optionsTab.allowJoin.hover"
 				}
 			]
 		}

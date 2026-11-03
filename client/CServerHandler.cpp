@@ -290,6 +290,11 @@ void CServerHandler::connectToServer(const std::string & addr, const ui16 port)
 
 void CServerHandler::onConnectionFailed(const std::string & errorMessage)
 {
+	if(autoRejoin && getState() == EClientState::CONNECTION_CANCELLED)
+	{
+		autoRejoin = false; // the player pressed Cancel on the connecting window
+		return;
+	}
 	assert(getState() == EClientState::CONNECTING);
 	auto interfaceLock = lockInterfaceIfPresent();
 
@@ -299,9 +304,22 @@ void CServerHandler::onConnectionFailed(const std::string & errorMessage)
 		logNetwork->debug("\nCannot establish connection. %s. Retrying...", errorMessage);
 		networkHandler->createTimer(*this, std::chrono::milliseconds(100));
 	}
+	else if(autoRejoin && std::chrono::steady_clock::now() < autoRejoinDeadline)
+	{
+		// DMB (automatic reconnect): the host is not reachable yet, try again in 5 seconds
+		logNetwork->info("Reconnect: no connection yet (%s), trying again in 5 seconds", errorMessage);
+		networkHandler->createTimer(*this, std::chrono::milliseconds(5000));
+	}
 	else
 	{
 		// remote server refused connection - show error message
+		if(autoRejoin)
+		{
+			autoRejoin = false;
+			DmbRejoin::autoAnswerUntil() = std::chrono::steady_clock::time_point();
+			logNetwork->info("Reconnect: no connection within 3 minutes, giving up");
+			ENGINE->windows().popWindows(ENGINE->windows().topWindow<CSimpleJoinScreen>() ? 1 : 0);
+		}
 		setState(EClientState::NONE);
 		CInfoWindow::showInfoDialog(LIBRARY->generaltexth->translate("vcmi.mainMenu.serverConnectionFailed"), {});
 	}
@@ -310,6 +328,19 @@ void CServerHandler::onConnectionFailed(const std::string & errorMessage)
 void CServerHandler::onTimer()
 {
 	auto interfaceLock = lockInterfaceIfPresent();
+
+	if(autoRejoin)
+	{
+		// DMB (automatic reconnect): the next attempt to reach the host's server
+		if(getState() == EClientState::CONNECTION_CANCELLED)
+		{
+			autoRejoin = false;
+			DmbRejoin::autoAnswerUntil() = std::chrono::steady_clock::time_point();
+			return;
+		}
+		networkHandler->connectToRemote(*this, serverHostname, serverPort);
+		return;
+	}
 
 	if(getState() == EClientState::CONNECTION_CANCELLED)
 	{
@@ -334,6 +365,7 @@ void CServerHandler::onConnectionEstablished(const NetworkConnectionPtr & netCon
 	networkConnection = netConnection;
 
 	logNetwork->info("Connection established");
+	autoRejoin = false; // reached the server: if it refuses the client (the door is shut) that is the end of it, no retrying a refusal
 
 	if (serverMode == EServerMode::LOBBY_GUEST)
 	{
@@ -1240,10 +1272,15 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 		DmbIssueReport::send("connection-lost", std::string("This client lost its connection to the server (") + (isHost() ? "it is the host" : "it is a guest") + (client ? ", in a game" : ", in the lobby") + "): " + errorMessage + "." + context);
 	}
 
+	// DMB (automatic reconnect, K): a guest of a direct connection that holds its rejoin secret does not go back to the main menu with an error, it keeps trying to come back
+	bool comeBack = false;
+	const std::string comeBackAddress = serverHostname;
+	const ui16 comeBackPort = serverPort;
 	if(client)
 	{
+		comeBack = ENGINE && !isHost() && !isServerLocal() && serverMode != EServerMode::LOBBY_GUEST && !DmbRejoin::secret().empty();
 		endGameplay();
-		if(ENGINE) // a headless client has no main menu and no windows (DMB, Reviewer pass 49)
+		if(ENGINE && !comeBack) // a headless client has no main menu and no windows (DMB, Reviewer pass 49)
 		{
 			GAME->mainmenu()->menu->switchToTab("main");
 			showServerError(LIBRARY->generaltexth->translate("vcmi.server.errors.disconnected"));
@@ -1257,6 +1294,20 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 	}
 
 	networkConnection.reset();
+
+	if(comeBack)
+		beginAutoRejoin(comeBackAddress, comeBackPort);
+}
+
+void CServerHandler::beginAutoRejoin(const std::string & addr, ui16 port)
+{
+	// the connecting window of a join by hand (with its Cancel button) does the connecting, and closes itself when the server answers; the lobby state is made new as the main menu does
+	logNetwork->info("Reconnect: the connection to %s:%d was lost, trying to come back for up to 3 minutes", addr, port);
+	autoRejoin = true;
+	autoRejoinDeadline = std::chrono::steady_clock::now() + std::chrono::minutes(3);
+	DmbRejoin::autoAnswerUntil() = autoRejoinDeadline + std::chrono::seconds(30);
+	resetStateForLobby(EStartMode::LOAD_GAME, ESelectionScreen::loadGame, EServerMode::LOCAL, {});
+	ENGINE->windows().createAndPushWindow<CSimpleJoinScreen>(false, addr, port);
 }
 
 void CServerHandler::waitForServerShutdown()

@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <string>
 
 /// DMB: hot join step 1. The secret the server sent this client (RejoinSecret); shown first when the client connects (RejoinProof). Empty when the game it
@@ -18,6 +19,13 @@ namespace DmbRejoin
 	inline std::string & secret()
 	{
 		static std::string value;
+		return value;
+	}
+
+	/// DMB (automatic reconnect): until this time a RejoinOffer is answered yes without asking (the player lost the connection and the client is bringing it back by itself)
+	inline std::chrono::steady_clock::time_point & autoAnswerUntil()
+	{
+		static std::chrono::steady_clock::time_point value;
 		return value;
 	}
 }

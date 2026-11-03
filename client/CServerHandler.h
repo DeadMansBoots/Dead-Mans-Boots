@@ -125,6 +125,10 @@ class CServerHandler final : public IServerAPI, public LobbyInfo, public INetwor
 
 	void applyPackOnLobbyScreen(CPackForLobby & pack);
 
+	/// DMB (automatic reconnect): a guest that lost its connection to a running game keeps trying to come back until this time (every 5 seconds); false when it is not trying
+	bool autoRejoin = false;
+	std::chrono::steady_clock::time_point autoRejoinDeadline;
+	void beginAutoRejoin(const std::string & addr, ui16 port);
 	std::string serverHostname;
 	ui16 serverPort;
 

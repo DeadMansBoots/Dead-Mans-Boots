@@ -552,17 +552,19 @@ void InterfaceObjectConfigurable::chooseOption(const JsonNode & config) const
 		return;
 	}
 	const std::string title = readText(config["title"]);
-	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, title,
-		config["help"].isNull() ? title : readText(config["help"]),
-		[this, path, values, spec = config["setting"].String()](int index)
-		{
-			if(index < 0 || index >= static_cast<int>(values.size()))
-				return;
-			writeSetting(path, values[index]);
-			refreshSettingLabels();
-			if(onSettingChanged)
-				onSettingChanged(spec);
-		}, current, std::vector<std::shared_ptr<IImage>>(), true);
+	const std::string help = config["help"].isNull() ? title : readText(config["help"]);
+	const std::function<void(int)> apply = [this, path, values, spec = config["setting"].String()](int index)
+	{
+		if(index < 0 || index >= static_cast<int>(values.size()))
+			return;
+		writeSetting(path, values[index]);
+		refreshSettingLabels();
+		if(onSettingChanged)
+			onSettingChanged(spec);
+	};
+	if(chooserOverride && chooserOverride(config["setting"].String(), names, values, current, title, help, apply))
+		return;
+	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, title, help, apply, current, std::vector<std::shared_ptr<IImage>>(), true);
 }
 
 std::shared_ptr<CMultiLineLabel> InterfaceObjectConfigurable::buildMultiLineLabel(const JsonNode & config) const

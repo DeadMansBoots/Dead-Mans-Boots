@@ -67,6 +67,10 @@ protected:
 	/// the widget's "setting" as written in the layout. Set it before build().
 	std::function<void(const std::string &)> onSettingChanged;
 
+	/// DMB (K, November 3rd, item 18: a picture and a description for each water layout): a chooser's list is opened by this first when it is set; it returns true when it opened a window
+	/// of its own (the setting as written in the layout, the option texts, their values, the index of the stored one, the title, the help, and what to call with the index picked)
+	std::function<bool(const std::string &, const std::vector<std::string> &, const std::vector<JsonNode> &, size_t, const std::string &, const std::string &, std::function<void(int)>)> chooserOverride;
+
 	/// DMB: a "pages" widget's page gets its owner's callbacks, conditionals and variables
 	void inheritFrom(const InterfaceObjectConfigurable & owner);
 

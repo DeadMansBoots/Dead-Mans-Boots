@@ -640,6 +640,12 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			page.setCallback("saveMapGenPreset", [this](int) { savePreset(); });
 			page.setCallback("loadMapGenPreset", [this](int) { loadPreset(); });
 			page.setOnSettingChanged(onSettingChanged);
+			// DMB (K, November 3rd, item 18): the Water layout's list has the picture and description of each layout beside it, as the template list has
+			page.chooserOverride = [this](const std::string & setting, const std::vector<std::string> & names, const std::vector<JsonNode> & values, size_t current, const std::string & title,
+				const std::string & help, std::function<void(int)> apply)
+			{
+				return chooseWaterLayout(generator.modID, setting, names, values, current, title, help, apply);
+			};
 		},
 		[this](MapGenPage & page)
 		{
@@ -1169,6 +1175,8 @@ std::string MapGenTab::templatePreferenceSentence() const
 }
 
 static std::vector<std::pair<std::string, bool>> listEntriesFor(const std::string & modID);
+static bool chooseWaterLayout(const std::string & modID, const std::string & setting, const std::vector<std::string> & names, const std::vector<JsonNode> & values, size_t current,
+	const std::string & title, const std::string & help, const std::function<void(int)> & apply);
 
 std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
 {
@@ -1529,6 +1537,43 @@ public:
 
 	using CIntObject::show; // the id overload below must not hide the drawing one (clang's -Woverloaded-virtual, -Werror)
 
+	int shownWater = -2;
+
+	/// DMB (item 18): the panel for a water layout (`stop`: 0 Lakes ... 6 Archipelago; anything else has no block and shows its list name only); a repeat is ignored
+	void showWater(int stop, const std::string & listName)
+	{
+		if(stop == shownWater)
+			return;
+		shownWater = stop;
+		shown = -2;
+		setSpecs("");
+		clearPicture();
+		static const char * const IDS[] = {"lakes", "coastal", "continental", "mediterranean", "highland", "islands", "archipelago"};
+		const bool known = stop >= 0 && stop < 7;
+		const JsonNode & entry = known ? info["waterLayouts"][IDS[stop]] : info["waterLayouts"]["none"];
+		title->setText(entry["label"].isString() ? entry["label"].String() : listName);
+		int next = 44;
+		if(known)
+		{
+			const std::string slug = std::string("water_") + IDS[stop];
+			if(previewConfig(slug + ".frames.json")["frames"].isVector())
+				next = placeGallery(44, slug + ".frames.json");
+			if(next == 44)
+			{
+				const JsonNode config = previewConfig(slug + ".json");
+				next = placePicture(44, std::string(), (area.w - 28) / 2, "mapgen/preview/" + slug, config["caption"].isString() ? config["caption"].String() : std::string());
+			}
+		}
+		std::string text;
+		if(entry["oneLine"].isString())
+			text += "{" + entry["oneLine"].String() + "}
+
+";
+		if(entry["description"].isString())
+			text += entry["description"].String();
+		setBody(next, text);
+	}
+
 	/// the entry with this id (an index of the list the window was made from; -1 for none, when a search matches nothing); a repeat is ignored
 	void show(int id)
 	{
@@ -1664,6 +1709,33 @@ public:
 	}
 };
 
+/// DMB (K, November 3rd, item 18): the Water layout list's panel is the template panel showing a block of the module's template-info.json "waterLayouts" (label, description) and
+/// the layout's pictures (water_<id>.frames.json, else water_<id>.png). `stop` is the layout's number in the module's list (0 Lakes ... 6 Archipelago; Random and Template have no block)
+class WaterLayoutListWindow : public CObjectListWindow
+{
+	std::shared_ptr<TemplateInfoPanel> panel;
+	std::vector<std::string> optionNames;
+	std::vector<int> stops;
+
+public:
+	WaterLayoutListWindow(const std::vector<std::string> & names, const std::vector<int> & stopOf, const JsonNode & infoFile, const std::optional<boost::filesystem::path> & moduleFolder,
+		std::string heading, std::string description, std::function<void(int)> callback, size_t current)
+		: CObjectListWindow(names, nullptr, heading, description, callback, current, std::vector<std::shared_ptr<IImage>>(), true), optionNames(names), stops(stopOf)
+	{
+		OBJECT_CONSTRUCTION;
+		const int gap = 6, width = 310, height = 560;
+		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, std::vector<std::string>(), names, moduleFolder);
+		panel->showWater(current < stops.size() ? stops[current] : -1, current < optionNames.size() ? optionNames[current] : std::string());
+		onSelectionChanged = [this]()
+		{
+			const int id = idAt(selected);
+			panel->showWater(id >= 0 && id < static_cast<int>(stops.size()) ? stops[id] : -1, id >= 0 && id < static_cast<int>(optionNames.size()) ? optionNames[id] : std::string());
+			panel->redraw();
+		};
+		moveBy(Point(-(width + gap) / 2, 0));
+	}
+};
+
 /// the template list, with the panel beside it
 class TemplateListWindow : public CObjectListWindow
 {
@@ -1686,6 +1758,31 @@ public:
 	}
 
 };
+}
+
+static bool chooseWaterLayout(const std::string & modID, const std::string & setting, const std::vector<std::string> & names, const std::vector<JsonNode> & values, size_t current,
+	const std::string & title, const std::string & help, const std::function<void(int)> & apply)
+{
+	if(setting != "persistent:mapGen/params/waterShape")
+		return false;
+	JsonNode details;
+	const auto moduleFolder = AddonCode::modFolder(modID);
+	if(moduleFolder)
+	{
+		std::ifstream in((*moduleFolder / "template-info.json").c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			details = JsonNode(text.data(), text.size(), "template-info.json");
+		}
+	}
+	if(!details["waterLayouts"].isStruct())
+		return false; // a module without the block keeps the plain list
+	std::vector<int> stops;
+	for(const auto & value : values)
+		stops.push_back(value.isNumber() ? static_cast<int>(value.Float()) : -1);
+	ENGINE->windows().createAndPushWindow<WaterLayoutListWindow>(names, stops, details, moduleFolder, title, help, apply, current);
+	return true;
 }
 
 void MapGenTab::chooseTemplate()

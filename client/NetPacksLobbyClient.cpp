@@ -25,6 +25,7 @@
 #include "globalLobby/GlobalLobbyClient.h"
 
 #include "CServerHandler.h"
+#include "DmbRejoin.h"
 #include "GameChatHandler.h"
 #include "Client.h"
 #include "GameEngine.h"
@@ -220,6 +221,13 @@ void ApplyOnLobbyHandlerNetPackVisitor::visitRejoinOffer(RejoinOffer & pack)
 	if(!ENGINE)
 	{
 		answer(true); // no screen to ask on: a headless client takes its seats back
+		return;
+	}
+	if(std::chrono::steady_clock::now() < DmbRejoin::autoAnswerUntil())
+	{
+		// DMB (automatic reconnect): this client lost its connection and came back by itself, so it takes its seats back without asking
+		DmbRejoin::autoAnswerUntil() = std::chrono::steady_clock::time_point();
+		answer(true);
 		return;
 	}
 	std::string colours;

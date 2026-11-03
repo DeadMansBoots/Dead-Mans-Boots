@@ -910,7 +910,10 @@ void CServerHandler::startGameplay(std::shared_ptr<CGameState> gameState)
 
 	// DMB: a client with no seat that the host let into a running game has no turn start coming for it until the next day, and the map window
 	// opens at a turn start (CPlayerInterface::playerStartsTurn), so it stayed on the lobby: show the map now
-	if(ENGINE && settings["session"]["spectate"].Bool() && adventureInt && ENGINE->windows().findWindows<AdventureMapInterface>().empty())
+	// the same for a player who came back to a running game (a rejoin, by hand or by itself): its seat may have no turn start coming either (the lobby screen stayed over the game)
+	const bool cameBack = DmbRejoin::returning();
+	DmbRejoin::returning() = false;
+	if(ENGINE && (settings["session"]["spectate"].Bool() || cameBack) && adventureInt && ENGINE->windows().findWindows<AdventureMapInterface>().empty())
 	{
 		ENGINE->windows().clear();
 		ENGINE->windows().pushWindow(adventureInt);

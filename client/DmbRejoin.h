@@ -22,6 +22,13 @@ namespace DmbRejoin
 		return value;
 	}
 
+	/// DMB: set when this client answered a RejoinOffer yes (by hand or by itself): the game it comes back to shows its map at once, as no turn start may be coming for it
+	inline bool & returning()
+	{
+		static bool value = false;
+		return value;
+	}
+
 	/// DMB (automatic reconnect): until this time a RejoinOffer is answered yes without asking (the player lost the connection and the client is bringing it back by itself)
 	inline std::chrono::steady_clock::time_point & autoAnswerUntil()
 	{

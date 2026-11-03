@@ -53,9 +53,30 @@
 				"ignoreMuteSwitch",
 				"highscoreEntriesCap",
 				"highscoreStatisticEntriesCap",
-				"enableDiscordRichPresence"
+				"enableDiscordRichPresence",
+				"chatOpacity",
+				"chatTimestamps",
+				"chatMuteTeam",
+				"chatMuteSpectators"
 			],
 			"properties" : {
+				// DMB (chat console, phase 2): the console window's own settings
+				"chatOpacity" : {
+					"type" : "number",
+					"default" : 45
+				},
+				"chatTimestamps" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"chatMuteTeam" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"chatMuteSpectators" : {
+					"type" : "boolean",
+					"default" : false
+				},
 				"playerName" : {
 					"type" : "string",
 					"default" : "Player"

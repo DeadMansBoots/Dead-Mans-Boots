@@ -27,6 +27,7 @@
 #include "../widgets/Images.h"
 #include "../widgets/TextControls.h"
 
+#include "../../lib/CConfigHandler.h"
 #include "../../lib/CThreadHelper.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
@@ -117,7 +118,7 @@ public:
 
 	void showAll(Canvas & to) override
 	{
-		to.drawColorBlended(pos, ColorRGBA(0, 0, 0, 110));
+		to.drawColorBlended(pos, ColorRGBA(0, 0, 0, static_cast<uint8_t>(std::clamp(settings["general"]["chatOpacity"].Float() * 2.55, 0.0, 255.0))));
 		to.drawBorder(pos, ColorRGBA(60, 50, 20, 255), 1);
 
 		const auto & history = GAME->server().getGameChat().getChatHistory();
@@ -128,8 +129,10 @@ public:
 		for(size_t i = first; i < history.size(); ++i)
 		{
 			const auto & entry = history[i];
+			if((entry.channel == EChatChannel::TEAM && settings["general"]["chatMuteTeam"].Bool()) || (entry.channel == EChatChannel::SPECTATORS && settings["general"]["chatMuteSpectators"].Bool()))
+				continue;
 			const std::string who = entry.channel == EChatChannel::ALL ? entry.senderName : "[" + channelName(entry.channel) + "] " + entry.senderName;
-			const std::string text = "[" + entry.dateFormatted + "] " + who + ": " + entry.messageText;
+			const std::string text = (settings["general"]["chatTimestamps"].Bool() ? "[" + entry.dateFormatted + "] " : std::string()) + who + ": " + entry.messageText;
 			for(const auto & part : CMessage::breakText(text, pos.w - 16, FONT_SMALL))
 				lines.emplace_back(part, entry.channel);
 		}
@@ -200,6 +203,7 @@ ChatConsoleWindow::ChatConsoleWindow()
 	title = std::make_shared<CLabel>(pos.w / 2 + 4, 22, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
 	// the x is centred in its box
 	closeButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 24, 10, 24, 24), "x", [this]() { close(); });
+	settingsButton = std::make_shared<ChatButton>(Rect(MARGIN, 10, 90, 24), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
 
 	log = std::make_shared<ChatLog>(Rect(MARGIN, 44, pos.w - 2 * MARGIN, pos.h - 44 - 56));
 
@@ -212,6 +216,11 @@ ChatConsoleWindow::ChatConsoleWindow()
 		toItems.push_back(std::make_shared<ChatButton>(Rect(MARGIN, rowY - (3 - i) * ROW_H, toW, ROW_H), channelName(ch), [this, ch]() { setChannel(ch); }));
 	}
 	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 8, rowY, pos.w - 2 * MARGIN - toW - 8, ROW_H), [this](const std::string & text) { send(text); }, [this]() { close(); });
+
+	for(int i = 0; i < 4; ++i)
+		settingsRows.push_back(std::make_shared<ChatButton>(Rect(pos.w / 2 - 130, 70 + i * 40, 260, 28), "", [this, i]() { changeSetting(i); }));
+	refreshSettingsRows();
+	setSettingsOpen(false);
 
 	setChannel(EChatChannel::ALL);
 	setListOpen(false);
@@ -240,6 +249,55 @@ void ChatConsoleWindow::keyPressed(EShortcut key)
 {
 	if(key == EShortcut::GLOBAL_CANCEL)
 		close();
+}
+
+void ChatConsoleWindow::setSettingsOpen(bool open)
+{
+	settingsOpen = open;
+	for(auto & row : settingsRows)
+		row->setEnabled(open);
+	log->setEnabled(!open);
+	if(open)
+		setListOpen(false);
+	redraw();
+}
+
+void ChatConsoleWindow::refreshSettingsRows()
+{
+	const auto & text = LIBRARY->generaltexth;
+	const std::string on = text->translate("vcmi.chat.window.on");
+	const std::string off = text->translate("vcmi.chat.window.off");
+	settingsRows[0]->setText(text->translate("vcmi.chat.window.opacity") + " " + std::to_string(static_cast<int>(settings["general"]["chatOpacity"].Float())) + "%");
+	settingsRows[1]->setText(text->translate("vcmi.chat.window.timestamps") + " " + (settings["general"]["chatTimestamps"].Bool() ? on : off));
+	settingsRows[2]->setText(text->translate("vcmi.chat.window.muteTeam") + " " + (settings["general"]["chatMuteTeam"].Bool() ? on : off));
+	settingsRows[3]->setText(text->translate("vcmi.chat.window.muteSpectators") + " " + (settings["general"]["chatMuteSpectators"].Bool() ? on : off));
+}
+
+void ChatConsoleWindow::changeSetting(int row)
+{
+	if(row == 0)
+	{
+		// 15, 30, 45, 60, 80, 100 and round again
+		const double now = settings["general"]["chatOpacity"].Float();
+		const std::array<double, 6> steps = {15, 30, 45, 60, 80, 100};
+		double next = steps[0];
+		for(double step : steps)
+			if(step > now + 0.5)
+			{
+				next = step;
+				break;
+			}
+		Settings entry = settings.write["general"]["chatOpacity"];
+		entry->Float() = next;
+	}
+	else
+	{
+		const char * key = row == 1 ? "chatTimestamps" : row == 2 ? "chatMuteTeam" : "chatMuteSpectators";
+		Settings entry = settings.write["general"][std::string(key)];
+		entry->Bool() = !entry->Bool();
+	}
+	refreshSettingsRows();
+	redraw();
 }
 
 void ChatConsoleWindow::setChannel(EChatChannel newChannel)

@@ -27,8 +27,16 @@ class ChatConsoleWindow : public CWindowObject
 	std::vector<std::shared_ptr<ChatButton>> toItems;
 	std::shared_ptr<ChatLog> log;
 	std::shared_ptr<ChatLineInput> input;
+	// phase 2: the settings page (a button in the title row swaps it for the scrollback): opacity, timestamps, mute Team, mute Spectators
+	std::shared_ptr<ChatButton> settingsButton;
+	std::vector<std::shared_ptr<ChatButton>> settingsRows;
 	EChatChannel channel = EChatChannel::ALL;
 	bool listOpen = false;
+	bool settingsOpen = false;
+
+	void setSettingsOpen(bool open);
+	void refreshSettingsRows();
+	void changeSetting(int row);
 
 	void setChannel(EChatChannel newChannel);
 	void setListOpen(bool open);

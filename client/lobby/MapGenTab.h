@@ -114,6 +114,9 @@ class MapGenTab : public InterfaceObjectConfigurable
 public:
 	explicit MapGenTab(const MapGeneratorInfo & generator);
 
+	/// DMB (K, November 2nd): the lobby's "Template Type:" line: the label for a stored template value (empty, "random" or a template's name) of generator module `modID`, as the Template list shows it
+	static std::string templateTitleFor(const std::string & modID, const std::string & stored);
+
 	/// DMB (K, October 18th: never lock the player out): the notice for a generator whose code DMB's mod catalog does not vouch for
 	/// (AddonCode::trustProblem gave problem). The check mark runs it anyway (onRun), the cross or Escape cancels (onCancel); each
 	/// of the two is called once. Main thread only.

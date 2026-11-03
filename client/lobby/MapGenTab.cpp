@@ -1168,12 +1168,19 @@ std::string MapGenTab::templatePreferenceSentence() const
 	return fallback;
 }
 
+static std::vector<std::pair<std::string, bool>> listEntriesFor(const std::string & modID);
+
 std::vector<std::pair<std::string, bool>> MapGenTab::listEntries() const
+{
+	return listEntriesFor(generator.modID);
+}
+
+static std::vector<std::pair<std::string, bool>> listEntriesFor(const std::string & modID)
 {
 	// DMB (OmniMapGen 0.3.15, MapGen Dev's roster\OPEN-ENTRY-NAMES.md): Throwback (the open layout) and Random are entries of the module's template list, named in
 	// template-info.json (openLayout / randomEntry) and approved in approved-templates.json; they are not template files, so the template handler does not know them
 	std::vector<std::pair<std::string, bool>> entries;
-	const auto folder = AddonCode::modFolder(generator.modID);
+	const auto folder = AddonCode::modFolder(modID);
 	if(!folder)
 		return entries;
 	const auto read = [&folder](const char * name) -> std::optional<JsonNode>
@@ -1262,6 +1269,18 @@ std::string MapGenTab::templateLabel() const
 	if(chosen.empty())
 		return tabText("template.none");
 	return chosen == RANDOM_TEMPLATE ? tabText("template.random") : chosen;
+}
+
+std::string MapGenTab::templateTitleFor(const std::string & modID, const std::string & stored)
+{
+	// DMB (K, November 2nd): the lobby's right panel names the template (its label reads "Template Type:") where it named the generator. A stored template is empty for the
+	// open layout, "random" for the Random entry, else a template's own name; the module's entries give the first two their list names (Classic, Random)
+	for(const auto & [name, isRandom] : listEntriesFor(modID))
+		if((isRandom && stored == RANDOM_TEMPLATE) || (!isRandom && stored.empty()))
+			return name;
+	if(stored.empty())
+		return tabText("template.none");
+	return stored == RANDOM_TEMPLATE ? tabText("template.random") : stored;
 }
 
 std::string MapGenTab::preset() const
@@ -1419,9 +1438,9 @@ public:
 	}
 
 	/// the open layout ("None"): the module's gallery of generated examples, one after the other
-	int placeGallery(int top)
+	int placeGallery(int top, const std::string & framesFile = "frames.json", const std::string & heading = std::string())
 	{
-		const JsonNode frames = previewConfig("frames.json");
+		const JsonNode frames = previewConfig(framesFile);
 		if(!frames["frames"].isVector())
 			return top;
 		for(const auto & frame : frames["frames"].Vector())
@@ -1433,7 +1452,7 @@ public:
 		}
 		if(gallery.empty())
 			return top;
-		const int next = placePicture(top, tabText("template.details.layoutOpen"), (area.w - 28) / 2, gallery.front().image, gallery.front().caption);
+		const int next = placePicture(top, heading, (area.w - 28) / 2, gallery.front().image, gallery.front().caption);
 		if(next == top)
 			gallery.clear();
 		return next;
@@ -1445,6 +1464,13 @@ public:
 		const std::string slug = entry["preview"].isString() ? entry["preview"].String() : pictureSlug(name);
 		if(slug.empty())
 			return top;
+		// DMB (K, November 2nd): a template with a <slug>.frames.json shows one picture per size it supports, one after the other, like the open layout's gallery
+		if(previewConfig(slug + ".frames.json")["frames"].isVector())
+		{
+			const int next = placeGallery(top, slug + ".frames.json");
+			if(next != top)
+				return next;
+		}
 		const JsonNode config = previewConfig(slug + ".json");
 		const std::string caption = config["caption"].isString() ? config["caption"].String() : std::string();
 		const bool wide = config["levels"].isNumber() && config["levels"].Integer() >= 2;
@@ -1548,7 +1574,7 @@ public:
 		{
 			// the entry in the list is cut to the list's width: the whole line is the first line here
 			title->setText(tabText("template.details.noneTitle"));
-			setBody(placeGallery(44), "{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
+			setBody(placeGallery(44, "frames.json", tabText("template.details.layoutOpen")), "{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
 			return;
 		}
 		if(value == RANDOM_TEMPLATE)
@@ -1633,7 +1659,7 @@ public:
 		int next = placeTemplatePicture(top, value, entry);
 		// the module's open layout is an entry of the list now (Classic), with no picture of its own: the gallery of generated examples stands there, as it did on "None"
 		if(next == top && entry["openLayout"].isBool() && entry["openLayout"].Bool())
-			next = placeGallery(top);
+			next = placeGallery(top, "frames.json", tabText("template.details.layoutOpen"));
 		setBody(next, text);
 	}
 };

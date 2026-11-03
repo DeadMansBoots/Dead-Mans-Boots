@@ -14,6 +14,7 @@
 #include "CLobbyScreen.h"
 #include "OptionsTab.h"
 #include "RandomMapTab.h"
+#include "MapGenTab.h"
 #include "SelectionTab.h"
 
 #include "../CPlayerInterface.h"
@@ -254,6 +255,20 @@ void InfoCard::changeSelection()
 
 	labelSaveDate->setText(mapInfo->date);
 	mapName->setText(mapInfo->getNameTranslated());
+	// DMB (K, November 2nd): a map generator's lobby card says what the player chose, "Template Type:" and the template's name (Classic, Coldshadow's Fantasy, Random), where it
+	// read "Scenario Name:" and the generator's name. Only what the card shows: the map's own name, saved with the game, is untouched. The host's settings name the template,
+	// so a guest's card follows the host's choice too.
+	if(labelScenarioName)
+	{
+		std::string heading = LIBRARY->generaltexth->allTexts[495];
+		if(mapInfo->isRandomMap && GAME->server().si && GAME->server().si->mapGenOptions && !GAME->server().si->mapGenOptions->getExternalGenerator().empty())
+		{
+			const JsonNode & chosen = GAME->server().si->mapGenOptions->getExternalSettings()["map"]["template"];
+			mapName->setText(MapGenTab::templateTitleFor(GAME->server().si->mapGenOptions->getExternalGenerator(), chosen.isString() ? chosen.String() : std::string()));
+			heading = LIBRARY->generaltexth->identifierExists("vcmi.dmb.mapGenerator.templateType") ? LIBRARY->generaltexth->translate("vcmi.dmb.mapGenerator.templateType") : "Template Type:";
+		}
+		labelScenarioName->setText(heading);
+	}
 	mapDescription->setText(mapInfo->getDescriptionTranslated());
 
 	mapDescription->label->scrollTextTo(0, false);

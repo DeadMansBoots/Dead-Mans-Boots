@@ -1012,6 +1012,7 @@
 	"vcmi.randomMapTab.template.minimalSize": "Minimal size: %dx%d, layers: %d",
 	"vcmi.dmb.week.plague" : "Plague! The creatures waiting in the dwellings of every town are halved, and no new creatures arrive this week. A Portal of Summoning gets half its usual number.",
 	"vcmi.dmb.mapGenerator.generate.hover" : "Generate map",
+	"vcmi.dmb.mapGenerator.templateType" : "Template Type:",
 	"vcmi.dmb.mapGenerator.generate.running" : "Generating a map...",
 	"vcmi.dmb.mapGenerator.generate.failed" : "The map generator failed. See extmapgen_log.txt in the logs folder.",
 	"vcmi.dmb.mapGenerator.generate.refused" : "%s cannot run: %s.",

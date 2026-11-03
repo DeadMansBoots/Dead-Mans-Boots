@@ -26,6 +26,7 @@
 #include "../render/IScreenHandler.h"
 #include "../adventureMap/AdventureMapInterface.h"
 #include "../windows/CMessage.h"
+#include "../windows/ChatConsoleWindow.h"
 
 #include "../../lib/CConfigHandler.h"
 #include "../../lib/GameLibrary.h"
@@ -58,8 +59,8 @@ void CInGameConsole::show(Canvas & to)
 		Point leftBottomCorner(0, pos.h);
 		Point textPosition(leftBottomCorner.x + 50, leftBottomCorner.y - texts.size() * 20 - 80 + number * 20);
 
-		// DMB: each channel has its own colour: all green as before, team cyan, spectators grey
-		const ColorRGBA colour = text.channel == EChatChannel::TEAM ? ColorRGBA(100, 210, 255) : text.channel == EChatChannel::SPECTATORS ? ColorRGBA(200, 200, 200) : Colors::GREEN;
+		// DMB: each channel has its own colour (the console window's settings choose them: green, cyan and grey at first)
+		const ColorRGBA colour = ChatConsoleWindow::channelColour(text.channel);
 		to.drawText(pos.topLeft() + textPosition, FONT_MEDIUM, colour, ETextAlignment::TOPLEFT, text.text);
 		number++;
 	}
@@ -80,7 +81,7 @@ void CInGameConsole::tick(uint32_t msPassed)
 				texts,
 				[&](const auto & value)
 	{
-		return value.timeOnScreen > defaultTimeout;
+		return value.timeOnScreen > static_cast<uint32_t>(settings["general"]["chatFadeSeconds"].Float() * 1000); // DMB: the fade time is a console setting
 	}
 	);
 

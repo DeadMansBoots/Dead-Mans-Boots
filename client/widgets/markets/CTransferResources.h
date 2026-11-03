@@ -11,6 +11,8 @@
 
 #include "CMarketBase.h"
 
+class CTextInput;
+
 class CTransferResources : public CResourcesSelling, public CMarketSlider, public CMarketTraderText
 {
 public:
@@ -22,4 +24,12 @@ private:
 	CMarketBase::MarketShowcasesParams getShowcasesParams() const override;
 	void highlightingChanged() override;
 	std::string getTraderText() override;
+
+	/// DMB (K, November 2nd: "would like the ability to type in the send or trade fields"): the quantity under the bid showcase is typed as well as slid. The number the
+	/// player types moves the slider (clamped to what the player owns); the slider's moves are written back into the field.
+	std::shared_ptr<CTextInput> amountInput;
+	bool syncingAmount = false;
+	void placeAmountInput();
+	void syncAmountInput();
+	void amountTyped(const std::string & text);
 };

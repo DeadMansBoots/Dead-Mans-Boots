@@ -216,6 +216,7 @@ void ApplyOnLobbyHandlerNetPackVisitor::visitRejoinOffer(RejoinOffer & pack)
 	{
 		RejoinAnswer reply;
 		reply.accept = accept;
+		DmbRejoin::returning() = accept;
 		server->sendLobbyPack(reply);
 	};
 	if(!ENGINE)

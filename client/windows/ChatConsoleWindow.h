@@ -7,6 +7,8 @@
 
 #include "CWindowObject.h"
 
+#include "../render/Colors.h"
+
 #include "../../lib/DmbChatRouting.h"
 
 class CFilledTexture;
@@ -46,6 +48,9 @@ class ChatConsoleWindow : public CWindowObject
 public:
 	ChatConsoleWindow();
 	~ChatConsoleWindow() override;
+
+	/// the colour a channel's lines are drawn in, from the settings general.chatColour* (an index into the palette); the quick overlay uses it too
+	static ColorRGBA channelColour(EChatChannel channel);
 
 	void showAll(Canvas & to) override;
 	void keyPressed(EShortcut key) override;

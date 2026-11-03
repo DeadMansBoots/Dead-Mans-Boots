@@ -41,10 +41,18 @@ const int MARGIN = 14;
 const int ROW_H = 24;
 const ColorRGBA GOLD(212, 175, 55, 255);
 
-ColorRGBA channelColour(EChatChannel channel)
+// the colours a channel can be set to (settings general.chatColour*: an index), none of them an orange, red, blue, tan, purple, teal or pink of the players
+const std::array<ColorRGBA, 6> PALETTE = {ColorRGBA(0, 255, 0), ColorRGBA(100, 210, 255), ColorRGBA(200, 200, 200), ColorRGBA(255, 255, 255), ColorRGBA(255, 255, 0), ColorRGBA(210, 180, 255)};
+const std::array<const char *, 6> PALETTE_NAMES = {"vcmi.chat.colour.green", "vcmi.chat.colour.cyan", "vcmi.chat.colour.grey", "vcmi.chat.colour.white", "vcmi.chat.colour.yellow", "vcmi.chat.colour.lavender"};
+
+const char * colourKey(int row)
 {
-	// the colours of the overlay: all green, team cyan, spectators grey (the settings panel of phase 2 makes them choosable)
-	return channel == EChatChannel::TEAM ? ColorRGBA(100, 210, 255) : channel == EChatChannel::SPECTATORS ? ColorRGBA(200, 200, 200) : Colors::GREEN;
+	return row == 0 ? "chatColourAll" : row == 1 ? "chatColourTeam" : "chatColourSpectators";
+}
+
+EFonts chatFont()
+{
+	return settings["general"]["chatFontSize"].Float() >= 1 ? FONT_MEDIUM : FONT_SMALL;
 }
 
 std::string channelName(EChatChannel channel)
@@ -122,7 +130,8 @@ public:
 		to.drawBorder(pos, ColorRGBA(60, 50, 20, 255), 1);
 
 		const auto & history = GAME->server().getGameChat().getChatHistory();
-		const int lineHeight = 16;
+		const EFonts font = chatFont();
+		const int lineHeight = font == FONT_MEDIUM ? 20 : 16;
 		const int rows = std::max(1, (pos.h - 8) / lineHeight);
 		std::vector<std::pair<std::string, EChatChannel>> lines;
 		const size_t first = history.size() > 300 ? history.size() - 300 : 0;
@@ -133,7 +142,7 @@ public:
 				continue;
 			const std::string who = entry.channel == EChatChannel::ALL ? entry.senderName : "[" + channelName(entry.channel) + "] " + entry.senderName;
 			const std::string text = (settings["general"]["chatTimestamps"].Bool() ? "[" + entry.dateFormatted + "] " : std::string()) + who + ": " + entry.messageText;
-			for(const auto & part : CMessage::breakText(text, pos.w - 16, FONT_SMALL))
+			for(const auto & part : CMessage::breakText(text, pos.w - 16, font))
 				lines.emplace_back(part, entry.channel);
 		}
 		const int total = static_cast<int>(lines.size());
@@ -141,7 +150,7 @@ public:
 		const int last = total - scrollBack; // one past the last line shown
 		const int begin = std::max(0, last - rows);
 		for(int i = begin; i < last; ++i)
-			to.drawText(pos.topLeft() + Point(8, 4 + (i - begin) * lineHeight), FONT_SMALL, channelColour(lines[i].second), ETextAlignment::TOPLEFT, lines[i].first);
+			to.drawText(pos.topLeft() + Point(8, 4 + (i - begin) * lineHeight), font, ChatConsoleWindow::channelColour(lines[i].second), ETextAlignment::TOPLEFT, lines[i].first);
 	}
 };
 
@@ -217,8 +226,8 @@ ChatConsoleWindow::ChatConsoleWindow()
 	}
 	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 8, rowY, pos.w - 2 * MARGIN - toW - 8, ROW_H), [this](const std::string & text) { send(text); }, [this]() { close(); });
 
-	for(int i = 0; i < 4; ++i)
-		settingsRows.push_back(std::make_shared<ChatButton>(Rect(pos.w / 2 - 130, 70 + i * 40, 260, 28), "", [this, i]() { changeSetting(i); }));
+	for(int i = 0; i < 9; ++i)
+		settingsRows.push_back(std::make_shared<ChatButton>(Rect(pos.w / 2 - 130, 52 + i * 30, 260, 26), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
 	setSettingsOpen(false);
 
@@ -238,6 +247,12 @@ void ChatConsoleWindow::showAll(Canvas & to)
 {
 	CIntObject::showAll(to);
 	CMessage::drawBorder(PlayerColor(GAME->interface()->playerID), to, pos.w + 28, pos.h + 29, pos.x - 14, pos.y - 15);
+}
+
+ColorRGBA ChatConsoleWindow::channelColour(EChatChannel channel)
+{
+	const int row = channel == EChatChannel::TEAM ? 1 : channel == EChatChannel::SPECTATORS ? 2 : 0;
+	return PALETTE[std::clamp(static_cast<int>(settings["general"][colourKey(row)].Float()), 0, static_cast<int>(PALETTE.size()) - 1)];
 }
 
 bool ChatConsoleWindow::captureThisKey(EShortcut key)
@@ -271,6 +286,14 @@ void ChatConsoleWindow::refreshSettingsRows()
 	settingsRows[1]->setText(text->translate("vcmi.chat.window.timestamps") + " " + (settings["general"]["chatTimestamps"].Bool() ? on : off));
 	settingsRows[2]->setText(text->translate("vcmi.chat.window.muteTeam") + " " + (settings["general"]["chatMuteTeam"].Bool() ? on : off));
 	settingsRows[3]->setText(text->translate("vcmi.chat.window.muteSpectators") + " " + (settings["general"]["chatMuteSpectators"].Bool() ? on : off));
+	for(int row = 0; row < 3; ++row)
+	{
+		const int index = std::clamp(static_cast<int>(settings["general"][colourKey(row)].Float()), 0, static_cast<int>(PALETTE.size()) - 1);
+		const std::string label = text->translate(row == 0 ? "vcmi.chat.channel.all" : row == 1 ? "vcmi.chat.channel.team" : "vcmi.chat.channel.spectators");
+		settingsRows[4 + row]->setText(label + " " + text->translate("vcmi.chat.window.colour") + " " + text->translate(PALETTE_NAMES[index]));
+	}
+	settingsRows[7]->setText(text->translate("vcmi.chat.window.fontSize") + " " + text->translate(settings["general"]["chatFontSize"].Float() >= 1 ? "vcmi.chat.window.fontMedium" : "vcmi.chat.window.fontSmall"));
+	settingsRows[8]->setText(text->translate("vcmi.chat.window.fade") + " " + std::to_string(static_cast<int>(settings["general"]["chatFadeSeconds"].Float())) + " s");
 }
 
 void ChatConsoleWindow::changeSetting(int row)
@@ -288,6 +311,31 @@ void ChatConsoleWindow::changeSetting(int row)
 				break;
 			}
 		Settings entry = settings.write["general"]["chatOpacity"];
+		entry->Float() = next;
+	}
+	else if(row >= 4 && row <= 6)
+	{
+		Settings entry = settings.write["general"][std::string(colourKey(row - 4))];
+		entry->Float() = (static_cast<int>(entry->Float()) + 1) % static_cast<int>(PALETTE.size());
+	}
+	else if(row == 7)
+	{
+		Settings entry = settings.write["general"]["chatFontSize"];
+		entry->Float() = entry->Float() >= 1 ? 0 : 1;
+	}
+	else if(row == 8)
+	{
+		// 5, 10, 20, 30, 60 seconds and round again
+		const double now = settings["general"]["chatFadeSeconds"].Float();
+		const std::array<double, 5> steps = {5, 10, 20, 30, 60};
+		double next = steps[0];
+		for(double step : steps)
+			if(step > now + 0.5)
+			{
+				next = step;
+				break;
+			}
+		Settings entry = settings.write["general"]["chatFadeSeconds"];
 		entry->Float() = next;
 	}
 	else

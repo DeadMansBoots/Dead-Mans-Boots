@@ -57,7 +57,12 @@
 				"chatOpacity",
 				"chatTimestamps",
 				"chatMuteTeam",
-				"chatMuteSpectators"
+				"chatMuteSpectators",
+				"chatColourAll",
+				"chatColourTeam",
+				"chatColourSpectators",
+				"chatFontSize",
+				"chatFadeSeconds"
 			],
 			"properties" : {
 				// DMB (chat console, phase 2): the console window's own settings
@@ -76,6 +81,28 @@
 				"chatMuteSpectators" : {
 					"type" : "boolean",
 					"default" : false
+				},
+				// the colour of each channel, an index into the console's palette (ChatConsoleWindow::channelColour), and the console's text size (0 small, 1 medium)
+				"chatColourAll" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"chatColourTeam" : {
+					"type" : "number",
+					"default" : 1
+				},
+				"chatColourSpectators" : {
+					"type" : "number",
+					"default" : 2
+				},
+				"chatFontSize" : {
+					"type" : "number",
+					"default" : 0
+				},
+				// seconds a line of the quick overlay stays on the map
+				"chatFadeSeconds" : {
+					"type" : "number",
+					"default" : 10
 				},
 				"playerName" : {
 					"type" : "string",

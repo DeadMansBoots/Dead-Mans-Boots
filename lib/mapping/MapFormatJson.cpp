@@ -1152,6 +1152,12 @@ void CMapLoaderJson::MapObjectLoader::construct()
 		owner->map->grailPos = pos;
 
 		owner->map->grailRadius = static_cast<int>(configuration["options"]["grailRadius"].Float());
+		if(owner->map->grailRadius < 0)
+		{
+			// DMB (K, November 3rd: the grail and obelisk system is a toggle on any map): a grail object with the radius -1 says this map has no Grail (the generator's Off)
+			owner->map->grailPos = int3(-1, -1, -1);
+			logGlobal->info("The map says it has no Grail (grailRadius %d)", owner->map->grailRadius);
+		}
 		return;
 	}
 	else if(subtypeName.empty())

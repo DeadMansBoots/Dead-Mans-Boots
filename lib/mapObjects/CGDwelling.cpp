@@ -268,6 +268,7 @@ void CGDwelling::onHeroVisit(IGameEventCallback & gameEvents, const CGHeroInstan
 		// A dwelling of tier 5 or higher stays guarded in its new colors, so retaking it is a fight again
 		// and does not wait for the next Monday's growth (K, October 25th).
 		updateGuards(gameEvents);
+		logGlobal->info("Dwelling %d (%s) taken by %s: %d guard stack(s) after the change of hands", id.getNum(), getObjectName(), h->tempOwner.toString(), stacksCount());
 	}
 
 	BlockingDialog bd (true,false);

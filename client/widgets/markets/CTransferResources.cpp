@@ -16,6 +16,7 @@
 #include "../../gui/Shortcut.h"
 #include "../../widgets/Buttons.h"
 #include "../../widgets/TextControls.h"
+#include "../../widgets/CTextInput.h"
 
 #include "../../CPlayerInterface.h"
 
@@ -25,10 +26,35 @@
 #include "../../../lib/texts/MetaString.h"
 #include "../../../lib/GameLibrary.h"
 
+namespace
+{
+/// the quantity field: a click empties it so the digits typed are the amount (the slider's number is written back when the field is left)
+class AmountInput final : public CTextInput
+{
+public:
+	std::function<void()> whenLeft;
+	AmountInput(const Rect & area, EFonts font, ETextAlignment alignment) : CTextInput(area, font, alignment, false) {}
+
+protected:
+	void onFocusGot() override
+	{
+		CTextInput::onFocusGot();
+		setText("");
+		updateLabel();
+	}
+	void onFocusLost() override
+	{
+		CTextInput::onFocusLost();
+		if(whenLeft)
+			whenLeft();
+	}
+};
+}
+
 CTransferResources::CTransferResources(const IMarket * market, const CGHeroInstance * hero)
 	: CMarketBase(market, hero)
 	, CResourcesSelling([this](const std::shared_ptr<CTradeableItem> & heroSlot){CTransferResources::onSlotClickPressed(heroSlot, bidTradePanel);})
-	, CMarketSlider([this](int newVal){CMarketSlider::onOfferSliderMoved(newVal);})
+	, CMarketSlider([this](int newVal){CMarketSlider::onOfferSliderMoved(newVal); syncAmountInput();})
 	, CMarketTraderText(Point(28, 48))
 {
 	OBJECT_CONSTRUCTION;
@@ -51,6 +77,54 @@ CTransferResources::CTransferResources(const IMarket * market, const CGHeroInsta
 
 	CMarketBase::update();
 	CTransferResources::deselect();
+	placeAmountInput();
+}
+
+void CTransferResources::placeAmountInput()
+{
+	OBJECT_CONSTRUCTION;
+	// over the number under the bid showcase (the label is centred 35 right and 55 down from the slot's corner)
+	const Point centre = bidTradePanel->showcaseSlot->pos.topLeft() + Point(35, 55);
+	const Rect area(centre - pos.topLeft() - Point(30, 9), Point(60, 18));
+	auto input = std::make_shared<AmountInput>(area, FONT_SMALL, ETextAlignment::CENTER);
+	input->whenLeft = [this](){ syncAmountInput(); redraw(); };
+	input->setCallback([this](const std::string & text){ amountTyped(text); });
+	amountInput = input;
+	syncAmountInput();
+}
+
+void CTransferResources::syncAmountInput()
+{
+	if(!amountInput || syncingAmount)
+		return;
+	if(bidTradePanel->isHighlighted() && offerTradePanel->isHighlighted())
+	{
+		amountInput->enable();
+		amountInput->setFilterNumber(0, std::max(1, offerSlider->getAmount()));
+		amountInput->setText(std::to_string(offerSlider->getValue()));
+	}
+	else
+		amountInput->disable();
+}
+
+void CTransferResources::amountTyped(const std::string & text)
+{
+	if(syncingAmount || !bidTradePanel->isHighlighted() || !offerTradePanel->isHighlighted())
+		return;
+	int value = 0;
+	try
+	{
+		value = text.empty() ? 0 : std::stoi(text);
+	}
+	catch(const std::exception &)
+	{
+		value = offerSlider->getAmount(); // more digits than a number holds: all of it
+	}
+	syncingAmount = true; // the slider's own callback must not rewrite the field under the typing hand
+	offerSlider->scrollTo(std::min(std::max(value, 0), offerSlider->getAmount()));
+	syncingAmount = false;
+	updateShowcases();
+	redraw();
 }
 
 void CTransferResources::deselect()
@@ -76,7 +150,7 @@ CMarketBase::MarketShowcasesParams CTransferResources::getShowcasesParams() cons
 	if(bidTradePanel->isHighlighted() && offerTradePanel->isHighlighted())
 		return MarketShowcasesParams
 		{
-			ShowcaseParams {std::to_string(offerSlider->getValue()), bidTradePanel->getHighlightedItemId()},
+			ShowcaseParams {amountInput ? std::string() : std::to_string(offerSlider->getValue()), bidTradePanel->getHighlightedItemId()}, // the quantity field draws the number
 			ShowcaseParams {LIBRARY->generaltexth->capColors[offerTradePanel->getHighlightedItemId()], offerTradePanel->getHighlightedItemId()}
 		};
 	else
@@ -95,6 +169,7 @@ void CTransferResources::highlightingChanged()
 	}
 	CMarketBase::highlightingChanged();
 	CMarketTraderText::highlightingChanged();
+	syncAmountInput();
 }
 
 std::string CTransferResources::getTraderText()

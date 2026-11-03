@@ -9,6 +9,7 @@
 
 #include "../../lib/DmbChatRouting.h"
 
+class CFilledTexture;
 class CTextInput;
 class CLabel;
 class ChatButton;

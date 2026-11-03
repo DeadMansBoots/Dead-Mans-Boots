@@ -154,10 +154,10 @@ class ChatLineInput : public CIntObject
 	std::function<void()> onClose;
 
 public:
-	ChatLineInput(const Rect & area, std::function<void(const std::string &)> send, std::function<void()> close)
+	ChatLineInput(const Rect & area, std::function<void(const std::string &)> send, std::function<void()> closeCallback)
 		: CIntObject(KEYBOARD | TEXTINPUT, area.topLeft())
 		, onSend(std::move(send))
-		, onClose(std::move(close))
+		, onClose(std::move(closeCallback))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;

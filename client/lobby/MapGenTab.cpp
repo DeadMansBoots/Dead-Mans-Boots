@@ -1569,9 +1569,7 @@ public:
 		}
 		std::string text;
 		if(entry["oneLine"].isString())
-			text += "{" + entry["oneLine"].String() + "}
-
-";
+			text += "{" + entry["oneLine"].String() + "}\n\n";
 		if(entry["description"].isString())
 			text += entry["description"].String();
 		setBody(next, text);

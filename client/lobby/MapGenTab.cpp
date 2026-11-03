@@ -317,6 +317,9 @@ MapGenPage::MapGenPage(const JsonNode & layout, const std::function<void(MapGenP
 		after(*this);
 }
 
+static bool chooseWaterLayout(const std::string & modID, const std::string & setting, const std::vector<std::string> & names, const std::vector<JsonNode> & values, size_t current,
+	const std::string & title, const std::string & help, const std::function<void(int)> & apply);
+
 void MapGenPage::setCallback(const std::string & name, std::function<void(int)> callback)
 {
 	addCallback(name, std::move(callback));
@@ -641,11 +644,11 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			page.setCallback("loadMapGenPreset", [this](int) { loadPreset(); });
 			page.setOnSettingChanged(onSettingChanged);
 			// DMB (K, November 3rd, item 18): the Water layout's list has the picture and description of each layout beside it, as the template list has
-			page.chooserOverride = [this](const std::string & setting, const std::vector<std::string> & names, const std::vector<JsonNode> & values, size_t current, const std::string & title,
+			page.setChooserOverride([this](const std::string & setting, const std::vector<std::string> & names, const std::vector<JsonNode> & values, size_t current, const std::string & title,
 				const std::string & help, std::function<void(int)> apply)
 			{
 				return chooseWaterLayout(generator.modID, setting, names, values, current, title, help, apply);
-			};
+			});
 		},
 		[this](MapGenPage & page)
 		{

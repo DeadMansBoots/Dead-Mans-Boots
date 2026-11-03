@@ -40,6 +40,8 @@ public:
 	void setCallback(const std::string & name, std::function<void(int)> callback);
 	/// told of each change to a setting its widgets are bound to, as the tab is
 	void setOnSettingChanged(std::function<void(const std::string &)> callback);
+	/// DMB (item 18): a chooser list of this page may be opened by the tab instead (the water layout list with its panel); see InterfaceObjectConfigurable::chooserOverride
+	template <typename Function> void setChooserOverride(Function && function) { chooserOverride = std::forward<Function>(function); }
 	std::shared_ptr<CLabel> label(const std::string & name) const;
 	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
 	std::shared_ptr<CTextInput> textInput(const std::string & name) const;

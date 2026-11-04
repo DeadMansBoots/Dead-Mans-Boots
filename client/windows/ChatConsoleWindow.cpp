@@ -32,6 +32,7 @@
 #include "../../lib/callback/CCallback.h"
 #include "../../lib/CThreadHelper.h"
 #include "../../lib/GameLibrary.h"
+#include "../../lib/StartInfo.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/texts/TextOperations.h"
 
@@ -65,6 +66,31 @@ bool teamAvailable()
 		return true;
 	const auto * team = GAME->interface()->cb->getPlayerTeam(GAME->interface()->playerID);
 	return !team || team->players.size() > 1;
+}
+
+// Spectators is offered only while a watcher is connected: a connection that sits in no player slot (K: a player connected to the lobby and not assigned a slot is a spectator)
+bool spectatorsAvailable()
+{
+	if(!GAME || !GAME->interface() || !GAME->interface()->cb)
+		return true;
+	const auto * info = GAME->interface()->cb->getStartInfo();
+	if(!info)
+		return true;
+	for(const auto & client : info->playerNames)
+	{
+		bool inSlot = false;
+		for(const auto & slot : info->playerInfos)
+			if(slot.second.connectedPlayerIDs.count(client.first))
+				inSlot = true;
+		if(!inSlot)
+			return true;
+	}
+	return false;
+}
+
+bool channelOffered(EChatChannel channel)
+{
+	return (channel != EChatChannel::TEAM || teamAvailable()) && (channel != EChatChannel::SPECTATORS || spectatorsAvailable());
 }
 
 std::string channelName(EChatChannel channel)
@@ -281,7 +307,8 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 	refreshSettingsRows();
 	setSettingsOpen(false);
 
-	setChannel(EChatChannel::ALL);
+	// the channel the player last wrote to, if it is still offered
+	setChannel(channelOffered(currentChannel) ? currentChannel : EChatChannel::ALL);
 	setListOpen(false);
 	panelArea = pos;
 	GAME->server().getGameChat().setConsoleWindowOpen(true);
@@ -341,9 +368,13 @@ void ChatConsoleWindow::showAll(Canvas & to)
 
 void ChatConsoleWindow::nextChannel()
 {
-	auto next = static_cast<EChatChannel>((static_cast<int>(channel) + 1) % 3);
-	if(next == EChatChannel::TEAM && !teamAvailable())
-		next = EChatChannel::SPECTATORS;
+	auto next = channel;
+	for(int i = 0; i < 3; ++i)
+	{
+		next = static_cast<EChatChannel>((static_cast<int>(next) + 1) % 3);
+		if(channelOffered(next))
+			break;
+	}
 	setChannel(next);
 }
 
@@ -440,7 +471,7 @@ void ChatConsoleWindow::setListOpen(bool open)
 	int shown = 0;
 	for(int i = 0; i < 3; ++i)
 	{
-		const bool offered = i != static_cast<int>(EChatChannel::TEAM) || teamAvailable();
+		const bool offered = channelOffered(static_cast<EChatChannel>(i));
 		toItems[i]->setEnabled(open && offered);
 		if(offered)
 		{

@@ -24,6 +24,8 @@ class ChatChip : public CIntObject
 	int shownChannel = -1;
 	std::shared_ptr<ChatConsoleWindow> panel; // the console panel above the chip while it is open (a child of the chip)
 	Rect mapArea;
+	Rect closedPanelArea; // where the panel was: the map view paints it fresh for a few frames after the panel closes (nothing else repaints that area)
+	int repaintFrames = 0;
 	bool onlyWhileOpen = false; // in a battle the chip is drawn only while the panel is open: the hexes under it stay clickable, as in stock
 
 	bool chipShown() const { return !onlyWhileOpen || panel; }

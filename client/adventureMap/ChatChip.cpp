@@ -102,7 +102,9 @@ void ChatChip::deactivate()
 
 Rect ChatChip::repaintArea() const
 {
-	return panel ? pos.include(panel->pos) : pos;
+	if(panel)
+		return pos.include(panel->pos);
+	return repaintFrames > 0 ? pos.include(closedPanelArea) : pos;
 }
 
 void ChatChip::openPanel()
@@ -121,8 +123,11 @@ void ChatChip::closePanel()
 {
 	if(!panel)
 		return;
+	closedPanelArea = panel->pos;
+	repaintFrames = 6;
 	removeChild(panel.get(), false);
 	panel.reset();
+	ENGINE->windows().totalRedraw();
 }
 
 void ChatChip::tick(uint32_t)
@@ -130,6 +135,8 @@ void ChatChip::tick(uint32_t)
 	// this chip is the one that is active now (a battle window has its own): the map ignores clicks where it and its panel are
 	ChatConsoleWindow::chipArea = chipShown() ? pos : Rect();
 	ChatConsoleWindow::panelArea = panel ? panel->pos : Rect();
+	if(repaintFrames > 0)
+		--repaintFrames;
 	if(ChatConsoleWindow::toggleAsked)
 	{
 		ChatConsoleWindow::toggleAsked = false;

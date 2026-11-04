@@ -78,7 +78,7 @@ void ChatChip::show(Canvas & to)
 ChatChip::~ChatChip()
 {
 	// the adventure map's chip and the battle window's chip take turns: only the one that set the area clears it
-	if(ChatConsoleWindow::chipArea == pos)
+	if(ChatConsoleWindow::chipArea.x == pos.x && ChatConsoleWindow::chipArea.y == pos.y && ChatConsoleWindow::chipArea.w == pos.w && ChatConsoleWindow::chipArea.h == pos.h)
 		ChatConsoleWindow::chipArea = Rect();
 }
 

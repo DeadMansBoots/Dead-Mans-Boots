@@ -35,10 +35,10 @@
 
 namespace
 {
-const int WIN_W = 520;
-const int WIN_H = 380;
-const int MARGIN = 14;
-const int ROW_H = 24;
+const int WIN_W = ChatConsoleWindow::PANEL_W;
+const int WIN_H = ChatConsoleWindow::PANEL_H;
+const int MARGIN = 12;
+const int ROW_H = 22;
 const ColorRGBA GOLD(212, 175, 55, 255);
 
 // the colours a channel can be set to (settings general.chatColour*: an index), none of them an orange, red, blue, tan, purple, teal or pink of the players
@@ -160,13 +160,13 @@ class ChatLineInput : public CIntObject
 	std::shared_ptr<TransparentFilledRectangle> background;
 	std::shared_ptr<CTextInput> box;
 	std::function<void(const std::string &)> onSend;
-	std::function<void()> onClose;
+	std::function<void()> onTab;
 
 public:
-	ChatLineInput(const Rect & area, std::function<void(const std::string &)> send, std::function<void()> closeCallback)
+	ChatLineInput(const Rect & area, std::function<void(const std::string &)> send, std::function<void()> tabCallback)
 		: CIntObject(KEYBOARD | TEXTINPUT, area.topLeft())
 		, onSend(std::move(send))
-		, onClose(std::move(closeCallback))
+		, onTab(std::move(tabCallback))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;
@@ -176,9 +176,26 @@ public:
 		box->removeUsedEvents(KEYBOARD);
 	}
 
+	// while the line has the focus every key is the line's (the map's shortcuts would fire on the letters otherwise); a click outside it, or Escape, gives the keys back
 	bool captureThisKey(EShortcut key) override
 	{
-		return key == EShortcut::GLOBAL_ACCEPT || key == EShortcut::GLOBAL_CANCEL;
+		return box->hasFocus();
+	}
+
+	void focusLine()
+	{
+		box->giveFocus();
+	}
+
+	void unfocusLine()
+	{
+		if(box->hasFocus())
+			box->removeFocus();
+	}
+
+	void setColour(const ColorRGBA & colour)
+	{
+		box->setColor(colour);
 	}
 
 	void keyPressed(EShortcut key) override
@@ -193,77 +210,114 @@ public:
 			}
 		}
 		else if(key == EShortcut::GLOBAL_CANCEL)
-			onClose();
+			unfocusLine();
+		else if(key == EShortcut::GAME_ACTIVATE_CONSOLE)
+		{
+			if(box->getText().empty())
+				onTab();
+		}
 		else
 			box->keyPressed(key);
 	}
 };
 
-ChatConsoleWindow::ChatConsoleWindow()
-	: CWindowObject(BORDERED)
+Rect ChatConsoleWindow::panelArea = Rect();
+Rect ChatConsoleWindow::chipArea = Rect();
+bool ChatConsoleWindow::openAsked = false;
+bool ChatConsoleWindow::toggleAsked = false;
+
+ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
+	: CIntObject(LCLICK)
 {
 	OBJECT_CONSTRUCTION;
-	pos.w = WIN_W;
-	pos.h = WIN_H;
-	center();
+	// bottom left of the map view, over the chip (the chip is 22 high with 8 below it)
+	pos = Rect(area.x + 8, area.y + area.h - 22 - 8 - 4 - WIN_H, WIN_W, WIN_H);
 	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
 
-	// K, October 22nd mockup: the title sits a little down and to the right of the middle
-	title = std::make_shared<CLabel>(pos.w / 2 + 4, 22, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
-	// the x is centred in its box
-	closeButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 24, 10, 24, 24), "x", [this]() { close(); });
-	settingsButton = std::make_shared<ChatButton>(Rect(MARGIN, 10, 90, 24), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
+	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
+	title = std::make_shared<CLabel>(MARGIN + 28, 24, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
+	closeButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 20, 12, 20, 20), "x", [this]() { closeAsked = true; });
+	settingsButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 20 - 4 - 64, 12, 64, 20), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
 
-	log = std::make_shared<ChatLog>(Rect(MARGIN, 44, pos.w - 2 * MARGIN, pos.h - 44 - 56));
+	log = std::make_shared<ChatLog>(Rect(MARGIN, 38, pos.w - 2 * MARGIN, pos.h - 38 - MARGIN - ROW_H - 4));
 
 	const int rowY = pos.h - MARGIN - ROW_H;
-	const int toW = 150;
+	const int toW = 108;
 	toButton = std::make_shared<ChatButton>(Rect(MARGIN, rowY, toW, ROW_H), "", [this]() { setListOpen(!listOpen); });
 	for(int i = 0; i < 3; ++i)
 	{
 		const auto ch = static_cast<EChatChannel>(i);
 		toItems.push_back(std::make_shared<ChatButton>(Rect(MARGIN, rowY - (3 - i) * ROW_H, toW, ROW_H), channelName(ch), [this, ch]() { setChannel(ch); }));
 	}
-	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 8, rowY, pos.w - 2 * MARGIN - toW - 8, ROW_H), [this](const std::string & text) { send(text); }, [this]() { close(); });
+	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 6, rowY, pos.w - 2 * MARGIN - toW - 6, ROW_H), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
 
 	for(int i = 0; i < 9; ++i)
-		settingsRows.push_back(std::make_shared<ChatButton>(Rect(pos.w / 2 - 130, 52 + i * 30, 260, 26), "", [this, i]() { changeSetting(i); }));
+		settingsRows.push_back(std::make_shared<ChatButton>(Rect(MARGIN + 20, 40 + i * 17, pos.w - 2 * MARGIN - 40, 16), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
 	setSettingsOpen(false);
 
 	setChannel(EChatChannel::ALL);
 	setListOpen(false);
+	panelArea = pos;
 	GAME->server().getGameChat().setConsoleWindowOpen(true);
-	updateShadow();
 }
 
 ChatConsoleWindow::~ChatConsoleWindow()
 {
+	panelArea = Rect();
 	if(GAME && GAME->interface())
 		GAME->server().getGameChat().setConsoleWindowOpen(false);
+}
+
+void ChatConsoleWindow::requestOpen()
+{
+	openAsked = true;
+}
+
+void ChatConsoleWindow::requestToggle()
+{
+	toggleAsked = true;
+}
+
+bool ChatConsoleWindow::coversPoint(const Point & point)
+{
+	return (panelArea.w > 0 && panelArea.isInside(point)) || (chipArea.w > 0 && chipArea.isInside(point));
+}
+
+void ChatConsoleWindow::focusInput()
+{
+	input->focusLine();
+}
+
+bool ChatConsoleWindow::receiveEvent(const Point & position, int eventType) const
+{
+	// every click reaches the panel, so that a click on the map can give the keys back; the rest only where the panel is
+	if(eventType == LCLICK)
+		return true;
+	return CIntObject::receiveEvent(position, eventType);
+}
+
+void ChatConsoleWindow::clickPressed(const Point & cursorPosition)
+{
+	if(!pos.isInside(cursorPosition) && !(chipArea.w > 0 && chipArea.isInside(cursorPosition)))
+		input->unfocusLine();
 }
 
 void ChatConsoleWindow::showAll(Canvas & to)
 {
 	CIntObject::showAll(to);
-	CMessage::drawBorder(PlayerColor(GAME->interface()->playerID), to, pos.w + 28, pos.h + 29, pos.x - 14, pos.y - 15);
+	CMessage::drawBorder(PlayerColor(GAME->interface()->playerID), to, pos.w, pos.h, pos.x, pos.y);
+}
+
+void ChatConsoleWindow::nextChannel()
+{
+	setChannel(static_cast<EChatChannel>((static_cast<int>(channel) + 1) % 3));
 }
 
 ColorRGBA ChatConsoleWindow::channelColour(EChatChannel channel)
 {
 	const int row = channel == EChatChannel::TEAM ? 1 : channel == EChatChannel::SPECTATORS ? 2 : 0;
 	return PALETTE[std::clamp(static_cast<int>(settings["general"][colourKey(row)].Float()), 0, static_cast<int>(PALETTE.size()) - 1)];
-}
-
-bool ChatConsoleWindow::captureThisKey(EShortcut key)
-{
-	return key == EShortcut::GLOBAL_CANCEL;
-}
-
-void ChatConsoleWindow::keyPressed(EShortcut key)
-{
-	if(key == EShortcut::GLOBAL_CANCEL)
-		close();
 }
 
 void ChatConsoleWindow::setSettingsOpen(bool open)
@@ -352,6 +406,7 @@ void ChatConsoleWindow::setChannel(EChatChannel newChannel)
 {
 	channel = newChannel;
 	toButton->setText(LIBRARY->generaltexth->translate("vcmi.chat.window.to") + " " + channelName(channel) + " v");
+	input->setColour(channelColour(channel));
 	setListOpen(false);
 	redraw();
 }

@@ -32,6 +32,7 @@ public:
 
 	void setContext(const std::shared_ptr<IMapRendererContext> & context);
 
+	bool receiveEvent(const Point & position, int eventType) const override;
 	void clickPressed(const Point & cursorPosition) override;
 	void clickReleased(const Point & cursorPosition) override;
 	void clickCancel(const Point & cursorPosition) override;

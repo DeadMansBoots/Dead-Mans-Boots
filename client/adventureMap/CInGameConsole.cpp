@@ -52,6 +52,10 @@ void CInGameConsole::show(Canvas & to)
 	if (GAME->interface()->cingconsole != this)
 		return;
 
+	// DMB: with the panel open the lines are in it, the overlay would draw over it
+	if(ChatConsoleWindow::panelArea.w > 0)
+		return;
+
 	int number = 0;
 
 	for(auto & text : texts)
@@ -287,6 +291,10 @@ void CInGameConsole::showRecentChatHistory()
 
 void CInGameConsole::startEnteringText()
 {
+	// DMB (K, chat redesign): the chat line is the console panel on the map, not the status bar
+	ChatConsoleWindow::requestOpen();
+	return;
+
 	if (!isActive())
 		return;
 

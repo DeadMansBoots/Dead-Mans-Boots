@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "CWindowObject.h"
+#include "../gui/CIntObject.h"
 
 #include "../render/Colors.h"
 
@@ -18,10 +18,11 @@ class ChatButton;
 class ChatLog;
 class ChatLineInput;
 
-/// DMB (K, chat console, phase 1): the console as a window in the Heroes frame. The scrollback (every channel, each in its colour, the mouse wheel goes back in it), a To: choice (Everyone,
-/// Team, Spectators) and the line being typed. Opens from the chip at the bottom left of the adventure map (ChatChip) or with the chat key; Enter sends, Escape closes. The lines come from
-/// GameChatHandler's history, which the save keeps, so a loaded game shows its old chat. The older overlay (CInGameConsole) stays as the quick line.
-class ChatConsoleWindow : public CWindowObject
+/// DMB (K, chat console, beta 20 redesign): the console as a small panel on the adventure map, bottom left above the chip, not a window. Nothing about it is modal: the map behind it keeps
+/// redrawing and taking clicks (outside the panel), and the panel stays open until the player closes it. The scrollback (every channel, each in its colour, the mouse wheel goes back in it),
+/// a To: choice (Everyone, Team, Spectators) and the line being typed, which takes the keys while it has the focus. It is a child of the chip (ChatChip), which opens and closes it.
+/// The lines come from GameChatHandler's history, which the save keeps. The older overlay (CInGameConsole) stays as the short lines that fade on the map.
+class ChatConsoleWindow : public CIntObject
 {
 	std::shared_ptr<CFilledTexture> background;
 	std::shared_ptr<CLabel> title;
@@ -30,12 +31,13 @@ class ChatConsoleWindow : public CWindowObject
 	std::vector<std::shared_ptr<ChatButton>> toItems;
 	std::shared_ptr<ChatLog> log;
 	std::shared_ptr<ChatLineInput> input;
-	// phase 2: the settings page (a button in the title row swaps it for the scrollback): opacity, timestamps, mute Team, mute Spectators
+	// the settings page (a button in the title row swaps it for the scrollback): opacity, timestamps, mutes, colours, text size, fade
 	std::shared_ptr<ChatButton> settingsButton;
 	std::vector<std::shared_ptr<ChatButton>> settingsRows;
 	EChatChannel channel = EChatChannel::ALL;
 	bool listOpen = false;
 	bool settingsOpen = false;
+	bool closeAsked = false;
 
 	void setSettingsOpen(bool open);
 	void refreshSettingsRows();
@@ -44,15 +46,33 @@ class ChatConsoleWindow : public CWindowObject
 	void setChannel(EChatChannel newChannel);
 	void setListOpen(bool open);
 	void send(const std::string & text);
+	void nextChannel();
 
 public:
-	ChatConsoleWindow();
+	/// `area`: the map view's rectangle; the panel sits at its bottom left, above the chip
+	explicit ChatConsoleWindow(const Rect & area);
 	~ChatConsoleWindow() override;
+
+	static constexpr int PANEL_W = 380;
+	static constexpr int PANEL_H = 232;
 
 	/// the colour a channel's lines are drawn in, from the settings general.chatColour* (an index into the palette); the quick overlay uses it too
 	static ColorRGBA channelColour(EChatChannel channel);
 
+	/// the chat key and the chip ask for the panel; the chip (which owns it) does it on its next tick
+	static void requestOpen();
+	static void requestToggle();
+	/// a point the chat panel or the chip covers: the map ignores clicks, hovers and the wheel there
+	static bool coversPoint(const Point & point);
+	/// where the panel and the chip are now (empty rectangles when not shown); set by the chip
+	static Rect panelArea;
+	static Rect chipArea;
+	static bool openAsked;
+	static bool toggleAsked;
+
+	bool closeRequested() const { return closeAsked; }
+	void focusInput();
 	void showAll(Canvas & to) override;
-	void keyPressed(EShortcut key) override;
-	bool captureThisKey(EShortcut key) override;
+	bool receiveEvent(const Point & position, int eventType) const override;
+	void clickPressed(const Point & cursorPosition) override;
 };

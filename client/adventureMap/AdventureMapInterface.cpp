@@ -192,7 +192,7 @@ void AdventureMapInterface::show(Canvas & to)
 		for(const Rect & area : turnBars->takeRepaintAreas())
 			widget->getMapView()->repaintArea(area);
 	if(chatChip)
-		widget->getMapView()->repaintArea(chatChip->pos);
+		widget->getMapView()->repaintArea(chatChip->repaintArea());
 	if(observerBar)
 	{
 		// a watcher is told no turn of its own (onEnemyTurnStarted returns early for it), so nothing ever applied the state to the widget: the world view's legend

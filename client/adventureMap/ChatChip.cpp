@@ -28,7 +28,9 @@ const int CHIP_H = 22;
 ChatChip::ChatChip(const Rect & area)
 {
 	OBJECT_CONSTRUCTION;
+	mapArea = area;
 	pos = Rect(area.x + 8, area.y + area.h - CHIP_H - 8, CHIP_W, CHIP_H);
+	ChatConsoleWindow::chipArea = pos;
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, CHIP_W, CHIP_H), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
 	label = std::make_shared<CLabel>(CHIP_W / 2, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, "");
 	addUsedEvents(LCLICK | TIME);
@@ -58,15 +60,58 @@ void ChatChip::show(Canvas & to)
 	CIntObject::showAll(to);
 }
 
+ChatChip::~ChatChip()
+{
+	ChatConsoleWindow::chipArea = Rect();
+}
+
+Rect ChatChip::repaintArea() const
+{
+	return panel ? pos.include(panel->pos) : pos;
+}
+
+void ChatChip::openPanel()
+{
+	if(panel)
+	{
+		panel->focusInput();
+		return;
+	}
+	panel = std::make_shared<ChatConsoleWindow>(mapArea);
+	addChild(panel.get(), false);
+	panel->focusInput();
+}
+
+void ChatChip::closePanel()
+{
+	if(!panel)
+		return;
+	removeChild(panel.get(), false);
+	panel.reset();
+}
+
 void ChatChip::tick(uint32_t)
 {
+	if(ChatConsoleWindow::toggleAsked)
+	{
+		ChatConsoleWindow::toggleAsked = false;
+		if(panel)
+			closePanel();
+		else
+			openPanel();
+	}
+	if(ChatConsoleWindow::openAsked)
+	{
+		ChatConsoleWindow::openAsked = false;
+		openPanel();
+	}
+	if(panel && panel->closeRequested())
+		closePanel();
 	if(GAME->server().getGameChat().getUnreadLines() != shownUnread)
 		refreshLabel();
 }
 
 void ChatChip::clickPressed(const Point &)
 {
-	if(ENGINE->windows().topWindow<ChatConsoleWindow>())
-		return;
-	ENGINE->windows().createAndPushWindow<ChatConsoleWindow>();
+	ChatConsoleWindow::requestToggle();
 }

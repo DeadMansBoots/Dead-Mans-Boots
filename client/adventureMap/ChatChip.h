@@ -9,6 +9,7 @@
 
 class CLabel;
 class TransparentFilledRectangle;
+class ChatConsoleWindow;
 
 /// DMB (K, chat console, phase 1): the chip at the bottom left of the adventure map. It reads "Chat", with the number of lines that came in since the console window was last open; a click
 /// opens the console window (ChatConsoleWindow). Its pos is everything it draws; the map view paints the tiles under it fresh every frame (AdventureMapInterface::show asks it to).
@@ -17,6 +18,11 @@ class ChatChip : public CIntObject
 	std::shared_ptr<TransparentFilledRectangle> background;
 	std::shared_ptr<CLabel> label;
 	int shownUnread = -1;
+	std::shared_ptr<ChatConsoleWindow> panel; // the console panel above the chip while it is open (a child of the chip)
+	Rect mapArea;
+
+	void openPanel();
+	void closePanel();
 
 	void refreshLabel();
 
@@ -28,4 +34,7 @@ public:
 	void show(Canvas & to) override;
 	void clickPressed(const Point & cursorPosition) override;
 	void tick(uint32_t msPassed) override;
+	~ChatChip() override;
+	/// the chip and the panel together: what the map view has to repaint under them each frame
+	Rect repaintArea() const;
 };

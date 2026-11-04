@@ -45,8 +45,9 @@ ChatChip::ChatChip(const Rect & area, bool onlyWhileOpen)
 	for(const auto & [radius, colour] : {std::pair<int, ColorRGBA>(8, gold), std::pair<int, ColorRGBA>(6, ColorRGBA(140, 20, 20, 255))})
 		for(int dy = -radius; dy <= radius; ++dy)
 		{
+			// a filled box draws one pixel less than its rectangle in each direction: a one-pixel row is a rectangle of height 2
 			const int half = static_cast<int>(std::sqrt(static_cast<double>(radius * radius - dy * dy) + 0.5));
-			badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(centreX - half, centreY + dy, 2 * half + 1, 1), colour));
+			badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(centreX - half, centreY + dy, 2 * half + 2, 2), colour));
 		}
 	badgeLabel = std::make_shared<CLabel>(CHIP_W - 15, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "");
 	addUsedEvents(LCLICK | TIME);

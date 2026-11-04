@@ -71,15 +71,13 @@ bool teamAvailable()
 // Spectators is offered only while a watcher is connected: a connection that sits in no player slot (K: a player connected to the lobby and not assigned a slot is a spectator)
 bool spectatorsAvailable()
 {
-	if(!GAME || !GAME->interface() || !GAME->interface()->cb)
+	// the lobby state the client keeps (CServerHandler's playerNames and si); the game does not refresh it, so a watcher who joins late may be missing until the next lobby update
+	if(!GAME || !GAME->interface() || !GAME->server().si)
 		return true;
-	const auto * info = GAME->interface()->cb->getStartInfo();
-	if(!info)
-		return true;
-	for(const auto & client : info->playerNames)
+	for(const auto & client : GAME->server().playerNames)
 	{
 		bool inSlot = false;
-		for(const auto & slot : info->playerInfos)
+		for(const auto & slot : GAME->server().si->playerInfos)
 			if(slot.second.connectedPlayerIDs.count(client.first))
 				inSlot = true;
 		if(!inSlot)

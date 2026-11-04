@@ -42,14 +42,19 @@ void GameChatHandler::resetMatchState()
 JsonNode GameChatHandler::toJson() const
 {
 	JsonNode result;
-	const size_t first = chatHistory.size() > 2000 ? chatHistory.size() - 2000 : 0;
-	for(size_t i = first; i < chatHistory.size(); ++i)
+	// the player's local state goes into the game state every client and the host's save receive: only the Everyone and System lines are put in it, so that a Team or Spectators line is never readable outside its audience (the server decides who receives a line)
+	std::vector<const GameChatMessage *> kept;
+	for(const auto & entry : chatHistory)
+		if(entry.channel == EChatChannel::ALL)
+			kept.push_back(&entry);
+	const size_t first = kept.size() > 2000 ? kept.size() - 2000 : 0;
+	for(size_t i = first; i < kept.size(); ++i)
 	{
 		JsonNode line;
-		line["s"].String() = chatHistory[i].senderName;
-		line["t"].String() = chatHistory[i].messageText;
-		line["d"].String() = chatHistory[i].dateFormatted;
-		line["c"].Integer() = static_cast<int>(chatHistory[i].channel);
+		line["s"].String() = kept[i]->senderName;
+		line["t"].String() = kept[i]->messageText;
+		line["d"].String() = kept[i]->dateFormatted;
+		line["c"].Integer() = static_cast<int>(kept[i]->channel);
 		result.Vector().push_back(line);
 	}
 	logGlobal->info("Chat saved with the game: %d line(s), the last one \"%s\"", result.Vector().size(), result.Vector().empty() ? std::string() : result.Vector().back()["t"].String());

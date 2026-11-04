@@ -370,6 +370,11 @@ ColorRGBA ChatConsoleWindow::channelColour(EChatChannel channel)
 void ChatConsoleWindow::setSettingsOpen(bool open)
 {
 	settingsOpen = open;
+	// the Options page has the room of the To: row and the line, which are hidden while it is open (the rows overran them)
+	if(open)
+		input->unfocusLine();
+	toButton->setEnabled(!open);
+	input->setEnabled(!open);
 	for(auto & row : settingsRows)
 		row->setEnabled(open);
 	log->setEnabled(!open);

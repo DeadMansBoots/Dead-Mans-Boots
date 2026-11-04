@@ -39,11 +39,15 @@ ChatChip::ChatChip(const Rect & area, bool onlyWhileOpen)
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, CHIP_W, CHIP_H), red);
 	frame = std::make_shared<TransparentFilledRectangle>(Rect(1, 2, CHIP_W - 2, CHIP_H - 4), plum, gold, 1);
 	label = std::make_shared<CLabel>(8, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::YELLOW, "");
-	// the badge: a dark red square with a gold ring, its four corners cut with the fill colour so that it reads round
-	const Rect ring(CHIP_W - 24, 3, 18, 16);
-	badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(ring, ColorRGBA(140, 20, 20, 255), gold, 1));
-	for(const Point & corner : {Point(ring.x, ring.y), Point(ring.right() - 1, ring.y), Point(ring.x, ring.bottom() - 1), Point(ring.right() - 1, ring.bottom() - 1)})
-		badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(corner.x, corner.y, 1, 1), plum));
+	// the badge: a round disc, dark red inside a gold ring (K's mockup), drawn as one-pixel rows: a gold disc of radius 8, a dark red one of radius 6 on it
+	const int centreX = CHIP_W - 15;
+	const int centreY = CHIP_H / 2;
+	for(const auto & [radius, colour] : {std::pair<int, ColorRGBA>(8, gold), std::pair<int, ColorRGBA>(6, ColorRGBA(140, 20, 20, 255))})
+		for(int dy = -radius; dy <= radius; ++dy)
+		{
+			const int half = static_cast<int>(std::sqrt(static_cast<double>(radius * radius - dy * dy) + 0.5));
+			badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(centreX - half, centreY + dy, 2 * half + 1, 1), colour));
+		}
 	badgeLabel = std::make_shared<CLabel>(CHIP_W - 15, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "");
 	addUsedEvents(LCLICK | TIME);
 	refreshLabel();

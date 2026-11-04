@@ -123,6 +123,7 @@ public:
 class ChatLog : public CIntObject
 {
 	int scrollBack = 0; // lines up from the bottom
+	int smallLine = 16; // the line height of the small font (the compact panel draws it closer)
 
 public:
 	explicit ChatLog(const Rect & area)
@@ -143,6 +144,11 @@ public:
 		scrollBack = 0;
 	}
 
+	void setSmallLine(int height)
+	{
+		smallLine = height;
+	}
+
 	void showAll(Canvas & to) override
 	{
 		to.drawColorBlended(pos, ColorRGBA(0, 0, 0, static_cast<uint8_t>(std::clamp(settings["general"]["chatOpacity"].Float() * 2.55, 0.0, 255.0))));
@@ -150,7 +156,7 @@ public:
 
 		const auto & history = GAME->server().getGameChat().getChatHistory();
 		const EFonts font = chatFont();
-		const int lineHeight = font == FONT_BIG ? 26 : font == FONT_MEDIUM ? 20 : 16;
+		const int lineHeight = font == FONT_BIG ? 26 : font == FONT_MEDIUM ? 20 : smallLine;
 		const int rows = std::max(1, (pos.h - 8) / lineHeight);
 		std::vector<std::pair<std::string, ColorRGBA>> lines;
 		const size_t first = history.size() > 300 ? history.size() - 300 : 0;
@@ -258,34 +264,45 @@ bool ChatConsoleWindow::openAsked = false;
 bool ChatConsoleWindow::toggleAsked = false;
 EChatChannel ChatConsoleWindow::currentChannel = EChatChannel::ALL;
 
-ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
-	: CIntObject(LCLICK)
+ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
+	: CIntObject(LCLICK | WHEEL)
 {
 	OBJECT_CONSTRUCTION;
-	// bottom left of the map view, over the chip (the chip is 22 high with 8 below it)
-	pos = Rect(area.x + 8, area.y + area.h - 22 - 8 - 4 - WIN_H, WIN_W, WIN_H);
+	compact = compactPanel;
+	margin = compact ? 9 : MARGIN;
+	rowH = compact ? 20 : ROW_H;
+	topY = compact ? 28 : 38;
+	const int w = compact ? COMPACT_W : WIN_W;
+	const int h = compact ? COMPACT_H : WIN_H;
+	// bottom left of the map view (or of a battlefield), over the chip (the chip is 22 high with 8 below it)
+	pos = Rect(area.x + 8, area.y + area.h - 22 - 8 - 4 - h, w, h);
 	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
 	glass = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(18, 10, 4, 120));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
-	title = std::make_shared<CLabel>(MARGIN + 34, 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
-	closeButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 20, 12, 20, 20), "x", [this]() { closeAsked = true; });
-	settingsButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 20 - 4 - 64, 12, 64, 20), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
+	const int buttonY = compact ? 7 : 12;
+	const int buttonH = compact ? 17 : 20;
+	title = std::make_shared<CLabel>(margin + 34, compact ? 17 : 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
+	closeButton = std::make_shared<ChatButton>(Rect(pos.w - margin - 20, buttonY, 20, buttonH), "x", [this]() { closeAsked = true; });
+	settingsButton = std::make_shared<ChatButton>(Rect(pos.w - margin - 20 - 4 - 64, buttonY, 64, buttonH), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
 
-	log = std::make_shared<ChatLog>(Rect(MARGIN, 38, pos.w - 2 * MARGIN, pos.h - 38 - MARGIN - ROW_H - 4));
+	log = std::make_shared<ChatLog>(Rect(margin, topY, pos.w - 2 * margin, pos.h - topY - margin - rowH - 4));
+	if(compact)
+		log->setSmallLine(13);
 
-	const int rowY = pos.h - MARGIN - ROW_H;
-	const int toW = 108;
-	toButton = std::make_shared<ChatButton>(Rect(MARGIN, rowY, toW, ROW_H), "", [this]() { setListOpen(!listOpen); });
+	const int rowY = pos.h - margin - rowH;
+	const int toW = compact ? 96 : 108;
+	toButton = std::make_shared<ChatButton>(Rect(margin, rowY, toW, rowH), "", [this]() { setListOpen(!listOpen); });
 	for(int i = 0; i < 3; ++i)
 	{
 		const auto ch = static_cast<EChatChannel>(i);
-		toItems.push_back(std::make_shared<ChatButton>(Rect(MARGIN, rowY - (3 - i) * ROW_H, toW, ROW_H), channelName(ch), [this, ch]() { setChannel(ch); }));
+		toItems.push_back(std::make_shared<ChatButton>(Rect(margin, rowY - (3 - i) * rowH, toW, rowH), channelName(ch), [this, ch]() { setChannel(ch); }));
 	}
-	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 6, rowY, pos.w - 2 * MARGIN - toW - 6, ROW_H), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
+	input = std::make_shared<ChatLineInput>(Rect(margin + toW + 6, rowY, pos.w - 2 * margin - toW - 6, rowH), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
 
+	visibleSettingRows = std::max(1, (pos.h - topY - margin - 2) / 16);
 	for(int i = 0; i < 11; ++i)
-		settingsRows.push_back(std::make_shared<ChatButton>(Rect(MARGIN + 20, 40 + i * 16, pos.w - 2 * MARGIN - 40, 15), "", [this, i]() { changeSetting(i); }));
+		settingsRows.push_back(std::make_shared<ChatButton>(Rect(margin + 20, topY + 2 + i * 16, pos.w - 2 * margin - 40, 15), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
 	setSettingsOpen(false);
 	applyBackground();
@@ -346,6 +363,15 @@ void ChatConsoleWindow::clickPressed(const Point & cursorPosition)
 void ChatConsoleWindow::showAll(Canvas & to)
 {
 	CIntObject::showAll(to);
+	if(settingsOpen && static_cast<int>(settingsRows.size()) > visibleSettingRows)
+	{
+		const Rect track(pos.x + pos.w - margin - 8, pos.y + topY + 2, 5, visibleSettingRows * 16);
+		to.drawColorBlended(track, ColorRGBA(0, 0, 0, 120));
+		const int total = static_cast<int>(settingsRows.size());
+		const int thumbH = std::max(8, track.h * visibleSettingRows / total);
+		const int thumbY = track.y + (track.h - thumbH) * settingsOffset / std::max(1, total - visibleSettingRows);
+		to.drawColorBlended(Rect(track.x, thumbY, track.w, thumbH), ColorRGBA(212, 175, 55, 220));
+	}
 	CMessage::drawBorder(PlayerColor(GAME->interface()->playerID), to, pos.w, pos.h, pos.x, pos.y);
 }
 
@@ -375,8 +401,8 @@ void ChatConsoleWindow::setSettingsOpen(bool open)
 		input->unfocusLine();
 	toButton->setEnabled(!open);
 	input->setEnabled(!open);
-	for(auto & row : settingsRows)
-		row->setEnabled(open);
+	settingsOffset = 0;
+	layoutSettingsRows();
 	log->setEnabled(!open);
 	if(open)
 		setListOpen(false);
@@ -388,6 +414,28 @@ void ChatConsoleWindow::applyBackground()
 	const bool isGlass = settings["general"]["chatGlass"].Bool();
 	background->setEnabled(!isGlass);
 	glass->setEnabled(isGlass);
+}
+
+// the rows of the Options page that fit under the title row, from settingsOffset; the wheel moves the offset
+void ChatConsoleWindow::layoutSettingsRows()
+{
+	for(int i = 0; i < static_cast<int>(settingsRows.size()); ++i)
+	{
+		const bool visible = settingsOpen && i >= settingsOffset && i < settingsOffset + visibleSettingRows;
+		settingsRows[i]->setEnabled(visible);
+		if(visible)
+			settingsRows[i]->moveTo(pos.topLeft() + Point(margin + 20, topY + 2 + (i - settingsOffset) * 16));
+	}
+	redraw();
+}
+
+void ChatConsoleWindow::wheelScrolled(int distance)
+{
+	if(!settingsOpen || distance == 0)
+		return;
+	const int most = std::max(0, static_cast<int>(settingsRows.size()) - visibleSettingRows);
+	settingsOffset = std::clamp(settingsOffset + (distance > 0 ? -1 : 1), 0, most);
+	layoutSettingsRows();
 }
 
 void ChatConsoleWindow::refreshSettingsRows()
@@ -464,7 +512,7 @@ void ChatConsoleWindow::setListOpen(bool open)
 {
 	listOpen = open;
 	// the entries a player is offered, from the To: box upward
-	const int rowY = pos.h - MARGIN - ROW_H;
+	const int rowY = pos.h - margin - rowH;
 	int shown = 0;
 	for(int i = 0; i < 3; ++i)
 	{
@@ -473,7 +521,7 @@ void ChatConsoleWindow::setListOpen(bool open)
 		if(offered)
 		{
 			++shown;
-			toItems[i]->moveTo(pos.topLeft() + Point(MARGIN, rowY - shown * ROW_H));
+			toItems[i]->moveTo(pos.topLeft() + Point(margin, rowY - shown * rowH));
 		}
 	}
 	redraw();

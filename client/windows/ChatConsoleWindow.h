@@ -40,9 +40,17 @@ class ChatConsoleWindow : public CIntObject
 	bool listOpen = false;
 	bool settingsOpen = false;
 	bool closeAsked = false;
+	// the compact panel of a battle (K: "smaller, and not freeze the gamespace"): 300 by 120, the log, the To: row and the line; the Options rows scroll
+	bool compact = false;
+	int margin = 12;
+	int rowH = 22;
+	int topY = 38;
+	int settingsOffset = 0;
+	int visibleSettingRows = 11;
 
 	void setSettingsOpen(bool open);
 	void refreshSettingsRows();
+	void layoutSettingsRows();
 	void applyBackground();
 	void changeSetting(int row);
 
@@ -53,11 +61,13 @@ class ChatConsoleWindow : public CIntObject
 
 public:
 	/// `area`: the map view's rectangle; the panel sits at its bottom left, above the chip
-	explicit ChatConsoleWindow(const Rect & area);
+	explicit ChatConsoleWindow(const Rect & area, bool compactPanel = false);
 	~ChatConsoleWindow() override;
 
 	static constexpr int PANEL_W = 380;
 	static constexpr int PANEL_H = 232;
+	static constexpr int COMPACT_W = 300;
+	static constexpr int COMPACT_H = 120;
 
 	/// the colour a channel's lines are drawn in, from the settings general.chatColour* (an index into the palette); the quick overlay uses it too
 	static ColorRGBA channelColour(EChatChannel channel);
@@ -81,4 +91,5 @@ public:
 	void showAll(Canvas & to) override;
 	bool receiveEvent(const Point & position, int eventType) const override;
 	void clickPressed(const Point & cursorPosition) override;
+	void wheelScrolled(int distance) override;
 };

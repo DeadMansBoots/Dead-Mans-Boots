@@ -112,7 +112,7 @@ void ChatChip::openPanel()
 		panel->focusInput();
 		return;
 	}
-	panel = std::make_shared<ChatConsoleWindow>(mapArea);
+	panel = std::make_shared<ChatConsoleWindow>(mapArea, onlyWhileOpen);
 	addChild(panel.get(), false);
 	panel->focusInput();
 }

@@ -259,7 +259,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
-	title = std::make_shared<CLabel>(MARGIN + 28, 24, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
+	title = std::make_shared<CLabel>(MARGIN + 34, 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
 	closeButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 20, 12, 20, 20), "x", [this]() { closeAsked = true; });
 	settingsButton = std::make_shared<ChatButton>(Rect(pos.w - MARGIN - 20 - 4 - 64, 12, 64, 20), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
 

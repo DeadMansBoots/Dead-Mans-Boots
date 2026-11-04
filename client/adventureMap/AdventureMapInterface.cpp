@@ -513,6 +513,42 @@ void AdventureMapInterface::onPlayerTurnStarted(PlayerColor playerID)
 	}
 }
 
+void AdventureMapInterface::onPlayerCameBack(PlayerColor playerID)
+{
+	backgroundDimLevel = settings["adventure"]["backgroundDimLevel"].Integer();
+
+	onCurrentPlayerChanged(playerID);
+	setState(EAdventureState::MAKING_TURN);
+
+	widget->getMinimap()->setAIRadar(false);
+	widget->getInfoBar()->showSelection();
+	widget->getHeroList()->updateWidget();
+	widget->getTownList()->updateWidget();
+
+	const CGHeroInstance * heroToSelect = nullptr;
+	for(auto hero : GAME->interface()->localState->getWanderingHeroes())
+	{
+		if(!GAME->interface()->localState->isHeroSleeping(hero))
+		{
+			heroToSelect = hero;
+			break;
+		}
+	}
+
+	if(heroToSelect != nullptr)
+		GAME->interface()->localState->setSelection(heroToSelect);
+	else if(!GAME->interface()->localState->getOwnedTowns().empty())
+		GAME->interface()->localState->setSelection(GAME->interface()->localState->getOwnedTown(0));
+	else if(!GAME->interface()->localState->getWanderingHeroes().empty())
+		GAME->interface()->localState->setSelection(GAME->interface()->localState->getWanderingHero(0));
+
+	if(GAME->interface()->localState->getCurrentArmy())
+		onSelectionChanged(GAME->interface()->localState->getCurrentArmy());
+
+	onHeroChanged(nullptr);
+	ENGINE->windows().totalRedraw();
+}
+
 void AdventureMapInterface::onTurnBarsPlayerStarts()
 {
 	if(turnBars)

@@ -917,6 +917,8 @@ void CServerHandler::startGameplay(std::shared_ptr<CGameState> gameState)
 	{
 		ENGINE->windows().clear();
 		ENGINE->windows().pushWindow(adventureInt);
+		if(cameBack && GAME->interface())
+			adventureInt->onPlayerCameBack(GAME->interface()->playerID);
 	}
 }
 

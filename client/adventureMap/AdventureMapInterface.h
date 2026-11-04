@@ -137,6 +137,8 @@ public:
 
 	/// Called by PlayerInterface when local human player starts his turn
 	void onPlayerTurnStarted(PlayerColor playerID);
+	/// DMB: a player who came back to a running game gets the setup a turn start does (lists, selection, map), no date animation, no auto skip
+	void onPlayerCameBack(PlayerColor playerID);
 
 	/// DMB: called by PlayerInterface when any player's turn starts, before that player can act: the turn bars read the game state now
 	void onTurnBarsPlayerStarts();

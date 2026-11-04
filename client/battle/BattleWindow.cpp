@@ -127,7 +127,7 @@ BattleWindow::BattleWindow(BattleInterface & Owner)
 	createTimerInfoWindows();
 
 	// DMB (K, chat panel): the chat key and the chip open the panel over the battlefield's bottom left, above the battle console
-	chatChip = std::make_shared<ChatChip>(Rect(pos.x, pos.y, pos.w, console ? console->pos.y - pos.y : pos.h - 44));
+	chatChip = std::make_shared<ChatChip>(Rect(pos.x, pos.y, pos.w, console ? console->pos.y - pos.y : pos.h - 44), true);
 
 	if ( owner.tacticsMode )
 		tacticPhaseStarted();

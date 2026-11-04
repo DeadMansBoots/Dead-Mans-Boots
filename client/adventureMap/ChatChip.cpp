@@ -25,12 +25,13 @@ const int CHIP_W = 124;
 const int CHIP_H = 22;
 }
 
-ChatChip::ChatChip(const Rect & area)
+ChatChip::ChatChip(const Rect & area, bool onlyWhileOpen)
+	: onlyWhileOpen(onlyWhileOpen)
 {
 	OBJECT_CONSTRUCTION;
 	mapArea = area;
 	pos = Rect(area.x + 8, area.y + area.h - CHIP_H - 8, CHIP_W, CHIP_H);
-	ChatConsoleWindow::chipArea = pos;
+	ChatConsoleWindow::chipArea = chipShown() ? pos : Rect();
 	// K's mockup (October 22nd): a framed box in the screen frame's red rail: a red band, a thin gold line, a plum fill
 	const ColorRGBA red(170, 22, 22, 255);
 	const ColorRGBA gold(232, 204, 120, 255);
@@ -72,7 +73,16 @@ void ChatChip::showAll(Canvas & to)
 
 void ChatChip::show(Canvas & to)
 {
-	CIntObject::showAll(to);
+	if(chipShown())
+		CIntObject::showAll(to);
+}
+
+bool ChatChip::receiveEvent(const Point & position, int eventType) const
+{
+	// a chip that is not drawn takes no click
+	if(!chipShown() && eventType == LCLICK)
+		return false;
+	return CIntObject::receiveEvent(position, eventType);
 }
 
 ChatChip::~ChatChip()
@@ -118,7 +128,7 @@ void ChatChip::closePanel()
 void ChatChip::tick(uint32_t)
 {
 	// this chip is the one that is active now (a battle window has its own): the map ignores clicks where it and its panel are
-	ChatConsoleWindow::chipArea = pos;
+	ChatConsoleWindow::chipArea = chipShown() ? pos : Rect();
 	ChatConsoleWindow::panelArea = panel ? panel->pos : Rect();
 	if(ChatConsoleWindow::toggleAsked)
 	{

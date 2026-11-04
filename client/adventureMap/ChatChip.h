@@ -24,6 +24,9 @@ class ChatChip : public CIntObject
 	int shownChannel = -1;
 	std::shared_ptr<ChatConsoleWindow> panel; // the console panel above the chip while it is open (a child of the chip)
 	Rect mapArea;
+	bool onlyWhileOpen = false; // in a battle the chip is drawn only while the panel is open: the hexes under it stay clickable, as in stock
+
+	bool chipShown() const { return !onlyWhileOpen || panel; }
 
 	void openPanel();
 	void closePanel();
@@ -32,13 +35,14 @@ class ChatChip : public CIntObject
 
 public:
 	/// bottom left of `area` (the map view's rectangle)
-	explicit ChatChip(const Rect & area);
+	explicit ChatChip(const Rect & area, bool onlyWhileOpen = false);
 
 	void showAll(Canvas & to) override;
 	void show(Canvas & to) override;
 	void clickPressed(const Point & cursorPosition) override;
 	void tick(uint32_t msPassed) override;
 	void deactivate() override;
+	bool receiveEvent(const Point & position, int eventType) const override;
 	~ChatChip() override;
 	/// the chip and the panel together: what the map view has to repaint under them each frame
 	Rect repaintArea() const;

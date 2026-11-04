@@ -40,7 +40,7 @@ class ChatConsoleWindow : public CIntObject
 	bool listOpen = false;
 	bool settingsOpen = false;
 	bool closeAsked = false;
-	// the compact panel of a battle (K: "smaller, and not freeze the gamespace"): 300 by 120, the log, the To: row and the line; the Options rows scroll
+	// the compact panel of a battle (K: "smaller, and not freeze the gamespace"): 300 by 132, the log, the To: row and the line; the Options rows scroll
 	bool compact = false;
 	int margin = 12;
 	int rowH = 22;
@@ -67,7 +67,7 @@ public:
 	static constexpr int PANEL_W = 380;
 	static constexpr int PANEL_H = 232;
 	static constexpr int COMPACT_W = 300;
-	static constexpr int COMPACT_H = 120;
+	static constexpr int COMPACT_H = 132;
 
 	/// the colour a channel's lines are drawn in, from the settings general.chatColour* (an index into the palette); the quick overlay uses it too
 	static ColorRGBA channelColour(EChatChannel channel);

@@ -269,9 +269,9 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 {
 	OBJECT_CONSTRUCTION;
 	compact = compactPanel;
-	margin = compact ? 9 : MARGIN;
+	margin = MARGIN; // the dialog frame takes about 12 pixels each side, also in the compact panel
 	rowH = compact ? 20 : ROW_H;
-	topY = compact ? 28 : 38;
+	topY = compact ? 30 : 38;
 	const int w = compact ? COMPACT_W : WIN_W;
 	const int h = compact ? COMPACT_H : WIN_H;
 	// bottom left of the map view (or of a battlefield), over the chip (the chip is 22 high with 8 below it)
@@ -280,9 +280,9 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 	glass = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(18, 10, 4, 120));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
-	const int buttonY = compact ? 7 : 12;
-	const int buttonH = compact ? 17 : 20;
-	title = std::make_shared<CLabel>(margin + 34, compact ? 17 : 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
+	const int buttonY = 12;
+	const int buttonH = compact ? 16 : 20;
+	title = std::make_shared<CLabel>(margin + 34, compact ? 20 : 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
 	closeButton = std::make_shared<ChatButton>(Rect(pos.w - margin - 20, buttonY, 20, buttonH), "x", [this]() { closeAsked = true; });
 	settingsButton = std::make_shared<ChatButton>(Rect(pos.w - margin - 20 - 4 - 64, buttonY, 64, buttonH), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
 

@@ -142,6 +142,10 @@ void CInGameConsole::addMessage(const std::string & timeFormatted, const std::st
 
 	ENGINE->windows().totalRedraw(); // FIXME: ingame console has no parent widget set
 
+	// DMB (K, the Options of the chat panel): the chime for a new line can be turned off
+	if(!settings["general"]["chatSound"].Bool())
+		return;
+
 	int volume = ENGINE->sound().getVolume();
 	if(volume == 0)
 		ENGINE->sound().setVolume(settings["general"]["sound"].Integer());

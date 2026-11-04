@@ -59,6 +59,7 @@
 				"chatMuteTeam",
 				"chatMuteSpectators",
 				"chatMuteSystem",
+				"chatSound",
 				"chatColourAll",
 				"chatColourTeam",
 				"chatColourSpectators",
@@ -86,6 +87,11 @@
 				"chatMuteSystem" : {
 					"type" : "boolean",
 					"default" : false
+				},
+				// the stock chime when a line comes in
+				"chatSound" : {
+					"type" : "boolean",
+					"default" : true
 				},
 				// the colour of each channel, an index into the console's palette (ChatConsoleWindow::channelColour), and the console's text size (0 small, 1 medium)
 				"chatColourAll" : {

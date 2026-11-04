@@ -847,6 +847,7 @@
 	"vcmi.chat.window.fontLarge": "Large",
 	"vcmi.chat.window.never": "Never",
 	"vcmi.chat.window.muteSystem": "Hide System lines:",
+	"vcmi.chat.window.sound": "Sound for a new line:",
 	"vcmi.chat.window.fade": "Overlay fades after:",
 	"vcmi.chat.colour.green": "Green",
 	"vcmi.chat.colour.cyan": "Cyan",

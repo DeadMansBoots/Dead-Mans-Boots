@@ -302,8 +302,8 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 	}
 	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 6, rowY, pos.w - 2 * MARGIN - toW - 6, ROW_H), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
 
-	for(int i = 0; i < 10; ++i)
-		settingsRows.push_back(std::make_shared<ChatButton>(Rect(MARGIN + 20, 40 + i * 17, pos.w - 2 * MARGIN - 40, 16), "", [this, i]() { changeSetting(i); }));
+	for(int i = 0; i < 11; ++i)
+		settingsRows.push_back(std::make_shared<ChatButton>(Rect(MARGIN + 20, 40 + i * 16, pos.w - 2 * MARGIN - 40, 15), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
 	setSettingsOpen(false);
 
@@ -415,6 +415,7 @@ void ChatConsoleWindow::refreshSettingsRows()
 	const double fade = settings["general"]["chatFadeSeconds"].Float();
 	settingsRows[8]->setText(text->translate("vcmi.chat.window.fade") + " " + (fade <= 0 ? text->translate("vcmi.chat.window.never") : std::to_string(static_cast<int>(fade)) + " s"));
 	settingsRows[9]->setText(text->translate("vcmi.chat.window.muteSystem") + " " + (settings["general"]["chatMuteSystem"].Bool() ? on : off));
+	settingsRows[10]->setText(text->translate("vcmi.chat.window.sound") + " " + (settings["general"]["chatSound"].Bool() ? on : off));
 }
 
 void ChatConsoleWindow::changeSetting(int row)
@@ -445,7 +446,7 @@ void ChatConsoleWindow::changeSetting(int row)
 	}
 	else
 	{
-		const char * key = row == 1 ? "chatTimestamps" : row == 2 ? "chatMuteTeam" : row == 3 ? "chatMuteSpectators" : "chatMuteSystem";
+		const char * key = row == 1 ? "chatTimestamps" : row == 2 ? "chatMuteTeam" : row == 3 ? "chatMuteSpectators" : row == 9 ? "chatMuteSystem" : "chatSound";
 		Settings entry = settings.write["general"][std::string(key)];
 		entry->Bool() = !entry->Bool();
 	}

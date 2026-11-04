@@ -199,7 +199,8 @@ public:
 	// while the line has the focus every key is the line's (the map's shortcuts would fire on the letters otherwise); a click outside it, or Escape, gives the keys back
 	bool captureThisKey(EShortcut key) override
 	{
-		return box->hasFocus();
+		// only the keys the line uses: the dispatcher hands a pressed key's first captured shortcut to one object, so capturing every key lost Return (the letters do not reach the map while the text input is on)
+		return box->hasFocus() && (key == EShortcut::GLOBAL_ACCEPT || key == EShortcut::GLOBAL_CANCEL || key == EShortcut::GLOBAL_BACKSPACE || key == EShortcut::GAME_ACTIVATE_CONSOLE);
 	}
 
 	void focusLine()

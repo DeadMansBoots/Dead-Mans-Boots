@@ -69,6 +69,8 @@ public:
 	static Rect chipArea;
 	static bool openAsked;
 	static bool toggleAsked;
+	/// the channel the next line goes to, for the chip's label
+	static EChatChannel currentChannel;
 
 	bool closeRequested() const { return closeAsked; }
 	void focusInput();

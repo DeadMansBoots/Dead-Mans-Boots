@@ -21,7 +21,7 @@
 
 namespace
 {
-const int CHIP_W = 84;
+const int CHIP_W = 124;
 const int CHIP_H = 22;
 }
 
@@ -32,7 +32,9 @@ ChatChip::ChatChip(const Rect & area)
 	pos = Rect(area.x + 8, area.y + area.h - CHIP_H - 8, CHIP_W, CHIP_H);
 	ChatConsoleWindow::chipArea = pos;
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, CHIP_W, CHIP_H), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
-	label = std::make_shared<CLabel>(CHIP_W / 2, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, "");
+	label = std::make_shared<CLabel>(8, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::YELLOW, "");
+	badge = std::make_shared<TransparentFilledRectangle>(Rect(CHIP_W - 24, 3, 20, CHIP_H - 6), ColorRGBA(190, 20, 20, 255), ColorRGBA(255, 215, 120, 255), 1);
+	badgeLabel = std::make_shared<CLabel>(CHIP_W - 14, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "");
 	addUsedEvents(LCLICK | TIME);
 	refreshLabel();
 }
@@ -40,14 +42,17 @@ ChatChip::ChatChip(const Rect & area)
 void ChatChip::refreshLabel()
 {
 	const int unread = GAME->server().getGameChat().getUnreadLines();
-	if(unread == shownUnread)
+	const int channel = static_cast<int>(ChatConsoleWindow::currentChannel);
+	if(unread == shownUnread && channel == shownChannel)
 		return;
 	shownUnread = unread;
-	std::string text = LIBRARY->generaltexth->translate("vcmi.chat.window.title");
-	if(unread > 0)
-		text += " " + std::to_string(unread);
-	label->setText(text);
-	label->color = unread > 0 ? Colors::WHITE : Colors::YELLOW;
+	shownChannel = channel;
+	// "Chat <channel>" and a red badge with the number of lines not yet read (K's mockup)
+	const char * key = ChatConsoleWindow::currentChannel == EChatChannel::TEAM ? "vcmi.chat.channel.team" : ChatConsoleWindow::currentChannel == EChatChannel::SPECTATORS ? "vcmi.chat.channel.spectators" : "vcmi.chat.channel.all";
+	label->setText(LIBRARY->generaltexth->translate("vcmi.chat.window.title") + " " + LIBRARY->generaltexth->translate(key));
+	badge->setEnabled(unread > 0);
+	badgeLabel->setEnabled(unread > 0);
+	badgeLabel->setText(std::to_string(std::min(unread, 99)));
 }
 
 void ChatChip::showAll(Canvas & to)
@@ -107,8 +112,7 @@ void ChatChip::tick(uint32_t)
 	}
 	if(panel && panel->closeRequested())
 		closePanel();
-	if(GAME->server().getGameChat().getUnreadLines() != shownUnread)
-		refreshLabel();
+	refreshLabel();
 }
 
 void ChatChip::clickPressed(const Point &)

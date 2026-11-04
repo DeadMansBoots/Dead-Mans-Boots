@@ -17,7 +17,10 @@ class ChatChip : public CIntObject
 {
 	std::shared_ptr<TransparentFilledRectangle> background;
 	std::shared_ptr<CLabel> label;
+	std::shared_ptr<TransparentFilledRectangle> badge;
+	std::shared_ptr<CLabel> badgeLabel;
 	int shownUnread = -1;
+	int shownChannel = -1;
 	std::shared_ptr<ChatConsoleWindow> panel; // the console panel above the chip while it is open (a child of the chip)
 	Rect mapArea;
 

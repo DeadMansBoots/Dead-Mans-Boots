@@ -826,7 +826,7 @@
 	"vcmi.lobby.login.error": "Connection error: %s",
 	"vcmi.lobby.login.login": "Login",
 	"vcmi.lobby.login.spectator": "Spectator",
-	"vcmi.chat.channel.all": "All",
+	"vcmi.chat.channel.all": "Everyone",
 	"vcmi.chat.channel.team": "Team",
 	"vcmi.chat.channel.spectators": "Spectators",
 	"vcmi.chat.window.title": "Chat",

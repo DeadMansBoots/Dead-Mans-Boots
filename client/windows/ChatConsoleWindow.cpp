@@ -55,6 +55,15 @@ EFonts chatFont()
 	return settings["general"]["chatFontSize"].Float() >= 1 ? FONT_MEDIUM : FONT_SMALL;
 }
 
+// Team is offered only to a player who has an ally (the team has more than one player)
+bool teamAvailable()
+{
+	if(!GAME || !GAME->interface() || !GAME->interface()->cb)
+		return true;
+	const auto * team = GAME->interface()->cb->getPlayerTeam(GAME->interface()->playerID);
+	return !team || team->players.size() > 1;
+}
+
 std::string channelName(EChatChannel channel)
 {
 	switch(channel)
@@ -225,6 +234,7 @@ Rect ChatConsoleWindow::panelArea = Rect();
 Rect ChatConsoleWindow::chipArea = Rect();
 bool ChatConsoleWindow::openAsked = false;
 bool ChatConsoleWindow::toggleAsked = false;
+EChatChannel ChatConsoleWindow::currentChannel = EChatChannel::ALL;
 
 ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 	: CIntObject(LCLICK)
@@ -311,7 +321,10 @@ void ChatConsoleWindow::showAll(Canvas & to)
 
 void ChatConsoleWindow::nextChannel()
 {
-	setChannel(static_cast<EChatChannel>((static_cast<int>(channel) + 1) % 3));
+	auto next = static_cast<EChatChannel>((static_cast<int>(channel) + 1) % 3);
+	if(next == EChatChannel::TEAM && !teamAvailable())
+		next = EChatChannel::SPECTATORS;
+	setChannel(next);
 }
 
 ColorRGBA ChatConsoleWindow::channelColour(EChatChannel channel)
@@ -405,6 +418,7 @@ void ChatConsoleWindow::changeSetting(int row)
 void ChatConsoleWindow::setChannel(EChatChannel newChannel)
 {
 	channel = newChannel;
+	currentChannel = newChannel;
 	toButton->setText(LIBRARY->generaltexth->translate("vcmi.chat.window.to") + " " + channelName(channel) + " v");
 	input->setColour(channelColour(channel));
 	setListOpen(false);
@@ -414,8 +428,19 @@ void ChatConsoleWindow::setChannel(EChatChannel newChannel)
 void ChatConsoleWindow::setListOpen(bool open)
 {
 	listOpen = open;
-	for(auto & item : toItems)
-		item->setEnabled(open);
+	// the entries a player is offered, from the To: box upward
+	const int rowY = pos.h - MARGIN - ROW_H;
+	int shown = 0;
+	for(int i = 0; i < 3; ++i)
+	{
+		const bool offered = i != static_cast<int>(EChatChannel::TEAM) || teamAvailable();
+		toItems[i]->setEnabled(open && offered);
+		if(offered)
+		{
+			++shown;
+			toItems[i]->moveTo(pos.topLeft() + Point(MARGIN, rowY - shown * ROW_H));
+		}
+	}
 	redraw();
 }
 

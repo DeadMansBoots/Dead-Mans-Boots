@@ -58,6 +58,7 @@
 				"chatTimestamps",
 				"chatMuteTeam",
 				"chatMuteSpectators",
+				"chatMuteSystem",
 				"chatColourAll",
 				"chatColourTeam",
 				"chatColourSpectators",
@@ -79,6 +80,10 @@
 					"default" : false
 				},
 				"chatMuteSpectators" : {
+					"type" : "boolean",
+					"default" : false
+				},
+				"chatMuteSystem" : {
 					"type" : "boolean",
 					"default" : false
 				},

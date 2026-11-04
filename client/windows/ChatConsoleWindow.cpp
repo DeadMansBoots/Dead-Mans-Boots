@@ -54,7 +54,8 @@ const char * colourKey(int row)
 
 EFonts chatFont()
 {
-	return settings["general"]["chatFontSize"].Float() >= 1 ? FONT_MEDIUM : FONT_SMALL;
+	const double size = settings["general"]["chatFontSize"].Float();
+	return size >= 2 ? FONT_BIG : size >= 1 ? FONT_MEDIUM : FONT_SMALL;
 }
 
 // Team is offered only to a player who has an ally (the team has more than one player)
@@ -142,14 +143,14 @@ public:
 
 		const auto & history = GAME->server().getGameChat().getChatHistory();
 		const EFonts font = chatFont();
-		const int lineHeight = font == FONT_MEDIUM ? 20 : 16;
+		const int lineHeight = font == FONT_BIG ? 26 : font == FONT_MEDIUM ? 20 : 16;
 		const int rows = std::max(1, (pos.h - 8) / lineHeight);
 		std::vector<std::pair<std::string, ColorRGBA>> lines;
 		const size_t first = history.size() > 300 ? history.size() - 300 : 0;
 		for(size_t i = first; i < history.size(); ++i)
 		{
 			const auto & entry = history[i];
-			if((entry.channel == EChatChannel::TEAM && settings["general"]["chatMuteTeam"].Bool()) || (entry.channel == EChatChannel::SPECTATORS && settings["general"]["chatMuteSpectators"].Bool()))
+			if((entry.channel == EChatChannel::TEAM && settings["general"]["chatMuteTeam"].Bool()) || (entry.channel == EChatChannel::SPECTATORS && settings["general"]["chatMuteSpectators"].Bool()) || (entry.senderName == "System" && settings["general"]["chatMuteSystem"].Bool()))
 				continue;
 			const std::string who = entry.channel == EChatChannel::ALL ? entry.senderName : "[" + channelName(entry.channel) + "] " + entry.senderName;
 			const std::string text = (settings["general"]["chatTimestamps"].Bool() ? "[" + entry.dateFormatted + "] " : std::string()) + who + ": " + entry.messageText;
@@ -275,7 +276,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 	}
 	input = std::make_shared<ChatLineInput>(Rect(MARGIN + toW + 6, rowY, pos.w - 2 * MARGIN - toW - 6, ROW_H), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
 
-	for(int i = 0; i < 9; ++i)
+	for(int i = 0; i < 10; ++i)
 		settingsRows.push_back(std::make_shared<ChatButton>(Rect(MARGIN + 20, 40 + i * 17, pos.w - 2 * MARGIN - 40, 16), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
 	setSettingsOpen(false);
@@ -363,7 +364,7 @@ void ChatConsoleWindow::refreshSettingsRows()
 	const auto & text = LIBRARY->generaltexth;
 	const std::string on = text->translate("vcmi.chat.window.on");
 	const std::string off = text->translate("vcmi.chat.window.off");
-	settingsRows[0]->setText(text->translate("vcmi.chat.window.opacity") + " " + std::to_string(static_cast<int>(settings["general"]["chatOpacity"].Float())) + "%");
+	settingsRows[0]->setText(text->translate("vcmi.chat.window.opacity") + " " + text->translate(settings["general"]["chatOpacity"].Float() >= 99.5 ? "vcmi.chat.window.opaque" : "vcmi.chat.window.glass"));
 	settingsRows[1]->setText(text->translate("vcmi.chat.window.timestamps") + " " + (settings["general"]["chatTimestamps"].Bool() ? on : off));
 	settingsRows[2]->setText(text->translate("vcmi.chat.window.muteTeam") + " " + (settings["general"]["chatMuteTeam"].Bool() ? on : off));
 	settingsRows[3]->setText(text->translate("vcmi.chat.window.muteSpectators") + " " + (settings["general"]["chatMuteSpectators"].Bool() ? on : off));
@@ -373,26 +374,20 @@ void ChatConsoleWindow::refreshSettingsRows()
 		const std::string label = text->translate(row == 0 ? "vcmi.chat.channel.all" : row == 1 ? "vcmi.chat.channel.team" : "vcmi.chat.channel.spectators");
 		settingsRows[4 + row]->setText(label + " " + text->translate("vcmi.chat.window.colour") + " " + text->translate(PALETTE_NAMES[index]));
 	}
-	settingsRows[7]->setText(text->translate("vcmi.chat.window.fontSize") + " " + text->translate(settings["general"]["chatFontSize"].Float() >= 1 ? "vcmi.chat.window.fontMedium" : "vcmi.chat.window.fontSmall"));
-	settingsRows[8]->setText(text->translate("vcmi.chat.window.fade") + " " + std::to_string(static_cast<int>(settings["general"]["chatFadeSeconds"].Float())) + " s");
+	const double size = settings["general"]["chatFontSize"].Float();
+	settingsRows[7]->setText(text->translate("vcmi.chat.window.fontSize") + " " + text->translate(size >= 2 ? "vcmi.chat.window.fontLarge" : size >= 1 ? "vcmi.chat.window.fontMedium" : "vcmi.chat.window.fontSmall"));
+	const double fade = settings["general"]["chatFadeSeconds"].Float();
+	settingsRows[8]->setText(text->translate("vcmi.chat.window.fade") + " " + (fade <= 0 ? text->translate("vcmi.chat.window.never") : std::to_string(static_cast<int>(fade)) + " s"));
+	settingsRows[9]->setText(text->translate("vcmi.chat.window.muteSystem") + " " + (settings["general"]["chatMuteSystem"].Bool() ? on : off));
 }
 
 void ChatConsoleWindow::changeSetting(int row)
 {
 	if(row == 0)
 	{
-		// 15, 30, 45, 60, 80, 100 and round again
-		const double now = settings["general"]["chatOpacity"].Float();
-		const std::array<double, 6> steps = {15, 30, 45, 60, 80, 100};
-		double next = steps[0];
-		for(double step : steps)
-			if(step > now + 0.5)
-			{
-				next = step;
-				break;
-			}
+		// opaque (100) or glass (45)
 		Settings entry = settings.write["general"]["chatOpacity"];
-		entry->Float() = next;
+		entry->Float() = entry->Float() >= 99.5 ? 45 : 100;
 	}
 	else if(row >= 4 && row <= 6)
 	{
@@ -402,26 +397,19 @@ void ChatConsoleWindow::changeSetting(int row)
 	else if(row == 7)
 	{
 		Settings entry = settings.write["general"]["chatFontSize"];
-		entry->Float() = entry->Float() >= 1 ? 0 : 1;
+		entry->Float() = entry->Float() >= 2 ? 0 : entry->Float() + 1;
 	}
 	else if(row == 8)
 	{
-		// 5, 10, 20, 30, 60 seconds and round again
+		// 10 s, 30 s, never (0) and round again
 		const double now = settings["general"]["chatFadeSeconds"].Float();
-		const std::array<double, 5> steps = {5, 10, 20, 30, 60};
-		double next = steps[0];
-		for(double step : steps)
-			if(step > now + 0.5)
-			{
-				next = step;
-				break;
-			}
+		const double next = now <= 0 ? 10 : now < 20 ? 30 : now < 45 ? 0 : 10;
 		Settings entry = settings.write["general"]["chatFadeSeconds"];
 		entry->Float() = next;
 	}
 	else
 	{
-		const char * key = row == 1 ? "chatTimestamps" : row == 2 ? "chatMuteTeam" : "chatMuteSpectators";
+		const char * key = row == 1 ? "chatTimestamps" : row == 2 ? "chatMuteTeam" : row == 3 ? "chatMuteSpectators" : "chatMuteSystem";
 		Settings entry = settings.write["general"][std::string(key)];
 		entry->Bool() = !entry->Bool();
 	}

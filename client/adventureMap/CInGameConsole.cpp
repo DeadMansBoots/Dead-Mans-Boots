@@ -85,7 +85,9 @@ void CInGameConsole::tick(uint32_t msPassed)
 				texts,
 				[&](const auto & value)
 	{
-		return value.timeOnScreen > static_cast<uint32_t>(settings["general"]["chatFadeSeconds"].Float() * 1000); // DMB: the fade time is a console setting
+		// DMB: the fade time is a console setting; 0 is never
+		const double fade = settings["general"]["chatFadeSeconds"].Float();
+		return fade > 0 && value.timeOnScreen > static_cast<uint32_t>(fade * 1000);
 	}
 	);
 

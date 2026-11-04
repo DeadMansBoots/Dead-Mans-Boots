@@ -31,10 +31,19 @@ ChatChip::ChatChip(const Rect & area)
 	mapArea = area;
 	pos = Rect(area.x + 8, area.y + area.h - CHIP_H - 8, CHIP_W, CHIP_H);
 	ChatConsoleWindow::chipArea = pos;
-	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, CHIP_W, CHIP_H), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
+	// K's mockup (October 22nd): a framed box in the screen frame's red rail: a red band, a thin gold line, a plum fill
+	const ColorRGBA red(170, 22, 22, 255);
+	const ColorRGBA gold(232, 204, 120, 255);
+	const ColorRGBA plum(44, 10, 48, 255);
+	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, CHIP_W, CHIP_H), red);
+	frame = std::make_shared<TransparentFilledRectangle>(Rect(1, 2, CHIP_W - 2, CHIP_H - 4), plum, gold, 1);
 	label = std::make_shared<CLabel>(8, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::YELLOW, "");
-	badge = std::make_shared<TransparentFilledRectangle>(Rect(CHIP_W - 24, 3, 20, CHIP_H - 6), ColorRGBA(190, 20, 20, 255), ColorRGBA(255, 215, 120, 255), 1);
-	badgeLabel = std::make_shared<CLabel>(CHIP_W - 14, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "");
+	// the badge: a dark red square with a gold ring, its four corners cut with the fill colour so that it reads round
+	const Rect ring(CHIP_W - 24, 3, 18, 16);
+	badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(ring, ColorRGBA(140, 20, 20, 255), gold, 1));
+	for(const Point & corner : {Point(ring.x, ring.y), Point(ring.right() - 1, ring.y), Point(ring.x, ring.bottom() - 1), Point(ring.right() - 1, ring.bottom() - 1)})
+		badgeParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(corner.x, corner.y, 1, 1), plum));
+	badgeLabel = std::make_shared<CLabel>(CHIP_W - 15, CHIP_H / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "");
 	addUsedEvents(LCLICK | TIME);
 	refreshLabel();
 }
@@ -50,7 +59,8 @@ void ChatChip::refreshLabel()
 	// "Chat <channel>" and a red badge with the number of lines not yet read (K's mockup)
 	const char * key = ChatConsoleWindow::currentChannel == EChatChannel::TEAM ? "vcmi.chat.channel.team" : ChatConsoleWindow::currentChannel == EChatChannel::SPECTATORS ? "vcmi.chat.channel.spectators" : "vcmi.chat.channel.all";
 	label->setText(LIBRARY->generaltexth->translate("vcmi.chat.window.title") + " " + LIBRARY->generaltexth->translate(key));
-	badge->setEnabled(unread > 0);
+	for(auto & part : badgeParts)
+		part->setEnabled(unread > 0);
 	badgeLabel->setEnabled(unread > 0);
 	badgeLabel->setText(std::to_string(std::min(unread, 99)));
 }

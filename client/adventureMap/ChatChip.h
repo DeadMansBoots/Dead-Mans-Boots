@@ -16,8 +16,9 @@ class ChatConsoleWindow;
 class ChatChip : public CIntObject
 {
 	std::shared_ptr<TransparentFilledRectangle> background;
+	std::shared_ptr<TransparentFilledRectangle> frame;
 	std::shared_ptr<CLabel> label;
-	std::shared_ptr<TransparentFilledRectangle> badge;
+	std::vector<std::shared_ptr<TransparentFilledRectangle>> badgeParts; // the red round-cornered badge with the unread count, behind badgeLabel
 	std::shared_ptr<CLabel> badgeLabel;
 	int shownUnread = -1;
 	int shownChannel = -1;

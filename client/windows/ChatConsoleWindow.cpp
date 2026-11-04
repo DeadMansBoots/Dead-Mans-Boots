@@ -142,7 +142,7 @@ public:
 		const EFonts font = chatFont();
 		const int lineHeight = font == FONT_MEDIUM ? 20 : 16;
 		const int rows = std::max(1, (pos.h - 8) / lineHeight);
-		std::vector<std::pair<std::string, EChatChannel>> lines;
+		std::vector<std::pair<std::string, ColorRGBA>> lines;
 		const size_t first = history.size() > 300 ? history.size() - 300 : 0;
 		for(size_t i = first; i < history.size(); ++i)
 		{
@@ -151,15 +151,26 @@ public:
 				continue;
 			const std::string who = entry.channel == EChatChannel::ALL ? entry.senderName : "[" + channelName(entry.channel) + "] " + entry.senderName;
 			const std::string text = (settings["general"]["chatTimestamps"].Bool() ? "[" + entry.dateFormatted + "] " : std::string()) + who + ": " + entry.messageText;
-			for(const auto & part : CMessage::breakText(text, pos.w - 16, font))
-				lines.emplace_back(part, entry.channel);
+			// the game's own lines (System) are a soft green, apart from the three channels
+			const ColorRGBA colour = entry.senderName == "System" ? ColorRGBA(130, 215, 130) : ChatConsoleWindow::channelColour(entry.channel);
+			for(const auto & part : CMessage::breakText(text, pos.w - 22, font))
+				lines.emplace_back(part, colour);
 		}
 		const int total = static_cast<int>(lines.size());
 		scrollBack = std::min(scrollBack, std::max(0, total - rows));
 		const int last = total - scrollBack; // one past the last line shown
 		const int begin = std::max(0, last - rows);
 		for(int i = begin; i < last; ++i)
-			to.drawText(pos.topLeft() + Point(8, 4 + (i - begin) * lineHeight), font, ChatConsoleWindow::channelColour(lines[i].second), ETextAlignment::TOPLEFT, lines[i].first);
+			to.drawText(pos.topLeft() + Point(8, 4 + (i - begin) * lineHeight), font, lines[i].second, ETextAlignment::TOPLEFT, lines[i].first);
+		// the scroll bar: a track on the right and a thumb that shows where in the history the lines are (the wheel moves it)
+		const Rect track(pos.x + pos.w - 8, pos.y + 3, 5, pos.h - 6);
+		to.drawColorBlended(track, ColorRGBA(0, 0, 0, 120));
+		if(total > rows)
+		{
+			const int thumbH = std::max(10, track.h * rows / total);
+			const int thumbY = track.y + (track.h - thumbH) * begin / std::max(1, total - rows);
+			to.drawColorBlended(Rect(track.x, thumbY, track.w, thumbH), ColorRGBA(212, 175, 55, 220));
+		}
 	}
 };
 

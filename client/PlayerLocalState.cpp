@@ -368,7 +368,8 @@ void PlayerLocalState::serialize(JsonNode & dest) const
 
 void PlayerLocalState::deserialize(const JsonNode & source)
 {
-	if(source["chat"].isVector())
+	// the player's own file (every channel) when this PC has one, else the Everyone and System lines the save carries
+	if(!GAME->server().getGameChat().readSidecar() && source["chat"].isVector())
 		GAME->server().getGameChat().fromJson(source["chat"]);
 
 	// this method must be called after player state has been initialized

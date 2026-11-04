@@ -24,6 +24,7 @@
 #include "../lib/mapObjects/army/CArmedInstance.h"
 #include "../lib/CConfigHandler.h"
 #include "../lib/GameLibrary.h"
+#include "../lib/VCMIDirs.h"
 #include "../lib/texts/CGeneralTextHandler.h"
 #include "../lib/texts/TextOperations.h"
 
@@ -39,13 +40,13 @@ void GameChatHandler::resetMatchState()
 	consoleWindowOpen = false;
 }
 
-JsonNode GameChatHandler::toJson() const
+JsonNode GameChatHandler::toJson(bool allChannels) const
 {
 	JsonNode result;
 	// the player's local state goes into the game state every client and the host's save receive: only the Everyone and System lines are put in it, so that a Team or Spectators line is never readable outside its audience (the server decides who receives a line)
 	std::vector<const GameChatMessage *> kept;
 	for(const auto & entry : chatHistory)
-		if(entry.channel == EChatChannel::ALL)
+		if(allChannels || entry.channel == EChatChannel::ALL)
 			kept.push_back(&entry);
 	const size_t first = kept.size() > 2000 ? kept.size() - 2000 : 0;
 	for(size_t i = first; i < kept.size(); ++i)
@@ -57,8 +58,65 @@ JsonNode GameChatHandler::toJson() const
 		line["c"].Integer() = static_cast<int>(kept[i]->channel);
 		result.Vector().push_back(line);
 	}
-	logGlobal->info("Chat saved with the game: %d line(s), the last one \"%s\"", result.Vector().size(), result.Vector().empty() ? std::string() : result.Vector().back()["t"].String());
+	if(!allChannels)
+		logGlobal->info("Chat saved with the game: %d line(s), the last one \"%s\"", result.Vector().size(), result.Vector().empty() ? std::string() : result.Vector().back()["t"].String());
 	return result;
+}
+
+namespace
+{
+boost::filesystem::path chatSidecarPath(const std::string & saveName)
+{
+	std::string name = saveName;
+	const std::string extension = ".vsgm1";
+	if(name.size() > extension.size() && name.compare(name.size() - extension.size(), extension.size(), extension) == 0)
+		name.erase(name.size() - extension.size());
+	boost::filesystem::path path(name);
+	if(path.is_relative())
+		path = VCMIDirs::get().userDataPath() / path;
+	path += ".chat";
+	return path;
+}
+}
+
+void GameChatHandler::writeSidecar(const std::string & saveName) const
+{
+	try
+	{
+		const auto path = chatSidecarPath(saveName);
+		boost::filesystem::create_directories(path.parent_path());
+		const std::string text = toJson(true).toString();
+		std::ofstream file(path.string(), std::ios::binary | std::ios::trunc);
+		file << text;
+		logGlobal->info("Chat file written: %s (%d byte(s))", path.string(), text.size());
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Chat file not written for %s: %s", saveName, e.what());
+	}
+}
+
+bool GameChatHandler::readSidecar()
+{
+	if(!chatHistory.empty() || !GAME || !GAME->server().si)
+		return false;
+	try
+	{
+		const auto path = chatSidecarPath(GAME->server().si->mapname);
+		logGlobal->info("Chat file looked for: %s", path.string());
+		if(!boost::filesystem::exists(path))
+			return false;
+		std::ifstream file(path.string(), std::ios::binary);
+		const std::string data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+		const JsonNode node(reinterpret_cast<const std::byte *>(data.data()), data.size(), path.string());
+		fromJson(node);
+		return !chatHistory.empty();
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Chat file not read: %s", e.what());
+		return false;
+	}
 }
 
 void GameChatHandler::fromJson(const JsonNode & node)

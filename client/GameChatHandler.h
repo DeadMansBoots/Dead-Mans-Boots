@@ -41,7 +41,12 @@ public:
 	void resetMatchState();
 
 	/// DMB (K, November 1st: the console's scrollback survives a save): the history as JSON, the last 2000 lines, kept in the player's local state that stock puts in the save
-	JsonNode toJson() const;
+	JsonNode toJson(bool allChannels = false) const;
+
+	/// DMB (K, chat saved with saves): the whole history, every channel this player was in, goes to a file next to the save on this PC (<save>.chat), not into the game state that every client and the host's save receive
+	void writeSidecar(const std::string & saveName) const;
+	/// reads the file of the game that was loaded (the lobby state's map name is the save's name); false when there is none
+	bool readSidecar();
 	/// a loaded game's history, taken when this session has no lines of its own yet
 	void fromJson(const JsonNode & node);
 

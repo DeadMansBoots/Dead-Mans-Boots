@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "GameChatHandler.h"
 #include "GameInstance.h"
 
 #include "CPlayerInterface.h"
@@ -142,5 +143,6 @@ void GameInstance::pauseAutoSave()
 		return;
 	}
 
+	GAME->server().getGameChat().writeSidecar(autoSaveName);
 	GAME->interface()->cb->save(autoSaveName, false);
 }

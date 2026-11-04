@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "GameChatHandler.h"
 #include "CPlayerInterface.h"
 #include <atomic>
 #include "../lib/DmbIssueReport.h"
@@ -302,7 +303,9 @@ void CPlayerInterface::performAutosave()
 		int autosaveCountLimit = settings["general"]["autosaveCountLimit"].Integer();
 		if(autosaveCountLimit > 0)
 		{
-			cb->save("Saves/Autosave/" + prefix + std::to_string(autosaveCount), false);
+			const std::string saveName = "Saves/Autosave/" + prefix + std::to_string(autosaveCount);
+			GAME->server().getGameChat().writeSidecar(saveName);
+			cb->save(saveName, false);
 			autosaveCount %= autosaveCountLimit;
 		}
 		else
@@ -311,7 +314,9 @@ void CPlayerInterface::performAutosave()
 					+ std::to_string(cb->getDate(Date::WEEK))
 					+ std::to_string(cb->getDate(Date::DAY_OF_WEEK));
 
-			cb->save("Saves/Autosave/" + prefix + stringifiedDate, false);
+			const std::string saveName = "Saves/Autosave/" + prefix + stringifiedDate;
+			GAME->server().getGameChat().writeSidecar(saveName);
+			cb->save(saveName, false);
 		}
 	}
 }
@@ -2049,6 +2054,7 @@ void CPlayerInterface::quickSaveGame()
 	txt.replaceRawString(QUICKSAVE_PATH);
 	GAME->server().getGameChat().sendMessageGameplay(txt.toString());
 	localState->synchronizeState(); // the console's history goes into the save (DMB)
+	GAME->server().getGameChat().writeSidecar(QUICKSAVE_PATH);
 	GAME->interface()->cb->save(QUICKSAVE_PATH, false);
 	hasQuickSave = true;
 	if(adventureInt)

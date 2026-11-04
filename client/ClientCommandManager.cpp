@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "GameChatHandler.h"
 #include "ClientCommandManager.h"
 
 #include "Client.h"
@@ -62,6 +63,7 @@ void ClientCommandManager::handleSaveCommand(std::istringstream & singleWordBuff
 
 	std::string saveFilename;
 	singleWordBuffer >> saveFilename;
+	GAME->server().getGameChat().writeSidecar(saveFilename);
 	GAME->interface()->cb->save(saveFilename, false);
 	printCommandMessage("Game saved as: " + saveFilename);
 }

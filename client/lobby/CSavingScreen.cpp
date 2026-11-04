@@ -8,6 +8,8 @@
  *
  */
 #include "StdInc.h"
+#include "../CServerHandler.h"
+#include "../GameChatHandler.h"
 
 #include "CSavingScreen.h"
 #include "SelectionTab.h"
@@ -87,6 +89,7 @@ void CSavingScreen::saveGame()
 		Settings lastSave = settings.write["general"]["lastSave"];
 		lastSave->String() = path;
 		GAME->interface()->localState->synchronizeState(); // the console's history goes into the save (DMB)
+		GAME->server().getGameChat().writeSidecar(path);
 		GAME->interface()->cb->save(path, true);
 		close();
 	};

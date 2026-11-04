@@ -31,7 +31,7 @@ ChatChip::ChatChip(const Rect & area, bool onlyWhileOpen)
 	OBJECT_CONSTRUCTION;
 	mapArea = area;
 	// K, November 4th: the minimized box sits offset from the corner garnish (the gold frill and the red orb): right of them, above the frame's bottom line
-	pos = Rect(area.x + 40, area.y + area.h - CHIP_H - 6, CHIP_W, CHIP_H);
+	pos = Rect(area.x + 40, area.y + area.h - CHIP_H - 4, CHIP_W, CHIP_H);
 	ChatConsoleWindow::chipArea = chipShown() ? pos : Rect();
 	// K's mockup (October 22nd): a framed box in the screen frame's red rail: a red band, a thin gold line, a plum fill
 	const ColorRGBA red = ChatConsoleWindow::bandColour();

@@ -280,8 +280,10 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 	// the screen frame's left strip is 7 pixels wide and its bottom lines start at the map view's bottom, so the panel's left edge is the screen's edge and its bottom edge the map view's bottom (the frame's own lines are the panel's left and bottom borders)
 	// in a battle (no such frame) the compact panel is at the field's bottom left with a band on all four sides
 	pos = compact ? Rect(area.x, area.y + area.h - h, w, h) : Rect(area.x - 7, area.y + area.h - h, w, h);
-	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
-	glass = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(18, 10, 4, 120));
+	// the screen frame's left strip (7 pixels) stays visible: the panel's fill starts inside it (the battle's compact panel has its own band all round)
+	const int inset = compact ? 0 : 7;
+	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(inset, 0, pos.w - inset, pos.h));
+	glass = std::make_shared<TransparentFilledRectangle>(Rect(inset, 0, pos.w - inset, pos.h), ColorRGBA(18, 10, 4, 120));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
 	const int buttonY = 9;

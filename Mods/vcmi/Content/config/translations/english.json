@@ -849,6 +849,8 @@
 	"vcmi.chat.colour.white": "White",
 	"vcmi.chat.colour.yellow": "Yellow",
 	"vcmi.chat.colour.lavender": "Lavender",
+	"vcmi.chat.colour.parchment": "Parchment",
+	"vcmi.chat.colour.palegold": "Pale gold",
 	"vcmi.lobby.login.title": "VCMI Online Lobby",
 	"vcmi.lobby.login.username": "Username:",
 	"vcmi.lobby.mapPreview": "Map preview",

@@ -44,8 +44,8 @@ const int ROW_H = 22;
 const ColorRGBA GOLD(212, 175, 55, 255);
 
 // the colours a channel can be set to (settings general.chatColour*: an index), none of them an orange, red, blue, tan, purple, teal or pink of the players
-const std::array<ColorRGBA, 6> PALETTE = {ColorRGBA(0, 255, 0), ColorRGBA(100, 210, 255), ColorRGBA(200, 200, 200), ColorRGBA(255, 255, 255), ColorRGBA(255, 255, 0), ColorRGBA(210, 180, 255)};
-const std::array<const char *, 6> PALETTE_NAMES = {"vcmi.chat.colour.green", "vcmi.chat.colour.cyan", "vcmi.chat.colour.grey", "vcmi.chat.colour.white", "vcmi.chat.colour.yellow", "vcmi.chat.colour.lavender"};
+const std::array<ColorRGBA, 8> PALETTE = {ColorRGBA(0, 255, 0), ColorRGBA(100, 210, 255), ColorRGBA(200, 200, 200), ColorRGBA(255, 255, 255), ColorRGBA(255, 255, 0), ColorRGBA(210, 180, 255), ColorRGBA(235, 225, 195), ColorRGBA(235, 205, 125)};
+const std::array<const char *, 8> PALETTE_NAMES = {"vcmi.chat.colour.green", "vcmi.chat.colour.cyan", "vcmi.chat.colour.grey", "vcmi.chat.colour.white", "vcmi.chat.colour.yellow", "vcmi.chat.colour.lavender", "vcmi.chat.colour.parchment", "vcmi.chat.colour.palegold"};
 
 const char * colourKey(int row)
 {

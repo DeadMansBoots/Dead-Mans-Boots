@@ -74,6 +74,7 @@ public:
 
 	bool closeRequested() const { return closeAsked; }
 	void focusInput();
+	void releaseFocus();
 	void showAll(Canvas & to) override;
 	bool receiveEvent(const Point & position, int eventType) const override;
 	void clickPressed(const Point & cursorPosition) override;

@@ -25,6 +25,7 @@
 #include "../GameEngine.h"
 #include "../GameInstance.h"
 #include "../adventureMap/CInGameConsole.h"
+#include "../windows/ChatConsoleWindow.h"
 #include "../client/render/CAnimation.h"
 #include "../gui/CursorHandler.h"
 #include "../render/CAnimation.h"
@@ -767,6 +768,9 @@ void BattleFieldController::show(Canvas & to)
 
 bool BattleFieldController::receiveEvent(const Point & position, int eventType) const
 {
+	// DMB (K, chat panel): the battlefield under the chat panel and its chip takes no clicks or hovers
+	if(ChatConsoleWindow::coversPoint(position))
+		return false;
 	if (eventType == HOVER)
 		return true;
 	return CIntObject::receiveEvent(position, eventType);

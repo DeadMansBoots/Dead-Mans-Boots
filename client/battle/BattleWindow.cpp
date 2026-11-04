@@ -25,6 +25,7 @@
 #include "../GameEngine.h"
 #include "../GameInstance.h"
 #include "../adventureMap/CInGameConsole.h"
+#include "../adventureMap/ChatChip.h"
 #include "../adventureMap/TurnTimerWidget.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/Shortcut.h"
@@ -124,6 +125,9 @@ BattleWindow::BattleWindow(BattleInterface & Owner)
 	createQuickSpellWindow();
 	createStickyHeroInfoWindows();
 	createTimerInfoWindows();
+
+	// DMB (K, chat panel): the chat key and the chip open the panel over the battlefield's bottom left, above the battle console
+	chatChip = std::make_shared<ChatChip>(Rect(pos.x, pos.y, pos.w, console ? console->pos.y - pos.y : pos.h - 44));
 
 	if ( owner.tacticsMode )
 		tacticPhaseStarted();

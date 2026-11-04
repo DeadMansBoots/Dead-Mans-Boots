@@ -22,6 +22,7 @@ VCMI_LIB_NAMESPACE_END
 class CButton;
 class BattleInterface;
 class BattleConsole;
+class ChatChip;
 class BattleRenderer;
 class StackQueue;
 class TurnTimerWidget;
@@ -37,6 +38,8 @@ class BattleWindow : public InterfaceObjectConfigurable
 
 	std::shared_ptr<StackQueue> queue;
 	std::shared_ptr<BattleConsole> console;
+	/// DMB (K, chat panel): chat works in a battle as in stock; the chip and the panel at the bottom left of the battlefield
+	std::shared_ptr<ChatChip> chatChip;
 	std::shared_ptr<HeroInfoBasicPanel> attackerHeroWindow;
 	std::shared_ptr<HeroInfoBasicPanel> defenderHeroWindow;
 	std::shared_ptr<StackInfoBasicPanel> attackerStackWindow;

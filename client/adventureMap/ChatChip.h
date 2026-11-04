@@ -37,6 +37,7 @@ public:
 	void show(Canvas & to) override;
 	void clickPressed(const Point & cursorPosition) override;
 	void tick(uint32_t msPassed) override;
+	void deactivate() override;
 	~ChatChip() override;
 	/// the chip and the panel together: what the map view has to repaint under them each frame
 	Rect repaintArea() const;

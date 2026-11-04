@@ -67,7 +67,17 @@ void ChatChip::show(Canvas & to)
 
 ChatChip::~ChatChip()
 {
-	ChatConsoleWindow::chipArea = Rect();
+	// the adventure map's chip and the battle window's chip take turns: only the one that set the area clears it
+	if(ChatConsoleWindow::chipArea == pos)
+		ChatConsoleWindow::chipArea = Rect();
+}
+
+void ChatChip::deactivate()
+{
+	// a hidden panel must not keep the text input: letters would not reach the shortcuts of the window above
+	if(panel)
+		panel->releaseFocus();
+	CIntObject::deactivate();
 }
 
 Rect ChatChip::repaintArea() const
@@ -97,6 +107,9 @@ void ChatChip::closePanel()
 
 void ChatChip::tick(uint32_t)
 {
+	// this chip is the one that is active now (a battle window has its own): the map ignores clicks where it and its panel are
+	ChatConsoleWindow::chipArea = pos;
+	ChatConsoleWindow::panelArea = panel ? panel->pos : Rect();
 	if(ChatConsoleWindow::toggleAsked)
 	{
 		ChatConsoleWindow::toggleAsked = false;

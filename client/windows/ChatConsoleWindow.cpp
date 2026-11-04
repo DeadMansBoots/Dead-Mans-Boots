@@ -314,6 +314,11 @@ void ChatConsoleWindow::focusInput()
 	input->focusLine();
 }
 
+void ChatConsoleWindow::releaseFocus()
+{
+	input->unfocusLine();
+}
+
 bool ChatConsoleWindow::receiveEvent(const Point & position, int eventType) const
 {
 	// every click reaches the panel, so that a click on the map can give the keys back; the rest only where the panel is

@@ -28,7 +28,7 @@ class ChatChip : public CIntObject
 	int repaintFrames = 0;
 	bool onlyWhileOpen = false; // in a battle the chip is drawn only while the panel is open: the hexes under it stay clickable, as in stock
 
-	bool chipShown() const { return !onlyWhileOpen || panel; }
+	bool chipShown() const { return !panel && !onlyWhileOpen; } // the console, opened, is where the chip lives; in a battle the chip is not drawn at all (the hexes under it stay clickable)
 
 	void openPanel();
 	void closePanel();

@@ -30,10 +30,11 @@ ChatChip::ChatChip(const Rect & area, bool onlyWhileOpen)
 {
 	OBJECT_CONSTRUCTION;
 	mapArea = area;
-	pos = Rect(area.x + 8, area.y + area.h - CHIP_H - 8, CHIP_W, CHIP_H);
+	// K, November 4th: the minimized box sits offset from the corner garnish (the gold frill and the red orb): right of them, above the frame's bottom line
+	pos = Rect(area.x + 40, area.y + area.h - CHIP_H - 6, CHIP_W, CHIP_H);
 	ChatConsoleWindow::chipArea = chipShown() ? pos : Rect();
 	// K's mockup (October 22nd): a framed box in the screen frame's red rail: a red band, a thin gold line, a plum fill
-	const ColorRGBA red(170, 22, 22, 255);
+	const ColorRGBA red = ChatConsoleWindow::bandColour();
 	const ColorRGBA gold(232, 204, 120, 255);
 	const ColorRGBA plum(44, 10, 48, 255);
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, CHIP_W, CHIP_H), red);

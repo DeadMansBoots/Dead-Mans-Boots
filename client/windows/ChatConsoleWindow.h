@@ -45,6 +45,7 @@ class ChatConsoleWindow : public CIntObject
 	int margin = 12;
 	int rowH = 22;
 	int topY = 38;
+	int bottomPad = 4; // the gap under the To: row: the panel's bottom edge is the map window's frame line, where it is nestled (the battle's compact panel has a band of its own there)
 	int settingsOffset = 0;
 	int visibleSettingRows = 11;
 
@@ -71,6 +72,9 @@ public:
 
 	/// the colour a channel's lines are drawn in, from the settings general.chatColour* (an index into the palette); the quick overlay uses it too
 	static ColorRGBA channelColour(EChatChannel channel);
+
+	/// the player's colour for the bands of the chip and the panel (the mockup's red is the red player's); a dull red for a watcher
+	static ColorRGBA bandColour();
 
 	/// the chat key and the chip ask for the panel; the chip (which owns it) does it on its next tick
 	static void requestOpen();

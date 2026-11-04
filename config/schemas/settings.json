@@ -75,7 +75,7 @@
 				},
 				"chatTimestamps" : {
 					"type" : "boolean",
-					"default" : true
+					"default" : false
 				},
 				"chatMuteTeam" : {
 					"type" : "boolean",

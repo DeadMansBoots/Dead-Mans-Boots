@@ -151,8 +151,9 @@ public:
 
 	void showAll(Canvas & to) override
 	{
-		to.drawColorBlended(pos, ColorRGBA(0, 0, 0, static_cast<uint8_t>(std::clamp(settings["general"]["chatOpacity"].Float() * 2.55, 0.0, 255.0))));
-		to.drawBorder(pos, ColorRGBA(60, 50, 20, 255), 1);
+		// the mockup's log is a flat dark panel: the texture does not show through (the Options' Glass lets the map through)
+		to.drawColorBlended(pos, ColorRGBA(14, 9, 6, settings["general"]["chatGlass"].Bool() ? 150 : 242));
+		to.drawBorder(pos, ColorRGBA(150, 122, 50, 255), 1);
 
 		const auto & history = GAME->server().getGameChat().getChatHistory();
 		const EFonts font = chatFont();
@@ -179,7 +180,7 @@ public:
 		for(int i = begin; i < last; ++i)
 			to.drawText(pos.topLeft() + Point(8, 4 + (i - begin) * lineHeight), font, lines[i].second, ETextAlignment::TOPLEFT, lines[i].first);
 		// the scroll bar: a track on the right and a thumb that shows where in the history the lines are (the wheel moves it)
-		const Rect track(pos.x + pos.w - 8, pos.y + 3, 5, pos.h - 6);
+		const Rect track(pos.x + pos.w - 9, pos.y + 3, 6, pos.h - 6);
 		to.drawColorBlended(track, ColorRGBA(0, 0, 0, 120));
 		if(total > rows)
 		{
@@ -269,28 +270,31 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 {
 	OBJECT_CONSTRUCTION;
 	compact = compactPanel;
-	margin = MARGIN; // the dialog frame takes about 12 pixels each side, also in the compact panel
+	margin = 10; // the band (7 pixels) and a little air
 	rowH = compact ? 20 : ROW_H;
-	topY = compact ? 30 : 38;
+	topY = compact ? 27 : 33;
+	bottomPad = compact ? margin : 4;
 	const int w = compact ? COMPACT_W : WIN_W;
 	const int h = compact ? COMPACT_H : WIN_H;
-	// bottom left of the map view (or of a battlefield), over the chip (the chip is 22 high with 8 below it)
-	pos = Rect(area.x + 8, area.y + area.h - 22 - 8 - 4 - h, w, h);
+	// K, November 4th: "nestled into the bottom left corner, with the chat window's ui border perfectly/seamlessly overlapping with the first set of delineation/ui lines bounding the main adventure map window":
+	// the screen frame's left strip is 7 pixels wide and its bottom lines start at the map view's bottom, so the panel's left edge is the screen's edge and its bottom edge the map view's bottom (the frame's own lines are the panel's left and bottom borders)
+	// in a battle (no such frame) the compact panel is at the field's bottom left with a band on all four sides
+	pos = compact ? Rect(area.x, area.y + area.h - h, w, h) : Rect(area.x - 7, area.y + area.h - h, w, h);
 	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
 	glass = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(18, 10, 4, 120));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
-	const int buttonY = 12;
+	const int buttonY = 9;
 	const int buttonH = compact ? 16 : 20;
-	title = std::make_shared<CLabel>(margin + 34, compact ? 20 : 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
+	title = std::make_shared<CLabel>(margin + 34, compact ? 17 : 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
 	closeButton = std::make_shared<ChatButton>(Rect(pos.w - margin - 20, buttonY, 20, buttonH), "x", [this]() { closeAsked = true; });
 	settingsButton = std::make_shared<ChatButton>(Rect(pos.w - margin - 20 - 4 - 64, buttonY, 64, buttonH), LIBRARY->generaltexth->translate("vcmi.chat.window.settings"), [this]() { setSettingsOpen(!settingsOpen); });
 
-	log = std::make_shared<ChatLog>(Rect(margin, topY, pos.w - 2 * margin, pos.h - topY - margin - rowH - 4));
+	log = std::make_shared<ChatLog>(Rect(margin, topY, pos.w - 2 * margin, pos.h - topY - bottomPad - rowH - 4));
 	if(compact)
 		log->setSmallLine(13);
 
-	const int rowY = pos.h - margin - rowH;
+	const int rowY = pos.h - bottomPad - rowH;
 	const int toW = compact ? 96 : 108;
 	toButton = std::make_shared<ChatButton>(Rect(margin, rowY, toW, rowH), "", [this]() { setListOpen(!listOpen); });
 	for(int i = 0; i < 3; ++i)
@@ -300,7 +304,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 	}
 	input = std::make_shared<ChatLineInput>(Rect(margin + toW + 6, rowY, pos.w - 2 * margin - toW - 6, rowH), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
 
-	visibleSettingRows = std::max(1, (pos.h - topY - margin - 2) / 16);
+	visibleSettingRows = std::max(1, (pos.h - topY - bottomPad - 2) / 16);
 	for(int i = 0; i < 11; ++i)
 		settingsRows.push_back(std::make_shared<ChatButton>(Rect(margin + 20, topY + 2 + i * 16, pos.w - 2 * margin - 40, 15), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
@@ -372,7 +376,26 @@ void ChatConsoleWindow::showAll(Canvas & to)
 		const int thumbY = track.y + (track.h - thumbH) * settingsOffset / std::max(1, total - visibleSettingRows);
 		to.drawColorBlended(Rect(track.x, thumbY, track.w, thumbH), ColorRGBA(212, 175, 55, 220));
 	}
-	CMessage::drawBorder(PlayerColor(GAME->interface()->playerID), to, pos.w, pos.h, pos.x, pos.y);
+	// the To: mark: a filled triangle pointing down (the mockup's), at the right end of the To: button
+	if(!toButton->isDisabled())
+	{
+		const Point tip(toButton->pos.x + toButton->pos.w - 12, toButton->pos.y + toButton->pos.h / 2 - 2);
+		for(int row = 0; row < 4; ++row)
+			to.drawColorBlended(Rect(tip.x + row, tip.y + row, 9 - 2 * row, 1), ColorRGBA(232, 204, 120, 255));
+	}
+	// the band: the screen frame's own pattern from the outside in (dark, gold, gold, the player's colour twice, gold, gold), 7 pixels; the left and bottom sides are the frame's lines already
+	const ColorRGBA band = bandColour();
+	const std::array<ColorRGBA, 7> pattern = {ColorRGBA(74, 49, 24), ColorRGBA(165, 140, 66), ColorRGBA(247, 231, 123), band, band, ColorRGBA(173, 140, 66), ColorRGBA(239, 214, 123)};
+	for(int i = 0; i < 7; ++i)
+	{
+		to.drawColorBlended(Rect(pos.x + i, pos.y + i, pos.w - 2 * i, 1), pattern[i]); // the top side
+		to.drawColorBlended(Rect(pos.right() - 1 - i, pos.y + i, 1, pos.h - i - (compact ? i : 0)), pattern[i]); // the right side, down to the map view's bottom line
+		if(compact)
+		{
+			to.drawColorBlended(Rect(pos.x + i, pos.y + i, 1, pos.h - 2 * i), pattern[i]); // the left
+			to.drawColorBlended(Rect(pos.x + i, pos.bottom() - 1 - i, pos.w - 2 * i, 1), pattern[i]); // the bottom
+		}
+	}
 }
 
 void ChatConsoleWindow::nextChannel()
@@ -385,6 +408,16 @@ void ChatConsoleWindow::nextChannel()
 			break;
 	}
 	setChannel(next);
+}
+
+ColorRGBA ChatConsoleWindow::bandColour()
+{
+	if(GAME && GAME->interface() && GAME->interface()->playerID.isValidPlayer())
+	{
+		const ColorRGBA & c = graphics->playerColors[GAME->interface()->playerID.getNum()];
+		return ColorRGBA(static_cast<uint8_t>(c.r * 7 / 10), static_cast<uint8_t>(c.g * 7 / 10), static_cast<uint8_t>(c.b * 7 / 10), 255);
+	}
+	return ColorRGBA(160, 0, 0, 255);
 }
 
 ColorRGBA ChatConsoleWindow::channelColour(EChatChannel channel)
@@ -502,7 +535,7 @@ void ChatConsoleWindow::setChannel(EChatChannel newChannel)
 {
 	channel = newChannel;
 	currentChannel = newChannel;
-	toButton->setText(LIBRARY->generaltexth->translate("vcmi.chat.window.to") + " " + channelName(channel) + " v");
+	toButton->setText(LIBRARY->generaltexth->translate("vcmi.chat.window.to") + " " + channelName(channel));
 	input->setColour(channelColour(channel));
 	setListOpen(false);
 	redraw();
@@ -512,7 +545,7 @@ void ChatConsoleWindow::setListOpen(bool open)
 {
 	listOpen = open;
 	// the entries a player is offered, from the To: box upward
-	const int rowY = pos.h - margin - rowH;
+	const int rowY = pos.h - bottomPad - rowH;
 	int shown = 0;
 	for(int i = 0; i < 3; ++i)
 	{

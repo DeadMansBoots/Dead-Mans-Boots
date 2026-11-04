@@ -28,6 +28,8 @@
 #include "../widgets/TextControls.h"
 
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/CPlayerState.h"
+#include "../../lib/callback/CCallback.h"
 #include "../../lib/CThreadHelper.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/texts/CGeneralTextHandler.h"

@@ -68,27 +68,10 @@ bool teamAvailable()
 	return !team || team->players.size() > 1;
 }
 
-// Spectators is offered only while a watcher is connected: a connection that sits in no player slot (K: a player connected to the lobby and not assigned a slot is a spectator)
-bool spectatorsAvailable()
-{
-	// the lobby state the client keeps (CServerHandler's playerNames and si); the game does not refresh it, so a watcher who joins late may be missing until the next lobby update
-	if(!GAME || !GAME->interface() || !GAME->server().si)
-		return true;
-	for(const auto & client : GAME->server().playerNames)
-	{
-		bool inSlot = false;
-		for(const auto & slot : GAME->server().si->playerInfos)
-			if(slot.second.connectedPlayerIDs.count(client.first))
-				inSlot = true;
-		if(!inSlot)
-			return true;
-	}
-	return false;
-}
-
 bool channelOffered(EChatChannel channel)
 {
-	return (channel != EChatChannel::TEAM || teamAvailable()) && (channel != EChatChannel::SPECTATORS || spectatorsAvailable());
+	// Spectators is always offered: hot-joined watchers are not in the client's lobby state, so a rule that hides it until one is connected would hide it from the usual case (parked)
+	return channel != EChatChannel::TEAM || teamAvailable();
 }
 
 std::string channelName(EChatChannel channel)

@@ -81,6 +81,8 @@ void ChatChip::show(Canvas & to)
 {
 	if(chipShown())
 		CIntObject::showAll(to);
+	else if(panel)
+		panel->showAll(to); // the chip is not drawn while the console is open, the console (its child) is
 }
 
 bool ChatChip::receiveEvent(const Point & position, int eventType) const

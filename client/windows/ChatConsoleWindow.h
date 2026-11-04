@@ -12,6 +12,7 @@
 #include "../../lib/DmbChatRouting.h"
 
 class CFilledTexture;
+class TransparentFilledRectangle;
 class CTextInput;
 class CLabel;
 class ChatButton;
@@ -25,6 +26,7 @@ class ChatLineInput;
 class ChatConsoleWindow : public CIntObject
 {
 	std::shared_ptr<CFilledTexture> background;
+	std::shared_ptr<TransparentFilledRectangle> glass; // the background when the Options say Glass: the map shows through
 	std::shared_ptr<CLabel> title;
 	std::shared_ptr<ChatButton> closeButton;
 	std::shared_ptr<ChatButton> toButton;
@@ -41,6 +43,7 @@ class ChatConsoleWindow : public CIntObject
 
 	void setSettingsOpen(bool open);
 	void refreshSettingsRows();
+	void applyBackground();
 	void changeSetting(int row);
 
 	void setChannel(EChatChannel newChannel);

@@ -284,6 +284,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 	// bottom left of the map view, over the chip (the chip is 22 high with 8 below it)
 	pos = Rect(area.x + 8, area.y + area.h - 22 - 8 - 4 - WIN_H, WIN_W, WIN_H);
 	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
+	glass = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(18, 10, 4, 120));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
 	title = std::make_shared<CLabel>(MARGIN + 34, 27, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.chat.window.title"));
@@ -306,6 +307,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area)
 		settingsRows.push_back(std::make_shared<ChatButton>(Rect(MARGIN + 20, 40 + i * 16, pos.w - 2 * MARGIN - 40, 15), "", [this, i]() { changeSetting(i); }));
 	refreshSettingsRows();
 	setSettingsOpen(false);
+	applyBackground();
 
 	// the channel the player last wrote to, if it is still offered
 	setChannel(channelOffered(currentChannel) ? currentChannel : EChatChannel::ALL);
@@ -395,12 +397,19 @@ void ChatConsoleWindow::setSettingsOpen(bool open)
 	redraw();
 }
 
+void ChatConsoleWindow::applyBackground()
+{
+	const bool isGlass = settings["general"]["chatGlass"].Bool();
+	background->setEnabled(!isGlass);
+	glass->setEnabled(isGlass);
+}
+
 void ChatConsoleWindow::refreshSettingsRows()
 {
 	const auto & text = LIBRARY->generaltexth;
 	const std::string on = text->translate("vcmi.chat.window.on");
 	const std::string off = text->translate("vcmi.chat.window.off");
-	settingsRows[0]->setText(text->translate("vcmi.chat.window.opacity") + " " + text->translate(settings["general"]["chatOpacity"].Float() >= 99.5 ? "vcmi.chat.window.opaque" : "vcmi.chat.window.glass"));
+	settingsRows[0]->setText(text->translate("vcmi.chat.window.opacity") + " " + text->translate(settings["general"]["chatGlass"].Bool() ? "vcmi.chat.window.glass" : "vcmi.chat.window.opaque"));
 	settingsRows[1]->setText(text->translate("vcmi.chat.window.timestamps") + " " + (settings["general"]["chatTimestamps"].Bool() ? on : off));
 	settingsRows[2]->setText(text->translate("vcmi.chat.window.muteTeam") + " " + (settings["general"]["chatMuteTeam"].Bool() ? on : off));
 	settingsRows[3]->setText(text->translate("vcmi.chat.window.muteSpectators") + " " + (settings["general"]["chatMuteSpectators"].Bool() ? on : off));
@@ -422,9 +431,10 @@ void ChatConsoleWindow::changeSetting(int row)
 {
 	if(row == 0)
 	{
-		// opaque (100) or glass (45)
-		Settings entry = settings.write["general"]["chatOpacity"];
-		entry->Float() = entry->Float() >= 99.5 ? 45 : 100;
+		// the panel texture (opaque) or glass
+		Settings entry = settings.write["general"]["chatGlass"];
+		entry->Bool() = !entry->Bool();
+		applyBackground();
 	}
 	else if(row >= 4 && row <= 6)
 	{

@@ -60,6 +60,7 @@
 				"chatMuteSpectators",
 				"chatMuteSystem",
 				"chatSound",
+				"chatGlass",
 				"chatColourAll",
 				"chatColourTeam",
 				"chatColourSpectators",
@@ -92,6 +93,11 @@
 				"chatSound" : {
 					"type" : "boolean",
 					"default" : true
+				},
+				// the chat panel as glass (the map shows through it) instead of the opaque panel texture
+				"chatGlass" : {
+					"type" : "boolean",
+					"default" : false
 				},
 				// the colour of each channel, an index into the console's palette (ChatConsoleWindow::channelColour), and the console's text size (0 small, 1 medium)
 				"chatColourAll" : {

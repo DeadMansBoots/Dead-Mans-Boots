@@ -61,6 +61,8 @@
 				"chatMuteSystem",
 				"chatSound",
 				"chatGlass",
+				"chatPanelW",
+				"chatPanelH",
 				"chatColourAll",
 				"chatColourTeam",
 				"chatColourSpectators",
@@ -98,6 +100,15 @@
 				"chatGlass" : {
 					"type" : "boolean",
 					"default" : false
+				},
+				// the chat panel's size when the player dragged its top right corner (0 is the default size)
+				"chatPanelW" : {
+					"type" : "number",
+					"default" : 0
+				},
+				"chatPanelH" : {
+					"type" : "number",
+					"default" : 0
 				},
 				// the colour of each channel, an index into the console's palette (ChatConsoleWindow::channelColour), and the console's text size (0 small, 1 medium)
 				"chatColourAll" : {

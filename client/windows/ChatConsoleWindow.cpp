@@ -16,6 +16,7 @@
 #include "../GameInstance.h"
 #include "../adventureMap/CInGameConsole.h"
 #include "../gui/Shortcut.h"
+#include "../gui/WindowHandler.h"
 #include "../gui/TextAlignment.h"
 #include "../render/Canvas.h"
 #include "../render/Colors.h"
@@ -42,6 +43,11 @@ const int WIN_W = ChatConsoleWindow::PANEL_W;
 const int WIN_H = ChatConsoleWindow::PANEL_H;
 const int MARGIN = 12;
 const int ROW_H = 22;
+const int MIN_W = 300; // below this the log, the To: row and the buttons do not fit
+const int MIN_H = 170;
+const int CORNER = 10; // the top right corner that is dragged
+int clampWidth(int w, const Rect & area) { return std::clamp(w, MIN_W, std::max(MIN_W, area.w * 3 / 4)); }
+int clampHeight(int h, const Rect & area) { return std::clamp(h, MIN_H, std::max(MIN_H, area.h * 7 / 10)); }
 const ColorRGBA GOLD(212, 175, 55, 255);
 
 // the colours a channel can be set to (settings general.chatColour*: an index), none of them an orange, red, blue, tan, purple, teal or pink of the players
@@ -110,6 +116,13 @@ public:
 	void setText(const std::string & text)
 	{
 		label->setText(text);
+	}
+
+	void setWidth(int w)
+	{
+		pos.w = w;
+		frame->pos.w = w;
+		label->moveTo(pos.topLeft() + Point(w / 2, pos.h / 2));
 	}
 
 	void clickPressed(const Point &) override
@@ -225,6 +238,13 @@ public:
 		box->giveFocus();
 	}
 
+	void setWidth(int w)
+	{
+		pos.w = w;
+		background->pos.w = w;
+		box->pos.w = w - 8;
+	}
+
 	void unfocusLine()
 	{
 		if(box->hasFocus())
@@ -266,7 +286,7 @@ bool ChatConsoleWindow::toggleAsked = false;
 EChatChannel ChatConsoleWindow::currentChannel = EChatChannel::ALL;
 
 ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
-	: CIntObject(LCLICK | WHEEL)
+	: CIntObject(LCLICK | WHEEL | DRAG)
 {
 	OBJECT_CONSTRUCTION;
 	compact = compactPanel;
@@ -274,16 +294,18 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 	rowH = compact ? 20 : ROW_H;
 	topY = compact ? 27 : 33;
 	bottomPad = compact ? margin : 4;
-	const int w = compact ? COMPACT_W : WIN_W;
-	const int h = compact ? COMPACT_H : WIN_H;
+	mapArea = area;
+	// the remembered size (settings general.chatPanelW and chatPanelH, 0 is the default), kept inside the limits of this window
+	const double savedW = settings["general"]["chatPanelW"].Float();
+	const double savedH = settings["general"]["chatPanelH"].Float();
+	const int w = compact ? COMPACT_W : clampWidth(savedW > 0 ? static_cast<int>(savedW) : WIN_W, area);
+	const int h = compact ? COMPACT_H : clampHeight(savedH > 0 ? static_cast<int>(savedH) : WIN_H, area);
 	// K, November 4th: "nestled into the bottom left corner, with the chat window's ui border perfectly/seamlessly overlapping with the first set of delineation/ui lines bounding the main adventure map window":
-	// the screen frame's left strip is 7 pixels wide and its bottom lines start at the map view's bottom, so the panel's left edge is the screen's edge and its bottom edge the map view's bottom (the frame's own lines are the panel's left and bottom borders)
+	// K, on the picture: "its too far to the left, its correct on the bottom": the left edge is the map window's own left edge (the frame's strip, 7 pixels, stays visible to its left), the bottom edge the map view's bottom (the frame's lines under it)
 	// in a battle (no such frame) the compact panel is at the field's bottom left with a band on all four sides
-	pos = compact ? Rect(area.x, area.y + area.h - h, w, h) : Rect(area.x - 7, area.y + area.h - h, w, h);
-	// the screen frame's left strip (7 pixels) stays visible: the panel's fill starts inside it (the battle's compact panel has its own band all round)
-	const int inset = compact ? 0 : 7;
-	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(inset, 0, pos.w - inset, pos.h));
-	glass = std::make_shared<TransparentFilledRectangle>(Rect(inset, 0, pos.w - inset, pos.h), ColorRGBA(18, 10, 4, 120));
+	pos = Rect(area.x, area.y + area.h - h, w, h);
+	background = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), Rect(0, 0, pos.w, pos.h));
+	glass = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(18, 10, 4, 120));
 
 	// K, October 22nd mockup: the title sits a little down and to the right; Options and the x top right, their text inside their boxes
 	const int buttonY = 9;
@@ -362,8 +384,74 @@ bool ChatConsoleWindow::receiveEvent(const Point & position, int eventType) cons
 
 void ChatConsoleWindow::clickPressed(const Point & cursorPosition)
 {
+	resizing = false;
+	if(!compact && pos.isInside(cursorPosition) && cursorPosition.x >= pos.right() - CORNER && cursorPosition.y < pos.y + CORNER)
+	{
+		resizing = true;
+		pressPoint = cursorPosition;
+		pressSize = Point(pos.w, pos.h);
+		pressBottom = pos.bottom();
+	}
 	if(!pos.isInside(cursorPosition) && !(chipArea.w > 0 && chipArea.isInside(cursorPosition)))
 		input->unfocusLine();
+}
+
+void ChatConsoleWindow::clickReleased(const Point &)
+{
+	if(resizing)
+	{
+		resizing = false;
+		saveSize();
+	}
+}
+
+void ChatConsoleWindow::mouseDragged(const Point & cursorPosition, const Point &)
+{
+	if(!resizing)
+		return;
+	// the top right corner follows the mouse, the bottom left corner stays
+	const int w = clampWidth(pressSize.x + cursorPosition.x - pressPoint.x, mapArea);
+	const int h = clampHeight(pressSize.y - (cursorPosition.y - pressPoint.y), mapArea);
+	if(w == pos.w && h == pos.h)
+		return;
+	moveTo(Point(pos.x, pressBottom - h));
+	pos.w = w;
+	pos.h = h;
+	applyLayout();
+	ENGINE->windows().totalRedraw();
+}
+
+void ChatConsoleWindow::applyLayout()
+{
+	background->pos.w = pos.w;
+	background->pos.h = pos.h;
+	glass->pos.w = pos.w;
+	glass->pos.h = pos.h;
+	closeButton->moveTo(pos.topLeft() + Point(pos.w - margin - 20, 9));
+	settingsButton->moveTo(pos.topLeft() + Point(pos.w - margin - 20 - 4 - 64, 9));
+	log->pos.w = pos.w - 2 * margin;
+	log->pos.h = pos.h - topY - bottomPad - rowH - 4;
+	const int rowY = pos.h - bottomPad - rowH;
+	const int toW = 108;
+	toButton->moveTo(pos.topLeft() + Point(margin, rowY));
+	input->moveTo(pos.topLeft() + Point(margin + toW + 6, rowY));
+	input->setWidth(pos.w - 2 * margin - toW - 6);
+	for(auto & row : settingsRows)
+		row->setWidth(pos.w - 2 * margin - 40);
+	visibleSettingRows = std::max(1, (pos.h - topY - bottomPad - 2) / 16);
+	settingsOffset = std::min(settingsOffset, std::max(0, static_cast<int>(settingsRows.size()) - visibleSettingRows));
+	layoutSettingsRows();
+	setListOpen(listOpen);
+	panelArea = pos;
+}
+
+void ChatConsoleWindow::saveSize()
+{
+	Settings width = settings.write["general"]["chatPanelW"];
+	width->Float() = pos.w;
+	Settings height = settings.write["general"]["chatPanelH"];
+	height->Float() = pos.h;
+	ENGINE->windows().totalRedraw();
 }
 
 void ChatConsoleWindow::showAll(Canvas & to)
@@ -378,6 +466,10 @@ void ChatConsoleWindow::showAll(Canvas & to)
 		const int thumbY = track.y + (track.h - thumbH) * settingsOffset / std::max(1, total - visibleSettingRows);
 		to.drawColorBlended(Rect(track.x, thumbY, track.w, thumbH), ColorRGBA(212, 175, 55, 220));
 	}
+	// the corner to drag (not in a battle): three short diagonal strokes in the top right corner of the band
+	if(!compact)
+		for(int k = 2; k <= 8; k += 3)
+			to.drawLine(Point(pos.right() - 1 - k, pos.y + 1), Point(pos.right() - 1, pos.y + 1 + k), ColorRGBA(255, 240, 160, 255), ColorRGBA(255, 240, 160, 255));
 	// the To: mark: a filled triangle pointing down (the mockup's), at the right end of the To: button
 	if(!toButton->isDisabled())
 	{
@@ -390,7 +482,7 @@ void ChatConsoleWindow::showAll(Canvas & to)
 	const std::array<ColorRGBA, 7> pattern = {ColorRGBA(74, 49, 24), ColorRGBA(165, 140, 66), ColorRGBA(247, 231, 123), band, band, ColorRGBA(173, 140, 66), ColorRGBA(239, 214, 123)};
 	for(int i = 0; i < 7; ++i)
 	{
-		to.drawColorBlended(Rect(pos.x + i, pos.y + i, pos.w - 2 * i, 1), pattern[i]); // the top side
+		to.drawColorBlended(Rect(compact ? pos.x + i : pos.x, pos.y + i, compact ? pos.w - 2 * i : pos.w - i, 1), pattern[i]); // the top side (it starts at the map window's left edge)
 		to.drawColorBlended(Rect(pos.right() - 1 - i, pos.y + i, 1, pos.h - i - (compact ? i : 0)), pattern[i]); // the right side, down to the map view's bottom line
 		if(compact)
 		{

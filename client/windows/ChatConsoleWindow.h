@@ -45,6 +45,12 @@ class ChatConsoleWindow : public CIntObject
 	int margin = 12;
 	int rowH = 22;
 	int topY = 38;
+	// K, November 4th: "resize by dragging the top right corner of the chat box" (bottom left stays in the corner)
+	Rect mapArea;
+	bool resizing = false;
+	Point pressPoint;
+	Point pressSize;
+	int pressBottom = 0;
 	int bottomPad = 4; // the gap under the To: row: the panel's bottom edge is the map window's frame line, where it is nestled (the battle's compact panel has a band of its own there)
 	int settingsOffset = 0;
 	int visibleSettingRows = 11;
@@ -52,6 +58,8 @@ class ChatConsoleWindow : public CIntObject
 	void setSettingsOpen(bool open);
 	void refreshSettingsRows();
 	void layoutSettingsRows();
+	void applyLayout();
+	void saveSize();
 	void applyBackground();
 	void changeSetting(int row);
 
@@ -95,5 +103,7 @@ public:
 	void showAll(Canvas & to) override;
 	bool receiveEvent(const Point & position, int eventType) const override;
 	void clickPressed(const Point & cursorPosition) override;
+	void clickReleased(const Point & cursorPosition) override;
+	void mouseDragged(const Point & cursorPosition, const Point & lastUpdateDistance) override;
 	void wheelScrolled(int distance) override;
 };

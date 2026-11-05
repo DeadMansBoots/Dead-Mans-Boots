@@ -135,6 +135,13 @@ public:
 	bool lobbyMapFits(const CMapInfo & info) const;
 	/// DMB (K, November 4th, "can't see regular scenarios on client pc's in a multiplayer lobby"): a guest's list is its own files, read-only; this highlights the host's map in it when the guest has that file
 	void showHostMap(const std::string & fileURI);
+	/// DMB (K, November 4th, "when people join, and it changes the list of scenarios ... it switches the advanced options screen to a scenario's"): while true a selection is not told to the server
+	/// (callOnSelect), so a refilter after a player joined keeps the list and its highlight in step without choosing the lobby's map
+	bool quietSelection = false;
+	/// does the map have places for the humans in the lobby now (the filter's own test, for the lobby's current map)
+	bool lobbyMapFits(const CMapInfo & info) const;
+	/// DMB (K, November 4th, "can't see regular scenarios on client pc's in a multiplayer lobby"): a guest's list is its own files, read-only; this highlights the host's map in it when the guest has that file
+	void showHostMap(const std::string & fileURI);
 
 private:
 	std::shared_ptr<CPicture> background;
@@ -170,6 +177,9 @@ private:
 	std::unordered_set<ResourcePath> getFiles(std::string dirURI, EResType resType);
 
 	void handleUnsupportedSavegames(const std::vector<ResourcePath> & files);
+	void notifySelect(std::shared_ptr<ElementInfo> item);
+	void parseScenarioMaps();
+	std::string lastHostMap;
 	void notifySelect(std::shared_ptr<ElementInfo> item);
 	void parseScenarioMaps();
 	std::string lastHostMap;

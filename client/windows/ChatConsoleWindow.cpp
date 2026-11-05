@@ -319,7 +319,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 		log->setSmallLine(13);
 
 	const int rowY = pos.h - bottomPad - rowH;
-	const int toW = compact ? 96 : 108;
+	const int toW = compact ? 106 : 108;
 	toButton = std::make_shared<ChatButton>(Rect(margin, rowY, toW, rowH), "", [this]() { setListOpen(!listOpen); });
 	for(int i = 0; i < 3; ++i)
 	{

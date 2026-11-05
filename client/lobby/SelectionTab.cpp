@@ -396,6 +396,9 @@ void SelectionTab::toggleMode()
 			{
 				slider->block(false);
 				filter(0);
+				// the host's map may have arrived before this list had its files: highlight it now
+				if(GAME->server().mi)
+					showHostMap(*GAME->server().mi, true);
 			}
 		}
 		else if(slider)
@@ -1170,6 +1173,8 @@ bool SelectionTab::lobbyMapFits(const CMapInfo & info) const
 
 void SelectionTab::showHostMap(const CMapInfo & host, bool force)
 {
+	if(allItems.empty())
+		return; // no files yet: nothing to look in, and the lookup is made again when they are listed
 	const std::string key = host.fileURI + "|" + host.getNameTranslated();
 	if(!force && key == lastHostMap)
 		return;

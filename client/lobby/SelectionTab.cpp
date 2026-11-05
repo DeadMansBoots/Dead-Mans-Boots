@@ -1168,30 +1168,44 @@ bool SelectionTab::lobbyMapFits(const CMapInfo & info) const
 	return supportedHumanPlayers >= getRequiredHumanPlayers();
 }
 
-void SelectionTab::showHostMap(const std::string & fileURI)
+void SelectionTab::showHostMap(const CMapInfo & host, bool force)
 {
-	if(fileURI == lastHostMap)
+	const std::string key = host.fileURI + "|" + host.getNameTranslated();
+	if(!force && key == lastHostMap)
 		return;
-	lastHostMap = fileURI;
-	std::string wanted = fileURI;
+	lastHostMap = key;
+	std::string wanted = host.fileURI;
 	boost::to_upper(wanted);
+	std::shared_ptr<ElementInfo> found;
 	for(const auto & item : allItems)
+		if(!item->isFolder && boost::to_upper_copy(item->fileURI) == wanted)
+		{
+			found = item;
+			break;
+		}
+	// the same scenario under another file name on this PC: its name and size
+	if(!found && host.mapHeader)
+		for(const auto & item : allItems)
+			if(!item->isFolder && item->mapHeader && item->mapHeader->width == host.mapHeader->width && item->mapHeader->height == host.mapHeader->height && item->getNameTranslated() == host.getNameTranslated())
+			{
+				found = item;
+				break;
+			}
+	logGlobal->info("Lobby list: the host's map '%s' (%s) is %s", host.fileURI, host.getNameTranslated(), found ? "in this PC's maps as " + found->fileURI : std::string("not in this PC's maps"));
+	if(found)
 	{
-		if(boost::to_upper_copy(item->fileURI) != wanted)
-			continue;
-		const auto [folderName, baseFolder, parentExists, fileInFolder] = checkSubfolder(item->originalFileURI);
+		const auto [folderName, baseFolder, parentExists, fileInFolder] = checkSubfolder(found->originalFileURI);
 		curFolder = baseFolder != "" ? baseFolder + "/" : "";
 		filter(-1);
 		for(int i = static_cast<int>(curItems.size()) - 1; i >= 0; i--)
-			if(boost::to_upper_copy(curItems[i]->fileURI) == wanted)
+			if(curItems[i] == found)
 			{
 				slider->scrollTo(i);
 				selectAbs(i);
 				return;
 			}
-		return;
 	}
-	// the guest has no such file: no row is highlighted
+	// the guest has no such file, or the filters hide it: no row is highlighted
 	selectionPos = static_cast<size_t>(-1);
 	updateListItems();
 	redraw();

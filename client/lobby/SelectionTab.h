@@ -127,7 +127,7 @@ public:
 	/// does the map have places for the humans in the lobby now (the filter's own test, for the lobby's current map)
 	bool lobbyMapFits(const CMapInfo & info) const;
 	/// DMB (K, November 4th, "can't see regular scenarios on client pc's in a multiplayer lobby"): a guest's list is its own files, read-only; this highlights the host's map in it when the guest has that file
-	void showHostMap(const std::string & fileURI);
+	void showHostMap(const CMapInfo & host, bool force = false);
 
 private:
 	std::shared_ptr<CPicture> background;

@@ -673,6 +673,7 @@ void CLobbyScreen::updateAfterStateChange()
 	onRemoteClientLobbyStateChanged();
 	const bool shouldFilterByPlayerCount = screenType == ESelectionScreen::newGame && GAME->server().loadMode == ELoadMode::MULTI;
 	const size_t requiredHumanPlayers = shouldFilterByPlayerCount ? std::max<size_t>(2, GAME->server().playerNames.size()) : 0;
+	bool refiltered = false;
 	if(!compatibilityFilterInitialized || (shouldFilterByPlayerCount && requiredHumanPlayers != lastRequiredHumanPlayers))
 	{
 		// DMB (K, November 4th: "when people join, and it changes the list of scenarios (even if they aren't currently being viewed), it switches the advanced options screen to a scenario's advanced option's screen"):
@@ -689,6 +690,7 @@ void CLobbyScreen::updateAfterStateChange()
 			GAME->server().setMapInfo(tabSel->getSelectedMapInfo());
 		updateCompatibilityNotice(requiredHumanPlayers);
 		compatibilityFilterInitialized = true;
+		refiltered = true;
 		lastRequiredHumanPlayers = requiredHumanPlayers;
 	}
 
@@ -745,7 +747,7 @@ void CLobbyScreen::updateAfterStateChange()
 
 	// DMB (K, November 4th): a guest's list highlights the host's map when the guest has that file
 	if(GAME->server().isGuest() && screenType == ESelectionScreen::newGame && GAME->server().mi)
-		tabSel->showHostMap(GAME->server().mi->fileURI);
+		tabSel->showHostMap(*GAME->server().mi, refiltered);
 
 	// DMB (K, October 9th): whatever the new state did to the page this screen shows, a guest's screen goes back to the host's page
 	showHostView();

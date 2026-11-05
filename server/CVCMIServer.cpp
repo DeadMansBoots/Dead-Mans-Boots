@@ -156,7 +156,9 @@ bool CVCMIServer::joinOpen() const
 
 bool CVCMIServer::rejoinOpen() const
 {
-	return getState() == EServerState::GAMEPLAY && gh && (rejoinPolicy ? *rejoinPolicy : settings["server"]["allowRejoin"].Bool());
+	// DMB (K, November 4th: "Resync never fired apparently"): a dropped player can always come back to their own seat; the host's lobby checkbox and the in-game switch are for new players
+	// (joinOpen). Only a policy that says no (an older client's) closes it; the saved setting server.allowRejoin no longer decides, so a settings file that says false does not
+	return getState() == EServerState::GAMEPLAY && gh && (rejoinPolicy ? *rejoinPolicy : true);
 }
 
 void CVCMIServer::purgePendingRejoin()

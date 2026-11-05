@@ -42,9 +42,9 @@ OtherOptionsTab::OtherOptionsTab() : InterfaceObjectConfigurable()
 	addCallback("allowJoinChanged", [](bool value)
 	{
 		setBoolSetting("server", "allowJoin", value);
-		setBoolSetting("server", "allowRejoin", value);
 		JoinPolicy policy;
-		policy.allowJoin = policy.allowRejoin = value;
+		policy.allowJoin = value;
+		policy.allowRejoin = true; // DMB (K, November 4th, "Resync never fired"): the box is for new players; a dropped player can always come back to their seat
 		GAME->server().sendLobbyPack(policy);
 	});
 	build(config);

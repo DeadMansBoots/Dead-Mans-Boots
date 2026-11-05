@@ -123,14 +123,12 @@ OptionsTabBase::OptionsTabBase(const JsonPath & configPath)
 	});
 
 	addCallback("setAllowJoin", [&](int index){
-		for(const char * key : {"allowJoin", "allowRejoin"})
-		{
-			Settings entry = settings.write["server"][key];
-			entry->Bool() = index != 0;
-		}
+		Settings entry = settings.write["server"]["allowJoin"];
+		entry->Bool() = index != 0;
 		// DMB hot join control (K, November 2nd): the host lets players join and come back, kept as the settings server.allowJoin and server.allowRejoin and told to the server
 		JoinPolicy policy;
-		policy.allowJoin = policy.allowRejoin = index != 0;
+		policy.allowJoin = index != 0;
+		policy.allowRejoin = true; // DMB (K, November 4th, "Resync never fired"): the checkbox is for new players; a dropped player can always come back to their seat
 		GAME->server().sendLobbyPack(policy);
 	});
 

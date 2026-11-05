@@ -211,12 +211,14 @@ class ChatLineInput : public CIntObject
 	std::shared_ptr<CTextInput> box;
 	std::function<void(const std::string &)> onSend;
 	std::function<void()> onTab;
+	std::function<void()> onClose;
 
 public:
-	ChatLineInput(const Rect & area, std::function<void(const std::string &)> send, std::function<void()> tabCallback)
+	ChatLineInput(const Rect & area, std::function<void(const std::string &)> send, std::function<void()> tabCallback, std::function<void()> closeCallback)
 		: CIntObject(KEYBOARD | TEXTINPUT, area.topLeft())
 		, onSend(std::move(send))
 		, onTab(std::move(tabCallback))
+		, onClose(std::move(closeCallback))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;
@@ -268,7 +270,11 @@ public:
 			}
 		}
 		else if(key == EShortcut::GLOBAL_CANCEL)
+		{
+			// K, November 4th: "chat should close after a message is sent, or a player hits escape after clicking in there or after a message" (this replaces VCMI's and the beta 19.1 rule that Escape only gave the keys back)
 			unfocusLine();
+			onClose();
+		}
 		else if(key == EShortcut::GAME_ACTIVATE_CONSOLE)
 		{
 			if(box->getText().empty())
@@ -326,7 +332,7 @@ ChatConsoleWindow::ChatConsoleWindow(const Rect & area, bool compactPanel)
 		const auto ch = static_cast<EChatChannel>(i);
 		toItems.push_back(std::make_shared<ChatButton>(Rect(margin, rowY - (3 - i) * rowH, toW, rowH), channelName(ch), [this, ch]() { setChannel(ch); }));
 	}
-	input = std::make_shared<ChatLineInput>(Rect(margin + toW + 6, rowY, pos.w - 2 * margin - toW - 6, rowH), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); });
+	input = std::make_shared<ChatLineInput>(Rect(margin + toW + 6, rowY, pos.w - 2 * margin - toW - 6, rowH), [this](const std::string & text) { send(text); }, [this]() { nextChannel(); }, [this]() { closeAsked = true; });
 
 	visibleSettingRows = std::max(1, (pos.h - topY - bottomPad - 2) / 16);
 	for(int i = 0; i < 11; ++i)
@@ -394,6 +400,8 @@ void ChatConsoleWindow::clickPressed(const Point & cursorPosition)
 	}
 	if(!pos.isInside(cursorPosition) && !(chipArea.w > 0 && chipArea.isInside(cursorPosition)))
 		input->unfocusLine();
+	else if(pos.isInside(cursorPosition) && !resizing && !settingsOpen)
+		input->focusLine(); // K: "escape after clicking in there": a click on the panel's log gives the line the keys, so Escape closes the panel
 }
 
 void ChatConsoleWindow::clickReleased(const Point &)
@@ -671,5 +679,7 @@ void ChatConsoleWindow::send(const std::string & text)
 	else
 		GAME->server().getGameChat().sendMessageGameplay(text, channel);
 	log->toBottom();
+	// K, November 4th: the panel closes after a message is sent (the chip's next tick closes it; the next opening keeps the channel)
+	closeAsked = true;
 	redraw();
 }

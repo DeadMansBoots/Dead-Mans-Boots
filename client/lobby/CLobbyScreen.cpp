@@ -675,9 +675,18 @@ void CLobbyScreen::updateAfterStateChange()
 	const size_t requiredHumanPlayers = shouldFilterByPlayerCount ? std::max<size_t>(2, GAME->server().playerNames.size()) : 0;
 	if(!compatibilityFilterInitialized || (shouldFilterByPlayerCount && requiredHumanPlayers != lastRequiredHumanPlayers))
 	{
+		// DMB (K, November 4th: "when people join, and it changes the list of scenarios (even if they aren't currently being viewed), it switches the advanced options screen to a scenario's advanced option's screen"):
+		// the first filter chooses the lobby's map as VCMI does (the last one used); a later one, after a player joined or left, only refilters the list and keeps its highlight, it does not send a map.
+		// The host's map changes then only when it is a scenario with too few places for the humans now (VCMI's rule: the list's choice replaces it); a random or generated map never does.
+		const bool quiet = compatibilityFilterInitialized;
+		tabSel->quietSelection = quiet;
 		tabSel->rememberCurrentSelection();
 		tabSel->filter(-1, requiredHumanPlayers);
 		tabSel->restoreLastSelection();
+		tabSel->quietSelection = false;
+		const auto lobbyMap = GAME->server().mi;
+		if(quiet && GAME->server().isHost() && lobbyMap && !lobbyMap->isRandomMap && !tabSel->lobbyMapFits(*lobbyMap))
+			GAME->server().setMapInfo(tabSel->getSelectedMapInfo());
 		updateCompatibilityNotice(requiredHumanPlayers);
 		compatibilityFilterInitialized = true;
 		lastRequiredHumanPlayers = requiredHumanPlayers;
@@ -733,6 +742,10 @@ void CLobbyScreen::updateAfterStateChange()
 	
 	if(curTab && curTab == tabRand && GAME->server().si->mapGenOptions)
 		tabRand->setMapGenOptions(GAME->server().si->mapGenOptions);
+
+	// DMB (K, November 4th): a guest's list highlights the host's map when the guest has that file
+	if(GAME->server().isGuest() && screenType == ESelectionScreen::newGame && GAME->server().mi)
+		tabSel->showHostMap(GAME->server().mi->fileURI);
 
 	// DMB (K, October 9th): whatever the new state did to the page this screen shows, a guest's screen goes back to the host's page
 	showHostView();

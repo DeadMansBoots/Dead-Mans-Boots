@@ -386,7 +386,19 @@ void SelectionTab::toggleMode()
 	curItems.clear();
 	if(GAME->server().isGuest())
 	{
-		if(slider)
+		// DMB (K, November 4th: "can't see regular scenarios on client pc's in a multiplayer lobby for some reason....? needs fixing"): VCMI leaves a guest's list empty. A guest's list is its own scenarios, to look at and scroll: only the host
+		// chooses the map (notifySelect, the clicks and keys below), and the host's map is highlighted when the guest has that file (showHostMap)
+		if(tabType == ESelectionScreen::newGame)
+		{
+			inputName->disable();
+			parseScenarioMaps();
+			if(slider)
+			{
+				slider->block(false);
+				filter(0);
+			}
+		}
+		else if(slider)
 			slider->block(true);
 	}
 	else
@@ -396,10 +408,7 @@ void SelectionTab::toggleMode()
 		case ESelectionScreen::newGame:
 			{
 				inputName->disable();
-				auto files = getFiles("Maps/", EResType::MAP);
-				files.erase(ResourcePath("Maps/Tutorial.tut", EResType::MAP));
-				files.erase(ResourcePath("Maps/BattleOnlyMode.vmap", EResType::MAP));
-				parseMaps(files);
+				parseScenarioMaps();
 				break;
 			}
 
@@ -449,6 +458,16 @@ void SelectionTab::toggleMode()
 
 void SelectionTab::clickReleased(const Point & cursorPosition)
 {
+	// DMB: a guest's list is read-only (only the host chooses the map); a folder still opens
+	if(GAME->server().isGuest() && tabType == ESelectionScreen::newGame)
+	{
+		const int guestLine = getLine();
+		const int guestIndex = guestLine + slider->getValue();
+		if(guestLine != -1 && guestIndex >= 0 && guestIndex < static_cast<int>(curItems.size()) && curItems[guestIndex]->isFolder)
+			select(guestLine);
+		return;
+	}
+
 	int line = getLine();
 
 	if(line != -1 && curItems.size() > line)
@@ -557,6 +576,9 @@ void SelectionTab::askNewMapName(const std::string & fileURI, const std::string 
 
 void SelectionTab::keyPressed(EShortcut key)
 {
+	if(GAME->server().isGuest() && tabType == ESelectionScreen::newGame)
+		return; // DMB: only the host chooses the map
+
 	int moveBy = 0;
 	switch(key)
 	{
@@ -586,6 +608,9 @@ void SelectionTab::keyPressed(EShortcut key)
 
 void SelectionTab::clickDouble(const Point & cursorPosition)
 {
+	if(GAME->server().isGuest() && tabType == ESelectionScreen::newGame)
+		return; // DMB: only the host chooses the map
+
 	int position = getLine();
 	int itemIndex = position + slider->getValue();
 
@@ -798,7 +823,7 @@ void SelectionTab::filter(int size, bool selectFirst)
 			if(firstPos < curItems.size())
 			{
 				slider->scrollTo(firstPos);
-				callOnSelect(curItems[firstPos]);
+				notifySelect(curItems[firstPos]);
 				selectAbs(firstPos);
 			}
 		}
@@ -808,8 +833,7 @@ void SelectionTab::filter(int size, bool selectFirst)
 		updateListItems();
 		redraw();
 		slider->block(true);
-		if(callOnSelect)
-			callOnSelect(nullptr);
+		notifySelect(nullptr);
 	}
 }
 
@@ -903,8 +927,7 @@ void SelectionTab::select(int position)
 
 	updateListItems();
 	redraw();
-	if(callOnSelect)
-		callOnSelect(curItems[py]);
+	notifySelect(curItems[py]);
 }
 
 void SelectionTab::selectAbs(int position)
@@ -1006,9 +1029,9 @@ void SelectionTab::selectFileName(std::string fname)
 		slider->scrollTo(firstPos);
 		selectAbs(firstPos);
 	}
-	else if(callOnSelect)
+	else
 	{
-		callOnSelect(nullptr);
+		notifySelect(nullptr);
 	}
 
 	if(tabType == ESelectionScreen::saveGame && inputName->getText().empty())
@@ -1030,11 +1053,15 @@ void SelectionTab::selectNewestFile()
 
 std::shared_ptr<ElementInfo> SelectionTab::getSelectedMapInfo() const
 {
-	return curItems.empty() || curItems[selectionPos]->isFolder ? nullptr : curItems[selectionPos];
+	return curItems.empty() || selectionPos >= curItems.size() || curItems[selectionPos]->isFolder ? nullptr : curItems[selectionPos];
 }
 
 void SelectionTab::rememberCurrentSelection()
 {
+	// DMB: a guest's highlight is the host's map; it is not the guest's own last map (the one its own lobby opens on)
+	if(GAME->server().isGuest() && tabType == ESelectionScreen::newGame)
+		return;
+
 	const auto selectedMapInfo = getSelectedMapInfo();
 	if(!selectedMapInfo || selectedMapInfo->isFolder)
 		return;
@@ -1112,6 +1139,62 @@ bool SelectionTab::isMapCompatibleWithLobbyPlayerCount(const ElementInfo & info)
 	}
 
 	return supportedHumanPlayers >= requiredHumanPlayersCount;
+}
+
+void SelectionTab::notifySelect(std::shared_ptr<ElementInfo> item)
+{
+	// DMB: nothing is told to the server by a guest (only the host chooses the map) or by a quiet refilter (a player joined); the saving screen's own list always
+	if(!callOnSelect || quietSelection || (tabType != ESelectionScreen::saveGame && GAME->server().isGuest()))
+		return;
+	callOnSelect(item);
+}
+
+void SelectionTab::parseScenarioMaps()
+{
+	auto files = getFiles("Maps/", EResType::MAP);
+	files.erase(ResourcePath("Maps/Tutorial.tut", EResType::MAP));
+	files.erase(ResourcePath("Maps/BattleOnlyMode.vmap", EResType::MAP));
+	parseMaps(files);
+}
+
+bool SelectionTab::lobbyMapFits(const CMapInfo & info) const
+{
+	if(tabType != ESelectionScreen::newGame || GAME->server().loadMode != ELoadMode::MULTI || !info.mapHeader)
+		return true;
+	size_t supportedHumanPlayers = 0;
+	for(const auto & player : info.mapHeader->players)
+		if(player.canHumanPlay)
+			++supportedHumanPlayers;
+	return supportedHumanPlayers >= getRequiredHumanPlayers();
+}
+
+void SelectionTab::showHostMap(const std::string & fileURI)
+{
+	if(fileURI == lastHostMap)
+		return;
+	lastHostMap = fileURI;
+	std::string wanted = fileURI;
+	boost::to_upper(wanted);
+	for(const auto & item : allItems)
+	{
+		if(boost::to_upper_copy(item->fileURI) != wanted)
+			continue;
+		const auto [folderName, baseFolder, parentExists, fileInFolder] = checkSubfolder(item->originalFileURI);
+		curFolder = baseFolder != "" ? baseFolder + "/" : "";
+		filter(-1);
+		for(int i = static_cast<int>(curItems.size()) - 1; i >= 0; i--)
+			if(boost::to_upper_copy(curItems[i]->fileURI) == wanted)
+			{
+				slider->scrollTo(i);
+				selectAbs(i);
+				return;
+			}
+		return;
+	}
+	// the guest has no such file: no row is highlighted
+	selectionPos = static_cast<size_t>(-1);
+	updateListItems();
+	redraw();
 }
 
 size_t SelectionTab::getRequiredHumanPlayers() const

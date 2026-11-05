@@ -696,11 +696,12 @@
 					"type" : "number",
 					"default" : 0
 				},
-				// DMB: hot join step 1. On, the host's server keeps its door open in a running game: a player whose connection dropped can connect again with the
-				// same client session and take the seat back. Off, a connection after the start is closed, as in VCMI.
+				// DMB: hot join step 1. On (the default since November 5th; K, November 4th: "Resync never fired apparently"), the host's server keeps the seat of a player whose
+				// connection dropped: they can connect again with the same client session and take it back. It no longer depends on the host's checkbox for new players (allowJoin).
+				// Off, a connection after the start is closed, as in VCMI.
 				"allowRejoin" : {
 					"type" : "boolean",
-					"default" : false
+					"default" : true
 				},
 				// DMB: hot join step 2. On, a new player may connect to the running game: the host is asked, and a newcomer let in watches until the host gives it
 				// the seat of an AI. Off (the default), a connection after the start is closed, as in VCMI (unless it is a dropped player coming back).

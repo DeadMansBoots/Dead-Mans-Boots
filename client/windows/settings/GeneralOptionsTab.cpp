@@ -19,6 +19,7 @@
 
 #include "../../eventsSDL/InputHandler.h"
 #include "../../GameEngine.h"
+#include "../../GameInstance.h"
 #include "../../gui/WindowHandler.h"
 #include "../../widgets/Buttons.h"
 #include "../../widgets/Images.h"
@@ -28,6 +29,7 @@
 #include "../../../lib/texts/CGeneralTextHandler.h"
 #include "../../../lib/filesystem/ResourcePath.h"
 #include "../../../lib/GameLibrary.h"
+#include "../../../lib/networkPacks/DmbRejoin.h"
 
 static void setIntSetting(std::string group, std::string field, int value)
 {
@@ -202,6 +204,17 @@ GeneralOptionsTab::GeneralOptionsTab()
 		setBoolSetting("gameTweaks", "compactTownCreatureInfo", value);
 	});
 
+	// DMB hot join control (K, November 2nd; in the game since November 5th): the host opens or closes the running game to new players. It was on the "other" tab, which has no button,
+	// so no one could see it; a dropped player can always come back (K, November 4th), so only allowJoin is the host's choice
+	addCallback("allowJoinChanged", [](bool value)
+	{
+		setBoolSetting("server", "allowJoin", value);
+		JoinPolicy policy;
+		policy.allowJoin = value;
+		policy.allowRejoin = true;
+		GAME->server().sendLobbyPack(policy);
+	});
+
 	build(config);
 
 	std::shared_ptr<CLabel> scalingLabel = widget<CLabel>("scalingLabel");
@@ -252,6 +265,12 @@ GeneralOptionsTab::GeneralOptionsTab()
 	std::shared_ptr<CToggleButton> enableSubtitleCheckbox = widget<CToggleButton>("enableSubtitleCheckbox");
 	if (enableSubtitleCheckbox)
 		enableSubtitleCheckbox->setSelected(settings["general"]["enableSubtitle"].Bool());
+
+	if(auto allowJoin = widget<CToggleButton>("allowJoinCheckbox"))
+	{
+		allowJoin->setSelectedSilent(settings["server"]["allowJoin"].Bool());
+		allowJoin->block(!GAME->server().isHost()); // only the host's game can be opened or closed; its help text says so
+	}
 
 	std::shared_ptr<CSlider> musicSlider = widget<CSlider>("musicSlider");
 	musicSlider->scrollTo(ENGINE->music().getVolume());

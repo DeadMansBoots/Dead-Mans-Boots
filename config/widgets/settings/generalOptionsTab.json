@@ -230,6 +230,10 @@
 				},
 				{
 					"text": "core.genrltxt.575"
+				},
+				{
+					// DMB (K, November 5th: the hot join controls in the game): the host's switch for new players joining a running game, under Video Subtitles
+					"text": "vcmi.otherOptions.allowJoin.hover"
 				}
 			]
 		},
@@ -247,6 +251,11 @@
 					"name": "enableSubtitleCheckbox",
 					"help": "core.help.363",
 					"callback": "enableSubtitleChanged"
+				},
+				{
+					"name": "allowJoinCheckbox",
+					"help": "vcmi.otherOptions.allowJoin",
+					"callback": "allowJoinChanged"
 				}
 			]
 		},

@@ -198,7 +198,20 @@ void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::st
 	if(!consoleWindowOpen)
 		unreadLines++;
 
-	GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText, channel);
+	// DMB (S072, K 11-07: "omniai's messages don't make the heroes 3 message sound...that's so annoying getting spammed constantly with
+	// them", then "should have the ability to toggle sound for ai entries in the chat (off by default)"): a line from a seat an AI plays
+	// chimes only when general.chatSoundAI is on (the chat window's Options); the text always stays. A human's line keeps the stock sound
+	bool fromAI = false;
+	if(sender.isValidPlayer())
+	{
+		const auto & seats = GAME->interface()->cb->getStartInfo()->playerInfos;
+		const auto seat = seats.find(sender);
+		fromAI = seat != seats.end() && seat->second.isControlledByAI();
+	}
+	if(fromAI && !settings["general"]["chatSoundAI"].Bool())
+		GAME->interface()->cingconsole->addMessageSilent(timeFormatted, playerName, messageText, channel);
+	else
+		GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText, channel);
 }
 
 void GameChatHandler::onNewSystemMessageReceived(const std::string & messageText)

@@ -60,6 +60,7 @@
 				"chatMuteSpectators",
 				"chatMuteSystem",
 				"chatSound",
+				"chatSoundAI",
 				"chatGlass",
 				"chatPanelW",
 				"chatPanelH",
@@ -95,6 +96,11 @@
 				"chatSound" : {
 					"type" : "boolean",
 					"default" : true
+				},
+				// DMB (S072, K 11-07: "toggle sound for ai entries in the chat (off by default)"): the chime for a line an AI seat writes
+				"chatSoundAI" : {
+					"type" : "boolean",
+					"default" : false
 				},
 				// the chat panel as glass (the map shows through it) instead of the opaque panel texture
 				"chatGlass" : {
@@ -715,7 +721,7 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "adventureAlliedAI", "adventureEnemyAI", "combatEnemyAI", "combatAlliedAI", "combatNeutralAI", "playerAIOverrides", "omniaiLearning", "omniaiDifficulty", "testmapDifficulty", "omniaiLearningMode", "omniaiResetBrain", "omniaiDifficultyBySlot", "battleLastTurnEstimate", "battleAutoTacticsForAI" ],
+			"required" : [ "adventureAlliedAI", "adventureEnemyAI", "combatEnemyAI", "combatAlliedAI", "combatNeutralAI", "playerAIOverrides", "omniaiLearning", "omniaiDifficulty", "testmapDifficulty", "testmapStartingBonus", "omniaiLearningMode", "omniaiResetBrain", "omniaiDifficultyBySlot", "battleLastTurnEstimate", "battleAutoTacticsForAI" ],
 			"properties" : {
 				// DMB: no fixed list for the five AI keys: an AI plugin from a mod (lib/modding/AIPlugins.h)
 				// has a name only its mod knows. A missing AI falls back to VCMI's own (CDynLibHandler).
@@ -822,6 +828,11 @@
 				"testmapDifficulty" : {
 					"type" : "number",
 					"default" : -1
+				},
+				// DMB (S065): every seat's starting bonus for a --testmap start: "none", "gold", "resource", "artifact"; empty = stock RANDOM
+				"testmapStartingBonus" : {
+					"type" : "string",
+					"default" : ""
 				}
 			}
 		},

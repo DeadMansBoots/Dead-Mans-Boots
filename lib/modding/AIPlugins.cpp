@@ -34,6 +34,7 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 	info.builtFor = section["builtFor"].String();
 	if(section["abi"].isNumber())
 		info.abi = static_cast<int>(section["abi"].Integer());
+	info.thoughts = section["thoughts"].Bool();
 	for(const auto & kind : section["kinds"].Vector())
 	{
 		info.adventure = info.adventure || kind.String() == "adventure";

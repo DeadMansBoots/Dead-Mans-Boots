@@ -64,7 +64,9 @@ enum class PlayerStartingBonus : int8_t
 	RANDOM   = -1,
 	ARTIFACT =  0,
 	GOLD     =  1,
-	RESOURCE =  2
+	RESOURCE =  2,
+	// DMB (S065, K 11-07: "as long is it started with the same conditions as nullkiller"): no bonus, so two seats can start alike
+	NONE     =  3
 };
 
 struct DLL_LINKAGE Handicap {
@@ -104,6 +106,9 @@ struct DLL_LINKAGE PlayerSettings
 	std::string aiBattle;
 	/// the seat's AI tier, 0 (Pawn) to 4 (King); -1 = as the map (StartInfo::difficulty)
 	int8_t aiTier = -1;
+	/// DMB (S073, K 11-07: "toggle chat \"thought\" entries per AI slot in the pre-game per-ai config menu"): the seat's AI writes its
+	/// thoughts to the chat; off by default; only an AI whose plugin declares thoughts uses it
+	bool aiThoughts = false;
 	template <typename Handler>
 	void serialize(Handler &h)
 	{
@@ -111,7 +116,14 @@ struct DLL_LINKAGE PlayerSettings
 		h & hero;
 		h & heroPortrait;
 		h & heroNameTextId;
-		h & bonus;
+		// DMB (S065): a client or save from before DMB_AI_SEATS knows no NONE; it is given RANDOM's place in that view only
+		if(h.saving && h.version < Handler::Version::DMB_AI_SEATS && bonus == PlayerStartingBonus::NONE)
+		{
+			PlayerStartingBonus older = PlayerStartingBonus::RANDOM;
+			h & older;
+		}
+		else
+			h & bonus;
 		h & color;
 		h & handicap;
 		h & name;
@@ -122,6 +134,7 @@ struct DLL_LINKAGE PlayerSettings
 			h & aiAdventure;
 			h & aiBattle;
 			h & aiTier;
+			h & aiThoughts;
 		}
 	}
 	/// DMB (S002): the seat's tier when the host set one (0 to 4), else the map's difficulty

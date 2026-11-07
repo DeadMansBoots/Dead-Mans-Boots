@@ -597,13 +597,14 @@ void CServerHandler::setPlayerHandicap(PlayerColor color, Handicap handicap) con
 	sendLobbyPack(lsph);
 }
 
-void CServerHandler::setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier) const
+void CServerHandler::setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier, bool aiThoughts) const
 {
 	LobbySetPlayerAI lspa;
 	lspa.color = color;
 	lspa.aiAdventure = aiAdventure;
 	lspa.aiBattle = aiBattle;
 	lspa.aiTier = static_cast<int8_t>(std::clamp(aiTier, -1, 4));
+	lspa.aiThoughts = aiThoughts;
 	sendLobbyPack(lspa);
 }
 
@@ -614,7 +615,7 @@ std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool bat
 	const std::vector<std::string> engine = battle ? std::vector<std::string>{"BattleAI", "MMAI", "StupidAI"} : std::vector<std::string>{"Nullkiller2", "Nullkiller"};
 	for(const auto & name : engine)
 		if(!CDynLibHandler::findAILibrary(name, battle).empty())
-			out.push_back({name, false, false});
+			out.push_back({name, false, false, false}); // the engine's own AIs write no thoughts
 	for(const auto & plugin : AIPlugins::active())
 	{
 		if(battle ? !plugin.battle : !plugin.adventure)
@@ -623,7 +624,7 @@ std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool bat
 			continue; // it cannot load at all (another DMB version, a missing library): not offered
 		if(std::any_of(out.begin(), out.end(), [&](const SeatAIChoice & c) { return c.name == plugin.name; }))
 			continue;
-		out.push_back({plugin.name, true, plugin.untrusted});
+		out.push_back({plugin.name, true, plugin.untrusted, plugin.thoughts});
 	}
 	return out;
 }
@@ -1228,6 +1229,22 @@ void CServerHandler::debugStartTest(std::string filename, bool save)
 		{
 			logGlobal->info("Test map difficulty pinned to %d", int(wanted.Integer()));
 			setDifficulty(int(wanted.Integer()));
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+	}
+
+	// DMB (S065, K 11-07: "as long is it started with the same conditions as nullkiller"): every seat's starting bonus pinned for an
+	// unattended run, as the difficulty is ("none", "gold", "resource", "artifact"; absent or anything else leaves the stock RANDOM)
+	{
+		const std::string wanted = settings["ai"]["testmapStartingBonus"].String();
+		const std::map<std::string, PlayerStartingBonus> names = {{"none", PlayerStartingBonus::NONE}, {"gold", PlayerStartingBonus::GOLD},
+			{"resource", PlayerStartingBonus::RESOURCE}, {"artifact", PlayerStartingBonus::ARTIFACT}};
+		const auto pin = names.find(wanted);
+		if(pin != names.end() && si)
+		{
+			for(const auto & seat : si->playerInfos)
+				setPlayerOption(LobbyChangePlayerOption::BONUS_ID, static_cast<int32_t>(pin->second), seat.first);
+			logGlobal->info("Test map starting bonus pinned to %s for every seat", wanted);
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 	}

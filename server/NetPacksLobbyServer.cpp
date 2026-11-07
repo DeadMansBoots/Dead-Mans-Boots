@@ -359,6 +359,7 @@ void ApplyOnServerNetPackVisitor::visitLobbySetPlayerAI(LobbySetPlayerAI & pack)
 	seat->second.aiAdventure = pack.aiAdventure;
 	seat->second.aiBattle = pack.aiBattle;
 	seat->second.aiTier = pack.aiTier;
+	seat->second.aiThoughts = pack.aiThoughts;
 	result = true;
 }
 

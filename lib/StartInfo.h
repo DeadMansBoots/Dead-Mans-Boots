@@ -97,6 +97,13 @@ struct DLL_LINKAGE PlayerSettings
 	std::string name;
 	std::set<PlayerConnectionID> connectedPlayerIDs; //Empty - AI, or connectrd player ids
 	bool compOnly; //true if this player is a computer only player; required for RMG
+	/// DMB (S002, K 11-07: "any mix of any ai at any difficulty in any slot"): the seat's own AI, set by the host in the lobby's AI
+	/// Settings. Empty = the launcher's default (Adventure Map Enemies or Allies; Enemy AI in battles). Kept while a human holds the
+	/// seat, so the same AI takes it back (hot join, a dropped player)
+	std::string aiAdventure;
+	std::string aiBattle;
+	/// the seat's AI tier, 0 (Pawn) to 4 (King); -1 = as the map (StartInfo::difficulty)
+	int8_t aiTier = -1;
 	template <typename Handler>
 	void serialize(Handler &h)
 	{
@@ -110,7 +117,15 @@ struct DLL_LINKAGE PlayerSettings
 		h & name;
 		h & connectedPlayerIDs;
 		h & compOnly;
+		if(h.version >= Handler::Version::DMB_AI_SEATS)
+		{
+			h & aiAdventure;
+			h & aiBattle;
+			h & aiTier;
+		}
 	}
+	/// DMB (S002): the seat's tier when the host set one (0 to 4), else the map's difficulty
+	int aiTierOr(int mapDifficulty) const { return aiTier >= 0 && aiTier <= 4 ? aiTier : mapDifficulty; }
 
 	PlayerSettings();
 	bool isControlledByAI() const;

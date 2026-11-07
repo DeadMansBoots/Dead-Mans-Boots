@@ -318,6 +318,7 @@ void registerTypes(Serializer &s)
 	s.template registerType<JoinAdmitted>(318);
 	s.template registerType<AssignSeat>(319);
 	s.template registerType<JoinPolicy>(320);
+	s.template registerType<LobbySetPlayerAI>(321); // DMB (S002): a seat's own AI and tier
 }
 
 VCMI_LIB_NAMESPACE_END

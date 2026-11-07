@@ -879,6 +879,11 @@ void LobbySetPlayerHandicap::visitTyped(ICPackVisitor & visitor)
 	visitor.visitLobbySetPlayerHandicap(*this);
 }
 
+void LobbySetPlayerAI::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitLobbySetPlayerAI(*this);
+}
+
 void LobbySetSimturns::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitLobbySetSimturns(*this);

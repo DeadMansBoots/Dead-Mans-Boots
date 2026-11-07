@@ -11,6 +11,10 @@
 #include "CAdventureAI.h"
 
 #include "CDynLibHandler.h"
+#include "IGameInfoCallback.h"
+#include "CBattleCallback.h"
+#include "../StartInfo.h"
+#include <vcmi/Environment.h>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -34,7 +38,23 @@ void CAdventureAI::battleStart(const BattleID & battleID, const CCreatureSet * a
 {
 	assert(!battleAI);
 	assert(cbc);
-	battleAI = CDynLibHandler::getNewBattleAI(getBattleAIName());
+	// DMB (S002): the seat's own battle AI when the host set one in the lobby and it is installed, else the adventure AI's own choice
+	// (Nullkiller 1 and 2 and OmniAI return the launcher's Enemy AI in battles). Every adventure AI that calls this base gets it
+	std::string battleName = getBattleAIName();
+	const auto me = cbc->getPlayerID();
+	const StartInfo * si = env && env->game() ? env->game()->getStartInfo() : nullptr;
+	if(si && me)
+	{
+		const auto seat = si->playerInfos.find(*me);
+		if(seat != si->playerInfos.end() && !seat->second.aiBattle.empty())
+		{
+			if(!CDynLibHandler::findAILibrary(seat->second.aiBattle, true).empty())
+				battleName = seat->second.aiBattle;
+			else
+				logGlobal->warn("Player %s: the seat's battle AI %s is not installed here; %s fights instead", me->toString(), seat->second.aiBattle, battleName);
+		}
+	}
+	battleAI = CDynLibHandler::getNewBattleAI(battleName);
 	battleAI->initBattleInterface(env, cbc);
 	battleAI->battleStart(battleID, army1, army2, tile, hero1, hero2, side, replayAllowed);
 }

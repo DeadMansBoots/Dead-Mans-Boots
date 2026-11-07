@@ -532,7 +532,9 @@ std::optional<BattleAction> AIGateway::makeSurrenderRetreatDecision(const Battle
 	if(!battleState.isLastTurnBeforeDie && !failedSiege)
 		return std::nullopt;
 
-	const int difficulty = cc->getStartInfo()->difficulty;
+	// DMB (S002): the retreat rule follows the seat's own tier, as the rest of Nullkiller 2's settings do
+	const auto seatInfo = cc->getStartInfo()->playerInfos.find(playerID);
+	const int difficulty = seatInfo != cc->getStartInfo()->playerInfos.end() ? seatInfo->second.aiTierOr(cc->getStartInfo()->difficulty) : cc->getStartInfo()->difficulty;
 	if(difficulty <= 0)
 		return std::nullopt;
 	if(difficulty == 1)

@@ -25,7 +25,8 @@ VCMI_LIB_NAMESPACE_BEGIN
 /// for and which the game is.
 namespace AIAbi
 {
-	constexpr int VERSION = 1;
+	// 2: PlayerSettings gained aiAdventure, aiBattle and aiTier (S002, November 7th); an AI reads it through getStartInfo()
+	constexpr int VERSION = 2;
 }
 
 VCMI_LIB_NAMESPACE_END

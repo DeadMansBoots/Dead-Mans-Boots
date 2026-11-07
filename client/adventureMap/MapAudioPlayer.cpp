@@ -180,11 +180,11 @@ void MapAudioPlayer::updateMusic()
 {
 	// DMB (K, November 5th: "the music for the adventure map doesn't play ... when the battle is over it continues playing the battle music on the adventure map"): a client
 	// that only watches a game is told no turn of its own (AdventureMapInterface::onEnemyTurnStarted returns at once for it, as in stock 1.7.5), so neither flag below was ever
-	// set: a watched game had no map music, and when a battle closed the resume found nothing to start and the battle track played on. A watcher gets the terrain music of
-	// the object it follows, or the enemy-turn music while it follows none
+	// set: a watched game had no map music, and when a battle closed the resume found nothing to start and the battle track played on. Every turn of a watched game is another
+	// player's turn, so a watcher gets the enemy-turn set, which stock VCMI plays for those
 	const bool watching = settings["session"]["spectate"].Bool();
 
-	if(audioPlaying && (playerMakingTurn || watching) && currentSelection)
+	if(audioPlaying && playerMakingTurn && currentSelection)
 	{
 		const auto * tile = GAME->interface()->cb->getTile(currentSelection->visitablePos());
 
@@ -192,7 +192,7 @@ void MapAudioPlayer::updateMusic()
 			ENGINE->music().playMusicFromSet("terrain", tile->getTerrain()->getJsonKey(), true, false);
 	}
 
-	if(audioPlaying && (enemyMakingTurn || (watching && !currentSelection)))
+	if(audioPlaying && (enemyMakingTurn || watching))
 	{
 		ENGINE->music().playMusicFromSet("enemy-turn", true, false);
 	}

@@ -28,7 +28,11 @@ class GameChatHandler : boost::noncopyable
 	std::vector<GameChatMessage> chatHistory;
 	int unreadLines = 0;
 	bool consoleWindowOpen = false;
+	/// DMB (S072): the seats an AI plays now for a player who left (AiTakeOver), which the start info still calls human
+	std::set<PlayerColor> aiTakenSeats;
 public:
+	/// DMB (S072): every client hears AiTakeOver; a seat taken by an AI writes "ai entries" until its player is back
+	void setSeatTakenByAI(PlayerColor color, bool taken) { if(taken) aiTakenSeats.insert(color); else aiTakenSeats.erase(color); }
 	/// DMB (chat console, phase 1): lines that arrived from the game while the console window was closed; the chip on the adventure map shows the count
 	int getUnreadLines() const { return unreadLines; }
 	/// the console window sets this while it is open (its lines are read as they come) and clears the count on opening

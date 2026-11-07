@@ -38,6 +38,7 @@ void GameChatHandler::resetMatchState()
 	chatHistory.clear();
 	unreadLines = 0;
 	consoleWindowOpen = false;
+	aiTakenSeats.clear();
 }
 
 JsonNode GameChatHandler::toJson(bool allChannels) const
@@ -206,7 +207,7 @@ void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::st
 	{
 		const auto & seats = GAME->interface()->cb->getStartInfo()->playerInfos;
 		const auto seat = seats.find(sender);
-		fromAI = seat != seats.end() && seat->second.isControlledByAI();
+		fromAI = (seat != seats.end() && seat->second.isControlledByAI()) || aiTakenSeats.count(sender); // the Reviewer 10:57: a dropped human's seat played by an AI counts as AI
 	}
 	if(fromAI && !settings["general"]["chatSoundAI"].Bool())
 		GAME->interface()->cingconsole->addMessageSilent(timeFormatted, playerName, messageText, channel);

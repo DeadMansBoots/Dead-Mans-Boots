@@ -51,8 +51,9 @@ private:
 	bool isEnteringText() const;
 
 	void showRecentChatHistory();
-	void addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 public:
+	// DMB (S072): public, so a line from an AI seat can be added without the chime (GameChatHandler::onNewGameMessageReceived)
+	void addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 	void addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
 
 	void tick(uint32_t msPassed) override;

@@ -752,6 +752,8 @@ void ApplyClientNetPackVisitor::visitPlayerBack(PlayerBack & pack)
 
 void ApplyClientNetPackVisitor::visitAiTakeOver(AiTakeOver & pack)
 {
+	// DMB (S072): every client keeps who plays the seat now, so an AI's chat lines follow the AI chat sound setting
+	GAME->server().getGameChat().setSeatTakenByAI(pack.player, pack.take);
 	// only the host's client plays the AI seats
 	if(!GAME->server().isHost())
 		return;

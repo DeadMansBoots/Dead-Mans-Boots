@@ -1354,10 +1354,37 @@ void CVCMIServer::setPlayer(PlayerColor clickedColor)
 
 	PlayerConnectionID newPlayer; //which player will take clicked position
 
-	//who will be put here?
-	if(clickedNameID == PlayerConnectionID::PLAYER_AI) //AI player clicked -> if possible replace computer with unallocated player
+	// DMB (K, November 7th: "click my (the host's) slot color to remove myself (and then be unslotted)"): the seat of the host's own client, when that client plays one seat
+	// only (a hotseat client keeps stock's cycle between its own players), is given up to the AI, not passed on to the next connected player
+	bool hostLeavesSeat = false;
+	if(clickedNameID > PlayerConnectionID::PLAYER_AI)
 	{
-		newPlayer = getIdOfFirstUnallocatedPlayer();
+		const auto clickedName = playerNames.find(clickedNameID);
+		if(clickedName != playerNames.end() && isClientHost(clickedName->second.connection))
+		{
+			const auto ofHost = std::count_if(playerNames.begin(), playerNames.end(), [this](const auto & entry) { return isClientHost(entry.second.connection); });
+			hostLeavesSeat = ofHost == 1;
+		}
+	}
+
+	//who will be put here?
+	if(hostLeavesSeat)
+		newPlayer = PlayerConnectionID::PLAYER_AI;
+	else if(clickedNameID == PlayerConnectionID::PLAYER_AI) //AI player clicked -> if possible replace computer with unallocated player
+	{
+		// DMB (S001, the Opus Reviewer 09:02): a guest who holds no seat is brought in before the host, who may have just left a seat (stock walks the players from the first, the host,
+		// and would hand the seat straight back to the host); the host takes it only when no guest is unseated
+		newPlayer = PlayerConnectionID::PLAYER_AI;
+		for(const auto & entry : playerNames)
+		{
+			if(!isClientHost(entry.second.connection) && !si->getPlayersSettings(entry.first))
+			{
+				newPlayer = entry.first;
+				break;
+			}
+		}
+		if(newPlayer == PlayerConnectionID::PLAYER_AI)
+			newPlayer = getIdOfFirstUnallocatedPlayer();
 		if(newPlayer == PlayerConnectionID::PLAYER_AI) //no "free" player -> get just first one
 			newPlayer = playerNames.begin()->first;
 	}

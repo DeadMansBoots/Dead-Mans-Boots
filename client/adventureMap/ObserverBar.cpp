@@ -47,6 +47,8 @@ std::string battlesText()
 	return settings["session"]["spectate-skip-battle"].Bool() ? "Battles: Skip" : "Battles: Watch";
 }
 const char * const BATTLES_HELP = "Battles: watch or skip the battles that begin from now on";
+/// K, November 5th: "time controls only belong to the host always, and time only controls the speed of the AI players": Pause, Step and Speed are the host's
+const char * const HOST_ONLY_HELP = "Pause, Step and Speed: only the host of the game controls the AI's time";
 }
 
 boost::filesystem::path ObserverBar::flagFolder()
@@ -85,7 +87,7 @@ ObserverBar::ObserverBar(const Rect & area)
 	stepLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::WHITE : ColorRGBA(120, 120, 120, 255), "Step");
 	const int speedX = PAD + pauseWidth + GAP + stepWidth + GAP;
 	speedArea = Rect(speedX - 4, 0, speedWidth + 8, HEIGHT);
-	speedLabel = std::make_shared<CLabel>(speedX + speedWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW,
+	speedLabel = std::make_shared<CLabel>(speedX + speedWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255),
 		speedText(static_cast<int>(settings["adventure"]["enemyMoveTime"].Float())));
 	const int battlesX = speedX + speedWidth + GAP;
 	battlesArea = Rect(battlesX - 4, 0, battlesWidth + 8, HEIGHT);
@@ -116,6 +118,8 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 	const Point local = cursorPosition - pos.topLeft();
 	if(speedArea.isInside(local))
 	{
+		if(!canPause)
+			return; // a guest does not set the AI's speed: the label is grey and says why
 		// the next stock speed, after the current one (a value between two goes to the faster)
 		const int now = static_cast<int>(settings["adventure"]["enemyMoveTime"].Float());
 		int next = SPEEDS[0];
@@ -179,9 +183,9 @@ void ObserverBar::setPaused(bool on)
 void ObserverBar::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
 {
 	const Point local = cursorPosition - pos.topLeft();
-	static const std::string text = "Pause and Step: only the host of the game can pause the AI";
+	static const std::string text = HOST_ONLY_HELP;
 	static const std::string battlesHelp = BATTLES_HELP;
-	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local)))
+	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local) || speedArea.isInside(local)))
 		ENGINE->statusbar()->write(text);
 	else
 		ENGINE->statusbar()->clearIfMatching(text);
@@ -195,7 +199,7 @@ void ObserverBar::hover(bool on)
 {
 	if(!on)
 	{
-		ENGINE->statusbar()->clearIfMatching("Pause and Step: only the host of the game can pause the AI");
+		ENGINE->statusbar()->clearIfMatching(HOST_ONLY_HELP);
 		ENGINE->statusbar()->clearIfMatching(BATTLES_HELP);
 	}
 }

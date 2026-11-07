@@ -334,7 +334,11 @@ void InfoCard::changeSelection()
 		else
 			labelPosition = Point(193, 285 + (slotsUsed - 4) * font->getLineHeight()); // right column
 
-		labelGroupPlayers->add(labelPosition.x, labelPosition.y, p.second.name);
+		// DMB (K, November 7th: "other unseated players should also be able to be brought in as observers"): a connected player who holds no seat is an observer, and the list says so
+		bool seated = false;
+		for(const auto & seat : SEL->getStartInfo()->playerInfos)
+			seated = seated || seat.second.connectedPlayerIDs.count(p.first) != 0;
+		labelGroupPlayers->add(labelPosition.x, labelPosition.y, seated ? p.second.name : p.second.name + LIBRARY->generaltexth->translate("vcmi.lobby.observerSuffix"));
 	}
 }
 

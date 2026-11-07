@@ -808,6 +808,8 @@
 	"vcmi.lobby.filepath": "File path",
 	"vcmi.lobby.handicap": "Handicap",
 	"vcmi.lobby.observerSuffix": " (observer)",
+	"vcmi.dmb.bonus.none": "{No Bonus}",
+	"vcmi.dmb.bonus.none.help": "No starting bonus: the player starts with the resources the map gives and nothing more.",
 	"vcmi.lobby.aiSettings.title": "AI Settings",
 	"vcmi.lobby.aiSettings.adventure": "Adventure AI",
 	"vcmi.lobby.aiSettings.battle": "Battle AI",

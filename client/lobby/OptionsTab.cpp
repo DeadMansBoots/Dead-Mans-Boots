@@ -145,6 +145,8 @@ size_t OptionsTab::CPlayerSettingsHelper::getImageIndex(bool big)
 		{
 		case PlayerStartingBonus::RANDOM:
 			return RANDOM;
+		case PlayerStartingBonus::NONE:
+			return RANDOM; // DMB (S065): the bonuses file has no picture of its own for it; the name says what it is
 		case PlayerStartingBonus::ARTIFACT:
 			return ARTIFACT;
 		case PlayerStartingBonus::GOLD:
@@ -245,6 +247,8 @@ std::string OptionsTab::CPlayerSettingsHelper::getTitle()
 		{
 		case PlayerStartingBonus::RANDOM:
 			return LIBRARY->generaltexth->allTexts[86]; //{Random Bonus}
+		case PlayerStartingBonus::NONE:
+			return LIBRARY->generaltexth->translate("vcmi.dmb.bonus.none"); // DMB (S065)
 		case PlayerStartingBonus::ARTIFACT:
 			return LIBRARY->generaltexth->allTexts[83]; //{Artifact Bonus}
 		case PlayerStartingBonus::GOLD:
@@ -316,6 +320,8 @@ std::string OptionsTab::CPlayerSettingsHelper::getDescription()
 		{
 		case PlayerStartingBonus::RANDOM:
 			return LIBRARY->generaltexth->allTexts[94]; //Gold, wood and ore, or an artifact is randomly chosen as your starting bonus
+		case PlayerStartingBonus::NONE:
+			return LIBRARY->generaltexth->translate("vcmi.dmb.bonus.none.help"); // DMB (S065)
 		case PlayerStartingBonus::ARTIFACT:
 			return LIBRARY->generaltexth->allTexts[90]; //An artifact is randomly chosen and equipped to your starting hero
 		case PlayerStartingBonus::GOLD:

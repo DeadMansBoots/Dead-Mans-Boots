@@ -46,6 +46,9 @@ CMarketResources::CMarketResources(const IMarket * market, const CGHeroInstance 
 	assert(offerTradePanel);
 
 	CMarketBase::update();
+	// DMB (S016): both numbers can be typed, the amount to give or the amount to get, each rounded down to whole trades
+	addAmountInput(bidTradePanel->showcaseSlot, [this](){ return bidQty; });
+	addAmountInput(offerTradePanel->showcaseSlot, [this](){ return offerQty; });
 	CMarketResources::deselect();
 }
 
@@ -72,8 +75,8 @@ CMarketBase::MarketShowcasesParams CMarketResources::getShowcasesParams() const
 	if(bidTradePanel->highlightedSlot && offerTradePanel->highlightedSlot && bidTradePanel->getHighlightedItemId() != offerTradePanel->getHighlightedItemId())
 		return MarketShowcasesParams
 		{
-			ShowcaseParams {std::to_string(bidQty * offerSlider->getValue()), bidTradePanel->getHighlightedItemId()},
-			ShowcaseParams {std::to_string(offerQty * offerSlider->getValue()), offerTradePanel->getHighlightedItemId()}
+			ShowcaseParams {amountInputs.empty() ? std::to_string(bidQty * offerSlider->getValue()) : std::string(), bidTradePanel->getHighlightedItemId()}, // DMB (S016): the typed fields draw the numbers
+			ShowcaseParams {amountInputs.empty() ? std::to_string(offerQty * offerSlider->getValue()) : std::string(), offerTradePanel->getHighlightedItemId()}
 		};
 	else
 		return MarketShowcasesParams {std::nullopt, std::nullopt};
@@ -93,6 +96,7 @@ void CMarketResources::highlightingChanged()
 	}
 	CMarketBase::highlightingChanged();
 	CMarketTraderText::highlightingChanged();
+	syncAmountInputs(bidTradePanel->isHighlighted() && offerTradePanel->isHighlighted() && bidTradePanel->getHighlightedItemId() != offerTradePanel->getHighlightedItemId());
 }
 
 void CMarketResources::updateSubtitles()

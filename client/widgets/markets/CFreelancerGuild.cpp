@@ -55,6 +55,9 @@ CFreelancerGuild::CFreelancerGuild(const IMarket * market, const CGHeroInstance 
 			};
 		});
 
+	// DMB (S016): both numbers can be typed, the creatures to give or the resource to get, each rounded down to whole trades
+	addAmountInput(bidTradePanel->showcaseSlot, [this](){ return bidQty; });
+	addAmountInput(offerTradePanel->showcaseSlot, [this](){ return offerQty; });
 	CFreelancerGuild::deselect();
 }
 
@@ -80,8 +83,8 @@ CMarketBase::MarketShowcasesParams CFreelancerGuild::getShowcasesParams() const
 	if(bidTradePanel->isHighlighted() && offerTradePanel->isHighlighted())
 		return MarketShowcasesParams
 		{
-			ShowcaseParams {std::to_string(bidQty * offerSlider->getValue()), LIBRARY->creatures()->getByIndex(bidTradePanel->getHighlightedItemId())->getIconIndex()},
-			ShowcaseParams {std::to_string(offerQty * offerSlider->getValue()), offerTradePanel->getHighlightedItemId()}
+			ShowcaseParams {amountInputs.empty() ? std::to_string(bidQty * offerSlider->getValue()) : std::string(), LIBRARY->creatures()->getByIndex(bidTradePanel->getHighlightedItemId())->getIconIndex()}, // DMB (S016): the typed fields draw the numbers
+			ShowcaseParams {amountInputs.empty() ? std::to_string(offerQty * offerSlider->getValue()) : std::string(), offerTradePanel->getHighlightedItemId()}
 		};
 	else
 		return MarketShowcasesParams {std::nullopt, std::nullopt};
@@ -100,6 +103,7 @@ void CFreelancerGuild::highlightingChanged()
 	}
 	CMarketBase::highlightingChanged();
 	CMarketTraderText::highlightingChanged();
+	syncAmountInputs(bidTradePanel->isHighlighted() && offerTradePanel->isHighlighted());
 }
 
 std::string CFreelancerGuild::getTraderText()

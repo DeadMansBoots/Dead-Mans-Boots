@@ -25,6 +25,7 @@ class CSlider;
 /// it, a number ending in "g" is an amount of gold, and the owner's conversion rounds it down to whole steps; the text stays as typed while
 /// the window shows the result, and becomes the step count when the field loses focus.
 ///
+/// A click empties the field, so the digits typed are the amount (as the send-to-ally field does); leaving it writes the slider's number.
 /// The field does not take focus when the window opens, so the window's own letter keys (M for max, U for upgrade) work until it is clicked.
 /// With the field focused, Escape restores the slider's number and leaves the field; Enter is left to the window's accept button.
 class CAmountInput final : public CTextInput
@@ -52,6 +53,7 @@ private:
 
 	void typed(const std::string & text);
 	void showSlider();
+	void onFocusGot() override;
 	void onFocusLost() override;
 	static void amountFilter(std::string & text, const std::string & oldText, bool allowGold);
 };

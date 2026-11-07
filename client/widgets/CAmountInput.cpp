@@ -71,6 +71,13 @@ void CAmountInput::sliderMoved(int position)
 		setText(std::to_string(toShown(position)));
 }
 
+void CAmountInput::onFocusGot()
+{
+	CTextInput::onFocusGot();
+	setText("");
+	updateLabel();
+}
+
 void CAmountInput::onFocusLost()
 {
 	showSlider();

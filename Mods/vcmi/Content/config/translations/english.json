@@ -1225,6 +1225,7 @@
 	"vcmi.townStructure.bank.payBack": "You enter the bank. A banker sees you and says: \"You have already got your loan. Pay it back before taking a new one.\"",
 	"vcmi.townWindow.upgradeAll.notAllUpgradable": "Not enough resources to upgrade all creatures. Do you want to upgrade following creatures?",
 	"vcmi.townWindow.upgradeAll.notUpgradable": "Not enough resources to upgrade any creature.",
+	"vcmi.recruitWindow.typedAmount" : "Click and type how many to recruit, or an amount of gold followed by g (for example 1500g) to buy as many as that gold pays for. The number is rounded down to whole creatures and never more than you can pay for or the dwelling has; the right arrow shows one more, if you can pay for it.",
 	"vcmi.townWindow.blacksmith.replaceWarMachine" : "Your hero already owns a similar war machine, %s. Are you sure that you wish to replace it with %s?",
 	"vcmi.tutorialWindow.decription.AbortSpell": "Touch and hold to cancel a spell.",
 	"vcmi.tutorialWindow.decription.BattleDirection": "To attack from a particular direction, swipe in the direction from which the attack is to be made.",

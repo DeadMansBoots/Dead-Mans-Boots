@@ -20,10 +20,14 @@
 #include "../gui/WindowHandler.h"
 #include "../widgets/Buttons.h"
 #include "../widgets/Slider.h"
+#include "../widgets/CAmountInput.h"
+#include "InfoWindows.h"
 #include "../widgets/TextControls.h"
 #include "../widgets/CreatureCostBox.h"
 
 #include "../../lib/CCreatureHandler.h"
+#include "../../lib/GameLibrary.h"
+#include "../../lib/texts/CGeneralTextHandler.h"
 
 void CreaturePurchaseCard::initButtons()
 {
@@ -62,19 +66,30 @@ void CreaturePurchaseCard::switchCreatureLevel()
 void CreaturePurchaseCard::initAmountInfo()
 {
 	availableAmount = std::make_shared<CLabel>(pos.x + 25, pos.y + 146, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW);
-	purchaseAmount = std::make_shared<CLabel>(pos.x + 76, pos.y + 146, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE);
 	updateAmountInfo(0);
 }
 
 void CreaturePurchaseCard::updateAmountInfo(int value)
 {
 	availableAmount->setText(std::to_string(maxAmount-value));
-	purchaseAmount->setText(std::to_string(value));
+	if(purchaseAmount)
+		purchaseAmount->sliderMoved(value);
 }
 
 void CreaturePurchaseCard::initSlider()
 {
 	slider = std::make_shared<CSlider>(Point(pos.x, pos.y + 158), 102, std::bind(&CreaturePurchaseCard::sliderMoved, this, _1), 0, maxAmount, 0, Orientation::HORIZONTAL);
+	// DMB (S016): where the bought number was shown, it is typed too: a number of creatures, or gold ending in g, rounded down to whole
+	// creatures and clamped to this card's slider, whose range the window keeps at what the gold left over the other cards pays for
+	purchaseAmount = std::make_shared<CAmountInput>(Rect(pos.x + 52, pos.y + 137, 48, 18), FONT_SMALL, slider,
+		[this](int64_t value, bool gold) -> int
+		{
+			int64_t each = creatureOnTheCard->getFullRecruitCost()[EGameResID::GOLD];
+			int64_t count = gold ? (each > 0 ? value / each : std::numeric_limits<int>::max()) : value;
+			return static_cast<int>(std::min<int64_t>(count, std::numeric_limits<int>::max()));
+		},
+		[](int position) -> int64_t { return position; }, true);
+	purchaseAmount->setPopupCallback([](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.recruitWindow.typedAmount")); });
 }
 
 void CreaturePurchaseCard::initCostBox()

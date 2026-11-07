@@ -25,6 +25,7 @@ class MetaString;
 VCMI_LIB_NAMESPACE_END
 
 class CButton;
+class CAmountInput;
 class LRClickableArea;
 class CreatureCostBox;
 class CCreaturePic;
@@ -89,7 +90,7 @@ class CRecruitmentWindow : public CStatusbarWindow
 	std::shared_ptr<CButton> cancelButton;
 	std::shared_ptr<CLabel> title;
 	std::shared_ptr<CLabel> availableValue;
-	std::shared_ptr<CLabel> toRecruitValue;
+	std::shared_ptr<CAmountInput> toRecruitValue; // DMB (S016): typed, a number of creatures or gold ending in g
 	std::shared_ptr<CLabel> availableTitle;
 	std::shared_ptr<CLabel> toRecruitTitle;
 	std::shared_ptr<CreatureCostBox> costPerTroopValue;

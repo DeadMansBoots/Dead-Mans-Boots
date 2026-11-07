@@ -15,6 +15,7 @@
 #include "GameEngine.h"
 #include "MouseButton.h"
 #include "WindowHandler.h"
+#include "CIntObject.h"
 #include "gui/Shortcut.h"
 
 #include "../../lib/CConfigHandler.h"

@@ -183,6 +183,7 @@ void CRecruitmentWindow::select(std::shared_ptr<CCreatureCard> card)
 
 		costPerTroopValue->set(card->creature->getFullRecruitCost());
 		totalCostValue->set(card->creature->getFullRecruitCost() * maxAmount);
+		placeTotalGoldInput();
 
 		//Recruit %s
 		MetaString recruitText;
@@ -388,6 +389,26 @@ void CRecruitmentWindow::availableCreaturesChanged()
 		sliderMoved(slider->getAmount());
 }
 
+void CRecruitmentWindow::placeTotalGoldInput()
+{
+	// DMB (S016, Reviewer 11:20, K 11-07 "should be able to do both"): the gold of the Total Cost box is typed too; the gold is rounded
+	// down to whole creatures and clamped to the slider, as the count is. Made again for each creature (the box's items are rebuilt)
+	OBJECT_CONSTRUCTION;
+	totalGoldValue.reset();
+	const auto centre = totalCostValue->labelCentre(EGameResID::GOLD);
+	if(!selected || !centre)
+		return;
+	totalCostValue->setBlank(EGameResID::GOLD, true);
+	totalGoldValue = std::make_shared<CAmountInput>(Rect(*centre - pos.topLeft() - Point(22, 9), Point(44, 18)), FONT_SMALL, slider,
+		[this](int64_t value, bool) -> int
+		{
+			const int64_t each = selected ? selected->creature->getFullRecruitCost()[EGameResID::GOLD] : 0;
+			return each > 0 ? static_cast<int>(std::min<int64_t>(value / each, std::numeric_limits<int>::max())) : 0;
+		},
+		[this](int position) -> int64_t { return static_cast<int64_t>(position) * (selected ? selected->creature->getFullRecruitCost()[EGameResID::GOLD] : 0); }, false);
+	totalGoldValue->setPopupCallback([](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.recruitWindow.typedAmount")); });
+}
+
 void CRecruitmentWindow::sliderMoved(int to)
 {
 	if(!selected)
@@ -396,6 +417,8 @@ void CRecruitmentWindow::sliderMoved(int to)
 	buyButton->block(!to || !GAME->interface()->makingTurn);
 	availableValue->setText(std::to_string(selected->amount - to));
 	toRecruitValue->sliderMoved(to);
+	if(totalGoldValue)
+		totalGoldValue->sliderMoved(to);
 
 	totalCostValue->set(selected->creature->getFullRecruitCost() * to);
 }

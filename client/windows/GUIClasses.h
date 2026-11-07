@@ -91,6 +91,8 @@ class CRecruitmentWindow : public CStatusbarWindow
 	std::shared_ptr<CLabel> title;
 	std::shared_ptr<CLabel> availableValue;
 	std::shared_ptr<CAmountInput> toRecruitValue; // DMB (S016): typed, a number of creatures or gold ending in g
+	std::shared_ptr<CAmountInput> totalGoldValue; // DMB (S016): the Total Cost gold, typed: gold in, whole creatures out
+	void placeTotalGoldInput();
 	std::shared_ptr<CLabel> availableTitle;
 	std::shared_ptr<CLabel> toRecruitTitle;
 	std::shared_ptr<CreatureCostBox> costPerTroopValue;

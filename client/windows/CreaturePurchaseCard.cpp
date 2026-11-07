@@ -74,6 +74,8 @@ void CreaturePurchaseCard::updateAmountInfo(int value)
 	availableAmount->setText(std::to_string(maxAmount-value));
 	if(purchaseAmount)
 		purchaseAmount->sliderMoved(value);
+	if(costGold)
+		costGold->sliderMoved(value);
 }
 
 void CreaturePurchaseCard::initSlider()
@@ -96,6 +98,19 @@ void CreaturePurchaseCard::initCostBox()
 {
 	cost = std::make_shared<CreatureCostBox>(Rect(pos.x+2, pos.y + 194, 97, 74), "");
 	cost->createItems(creatureOnTheCard->getFullRecruitCost());
+	// DMB (S016, Reviewer 11:20): the cost's gold is typed too, gold in and whole creatures out, clamped to this card's slider
+	if(const auto centre = cost->labelCentre(EGameResID::GOLD))
+	{
+		cost->setBlank(EGameResID::GOLD, true);
+		costGold = std::make_shared<CAmountInput>(Rect(*centre - parent->pos.topLeft() - Point(22, 9), Point(44, 18)), FONT_SMALL, slider,
+			[this](int64_t value, bool) -> int
+			{
+				const int64_t each = creatureOnTheCard->getFullRecruitCost()[EGameResID::GOLD];
+				return each > 0 ? static_cast<int>(std::min<int64_t>(value / each, std::numeric_limits<int>::max())) : 0;
+			},
+			[this](int position) -> int64_t { return static_cast<int64_t>(position) * creatureOnTheCard->getFullRecruitCost()[EGameResID::GOLD]; }, false);
+		costGold->setPopupCallback([](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.recruitWindow.typedAmount")); });
+	}
 }
 
 void CreaturePurchaseCard::sliderMoved(int to)

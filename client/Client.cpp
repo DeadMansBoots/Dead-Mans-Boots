@@ -349,6 +349,22 @@ void CClient::releaseAI(PlayerColor color)
 
 std::string CClient::aiNameForPlayer(const PlayerSettings & ps, bool battleAI, bool alliedToHuman) const
 {
+	// DMB (S002, K 11-07: "any mix of any ai at any difficulty in any slot"): the seat's own AI, set by the host in the lobby's AI
+	// Settings, comes first. One the host's PC does not have (a mod removed since the save) falls through to the rules below, and the
+	// log says which seat changed and to what
+	{
+		const std::string & seatAI = battleAI ? ps.aiBattle : ps.aiAdventure;
+		if(!seatAI.empty())
+		{
+			if(!CDynLibHandler::findAILibrary(seatAI, battleAI).empty())
+			{
+				logNetwork->info("Player %s: the seat's own %s AI %s", ps.color.toString(), battleAI ? "battle" : "adventure", seatAI);
+				return seatAI;
+			}
+			logGlobal->warn("Player %s: the seat's %s AI %s is not installed here and no active mod provides it; the default plays the seat",
+				ps.color.toString(), battleAI ? "battle" : "adventure", seatAI);
+		}
+	}
 	// DMB: an AI plugin from an active mod counts as installed too (CDynLibHandler::findAILibrary)
 	if(ps.name.size() && !CDynLibHandler::findAILibrary(ps.name, battleAI).empty())
 		return ps.name;

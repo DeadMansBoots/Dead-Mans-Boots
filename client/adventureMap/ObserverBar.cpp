@@ -65,10 +65,14 @@ void ObserverBar::clearFlags()
 	DmbObserverPause::steps = 0;
 }
 
-ObserverBar::ObserverBar(const Rect & area)
+ObserverBar::ObserverBar(const Rect & area, bool ownsFlags)
+	: ownsFlags(ownsFlags)
 {
 	OBJECT_CONSTRUCTION;
-	clearFlags();
+	if(ownsFlags)
+		clearFlags();
+	else
+		paused = DmbObserverPause::paused; // the bar on a battle window shows the state the game is in, it does not reset it
 	canPause = GAME->server().isHost();
 
 	const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
@@ -83,7 +87,7 @@ ObserverBar::ObserverBar(const Rect & area)
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, width, HEIGHT), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
 	pauseArea = Rect(PAD - 4, 0, pauseWidth + 8, HEIGHT);
 	stepArea = Rect(PAD + pauseWidth + GAP - 4, 0, stepWidth + 8, HEIGHT);
-	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255), "Pause");
+	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255), paused ? "Resume" : "Pause");
 	stepLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::WHITE : ColorRGBA(120, 120, 120, 255), "Step");
 	const int speedX = PAD + pauseWidth + GAP + stepWidth + GAP;
 	speedArea = Rect(speedX - 4, 0, speedWidth + 8, HEIGHT);
@@ -99,7 +103,8 @@ ObserverBar::ObserverBar(const Rect & area)
 
 ObserverBar::~ObserverBar()
 {
-	clearFlags();
+	if(ownsFlags)
+		clearFlags();
 }
 
 void ObserverBar::showAll(Canvas & to)
@@ -185,19 +190,22 @@ void ObserverBar::mouseMoved(const Point & cursorPosition, const Point & lastUpd
 	const Point local = cursorPosition - pos.topLeft();
 	static const std::string text = HOST_ONLY_HELP;
 	static const std::string battlesHelp = BATTLES_HELP;
+	const auto status = ENGINE->statusbar(); // a battle window has its own console, and a window with none has no status bar to write to
+	if(!status)
+		return;
 	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local) || speedArea.isInside(local)))
-		ENGINE->statusbar()->write(text);
+		status->write(text);
 	else
-		ENGINE->statusbar()->clearIfMatching(text);
+		status->clearIfMatching(text);
 	if(battlesArea.isInside(local))
-		ENGINE->statusbar()->write(battlesHelp);
+		status->write(battlesHelp);
 	else
-		ENGINE->statusbar()->clearIfMatching(battlesHelp);
+		status->clearIfMatching(battlesHelp);
 }
 
 void ObserverBar::hover(bool on)
 {
-	if(!on)
+	if(!on && ENGINE->statusbar())
 	{
 		ENGINE->statusbar()->clearIfMatching(HOST_ONLY_HELP);
 		ENGINE->statusbar()->clearIfMatching(BATTLES_HELP);

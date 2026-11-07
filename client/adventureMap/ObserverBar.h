@@ -31,6 +31,8 @@ class ObserverBar : public CIntObject
 	Rect pauseArea;
 	Rect stepArea;
 	bool paused = false;
+	/// the bar of the adventure map owns the PAUSE and STEP flags (it clears them when it is made and when it goes); the bar on a battle window shares them and clears nothing
+	bool ownsFlags = true;
 	/// only the host's machine runs the AI, and so only it can stop one: the flag files are read on that machine (K, October 22nd: pause is for the host)
 	bool canPause = false;
 	int shownDay = -1;
@@ -40,7 +42,7 @@ class ObserverBar : public CIntObject
 
 public:
 	/// where the bar sits: top centre of `area` (the map view's rectangle)
-	explicit ObserverBar(const Rect & area);
+	explicit ObserverBar(const Rect & area, bool ownsFlags = true);
 	~ObserverBar() override;
 
 	/// the flag files (OmniAI's folder, next to the game's other user data); every flag is removed at the start and the end of a watched game, so one left behind by a crash never freezes the next

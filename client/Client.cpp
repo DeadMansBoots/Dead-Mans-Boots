@@ -252,6 +252,9 @@ void CClient::initPlayerEnvironments()
 		session["spectate"].Bool() = true;
 		session["spectate-skip-battle-result"].Bool() = true;
 		session["spectate-ignore-hero"].Bool() = true;
+		// DMB (K, November 5th: "i don't want to watch battles"; the Opus Reviewer, S001 row O12): a game where the viewer holds no seat starts with the battles skipped; the bar's
+		// Battles switch flips it, and the command line's --spectate-skip-battle gives the same
+		session["spectate-skip-battle"].Bool() = true;
 	}
 	
 	if(settings["session"]["spectate"].Bool())

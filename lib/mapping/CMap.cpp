@@ -1037,6 +1037,21 @@ void CMap::parseUidCounter()
 	uidCounter = max_index + 1;  // Automatically 0 when max_index = -1
 }
 
+namespace
+{
+/// DMB: the class of an object for the tie on one anchor row of the display order: 0 a decoration (nothing on it to visit; not a hero and not a stack), 1 everything else, 2 a hero
+int blitTieClass(const CGObjectInstance * obj)
+{
+	const auto id = obj->ID;
+	if(id == Obj::HERO)
+		return 2;
+	if(id == Obj::MONSTER || id == Obj::RANDOM_MONSTER || id == Obj::RANDOM_MONSTER_L1 || id == Obj::RANDOM_MONSTER_L2 || id == Obj::RANDOM_MONSTER_L3 || id == Obj::RANDOM_MONSTER_L4
+		|| id == Obj::RANDOM_MONSTER_L5 || id == Obj::RANDOM_MONSTER_L6 || id == Obj::RANDOM_MONSTER_L7)
+		return 1;
+	return obj->isVisitable() ? 1 : 0;
+}
+}
+
 bool CMap::compareObjectBlitOrder(const CGObjectInstance * a, const CGObjectInstance * b)
 {
 	//FIXME: Optimize
@@ -1058,44 +1073,17 @@ bool CMap::compareObjectBlitOrder(const CGObjectInstance * a, const CGObjectInst
 		return a->id < b->id;
 	}
 
-	int aBlocksB = 0;
-	int bBlocksA = 0;
-
-	for(const auto & aOffset : a->getBlockedOffsets())
-	{
-		int3 testTarget = a->anchorPos() + aOffset + int3(0, 1, 0);
-		if(b->blockingAt(testTarget))
-			bBlocksA += 1;
-	}
-
-	for(const auto & bOffset : b->getBlockedOffsets())
-	{
-		int3 testTarget = b->anchorPos() + bOffset + int3(0, 1, 0);
-		if(a->blockingAt(testTarget))
-			aBlocksB += 1;
-	}
-
-	// Discovered by experimenting with H3 maps - object priority depends on how many tiles of object A are "blocked" by object B
-	// For example if blockmap of two objects looks like this:
-	//  ABB
-	//  AAB
-	// Here, in middle column object A has blocked tile that is immediately below tile blocked by object B
-	// Meaning, object A blocks 1 tile of object B and object B blocks 0 tiles of object A
-	// In this scenario in H3 object A will always appear above object B, irregardless of H3M order
-	if(aBlocksB != bBlocksA)
-		return aBlocksB < bBlocksA;
-
-	// object that don't have clear priority via tile blocking will appear based on their row
+	// DMB (K, November 5th, the nomad tent: "The further down/toward the player's view, the higher the display priority" and "buildings overriding decorations in the event that
+	// are at the same north-south priority level"): the order is the anchor row, the lower row (further north) first so that the further south, the later it is drawn, and on
+	// the same row a decoration first, a hero last and everything else by H3M order (the Opus Reviewer's ruling R2b). Stock 1.7.5 tested first how many tiles of each object are
+	// blocked by the other (a rule "discovered by experimenting with H3 maps") and then the row; the two disagree, the relation was not transitive (three objects drew over each
+	// other in a cycle at that tent) and the drawn order depended on the order objects were added. This one is a total order of (row, class, id) and cannot cycle
 	if(a->anchorPos().y != b->anchorPos().y)
 		return a->anchorPos().y < b->anchorPos().y;
 
-	// heroes should appear on top of objects on the same tile
-	if(b->ID==Obj::HERO && a->ID!=Obj::HERO)
-		return true;
-	if(b->ID!=Obj::HERO && a->ID==Obj::HERO)
-		return false;
+	if(blitTieClass(a) != blitTieClass(b))
+		return blitTieClass(a) < blitTieClass(b);
 
-	// or, if all other tests fail to determine priority - simply based on H3M order
 	return a->id < b->id;
 }
 

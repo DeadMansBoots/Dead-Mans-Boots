@@ -513,8 +513,15 @@ int CClient::sendRequest(const CPackForServer & request, PlayerColor player, boo
 	waitingRequest.pushBack(requestID);
 	request.requestID = requestID;
 	request.player = player;
-	if(vstd::contains(playerint, player) && dynamic_cast<CPlayerInterface *>(playerint[player].get()))
-		PlayRecorder::get().request(request, player); // DMB play recorder: what the human player asked for
+	if(vstd::contains(playerint, player))
+	{
+		// DMB play recorder: what the human player asked for, and (S077 R1) what an AI seat this client runs asked for, with its name
+		const auto & iface = playerint[player];
+		if(dynamic_cast<CPlayerInterface *>(iface.get()))
+			PlayRecorder::get().request(request, player);
+		else
+			PlayRecorder::get().request(request, player, iface->dllName.empty() ? std::string("AI") : iface->dllName);
+	}
 	GAME->server().sendGamePack(request);
 	if(vstd::contains(playerint, player))
 		playerint[player]->requestSent(&request, requestID);

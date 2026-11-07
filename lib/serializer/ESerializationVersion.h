@@ -67,10 +67,11 @@ enum class ESerializationVersion : int32_t
 	DMB_LOAD_PHASES, // DMB: the load screen's progress carries the stage a map generator has reached
 	DMB_ARTIFACT_TRANSITION_SLOT, // DMB: an artifact set saves its transition slot, so a picked artifact survives a save
 	DMB_CHAT_CHANNELS, // DMB: a chat line carries its channel (all, team, spectators)
+	DMB_AI_SEATS, // DMB: a seat carries its own AI (aiAdventure, aiBattle, aiTier) for the lobby's per-seat AI settings; also the unseated host and observers (no field of its own)
 
 	RELEASE_170 = HOTA_MAP_STACK_COUNT,
 	RELEASE_174 = CUSTOM_GARRISON_TITLE,
-	CURRENT = DMB_CHAT_CHANNELS,
+	CURRENT = DMB_AI_SEATS,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

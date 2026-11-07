@@ -198,6 +198,9 @@ private:
 		std::unique_ptr<PlayerSettings> s;
 		std::shared_ptr<CLabel> labelPlayerName;
 		std::shared_ptr<CTextInputWithConfirm> labelPlayerNameEdit;
+		/// DMB (S002): a computer seat shows its AI by name with the tier beside it; the host clicks the name to open the seat's AI Settings window
+		std::shared_ptr<LRClickableArea> aiSeatArea;
+		std::shared_ptr<CAnimImage> aiTierIcon;
 		std::shared_ptr<CMultiLineLabel> labelWhoCanPlay;
 		std::shared_ptr<CPicture> background;
 		std::shared_ptr<CButton> buttonTownLeft;

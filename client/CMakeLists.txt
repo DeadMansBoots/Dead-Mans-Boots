@@ -65,6 +65,7 @@ set(vcmiclientcommon_SRCS
 	lobby/CSelectionBase.cpp
 	lobby/TurnOptionsTab.cpp
 	lobby/ExtraOptionsTab.cpp
+	lobby/AISettingsWindow.cpp
 	lobby/OptionsTab.cpp
 	lobby/OptionsTabBase.cpp
 	lobby/RandomMapTab.cpp
@@ -301,6 +302,7 @@ set(vcmiclientcommon_HEADERS
 	lobby/CSelectionBase.h
 	lobby/TurnOptionsTab.h
 	lobby/ExtraOptionsTab.h
+	lobby/AISettingsWindow.h
 	lobby/OptionsTab.h
 	lobby/OptionsTabBase.h
 	lobby/TimerString.h

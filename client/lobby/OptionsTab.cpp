@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "OptionsTab.h"
+#include "AISettingsWindow.h"
 
 #include "CSelectionBase.h"
 
@@ -75,6 +76,10 @@ void OptionsTab::recreate()
 
 	for (auto heroOverview : ENGINE->windows().findWindows<CHeroOverview>())
 		heroOverview->close();
+
+	// DMB (S002): an open AI Settings window shows the seat as the lobby state now holds it
+	for(auto aiWindow : ENGINE->windows().findWindows<AISettingsWindow>())
+		aiWindow->refresh();
 
 	for (auto selectionWindow : ENGINE->windows().findWindows<SelectionWindow>())
 		selectionWindow->reopen();
@@ -1035,7 +1040,29 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 
 	background = std::make_shared<CPicture>(ImagePath::builtin(bgs[s->color]), 0, 0);
 	if(s->isControlledByAI() || GAME->server().isGuest())
-		labelPlayerName = std::make_shared<CLabel>(55, 10, EFonts::FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, name, 95);
+	{
+		// DMB (S002, K: "a configure AI button where it says computer ... the button text should reflect the currently selected AI"): a computer seat names its AI, with its tier
+		// (the seat's own, or the map's) as a chess piece in the margin beside the row; the host clicks the name for the seat's AI Settings window
+		const bool computerSeat = s->isControlledByAI();
+		labelPlayerName = std::make_shared<CLabel>(55, 10, EFonts::FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, computerSeat ? AISettingsWindow::displayName(AISettingsWindow::resolvedAdventure(*s)) : name, 95);
+		if(computerSeat)
+		{
+			// the margin beside the row holds the flag of a seat a human may take; a seat only the computer plays has none, and shows the tier there
+			if(!pi->canHumanPlay)
+			{
+				static const std::array<std::string, 5> tierIcons = {{"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"}};
+				aiTierIcon = std::make_shared<CAnimImage>(AnimationPath::builtin(tierIcons[AISettingsWindow::effectiveTier(*s)]), 0, 0, -43, 8);
+			}
+			const PlayerColor seatColor = s->color;
+			aiSeatArea = std::make_shared<LRClickableArea>(Rect(6, 3, 95, 15), [seatColor]()
+			{
+				if(GAME->server().isHost())
+					ENGINE->windows().createAndPushWindow<AISettingsWindow>(seatColor);
+			}, [](){
+				CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.seatHelp"));
+			});
+		}
+	}
 	else
 		labelPlayerNameEdit = std::make_shared<CTextInputWithConfirm>(Rect(6, 3, 95, 15), EFonts::FONT_SMALL, ETextAlignment::CENTER, name, false, [this](){ updateName(); });
 

@@ -1174,6 +1174,15 @@ CTownItem::CTownItem(const CGTownInstance * Town)
 		fastTownHall->block(true);
 		fastArmyPurchase->block(true);
 		fastMarket.reset();
+		// a blocked button shows no hover text (CButton::hover), so the reason sits on an area over each one and over the market's place
+		const std::string why = LIBRARY->generaltexth->translate("vcmi.kingdomOverview.observerReadOnly");
+		for(const Rect & area : { fastTownHall->pos, fastArmyPurchase->pos, Rect(pos.x + 153, pos.y + 6, 65, 64) })
+		{
+			auto note = std::make_shared<CHoverableArea>();
+			note->pos = area;
+			note->hoverText = why;
+			observerNotes.push_back(note);
+		}
 	}
 
 	labelCreatureGrowth = std::make_shared<CMultiLineLabel>(Rect(4, 76, 50, 35), EFonts::FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("core.genrltxt.265"));

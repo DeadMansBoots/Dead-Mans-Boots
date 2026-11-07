@@ -305,6 +305,7 @@ class CTownItem : public CIntObject, public IGarrisonHolder
 	std::shared_ptr<CButton> fastArmyPurchase;
 	std::shared_ptr<LRClickableArea> fastMarket;
 	std::shared_ptr<LRClickableArea> fastTown;
+	std::vector<std::shared_ptr<CHoverableArea>> observerNotes; // DMB (S070): why a blocked button does nothing, for an observer
 
 public:
 	const CGTownInstance * town;

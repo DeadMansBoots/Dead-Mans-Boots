@@ -757,6 +757,7 @@
 	"vcmi.kingdomOverview.perDay": "Gold a day",
 	"vcmi.kingdomOverview.army": "Army: heroes / towns",
 	"vcmi.kingdomOverview.strongest": "Strongest hero:",
+	"vcmi.kingdomOverview.observerReadOnly": "Observers cannot change another player's kingdom",
 	"vcmi.lobby.author": "Author",
 	"vcmi.lobby.backToLobby": "Return to lobby",
 	"vcmi.lobby.battleOnlyMode": "Battle Mode",

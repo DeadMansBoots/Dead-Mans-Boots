@@ -1233,6 +1233,22 @@ void CServerHandler::debugStartTest(std::string filename, bool save)
 		}
 	}
 
+	// DMB (S065, K 11-07: "as long is it started with the same conditions as nullkiller"): every seat's starting bonus pinned for an
+	// unattended run, as the difficulty is ("none", "gold", "resource", "artifact"; absent or anything else leaves the stock RANDOM)
+	{
+		const std::string wanted = settings["ai"]["testmapStartingBonus"].String();
+		const std::map<std::string, PlayerStartingBonus> names = {{"none", PlayerStartingBonus::NONE}, {"gold", PlayerStartingBonus::GOLD},
+			{"resource", PlayerStartingBonus::RESOURCE}, {"artifact", PlayerStartingBonus::ARTIFACT}};
+		const auto pin = names.find(wanted);
+		if(pin != names.end() && si)
+		{
+			for(const auto & seat : si->playerInfos)
+				setPlayerOption(LobbyChangePlayerOption::BONUS_ID, static_cast<int32_t>(pin->second), seat.first);
+			logGlobal->info("Test map starting bonus pinned to %s for every seat", wanted);
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+	}
+
 	while(true)
 	{
 		try

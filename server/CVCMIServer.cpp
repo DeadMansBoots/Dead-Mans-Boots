@@ -1635,10 +1635,11 @@ void CVCMIServer::optionNextBonus(PlayerColor player, int dir)
 			s.bonus = PlayerStartingBonus::GOLD;
 	}
 
-	if(s.bonus > PlayerStartingBonus::RESOURCE)
+	// DMB (S065): NONE comes after RESOURCE in the cycle
+	if(s.bonus > PlayerStartingBonus::NONE)
 		s.bonus = PlayerStartingBonus::RANDOM;
 	if(s.bonus < PlayerStartingBonus::RANDOM)
-		s.bonus = PlayerStartingBonus::RESOURCE;
+		s.bonus = PlayerStartingBonus::NONE;
 
 	if(s.castle == FactionID::RANDOM && s.bonus == PlayerStartingBonus::RESOURCE) //random castle - can't be resource
 	{
@@ -1658,7 +1659,7 @@ void CVCMIServer::optionSetBonus(PlayerColor player, PlayerStartingBonus id)
 		id == PlayerStartingBonus::ARTIFACT) //no hero - can't be artifact
 			return;
 
-	if(id > PlayerStartingBonus::RESOURCE)
+	if(id > PlayerStartingBonus::NONE) // DMB (S065): NONE is a choice
 		return;
 	if(id < PlayerStartingBonus::RANDOM)
 		return;

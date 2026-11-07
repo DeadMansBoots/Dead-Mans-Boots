@@ -64,7 +64,9 @@ enum class PlayerStartingBonus : int8_t
 	RANDOM   = -1,
 	ARTIFACT =  0,
 	GOLD     =  1,
-	RESOURCE =  2
+	RESOURCE =  2,
+	// DMB (S065, K 11-07: "as long is it started with the same conditions as nullkiller"): no bonus, so two seats can start alike
+	NONE     =  3
 };
 
 struct DLL_LINKAGE Handicap {
@@ -114,7 +116,14 @@ struct DLL_LINKAGE PlayerSettings
 		h & hero;
 		h & heroPortrait;
 		h & heroNameTextId;
-		h & bonus;
+		// DMB (S065): a client or save from before DMB_AI_SEATS knows no NONE; it is given RANDOM's place in that view only
+		if(h.saving && h.version < Handler::Version::DMB_AI_SEATS && bonus == PlayerStartingBonus::NONE)
+		{
+			PlayerStartingBonus older = PlayerStartingBonus::RANDOM;
+			h & older;
+		}
+		else
+			h & bonus;
 		h & color;
 		h & handicap;
 		h & name;

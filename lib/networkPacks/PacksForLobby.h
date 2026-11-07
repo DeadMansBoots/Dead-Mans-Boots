@@ -335,6 +335,7 @@ struct DLL_LINKAGE LobbySetPlayerAI : public CLobbyPackToServer
 	std::string aiAdventure;
 	std::string aiBattle;
 	int8_t aiTier = -1;
+	bool aiThoughts = false;
 
 	void visitTyped(ICPackVisitor & visitor) override;
 
@@ -344,6 +345,7 @@ struct DLL_LINKAGE LobbySetPlayerAI : public CLobbyPackToServer
 		h & aiAdventure;
 		h & aiBattle;
 		h & aiTier;
+		h & aiThoughts;
 	}
 };
 

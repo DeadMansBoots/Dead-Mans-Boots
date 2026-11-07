@@ -104,6 +104,9 @@ struct DLL_LINKAGE PlayerSettings
 	std::string aiBattle;
 	/// the seat's AI tier, 0 (Pawn) to 4 (King); -1 = as the map (StartInfo::difficulty)
 	int8_t aiTier = -1;
+	/// DMB (S073, K 11-07: "toggle chat \"thought\" entries per AI slot in the pre-game per-ai config menu"): the seat's AI writes its
+	/// thoughts to the chat; off by default; only an AI whose plugin declares thoughts uses it
+	bool aiThoughts = false;
 	template <typename Handler>
 	void serialize(Handler &h)
 	{
@@ -122,6 +125,7 @@ struct DLL_LINKAGE PlayerSettings
 			h & aiAdventure;
 			h & aiBattle;
 			h & aiTier;
+			h & aiThoughts;
 		}
 	}
 	/// DMB (S002): the seat's tier when the host set one (0 to 4), else the map's difficulty

@@ -60,6 +60,7 @@
 				"chatMuteSpectators",
 				"chatMuteSystem",
 				"chatSound",
+				"chatSoundAI",
 				"chatGlass",
 				"chatPanelW",
 				"chatPanelH",
@@ -95,6 +96,11 @@
 				"chatSound" : {
 					"type" : "boolean",
 					"default" : true
+				},
+				// DMB (S072, K 11-07: "toggle sound for ai entries in the chat (off by default)"): the chime for a line an AI seat writes
+				"chatSoundAI" : {
+					"type" : "boolean",
+					"default" : false
 				},
 				// the chat panel as glass (the map shows through it) instead of the opaque panel texture
 				"chatGlass" : {

@@ -28,6 +28,8 @@ struct DLL_LINKAGE AIPluginInfo
 	std::string library;
 	bool adventure = false;
 	bool battle = false;
+	/// DMB (S073): the AI can write its thoughts to the chat ("thoughts" : true in its mod.json's aiPlugin)
+	bool thoughts = false;
 	std::string builtFor;
 	/// the AI ABI number the plugin declares (lib/modding/AIAbi.h); -1 when it declares none, and then builtFor must be this DMB's version
 	int abi = -1;

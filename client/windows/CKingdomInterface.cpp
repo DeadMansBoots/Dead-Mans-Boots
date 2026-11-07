@@ -51,6 +51,75 @@
 static const std::string OVERVIEW_BACKGROUND = "OvCast.pcx";
 static const size_t OVERVIEW_SIZE = 4;
 
+// DMB (S070, K 11-07: "review player resources, town states, troops and garrisons, etc."): an observer (a watcher with no player state of
+// its own) sees any player's kingdom in this window, read-only. A player sees their own, exactly as before.
+namespace
+{
+PlayerColor kingdomShown = PlayerColor::CANNOT_DETERMINE;
+
+bool kingdomObserver()
+{
+	return GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false) == nullptr;
+}
+
+PlayerColor kingdomPlayer()
+{
+	return kingdomObserver() ? kingdomShown : GAME->interface()->playerID;
+}
+
+const PlayerState * kingdomState()
+{
+	return GAME->interface()->cb->getPlayerState(kingdomPlayer(), false);
+}
+
+std::vector<PlayerColor> kingdomPlayersInGame()
+{
+	std::vector<PlayerColor> out;
+	for(const auto & seat : GAME->interface()->cb->getStartInfo()->playerInfos)
+	{
+		const auto * state = GAME->interface()->cb->getPlayerState(seat.first, false);
+		if(state && state->status == EPlayerStatus::INGAME)
+			out.push_back(seat.first);
+	}
+	return out;
+}
+
+std::vector<const CGHeroInstance *> kingdomHeroes()
+{
+	if(!kingdomObserver())
+		return GAME->interface()->localState->getWanderingHeroes();
+	std::vector<const CGHeroInstance *> out;
+	if(const auto * state = kingdomState())
+		for(const auto * hero : state->getHeroes())
+			if(hero && !hero->isGarrisoned()) // a hero in a town's garrison is shown with its town
+				out.push_back(hero);
+	return out;
+}
+
+std::vector<const CGTownInstance *> kingdomTowns()
+{
+	if(!kingdomObserver())
+		return GAME->interface()->localState->getOwnedTowns();
+	if(const auto * state = kingdomState())
+		return state->getTowns();
+	return {};
+}
+
+std::vector<const CGObjectInstance *> kingdomObjects()
+{
+	if(!kingdomObserver())
+		return GAME->interface()->cb->getMyObjects();
+	if(const auto * state = kingdomState())
+		return state->getOwnedObjects();
+	return {};
+}
+
+std::string kingdomShort(uint64_t value)
+{
+	return value >= 100000 ? std::to_string(value / 1000) + "k" : std::to_string(value);
+}
+}
+
 InfoBox::InfoBox(Point position, InfoPos Pos, InfoSize Size, std::shared_ptr<IInfoBoxData> Data):
 	size(Size),
 	infoPos(Pos),
@@ -469,15 +538,28 @@ void InfoBoxCustom::prepareMessage(std::string & text, std::shared_ptr<CComponen
 {
 }
 
-CKingdomInterface::CKingdomInterface()
+CKingdomInterface::CKingdomInterface(PlayerColor shown)
 	: CWindowObject(PLAYER_COLORED | BORDERED, ImagePath::builtin(OVERVIEW_BACKGROUND))
 {
 	OBJECT_CONSTRUCTION;
 	ui32 footerPos = OVERVIEW_SIZE * 116;
 
+	// DMB (S070): an observer's window opens on the player asked for, else the one shown last, else the first player still in the game
+	if(kingdomObserver())
+	{
+		const auto players = kingdomPlayersInGame();
+		if(vstd::contains(players, shown))
+			kingdomShown = shown;
+		else if(!vstd::contains(players, kingdomShown))
+			kingdomShown = players.empty() ? PlayerColor::CANNOT_DETERMINE : players.front();
+		if(kingdomShown.isValidPlayer() && background)
+			background->setPlayerColor(kingdomShown);
+		addUsedEvents(TIME);
+	}
+
 	tabArea = std::make_shared<CTabbedInt>(std::bind(&CKingdomInterface::createMainTab, this, _1), Point(4,4));
 
-	std::vector<const CGObjectInstance * > ownedObjects = GAME->interface()->cb->getMyObjects();
+	std::vector<const CGObjectInstance * > ownedObjects = kingdomObjects();
 	generateObjectsList(ownedObjects);
 	generateMinesList(ownedObjects, 0);
 	generateButtons();
@@ -485,7 +567,105 @@ CKingdomInterface::CKingdomInterface()
 	statusbar = CGStatusBar::create(std::make_shared<CPicture>(ImagePath::builtin("KSTATBAR"), 10,pos.h - 45));
 	resdatabar = std::make_shared<CResDataBar>(ImagePath::builtin("KRESBAR"), 7, 111+footerPos, 29, 3, 76, 81);
 
+	if(kingdomObserver())
+	{
+		if(kingdomShown.isValidPlayer())
+			resdatabar->setShownPlayer(kingdomShown);
+		generatePlayerFlags();
+		shownSignature = kingdomSignature();
+	}
+
 	activateTab(settings["general"]["lastKindomInterface"].Integer());
+}
+
+void CKingdomInterface::generatePlayerFlags()
+{
+	OBJECT_CONSTRUCTION;
+	// the flags sit in the list's title strip, left end; the first column's label moves right for an observer (CKingdHeroList, CKingdTownList)
+	int x = 24;
+	for(const PlayerColor & player : kingdomPlayersInGame())
+	{
+		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, x, 6);
+		auto area = std::make_shared<LRClickableArea>(Rect(x, 6, flag->pos.w, flag->pos.h), [this, player]()
+		{
+			// deferred: the click's own widget must not be rebuilt inside its handler
+			ENGINE->dispatchMainThread([this, player]()
+			{
+				if(ENGINE->windows().topWindow<CKingdomInterface>().get() == this)
+				{
+					showPlayer(player);
+					activateTab(0);
+				}
+			});
+		});
+		x += flag->pos.w + 2;
+		playerFlags.push_back(flag);
+		playerFlagAreas.push_back(area);
+	}
+	allPlayersLabel = std::make_shared<CLabel>(x + 4, 7, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.kingdomOverview.allPlayers"));
+	allPlayersArea = std::make_shared<LRClickableArea>(Rect(x + 2, 6, allPlayersLabel->pos.w + 6, 16), [this]()
+	{
+		ENGINE->dispatchMainThread([this]()
+		{
+			if(ENGINE->windows().topWindow<CKingdomInterface>().get() == this)
+				activateTab(2);
+		});
+	});
+	const std::string name = kingdomShown.isValidPlayer() ? LIBRARY->generaltexth->capColors[kingdomShown.getNum()] : std::string();
+	shownPlayerLabel = std::make_shared<CLabel>(x + allPlayersLabel->pos.w + 16, 7, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, name);
+}
+
+void CKingdomInterface::showPlayer(PlayerColor player)
+{
+	OBJECT_CONSTRUCTION;
+	kingdomShown = player;
+	if(background)
+		background->setPlayerColor(player);
+	objects.clear();
+	const auto ownedObjects = kingdomObjects();
+	generateObjectsList(ownedObjects);
+	generateMinesList(ownedObjects, 0);
+	if(resdatabar)
+		resdatabar->setShownPlayer(player);
+	if(shownPlayerLabel)
+		shownPlayerLabel->setText(LIBRARY->generaltexth->capColors[player.getNum()]);
+	shownSignature = kingdomSignature();
+	tabArea->reset();
+	redraw();
+}
+
+uint64_t CKingdomInterface::kingdomSignature() const
+{
+	// what the shown player's footer and lists show: resources, objects, heroes, towns and their armies; a change means the view is stale
+	const auto * state = kingdomState();
+	if(!state)
+		return 0;
+	uint64_t sig = 1469598103934665603ULL;
+	auto mix = [&sig](uint64_t v)
+	{
+		sig ^= v;
+		sig *= 1099511628211ULL;
+	};
+	for(const auto & resource : LIBRARY->resourceTypeHandler->getAllObjects())
+		mix(static_cast<uint64_t>(state->resources[resource]));
+	mix(state->getOwnedObjects().size());
+	for(const auto * hero : state->getHeroes())
+		mix(hero->getArmyStrength() + 31ULL * hero->id.getNum() + 7ULL * hero->exp);
+	for(const auto * town : state->getTowns())
+		mix(town->getUpperArmy()->getArmyStrength() + 31ULL * town->id.getNum() + town->built);
+	return sig;
+}
+
+void CKingdomInterface::tick(uint32_t msPassed)
+{
+	// an observer's view follows the AIs: checked twice a second, rebuilt only when the shown kingdom changed (a paused game never changes)
+	sinceRefresh += msPassed;
+	if(sinceRefresh < 500 || !kingdomObserver() || !kingdomShown.isValidPlayer())
+		return;
+	sinceRefresh = 0;
+	const uint64_t now = kingdomSignature();
+	if(now != shownSignature)
+		showPlayer(kingdomShown);
 }
 
 void CKingdomInterface::generateObjectsList(const std::vector<const CGObjectInstance * > &ownedObjects)
@@ -576,22 +756,39 @@ std::shared_ptr<CIntObject> CKingdomInterface::createMainTab(size_t index)
 	case 0:
 		return std::make_shared<CKingdHeroList>(size, [this](const CWindowWithArtifacts::CArtifactsOfHeroPtr & newHeroSet)
 			{
-				newHeroSet->clickPressedCallback = [this, newHeroSet](const CArtPlace & artPlace, const Point & cursorPosition)
+				// DMB (S070): an observer looks at artifacts (the popup) and moves none
+				if(!kingdomObserver())
 				{
-					clickPressedOnArtPlace(newHeroSet->getHero(), artPlace.slot, false, false, false, cursorPosition);
-				};
+					newHeroSet->clickPressedCallback = [this, newHeroSet](const CArtPlace & artPlace, const Point & cursorPosition)
+					{
+						clickPressedOnArtPlace(newHeroSet->getHero(), artPlace.slot, false, false, false, cursorPosition);
+					};
+					newHeroSet->gestureCallback = [this, newHeroSet](const CArtPlace & artPlace, const Point & cursorPosition)
+					{
+						showQuickBackpackWindow(newHeroSet->getHero(), artPlace.slot, cursorPosition);
+					};
+				}
 				newHeroSet->showPopupCallback = [this, newHeroSet](CArtPlace & artPlace, const Point & cursorPosition)
 				{
 					showArtifactPopup(*newHeroSet, artPlace, cursorPosition);
-				};
-				newHeroSet->gestureCallback = [this, newHeroSet](const CArtPlace & artPlace, const Point & cursorPosition)
-				{
-					showQuickBackpackWindow(newHeroSet->getHero(), artPlace.slot, cursorPosition);
 				};
 				addSet(newHeroSet);
 			});
 	case 1:
 		return std::make_shared<CKingdTownList>(size);
+	case 2:
+		// DMB (S070): the observer's all-players tab; a click on a row shows that player's heroes
+		return std::make_shared<CKingdPlayersList>([this](PlayerColor player)
+			{
+				ENGINE->dispatchMainThread([this, player]()
+				{
+					if(ENGINE->windows().topWindow<CKingdomInterface>().get() == this)
+					{
+						showPlayer(player);
+						activateTab(0);
+					}
+				});
+			});
 	default:
 		return std::shared_ptr<CIntObject>();
 	}
@@ -641,10 +838,14 @@ void CKingdomInterface::generateMinesList(const std::vector<const CGObjectInstan
 		totalIncome += mapObject->asOwnable()->dailyIncome()[EGameResID::GOLD];
 
 	//if player has some modded boosts we want to show that as well
-	const auto * playerSettings = GAME->interface()->cb->getPlayerSettings(GAME->interface()->playerID);
-	const auto & towns = GAME->interface()->cb->getTownsInfo(true);
-	totalIncome += GAME->interface()->cb->getPlayerState(GAME->interface()->playerID)->valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(GameResID(EGameResID::GOLD))) * playerSettings->handicap.percentIncome / 100;
-	totalIncome += GAME->interface()->cb->getPlayerState(GAME->interface()->playerID)->valOfBonuses(BonusType::RESOURCES_TOWN_MULTIPLYING_BOOST, BonusSubtypeID(GameResID(EGameResID::GOLD))) * towns.size() * playerSettings->handicap.percentIncome / 100;
+	// DMB (S070): the shown player's settings, towns and state (an observer has none of its own)
+	const auto * playerSettings = GAME->interface()->cb->getPlayerSettings(kingdomPlayer());
+	const auto towns = kingdomTowns();
+	if(const auto * shownState = kingdomState(); shownState && playerSettings)
+	{
+		totalIncome += shownState->valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(GameResID(EGameResID::GOLD))) * playerSettings->handicap.percentIncome / 100;
+		totalIncome += shownState->valOfBonuses(BonusType::RESOURCES_TOWN_MULTIPLYING_BOOST, BonusSubtypeID(GameResID(EGameResID::GOLD))) * towns.size() * playerSettings->handicap.percentIncome / 100;
+	}
 
 	for(int i=0; i<GameConstants::RESOURCE_QUANTITY; i++)
 	{
@@ -720,6 +921,8 @@ void CKingdomInterface::activateTab(size_t which)
 	Settings s = settings.write["general"]["lastKindomInterface"];
 	s->Integer() = which;
 
+	if(which == 2 && !kingdomObserver())
+		which = 0; // the all-players tab is an observer's only
 	btnHeroes->block(which == 0);
 	btnTowns->block(which == 1);
 	tabArea->setActive(which);
@@ -749,22 +952,23 @@ void CKingdomInterface::updateGarrisons()
 
 bool CKingdomInterface::holdsGarrison(const CArmedInstance * army)
 {
-	return army->getOwner() == GAME->interface()->playerID;
+	return army->getOwner() == kingdomPlayer();
 }
 
 CKingdHeroList::CKingdHeroList(size_t maxSize, const CreateHeroItemFunctor & onCreateHeroItemCallback)
 {
 	OBJECT_CONSTRUCTION;
 	title = std::make_shared<CPicture>(ImagePath::builtin("OVTITLE"),16,0);
-	title->setPlayerColor(GAME->interface()->playerID);
-	heroLabel = std::make_shared<CLabel>(150, 10, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[0]);
+	title->setPlayerColor(kingdomPlayer());
+	// DMB (S070): an observer's flags fill the title strip's left end, so the first label moves right
+	heroLabel = std::make_shared<CLabel>(kingdomObserver() ? 300 : 150, 10, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[0]);
 	skillsLabel = std::make_shared<CLabel>(500, 10, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[1]);
 
-	ui32 townCount = GAME->interface()->cb->howManyHeroes(false);
+	ui32 townCount = kingdomHeroes().size();
 	ui32 size = OVERVIEW_SIZE*116 + 19;
 	heroes = std::make_shared<CListBox>([onCreateHeroItemCallback](size_t idx) -> std::shared_ptr<CIntObject>
 		{
-			auto heroesList = GAME->interface()->localState->getWanderingHeroes();
+			auto heroesList = kingdomHeroes();
 			if(idx < heroesList.size())
 			{
 				auto hero = std::make_shared<CHeroItem>(heroesList[idx]);
@@ -801,12 +1005,12 @@ CKingdTownList::CKingdTownList(size_t maxSize)
 {
 	OBJECT_CONSTRUCTION;
 	title = std::make_shared<CPicture>(ImagePath::builtin("OVTITLE"), 16, 0);
-	title->setPlayerColor(GAME->interface()->playerID);
-	townLabel = std::make_shared<CLabel>(146, 10,FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[3]);
+	title->setPlayerColor(kingdomPlayer());
+	townLabel = std::make_shared<CLabel>(kingdomObserver() ? 300 : 146, 10,FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[3]);
 	garrHeroLabel = std::make_shared<CLabel>(375, 10, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[4]);
 	visitHeroLabel = std::make_shared<CLabel>(608, 10, FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->overview[5]);
 
-	ui32 townCount = GAME->interface()->cb->howManyTowns();
+	ui32 townCount = kingdomTowns().size();
 	ui32 size = OVERVIEW_SIZE*116 + 19;
 	towns = std::make_shared<CListBox>(std::bind(&CKingdTownList::createTownItem, this, _1),
 		Point(19,21), Point(0,116), maxSize, townCount, 0, 1, Rect(-19, -21, size, size));
@@ -845,12 +1049,73 @@ std::shared_ptr<CIntObject> CKingdTownList::createTownItem(size_t index)
 {
 	ui32 picCount = 4; // OVSLOT contains 4 images
 
-	auto townsList = GAME->interface()->localState->getOwnedTowns();
+	auto townsList = kingdomTowns();
 
 	if(index < townsList.size())
 		return std::make_shared<CTownItem>(townsList[index]);
 	else
 		return std::make_shared<CAnimImage>(AnimationPath::builtin("OVSLOT"), (index-2) % picCount );
+}
+
+CKingdPlayersList::CKingdPlayersList(const std::function<void(PlayerColor)> & onPick)
+{
+	OBJECT_CONSTRUCTION;
+	title = std::make_shared<CPicture>(ImagePath::builtin("OVTITLE"), 16, 0);
+	title->setPlayerColor(kingdomPlayer());
+	pos = Rect(pos.x, pos.y, 725, 483);
+	// header: the seven resources as icons, then gold a day, towns (forts), heroes, the army in heroes and in towns, the strongest hero
+	for(int i = 0; i < 7; i++)
+		widgets.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("SMALRES"), i, 0, 130 + i * 56, 24));
+	const std::vector<std::pair<int, std::string>> heads = {
+		{ 528, LIBRARY->generaltexth->translate("vcmi.kingdomOverview.perDay") },
+		{ 586, LIBRARY->generaltexth->overview[3] },
+		{ 630, LIBRARY->generaltexth->overview[0] },
+		{ 676, LIBRARY->generaltexth->translate("vcmi.kingdomOverview.army") } };
+	for(const auto & head : heads)
+		widgets.push_back(std::make_shared<CLabel>(head.first, 30, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, head.second));
+
+	int y = 50;
+	for(const PlayerColor & player : kingdomPlayersInGame())
+	{
+		const auto * state = GAME->interface()->cb->getPlayerState(player, false);
+		if(!state)
+			continue;
+		widgets.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, 22, y + 4));
+		widgets.push_back(std::make_shared<CLabel>(50, y + 6, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, LIBRARY->generaltexth->capColors[player.getNum()]));
+		for(int i = 0; i < 7; i++)
+			widgets.push_back(std::make_shared<CLabel>(130 + i * 56 + 16, y + 6, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, kingdomShort(state->resources[GameResID(i)])));
+
+		int income = 0;
+		for(const auto * object : state->getOwnedObjects())
+			income += object->asOwnable()->dailyIncome()[EGameResID::GOLD];
+		int forts = 0;
+		uint64_t inTowns = 0;
+		for(const auto * town : state->getTowns())
+		{
+			if(town->hasFort())
+				forts++;
+			inTowns += town->getUpperArmy()->getArmyStrength();
+		}
+		uint64_t inHeroes = 0, best = 0;
+		int bestLevel = 0;
+		for(const auto * hero : state->getHeroes())
+		{
+			inHeroes += hero->getArmyStrength();
+			if(hero->getArmyStrength() >= best)
+			{
+				best = hero->getArmyStrength();
+				bestLevel = hero->level;
+			}
+		}
+		widgets.push_back(std::make_shared<CLabel>(528, y + 6, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "+" + std::to_string(income)));
+		widgets.push_back(std::make_shared<CLabel>(586, y + 6, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, std::to_string(state->getTowns().size()) + " (" + std::to_string(forts) + ")"));
+		widgets.push_back(std::make_shared<CLabel>(630, y + 6, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, std::to_string(state->getHeroes().size())));
+		widgets.push_back(std::make_shared<CLabel>(676, y + 6, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, kingdomShort(inHeroes) + " / " + kingdomShort(inTowns)));
+		widgets.push_back(std::make_shared<CLabel>(50, y + 24, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::YELLOW,
+			LIBRARY->generaltexth->translate("vcmi.kingdomOverview.strongest") + " " + kingdomShort(best) + " (L" + std::to_string(bestLevel) + ")"));
+		widgets.push_back(std::make_shared<LRClickableArea>(Rect(16, y, 700, 50), [onPick, player]() { onPick(player); }));
+		y += 54;
+	}
 }
 
 CTownItem::CTownItem(const CGTownInstance * Town)
@@ -902,6 +1167,14 @@ CTownItem::CTownItem(const CGTownInstance * Town)
 	{
 		ENGINE->windows().createAndPushWindow<CCastleInterface>(town);
 	});
+
+	// DMB (S070): an observer builds, recruits and trades nothing in another player's town; the town window itself opens read-only (S6)
+	if(kingdomObserver())
+	{
+		fastTownHall->block(true);
+		fastArmyPurchase->block(true);
+		fastMarket.reset();
+	}
 
 	labelCreatureGrowth = std::make_shared<CMultiLineLabel>(Rect(4, 76, 50, 35), EFonts::FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("core.genrltxt.265"));
 	labelCreatureAvailable = std::make_shared<CMultiLineLabel>(Rect(349, 76, 57, 35), EFonts::FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("core.genrltxt.266"));

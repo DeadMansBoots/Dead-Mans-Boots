@@ -26,6 +26,7 @@ class CTownInfo;
 class CCreaInfo;
 class HeroSlots;
 class LRClickableAreaOpenTown;
+class LRClickableArea;
 class CComponent;
 class CHeroArea;
 class MoraleLuckBox;
@@ -254,8 +255,23 @@ private:
 	std::shared_ptr<CIntObject> createOwnedObject(size_t index);
 	std::shared_ptr<CIntObject> createMainTab(size_t index);
 
+	// DMB (S070): an observer's player picker (a flag per player still in the game, and "All" for the players tab) and the refresh
+	std::vector<std::shared_ptr<CAnimImage>> playerFlags;
+	std::vector<std::shared_ptr<LRClickableArea>> playerFlagAreas;
+	std::shared_ptr<CLabel> allPlayersLabel;
+	std::shared_ptr<LRClickableArea> allPlayersArea;
+	std::shared_ptr<CLabel> shownPlayerLabel;
+	uint64_t shownSignature = 0;
+	uint32_t sinceRefresh = 0;
+	uint64_t kingdomSignature() const;
+	void generatePlayerFlags();
+
 public:
-	CKingdomInterface();
+	explicit CKingdomInterface(PlayerColor shown = PlayerColor::CANNOT_DETERMINE);
+
+	/// DMB (S070): an observer's view switches to this player's kingdom (resources, income, objects, heroes, towns)
+	void showPlayer(PlayerColor player);
+	void tick(uint32_t msPassed) override;
 
 	void townChanged(const CGTownInstance *town);
 	void heroRemoved();
@@ -353,6 +369,15 @@ public:
 	CKingdHeroList(size_t maxSize, const CreateHeroItemFunctor & onCreateHeroItemCallback);
 	void updateGarrisons() override;
 	bool holdsGarrison(const CArmedInstance * army) override;
+};
+
+/// DMB (S070): an observer's tab with every player still in the game: resources, gold a day, towns, heroes, armies; a click shows that player
+class CKingdPlayersList : public CIntObject
+{
+	std::shared_ptr<CPicture> title;
+	std::vector<std::shared_ptr<CIntObject>> widgets;
+public:
+	explicit CKingdPlayersList(const std::function<void(PlayerColor)> & onPick);
 };
 
 /// Tab with all town-specific data

@@ -27,7 +27,26 @@ CreatureCostBox::CreatureCostBox(Rect position, std::string titleText)
 void CreatureCostBox::set(TResources res)
 {
 	for(auto & item : resources)
-		item.second.first->setText(std::to_string(res[item.first]));
+		item.second.first->setText(blanks.count(item.first) ? std::string() : std::to_string(res[item.first]));
+}
+
+std::optional<Point> CreatureCostBox::labelCentre(GameResID res) const
+{
+	auto it = resources.find(res);
+	if(it == resources.end())
+		return std::nullopt;
+	return it->second.first->pos.topLeft(); // a centred label is drawn around its position
+}
+
+void CreatureCostBox::setBlank(GameResID res, bool blank)
+{
+	if(blank)
+		blanks.insert(res);
+	else
+		blanks.erase(res);
+	auto it = resources.find(res);
+	if(it != resources.end() && blank)
+		it->second.first->setText("");
 }
 
 void CreatureCostBox::createItems(TResources res)

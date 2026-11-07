@@ -145,6 +145,7 @@ set(vcmiclientcommon_SRCS
 	widgets/CGarrisonInt.cpp
 	widgets/CreatureCostBox.cpp
 	widgets/ComboBox.cpp
+	widgets/CAmountInput.cpp
 	widgets/CTextInput.cpp
 	widgets/GraphicalPrimitiveCanvas.cpp
 	widgets/Images.cpp
@@ -401,6 +402,7 @@ set(vcmiclientcommon_HEADERS
 	widgets/CGarrisonInt.h
 	widgets/CreatureCostBox.h
 	widgets/ComboBox.h
+	widgets/CAmountInput.h
 	widgets/CTextInput.h
 	widgets/GraphicalPrimitiveCanvas.h
 	widgets/Images.h

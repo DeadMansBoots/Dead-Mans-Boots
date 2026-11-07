@@ -13,6 +13,7 @@
 
 class CCreaturePic;
 class CSlider;
+class CAmountInput;
 class CButton;
 class CreatureCostBox;
 class QuickRecruitmentWindow;
@@ -62,7 +63,8 @@ private:
 	std::shared_ptr<CButton> minButton;
 	std::shared_ptr<CButton> creatureSwitcher;
 	std::shared_ptr<CLabel> availableAmount;
-	std::shared_ptr<CLabel> purchaseAmount;
+	std::shared_ptr<CAmountInput> purchaseAmount; // DMB (S016): typed, a number of creatures or gold ending in g; made with the slider
+	std::shared_ptr<CAmountInput> costGold; // DMB (S016): the cost box's gold, typed: gold in, whole creatures out
 	std::shared_ptr<CCreaturePic> picture;
 	std::shared_ptr<CreatureCostBox> cost;
 	std::vector<CreatureID> upgradesID;

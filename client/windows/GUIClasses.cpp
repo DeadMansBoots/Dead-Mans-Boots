@@ -29,6 +29,7 @@
 #include "../widgets/CGarrisonInt.h"
 #include "../widgets/CreatureCostBox.h"
 #include "../widgets/CTextInput.h"
+#include "../widgets/CAmountInput.h"
 #include "../widgets/Buttons.h"
 #include "../widgets/Slider.h"
 #include "../widgets/TextControls.h"
@@ -182,6 +183,7 @@ void CRecruitmentWindow::select(std::shared_ptr<CCreatureCard> card)
 
 		costPerTroopValue->set(card->creature->getFullRecruitCost());
 		totalCostValue->set(card->creature->getFullRecruitCost() * maxAmount);
+		placeTotalGoldInput();
 
 		//Recruit %s
 		MetaString recruitText;
@@ -304,7 +306,19 @@ CRecruitmentWindow::CRecruitmentWindow(const CGDwelling * Dwelling, int Level, c
 
 	title = std::make_shared<CLabel>(243 + layoutOffsetX, 32, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW);
 	availableValue = std::make_shared<CLabel>(204 + layoutOffsetX, 253, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE);
-	toRecruitValue = std::make_shared<CLabel>(279 + layoutOffsetX, 253, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE);
+	// DMB (S016): the number to recruit is typed as well as slid: a number of creatures, or gold ending in g, rounded down to whole creatures
+	// and clamped to the slider, whose range is what the player can pay and the dwelling holds (select()), so Buy never takes more
+	toRecruitValue = std::make_shared<CAmountInput>(Rect(247 + layoutOffsetX, 244, 65, 18), FONT_SMALL, slider,
+		[this](int64_t value, bool gold) -> int
+		{
+			if(!selected)
+				return 0;
+			int64_t each = selected->creature->getFullRecruitCost()[EGameResID::GOLD];
+			int64_t count = gold ? (each > 0 ? value / each : std::numeric_limits<int>::max()) : value;
+			return static_cast<int>(std::min<int64_t>(count, std::numeric_limits<int>::max()));
+		},
+		[](int position) -> int64_t { return position; }, true);
+	toRecruitValue->setPopupCallback([](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.recruitWindow.typedAmount")); });
 
 	costPerTroopValue = std::make_shared<CreatureCostBox>(Rect(64 + layoutOffsetX, 222, 97, 74), LIBRARY->generaltexth->allTexts[346]);
 	totalCostValue = std::make_shared<CreatureCostBox>(Rect(323 + layoutOffsetX, 222, 97, 74), LIBRARY->generaltexth->allTexts[466]);
@@ -375,6 +389,26 @@ void CRecruitmentWindow::availableCreaturesChanged()
 		sliderMoved(slider->getAmount());
 }
 
+void CRecruitmentWindow::placeTotalGoldInput()
+{
+	// DMB (S016, Reviewer 11:20, K 11-07 "should be able to do both"): the gold of the Total Cost box is typed too; the gold is rounded
+	// down to whole creatures and clamped to the slider, as the count is. Made again for each creature (the box's items are rebuilt)
+	OBJECT_CONSTRUCTION;
+	totalGoldValue.reset();
+	const auto centre = totalCostValue->labelCentre(EGameResID::GOLD);
+	if(!selected || !centre)
+		return;
+	totalCostValue->setBlank(EGameResID::GOLD, true);
+	totalGoldValue = std::make_shared<CAmountInput>(Rect(*centre - pos.topLeft() - Point(22, 9), Point(44, 18)), FONT_SMALL, slider,
+		[this](int64_t value, bool) -> int
+		{
+			const int64_t each = selected ? selected->creature->getFullRecruitCost()[EGameResID::GOLD] : 0;
+			return each > 0 ? static_cast<int>(std::min<int64_t>(value / each, std::numeric_limits<int>::max())) : 0;
+		},
+		[this](int position) -> int64_t { return static_cast<int64_t>(position) * (selected ? selected->creature->getFullRecruitCost()[EGameResID::GOLD] : 0); }, false);
+	totalGoldValue->setPopupCallback([](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.recruitWindow.typedAmount")); });
+}
+
 void CRecruitmentWindow::sliderMoved(int to)
 {
 	if(!selected)
@@ -382,7 +416,9 @@ void CRecruitmentWindow::sliderMoved(int to)
 
 	buyButton->block(!to || !GAME->interface()->makingTurn);
 	availableValue->setText(std::to_string(selected->amount - to));
-	toRecruitValue->setText(std::to_string(to));
+	toRecruitValue->sliderMoved(to);
+	if(totalGoldValue)
+		totalGoldValue->sliderMoved(to);
 
 	totalCostValue->set(selected->creature->getFullRecruitCost() * to);
 }

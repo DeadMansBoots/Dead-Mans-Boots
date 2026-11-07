@@ -688,6 +688,7 @@ void PlayRecorder::startGame(PlayerColor seat)
 		{
 			const auto * info = GAME->interface()->cb->getStartInfo();
 			start.str("map", info->mapname).num("difficulty", info->difficulty).num("mode", static_cast<int>(info->mode));
+			start.num("gameStartTime", static_cast<int64_t>(info->startTime)); // DMB (S077 R4): with the map, the id that joins this game's files
 		}
 	}
 	catch(...)
@@ -773,7 +774,7 @@ void PlayRecorder::event(const std::string & kind, const std::string & body)
 	write(kind, body);
 }
 
-void PlayRecorder::request(const CPackForServer & pack, PlayerColor player)
+void PlayRecorder::request(const CPackForServer & pack, PlayerColor player, const std::string & ai)
 {
 	if(!isOpen())
 		return;
@@ -788,6 +789,8 @@ void PlayRecorder::request(const CPackForServer & pack, PlayerColor player)
 			describer.line.str("type", withoutPrefix(typeid(pack).name()));
 		}
 		describer.line.str("player", player.toString());
+		if(!ai.empty())
+			describer.line.str("ai", ai); // DMB (S077 R1): an AI seat this client runs
 		write("request", describer.line.get());
 	}
 	catch(...)
@@ -858,13 +861,12 @@ void PlayRecorder::snapshot(PlayerColor seat, const std::string & reason)
 		return;
 	try
 	{
-		if(!GAME || !GAME->interface() || !GAME->interface()->cb)
-			return;
-		const auto & cb = GAME->interface()->cb;
-		const PlayerState * ps = cb->getPlayerState(seat, false);
-		if(!ps)
+		if(!GAME || !GAME->server().client)
 			return;
 		const auto & gs = GAME->server().client->gameState();
+		const PlayerState * ps = gs.getPlayerState(seat, false);
+		if(!ps)
+			return;
 		const auto heroes = ps->getHeroes();
 		const auto towns = ps->getTowns();
 

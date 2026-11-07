@@ -1128,11 +1128,11 @@ void OptionsTab::PlayerOptionsEntry::updateName() {
 
 void OptionsTab::onSetPlayerClicked(const PlayerSettings & ps) const
 {
-	// DMB (K, November 7th: "i should be able to click my (the host's) slot color to remove myself (and then be unslotted)"): stock lets a click through only for an AI's seat or
-	// when more than one human is seated, so a lone host could not leave the seat; the host's own seat always can be clicked (the server then gives it to the AI)
-	const bool hostsOwnSeat = GAME->server().isHost() && GAME->server().isMyColor(ps.color);
-	if(ps.isControlledByAI() || humanPlayers > 1 || hostsOwnSeat)
-		GAME->server().setPlayer(ps.color);
+	// DMB (K, November 7th: "i should be able to click my (the host's) slot color to remove myself (and then be unslotted)" and "other unseated players should also be able to be
+	// brought in as observers"): stock lets a click through only for an AI's seat or when more than one human is seated, so a lone human could not leave a seat, the host's own or a
+	// guest's (the two-client proof, 11:13: the host could not unseat the one guest). The flag of a seat is the host's only (a guest's is blocked), and a game with no human seat is allowed,
+	// so the host may click any seat: the server gives the host's own seat to the AI, and a guest's to the next player or the AI
+	GAME->server().setPlayer(ps.color);
 }
 
 void OptionsTab::PlayerOptionsEntry::hideUnavailableButtons()

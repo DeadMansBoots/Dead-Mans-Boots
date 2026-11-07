@@ -84,9 +84,19 @@ AISettingsWindow::AISettingsWindow(PlayerColor color)
 
 	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 460, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");
 
+	// S073: the thoughts tick box, under the lists on the right
+	thoughtsBox = std::make_shared<TransparentFilledRectangle>(Rect(260, 372, 18, 18), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1);
+	thoughtsTick = std::make_shared<TransparentFilledRectangle>(Rect(264, 376, 10, 10), GOLD_LINE, GOLD_LINE, 1);
+	thoughtsLabel = std::make_shared<CLabel>(284, 381, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.thoughts"), 170);
+	thoughtsArea = std::make_shared<LRClickableArea>(Rect(260, 370, 210, 22), [this]()
+	{
+		if(const auto * ps = seat())
+			GAME->server().setPlayerAI(color, ps->aiAdventure, ps->aiBattle, ps->aiTier, !ps->aiThoughts);
+	}, nullptr);
+
 	resetFrame = std::make_shared<TransparentFilledRectangle>(Rect(20, 372, 210, 28), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1);
 	labels.push_back(std::make_shared<CLabel>(20 + 105, 372 + 14, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset"), 200));
-	resetArea = std::make_shared<LRClickableArea>(Rect(20, 372, 210, 28), [this]() { send("", "", -1); }, nullptr);
+	resetArea = std::make_shared<LRClickableArea>(Rect(20, 372, 210, 28), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); }, nullptr);
 
 	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 368), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));
 
@@ -134,7 +144,21 @@ void AISettingsWindow::buildChoices(bool battleList, std::vector<Choice> & into,
 
 void AISettingsWindow::send(const std::string & adventureAI, const std::string & battleAI, int tier) const
 {
-	GAME->server().setPlayerAI(color, adventureAI, battleAI, tier);
+	sendKeepingThoughts(adventureAI, battleAI, tier);
+}
+
+void AISettingsWindow::sendKeepingThoughts(const std::string & adventureAI, const std::string & battleAI, int tier) const
+{
+	const auto * ps = seat();
+	GAME->server().setPlayerAI(color, adventureAI, battleAI, tier, ps && ps->aiThoughts && adventureAICanThink(adventureAI.empty() && ps ? resolvedAdventure(*ps) : adventureAI));
+}
+
+bool AISettingsWindow::adventureAICanThink(const std::string & name) const
+{
+	for(const auto & choice : CServerHandler::seatAIChoices(false))
+		if(choice.name == name)
+			return choice.thoughts;
+	return false;
 }
 
 void AISettingsWindow::notFocusedClick()
@@ -157,6 +181,12 @@ void AISettingsWindow::refresh()
 		row.mark->setEnabled(row.name == adventure);
 	for(auto & row : battleChoices)
 		row.mark->setEnabled(row.name == battle);
+
+	const bool canThink = adventureAICanThink(adventure);
+	thoughtsBox->setEnabled(canThink);
+	thoughtsLabel->setEnabled(canThink);
+	thoughtsArea->setEnabled(canThink);
+	thoughtsTick->setEnabled(canThink && ps->aiThoughts);
 
 	const int tierSetting = ps->aiTier >= 0 && ps->aiTier <= 4 ? ps->aiTier : -1;
 	for(size_t i = 0; i < tierMarks.size(); ++i)

@@ -49,11 +49,19 @@ class AISettingsWindow final : public CWindowObject
 	std::shared_ptr<TransparentFilledRectangle> resetFrame;
 	std::shared_ptr<LRClickableArea> resetArea;
 	std::shared_ptr<CMultiLineLabel> description;
+	/// S073: "Show this AI's thoughts in the chat", for an adventure AI that can write them
+	std::shared_ptr<TransparentFilledRectangle> thoughtsBox;
+	std::shared_ptr<TransparentFilledRectangle> thoughtsTick;
+	std::shared_ptr<CLabel> thoughtsLabel;
+	std::shared_ptr<LRClickableArea> thoughtsArea;
 	std::vector<std::shared_ptr<CButton>> buttons;
 
 	const PlayerSettings * seat() const;
 	void buildChoices(bool battleList, std::vector<Choice> & into, int x);
 	void send(const std::string & adventureAI, const std::string & battleAI, int tier) const;
+	/// the same, with the thoughts flag the seat has now
+	void sendKeepingThoughts(const std::string & adventureAI, const std::string & battleAI, int tier) const;
+	bool adventureAICanThink(const std::string & name) const;
 	void notFocusedClick() override;
 
 public:

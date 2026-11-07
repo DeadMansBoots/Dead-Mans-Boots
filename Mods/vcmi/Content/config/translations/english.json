@@ -814,6 +814,7 @@
 	"vcmi.lobby.aiSettings.tier": "Difficulty of this seat",
 	"vcmi.lobby.aiSettings.asMap": "As the map",
 	"vcmi.lobby.aiSettings.reset": "Reset to launcher defaults",
+	"vcmi.lobby.aiSettings.thoughts": "Show this AI's thoughts in the chat",
 	"vcmi.lobby.aiSettings.seatHelp": "The AI that plays this seat and its difficulty. The host clicks the name to choose; every seat is set on its own.",
 	"vcmi.lobby.aiInfo.Nullkiller": "Nullkiller 1: the older adventure AI. It sees the whole map.",
 	"vcmi.lobby.aiInfo.Nullkiller2": "Nullkiller 2: the default adventure AI.",

@@ -127,6 +127,8 @@ class CClient : public Environment, public IClient
 	std::shared_ptr<CGameState> gamestate;
 	int requestCounter = 1;
 	std::set<PlayerColor> advInterfaceReadySent;
+	/// DMB (S002): one line per seat whose own AI is not installed here, shown to the host once the interfaces are made
+	mutable std::vector<std::string> seatAIFallbacks;
 
 public:
 	std::map<PlayerColor, std::shared_ptr<CGameInterface>> playerint;

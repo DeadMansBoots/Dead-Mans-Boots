@@ -25,6 +25,8 @@
 
 #include "../lib/CConfigHandler.h"
 #include "../lib/GameLibrary.h"
+#include "../lib/texts/CGeneralTextHandler.h"
+#include "windows/InfoWindows.h"
 #include "../lib/battle/BattleInfo.h"
 #include "../lib/battle/CPlayerBattleCallback.h"
 #include "../lib/callback/CCallback.h"
@@ -303,6 +305,16 @@ void CClient::initPlayerInterfaces()
 	if(GAME->server().getAllClientPlayers(GAME->server().logicConnection->connectionID).count(PlayerColor::NEUTRAL))
 		installNewBattleInterface(CDynLibHandler::getNewBattleAI(settings["ai"]["combatNeutralAI"].String()), PlayerColor::NEUTRAL);
 
+	// DMB (S002): tell the host which seats' own AIs are missing here and what plays them instead (a save from a PC with another AI mod)
+	if(!seatAIFallbacks.empty() && ENGINE && !settings["session"]["headless"].Bool())
+	{
+		std::string text = LIBRARY->generaltexth->translate("vcmi.dmb.seatAI.missing");
+		for(const auto & line : seatAIFallbacks)
+			text += "\n" + line;
+		ENGINE->dispatchMainThread([text]() { CInfoWindow::showInfoDialog(text, {}); });
+	}
+	seatAIFallbacks.clear();
+
 	logNetwork->trace("Initialized player interfaces %d ms", GAME->server().th->getDiff());
 }
 
@@ -361,8 +373,15 @@ std::string CClient::aiNameForPlayer(const PlayerSettings & ps, bool battleAI, b
 				logNetwork->info("Player %s: the seat's own %s AI %s", ps.color.toString(), battleAI ? "battle" : "adventure", seatAI);
 				return seatAI;
 			}
-			logGlobal->warn("Player %s: the seat's %s AI %s is not installed here and no active mod provides it; the default plays the seat",
-				ps.color.toString(), battleAI ? "battle" : "adventure", seatAI);
+			// the rest of this function, as if the seat had no choice of its own
+			PlayerSettings rest = ps;
+			(battleAI ? rest.aiBattle : rest.aiAdventure).clear();
+			const std::string fallback = aiNameForPlayer(rest, battleAI, alliedToHuman);
+			logGlobal->warn("Player %s: the seat's %s AI %s is not installed here and no active mod provides it; %s plays the seat",
+				ps.color.toString(), battleAI ? "battle" : "adventure", seatAI, fallback);
+			seatAIFallbacks.push_back(boost::str(boost::format(LIBRARY->generaltexth->translate("vcmi.dmb.seatAI.missingLine"))
+				% ps.color.toString() % seatAI % fallback));
+			return fallback;
 		}
 	}
 	// DMB: an AI plugin from an active mod counts as installed too (CDynLibHandler::findAILibrary)

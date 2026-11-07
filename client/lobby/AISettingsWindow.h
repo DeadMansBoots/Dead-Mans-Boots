@@ -8,6 +8,7 @@
 #pragma once
 
 #include "../windows/CWindowObject.h"
+#include "../../lib/constants/EntityIdentifiers.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 struct PlayerSettings;

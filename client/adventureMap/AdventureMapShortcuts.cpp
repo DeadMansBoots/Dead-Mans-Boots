@@ -633,6 +633,9 @@ bool AdventureMapShortcuts::optionHasKingdom(bool inMapView)
 	// a watcher (spectator) has no kingdom: the Kingdom Overview reads its player state and settings, the puzzle map its start info and grail team
 	if(inMapView && !optionInMapView())
 		return false;
+	// DMB (S070): an observer's Kingdom Overview shows any player's kingdom (the window reads the player it shows, not the viewer's)
+	if(settings["session"]["spectate"].Bool())
+		return true;
 	return GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false) != nullptr;
 }
 

@@ -500,6 +500,11 @@ void CClient::battleStarted(const BattleID & battleID)
 	const auto & leftSide = info->getSide(BattleSide::LEFT_SIDE);
 	const auto & rightSide = info->getSide(BattleSide::RIGHT_SIDE);
 
+	// DMB: whether a watching client shows this battle is decided here, at its start (settings session.spectate-skip-battle: the command line, the observer bar's switch)
+	const bool spectatorWatches = settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool();
+	if(spectatorWatches)
+		spectatedBattles.insert(battleID);
+
 	for(auto & battleCb : battleCallbacks)
 	{
 		if(!battleCb.first.isValidPlayer() || battleCb.first == leftSide.color || battleCb.first == rightSide.color)
@@ -516,7 +521,7 @@ void CClient::battleStarted(const BattleID & battleID)
 	callBattleStart(leftSide.color, BattleSide::LEFT_SIDE);
 	callBattleStart(rightSide.color, BattleSide::RIGHT_SIDE);
 	callBattleStart(PlayerColor::UNFLAGGABLE, BattleSide::RIGHT_SIDE);
-	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+	if(spectatorWatches)
 		callBattleStart(PlayerColor::SPECTATOR, BattleSide::RIGHT_SIDE);
 	
 	if(vstd::contains(playerint, leftSide.color) && playerint[leftSide.color]->human)
@@ -557,7 +562,7 @@ void CClient::battleStarted(const BattleID & battleID)
 		{
 			CPlayerInterface::battleInt = std::make_shared<BattleInterface>(info->getBattleID(), leftSide.getArmy(), rightSide.getArmy(), leftSide.getHero(), rightSide.getHero(), att, def);
 		}
-		else if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+		else if(spectatorWatches)
 		{
 			//TODO: This certainly need improvement
 			auto spectratorInt = std::dynamic_pointer_cast<CPlayerInterface>(playerint[PlayerColor::SPECTATOR]);
@@ -583,7 +588,7 @@ void CClient::battleFinished(const BattleID & battleID)
 			battleCallbacks[gameState().getBattle(battleID)->getSide(side).color]->onBattleEnded(battleID);
 	}
 
-	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+	if(spectatedBattles.erase(battleID))
 	{
 		battleCallbacks[PlayerColor::SPECTATOR]->onBattleEnded(battleID);
 

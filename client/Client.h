@@ -134,6 +134,11 @@ public:
 
 	std::map<PlayerColor, std::vector<std::shared_ptr<IBattleEventsReceiver>>> additionalBattleInts;
 
+	/// DMB: the battles a watching client shows, decided when each one begins: the observer bar's Battles switch may change between battles, and a battle that began
+	/// unseen must end unseen (its end would otherwise reach a spectator that was never told it began)
+	std::set<BattleID> spectatedBattles;
+	bool spectatesBattle(const BattleID & battleID) const { return spectatedBattles.count(battleID) != 0; }
+
 	std::unique_ptr<BattleAction> currentBattleAction;
 
 	CClient();

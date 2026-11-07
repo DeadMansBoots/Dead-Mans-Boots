@@ -25,7 +25,9 @@ class ObserverBar : public CIntObject
 	std::shared_ptr<CLabel> stepLabel;
 	std::shared_ptr<CLabel> dayLabel;
 	std::shared_ptr<CLabel> speedLabel;
+	std::shared_ptr<CLabel> battlesLabel;
 	Rect speedArea;
+	Rect battlesArea;
 	Rect pauseArea;
 	Rect stepArea;
 	bool paused = false;

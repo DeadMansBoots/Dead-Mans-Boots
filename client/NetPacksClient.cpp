@@ -117,7 +117,7 @@ void callBattleInterfaceIfPresentForBothSides(CClient & cl, const BattleID & bat
 
 	callOnlyThatBattleInterface(cl, cl.gameState().getBattle(battleID)->getSide(BattleSide::ATTACKER).color, ptr, std::forward<Args2>(args)...);
 	callOnlyThatBattleInterface(cl, cl.gameState().getBattle(battleID)->getSide(BattleSide::DEFENDER).color, ptr, std::forward<Args2>(args)...);
-	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool() && GAME->interface()->battleInt)
+	if(cl.spectatesBattle(battleID) && GAME->interface()->battleInt)
 	{
 		callOnlyThatBattleInterface(cl, PlayerColor::SPECTATOR, ptr, std::forward<Args2>(args)...);
 	}

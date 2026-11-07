@@ -40,6 +40,13 @@ std::string speedText(int ms)
 {
 	return ms <= 0 ? std::string("Speed max") : "Speed " + std::to_string(100 * 100 / ms) + "%";
 }
+
+/// K, November 5th: "battles aren't optional": the bar's switch for the battles that begin from now on (settings session.spectate-skip-battle, read when each begins)
+std::string battlesText()
+{
+	return settings["session"]["spectate-skip-battle"].Bool() ? "Battles: Skip" : "Battles: Watch";
+}
+const char * const BATTLES_HELP = "Battles: watch or skip the battles that begin from now on";
 }
 
 boost::filesystem::path ObserverBar::flagFolder()
@@ -66,8 +73,9 @@ ObserverBar::ObserverBar(const Rect & area)
 	const int pauseWidth = static_cast<int>(std::max(font->getStringWidth("Pause"), font->getStringWidth("Resume")));
 	const int stepWidth = static_cast<int>(font->getStringWidth("Step"));
 	const int speedWidth = static_cast<int>(std::max(font->getStringWidth("Speed 200%"), font->getStringWidth("Speed max")));
+	const int battlesWidth = static_cast<int>(std::max(font->getStringWidth("Battles: Watch"), font->getStringWidth("Battles: Skip")));
 	const int dayWidth = static_cast<int>(font->getStringWidth("Day 999"));
-	const int width = PAD + pauseWidth + GAP + stepWidth + GAP + speedWidth + GAP + dayWidth + PAD;
+	const int width = PAD + pauseWidth + GAP + stepWidth + GAP + speedWidth + GAP + battlesWidth + GAP + dayWidth + PAD;
 	pos = Rect(area.x + (area.w - width) / 2, area.y + 4, width, HEIGHT);
 
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, width, HEIGHT), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
@@ -79,7 +87,10 @@ ObserverBar::ObserverBar(const Rect & area)
 	speedArea = Rect(speedX - 4, 0, speedWidth + 8, HEIGHT);
 	speedLabel = std::make_shared<CLabel>(speedX + speedWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW,
 		speedText(static_cast<int>(settings["adventure"]["enemyMoveTime"].Float())));
-	dayLabel = std::make_shared<CLabel>(speedX + speedWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
+	const int battlesX = speedX + speedWidth + GAP;
+	battlesArea = Rect(battlesX - 4, 0, battlesWidth + 8, HEIGHT);
+	battlesLabel = std::make_shared<CLabel>(battlesX + battlesWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, battlesText());
+	dayLabel = std::make_shared<CLabel>(battlesX + battlesWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
 
 	addUsedEvents(LCLICK | TIME | MOVE | HOVER);
 }
@@ -122,6 +133,15 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 		logGlobal->info("Observer: enemy hero speed %d ms a tile", next);
 		return;
 	}
+	if(battlesArea.isInside(local))
+	{
+		// what is watched is the viewer's own choice, the host's or a guest's
+		Settings session = settings.write["session"];
+		session["spectate-skip-battle"].Bool() = !settings["session"]["spectate-skip-battle"].Bool();
+		battlesLabel->setText(battlesText());
+		logGlobal->info("Observer: battles that begin from now on are %s", settings["session"]["spectate-skip-battle"].Bool() ? "skipped" : "watched");
+		return;
+	}
 	if(!canPause)
 		return; // a guest cannot pause the host's AI: the buttons are grey and say why
 	logGlobal->debug("Observer bar clicked at %d,%d (bar at %d,%d)", cursorPosition.x, cursorPosition.y, pos.x, pos.y);
@@ -160,16 +180,24 @@ void ObserverBar::mouseMoved(const Point & cursorPosition, const Point & lastUpd
 {
 	const Point local = cursorPosition - pos.topLeft();
 	static const std::string text = "Pause and Step: only the host of the game can pause the AI";
+	static const std::string battlesHelp = BATTLES_HELP;
 	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local)))
 		ENGINE->statusbar()->write(text);
 	else
 		ENGINE->statusbar()->clearIfMatching(text);
+	if(battlesArea.isInside(local))
+		ENGINE->statusbar()->write(battlesHelp);
+	else
+		ENGINE->statusbar()->clearIfMatching(battlesHelp);
 }
 
 void ObserverBar::hover(bool on)
 {
 	if(!on)
+	{
 		ENGINE->statusbar()->clearIfMatching("Pause and Step: only the host of the game can pause the AI");
+		ENGINE->statusbar()->clearIfMatching(BATTLES_HELP);
+	}
 }
 
 void ObserverBar::tick(uint32_t msPassed)

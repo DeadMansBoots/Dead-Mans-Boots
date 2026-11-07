@@ -81,7 +81,9 @@ ObserverBar::ObserverBar(const Rect & area)
 		speedText(static_cast<int>(settings["adventure"]["enemyMoveTime"].Float())));
 	dayLabel = std::make_shared<CLabel>(speedX + speedWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
 
+	logGlobal->debug("Observer bar: built at %d,%d size %dx%d, host %d, active before events %d, parent active %d", pos.x, pos.y, pos.w, pos.h, canPause, isActive(), parent ? parent->isActive() : false);
 	addUsedEvents(LCLICK | TIME | MOVE | HOVER);
+	logGlobal->debug("Observer bar: events added, active %d", isActive());
 }
 
 ObserverBar::~ObserverBar()
@@ -102,6 +104,7 @@ void ObserverBar::show(Canvas & to)
 
 void ObserverBar::clickPressed(const Point & cursorPosition)
 {
+	logGlobal->debug("Observer bar: left press at %d,%d (bar at %d,%d, %dx%d, host %d)", cursorPosition.x, cursorPosition.y, pos.x, pos.y, pos.w, pos.h, canPause);
 	const Point local = cursorPosition - pos.topLeft();
 	if(speedArea.isInside(local))
 	{
@@ -175,6 +178,12 @@ void ObserverBar::hover(bool on)
 void ObserverBar::tick(uint32_t msPassed)
 {
 	// the watch console's p and Enter write and remove the same PAUSE file: the bar follows it twice a second, so either control pauses the whole game
+	static bool firstTick = true;
+	if(firstTick)
+	{
+		firstTick = false;
+		logGlobal->debug("Observer bar: first tick, active %d", isActive());
+	}
 	sinceFlagCheck += msPassed;
 	if(canPause && sinceFlagCheck >= 500)
 	{

@@ -74,6 +74,8 @@ BattleInterface::BattleInterface(const BattleID & battleID, const CCreatureSet *
 		curInt = defenderInt;
 	}
 
+	logGlobal->debug("Battle interface created: attacker interface %d, defender interface %d, spectator interface %d", att != nullptr, defen != nullptr, spectatorInt != nullptr);
+
 	//hot-seat -> check tactics for both players (defender may be local human)
 	if(attackerInt && attackerInt->cb->getBattle(getBattleID())->battleGetTacticDist())
 		tacticianInterface = attackerInt;
@@ -183,6 +185,7 @@ void BattleInterface::openingEnd()
 
 BattleInterface::~BattleInterface()
 {
+	logGlobal->debug("Battle interface destroyed");
 	CPlayerInterface::battleInt = nullptr;
 
 	if (adventureInt)

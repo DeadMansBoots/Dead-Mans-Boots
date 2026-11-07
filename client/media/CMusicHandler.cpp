@@ -99,6 +99,7 @@ CMusicHandler::~CMusicHandler()
 
 void CMusicHandler::playMusic(const AudioPath & musicURI, bool loop, bool fromStart)
 {
+	logGlobal->debug("Music: play track %s", musicURI.getName());
 	std::scoped_lock guard(mutex);
 
 	if(current && current->isPlaying() && current->isTrack(musicURI))
@@ -114,6 +115,7 @@ void CMusicHandler::playMusicFromSet(const std::string & musicSet, const std::st
 
 void CMusicHandler::playMusicFromSet(const std::string & whichSet, bool loop, bool fromStart)
 {
+	logGlobal->debug("Music: play from set %s", whichSet);
 	std::scoped_lock guard(mutex);
 
 	auto selectedSet = musicsSet.find(whichSet);
@@ -151,6 +153,7 @@ void CMusicHandler::queueNext(CMusicHandler * owner, const std::string & setName
 
 void CMusicHandler::stopMusic(int fade_ms)
 {
+	logGlobal->debug("Music: stop (fade %d ms)", fade_ms);
 	if(!isInitialized())
 		return;
 

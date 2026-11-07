@@ -247,6 +247,22 @@ void EventDispatcher::handleLeftButtonClick(const Point & position, int toleranc
 	// 3) new element is created *with exactly same address(!)
 	// 4) new element is registered and code will incorrectly assume that this element is still registered
 	// POSSIBLE SOLUTION: make EventReceivers inherit from create_shared_from this and store weak_ptr's in lists
+	if(isPressed)
+	{
+		// DMB diagnostic (observer controls, November 6th): who takes a left press, and which window is on top
+		std::string receivers;
+		int under = 0;
+		for(auto & i : lclickable)
+			if(i->receiveEvent(position, AEventsReceiver::LCLICK))
+			{
+				if(under < 6)
+					receivers += std::string(" ") + typeid(*i).name();
+				under++;
+			}
+		const auto top = ENGINE->windows().topWindow<IShowActivatable>();
+		logGlobal->debug("DMB click: press at %d,%d; %d objects take left clicks, %d of them here:%s; top window %s", position.x, position.y, lclickable.size(), under, receivers, top ? typeid(*top).name() : "none");
+	}
+
 	AEventsReceiver * nearestElement = findElementInToleranceRange(lclickable, position, AEventsReceiver::LCLICK, tolerance);
 	auto hlp = lclickable;
 	bool lastActivated = true;

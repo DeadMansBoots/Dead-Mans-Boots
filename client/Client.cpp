@@ -499,6 +499,8 @@ void CClient::battleStarted(const BattleID & battleID)
 	std::shared_ptr<CPlayerInterface> def;
 	const auto & leftSide = info->getSide(BattleSide::LEFT_SIDE);
 	const auto & rightSide = info->getSide(BattleSide::RIGHT_SIDE);
+	logGlobal->debug("Battle %d started: %s against %s; spectate %d, skip %d, headless %d", battleID.getNum(), leftSide.color.toString(), rightSide.color.toString(),
+		settings["session"]["spectate"].Bool(), settings["session"]["spectate-skip-battle"].Bool(), settings["session"]["headless"].Bool());
 
 	for(auto & battleCb : battleCallbacks)
 	{
@@ -577,6 +579,7 @@ void CClient::battleStarted(const BattleID & battleID)
 
 void CClient::battleFinished(const BattleID & battleID)
 {
+	logGlobal->debug("Battle %d finished; battle interface present %d", battleID.getNum(), CPlayerInterface::battleInt != nullptr);
 	for(auto side : { BattleSide::ATTACKER, BattleSide::DEFENDER })
 	{
 		if(battleCallbacks.count(gameState().getBattle(battleID)->getSide(side).color))

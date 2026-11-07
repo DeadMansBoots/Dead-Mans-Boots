@@ -177,6 +177,7 @@ void MapAudioPlayer::updateAmbientSounds()
 
 void MapAudioPlayer::updateMusic()
 {
+	logGlobal->debug("Music: map audio update: audioPlaying %d, playerMakingTurn %d, enemyMakingTurn %d, selection %d", audioPlaying, playerMakingTurn, enemyMakingTurn, currentSelection != nullptr);
 	if(audioPlaying && playerMakingTurn && currentSelection)
 	{
 		const auto * tile = GAME->interface()->cb->getTile(currentSelection->visitablePos());
@@ -225,6 +226,7 @@ void MapAudioPlayer::onSelectionChanged(const CArmedInstance * newSelection)
 
 void MapAudioPlayer::onAudioPaused()
 {
+	logGlobal->debug("Music: map audio paused");
 	audioPlaying = false;
 	ENGINE->sound().ambientStopAllChannels();
 	ENGINE->music().stopMusic(1000);
@@ -232,12 +234,14 @@ void MapAudioPlayer::onAudioPaused()
 
 void MapAudioPlayer::onAudioResumed()
 {
+	logGlobal->debug("Music: map audio resumed");
 	audioPlaying = true;
 	update();
 }
 
 void MapAudioPlayer::onPlayerTurnStarted()
 {
+	logGlobal->debug("Music: map audio told: player turn started");
 	enemyMakingTurn = false;
 	playerMakingTurn = true;
 	update();
@@ -245,6 +249,7 @@ void MapAudioPlayer::onPlayerTurnStarted()
 
 void MapAudioPlayer::onEnemyTurnStarted()
 {
+	logGlobal->debug("Music: map audio told: enemy turn started");
 	playerMakingTurn = false;
 	enemyMakingTurn = true;
 	update();

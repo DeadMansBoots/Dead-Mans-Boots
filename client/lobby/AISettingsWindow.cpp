@@ -40,9 +40,9 @@ bool knownAI(const std::string & name)
 }
 }
 
-AISettingsWindow::AISettingsWindow(PlayerColor color)
+AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	: CWindowObject(BORDERED)
-	, color(color)
+	, color(seatColor)
 {
 	OBJECT_CONSTRUCTION;
 

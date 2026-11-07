@@ -65,7 +65,7 @@ class AISettingsWindow final : public CWindowObject
 	void notFocusedClick() override;
 
 public:
-	explicit AISettingsWindow(PlayerColor color);
+	explicit AISettingsWindow(PlayerColor seatColor);
 
 	/// shows the seat as the lobby state holds it; closes the window when the seat is no computer's any more
 	void refresh();

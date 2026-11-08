@@ -118,6 +118,8 @@ class CServerHandler final : public IServerAPI, public LobbyInfo, public INetwor
 	void waitForServerShutdown();
 
 	void onPacketReceived(const NetworkConnectionPtr &, const std::vector<std::byte> & message) override;
+	/// DMB (S084): the host's lobby state could not be read here (content this PC's mods do not have): says which, and leaves the lobby
+	void refuseUnreadablePack(const std::string & failure, const std::vector<std::string> & unknownContent);
 	void onConnectionFailed(const std::string & errorMessage) override;
 	void onConnectionEstablished(const NetworkConnectionPtr &) override;
 	void onDisconnected(const NetworkConnectionPtr &, const std::string & errorMessage) override;

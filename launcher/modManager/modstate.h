@@ -72,6 +72,9 @@ public:
 	bool isInstalled() const;
 	bool isUpdateAvailable() const;
 	bool isCompatible() const;
+	bool isRepositoryCompatible() const;
+	bool isUpdateBlocked() const;
+	QPair<QString, QString> getRepositoryCompatibleVersionRange() const;
 	bool isKeptDisabled() const;
 	/// DMB: one of DMB's own catalog additions, not an entry from VCMI's index (its catalog entry
 	/// carries "dmbEntry", which only DMB-Mods-Repository's builder sets)

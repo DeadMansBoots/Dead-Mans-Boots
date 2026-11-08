@@ -158,6 +158,28 @@ FactionID BuildingTypeUniqueID::getFaction() const
 	return FactionID(getNum() / 0x10000);
 }
 
+static thread_local UnresolvedIdentifiers * activeUnresolved = nullptr;
+
+UnresolvedIdentifiers::UnresolvedIdentifiers()
+	: outer(activeUnresolved)
+{
+	activeUnresolved = this;
+}
+
+UnresolvedIdentifiers::~UnresolvedIdentifiers()
+{
+	activeUnresolved = outer;
+}
+
+bool UnresolvedIdentifiers::note(const std::string & name)
+{
+	if(!activeUnresolved)
+		return false;
+	if(std::find(activeUnresolved->names.begin(), activeUnresolved->names.end(), name) == activeUnresolved->names.end())
+		activeUnresolved->names.push_back(name);
+	return true;
+}
+
 int32_t IdentifierBase::resolveIdentifier(const std::string & entityType, const std::string identifier)
 {
 	if (identifier.empty())
@@ -176,6 +198,9 @@ int32_t IdentifierBase::resolveIdentifier(const std::string & entityType, const 
 		if (rawId2)
 			return rawId2.value();
 	}
+
+	if(UnresolvedIdentifiers::note(identifier)) // DMB (S084): the reader of another PC's pack asked for this, and tells the player
+		return -1;
 
 	throw IdentifierResolutionException(identifier);
 }

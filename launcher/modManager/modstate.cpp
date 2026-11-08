@@ -249,6 +249,26 @@ bool ModState::isCompatible() const
 	return impl.isCompatible();
 }
 
+bool ModState::isRepositoryCompatible() const
+{
+	return impl.isRepositoryCompatible();
+}
+
+bool ModState::isUpdateBlocked() const
+{
+	return impl.isUpdateBlocked();
+}
+
+QPair<QString, QString> ModState::getRepositoryCompatibleVersionRange() const
+{
+	const JsonNode & compatibility = impl.getRepositoryValue("compatibility");
+
+	if (compatibility.isNull())
+		return {};
+
+	return { QString::fromStdString(compatibility["min"].String()), QString::fromStdString(compatibility["max"].String()) };
+}
+
 bool ModState::isKeptDisabled() const
 {
 	return impl.keepDisabled();

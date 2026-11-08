@@ -199,16 +199,10 @@ ModVerificationInfo ModDescription::getVerificationInfo() const
 	return result;
 }
 
-bool ModDescription::isCompatible() const
+namespace
 {
-	// DMB: a mod that needs a newer addon API than this DMB offers (AddonCode::API_LEVEL); the installed
-	// copy decides, and the catalog's entry for a mod not installed yet
-	const JsonNode & dmbApi = (isInstalled() ? getLocalValue("dmb") : getRepositoryValue("dmb"))["api"];
-	if(dmbApi.isNumber() && dmbApi.Integer() > AddonCode::API_LEVEL)
-		return false;
-
-	const JsonNode & compatibility = getLocalValue("compatibility");
-
+bool compatibilityAllows(const JsonNode & compatibility)
+{
 	if (compatibility.isNull())
 		return true;
 
@@ -218,8 +212,40 @@ bool ModDescription::isCompatible() const
 	bool compatible = true;
 	compatible &= (vcmiCompatibleMin.isNull() || CModVersion::GameVersion().compatible(vcmiCompatibleMin, true, true));
 	compatible &= (vcmiCompatibleMax.isNull() || vcmiCompatibleMax.compatible(CModVersion::GameVersion(), true, true));
-
 	return compatible;
+}
+}
+
+bool ModDescription::engineAllows(const JsonNode & modConfig)
+{
+	const JsonNode & dmbApi = modConfig["dmb"]["api"];
+	if(dmbApi.isNumber() && dmbApi.Integer() > AddonCode::API_LEVEL)
+		return false;
+	return compatibilityAllows(modConfig["compatibility"]);
+}
+
+bool ModDescription::isRepositoryCompatible() const
+{
+	return engineAllows(*repositoryConfig);
+}
+
+bool ModDescription::isUpdateBlocked() const
+{
+	if (getRepositoryValue("version").isNull() || getLocalValue("version").isNull())
+		return false;
+
+	return CModVersion::fromString(getLocalValue("version").String()) < CModVersion::fromString(getRepositoryValue("version").String()) && !isRepositoryCompatible();
+}
+
+bool ModDescription::isCompatible() const
+{
+	// DMB: a mod that needs a newer addon API than this DMB offers (AddonCode::API_LEVEL); the installed
+	// copy decides, and the catalog's entry for a mod not installed yet
+	const JsonNode & dmbApi = (isInstalled() ? getLocalValue("dmb") : getRepositoryValue("dmb"))["api"];
+	if(dmbApi.isNumber() && dmbApi.Integer() > AddonCode::API_LEVEL)
+		return false;
+
+	return compatibilityAllows(getLocalValue("compatibility"));
 }
 
 bool ModDescription::isCompatibility() const
@@ -280,7 +306,15 @@ bool ModDescription::isUpdateAvailable() const
 	auto localVersion = CModVersion::fromString(getLocalValue("version").String());
 	auto repositoryVersion = CModVersion::fromString(getRepositoryValue("version").String());
 
-	return localVersion < repositoryVersion;
+	// DMB (S084, Tides of War 1.0.50): a newer version that needs a newer game engine than this DMB has is not an update, and the installed copy is never replaced by it
+	if(localVersion < repositoryVersion)
+		return isRepositoryCompatible();
+
+	// DMB (S084): an installed copy this engine cannot run (a newer mod than the engine, or an engine older than the mod) is offered the repository's version when that one can run
+	if(localVersion != repositoryVersion && !isCompatible() && isRepositoryCompatible())
+		return true;
+
+	return false;
 }
 
 VCMI_LIB_NAMESPACE_END

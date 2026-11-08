@@ -60,6 +60,12 @@ public:
 
 	bool isCompatible() const;
 	bool isUpdateAvailable() const;
+	/// DMB (S084): whether this engine can run the mod a mod.json describes: its "dmb" "api" and its "compatibility" range (the one rule the game, the launcher and the archive check use)
+	static bool engineAllows(const JsonNode & modConfig);
+	/// DMB (S084): the newest version the repository lists (its mod.json) can run on this engine
+	bool isRepositoryCompatible() const;
+	/// DMB (S084): the repository has a newer version, but it cannot run on this engine; it is not offered and the installed copy stays
+	bool isUpdateBlocked() const;
 
 	bool affectsGameplay() const;
 	bool isCompatibility() const;

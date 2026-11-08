@@ -60,6 +60,10 @@
 #include "../lib/mapObjects/MiscObjects.h"
 #include "../lib/modding/AIPlugins.h"
 #include "../lib/modding/ModIncompatibility.h"
+#include "../lib/modding/CModHandler.h"
+#include "../lib/modding/ModDescription.h"
+#include "../lib/constants/IdentifierBase.h"
+#include "lobby/CLobbyScreen.h"
 #include "../lib/rmg/CMapGenOptions.h"
 #include "../lib/serializer/GameConnection.h"
 #include "../lib/UnlockGuard.h"
@@ -1234,9 +1238,139 @@ void CServerHandler::onPacketReceived(const std::shared_ptr<INetworkConnection> 
 	if(getState() == EClientState::DISCONNECTING)
 		return;
 
-	auto pack = logicConnection->retrievePack(message);
-	ServerHandlerCPackVisitor visitor(*this);
-	pack->visit(visitor);
+	if(client) // in a game: as before
+	{
+		auto pack = logicConnection->retrievePack(message);
+		ServerHandlerCPackVisitor visitor(*this);
+		pack->visit(visitor);
+		return;
+	}
+
+	// DMB (S084, Zach's crash, November 7th, Sentry DMB-5 to DMB-7): the host's lobby state names content (a hero of a mod) that this PC's mods may not have. The identifier that
+	// could not be resolved threw on this network thread, nothing caught it, and the program ended with abort() while the guest was still joining. Now each such name is
+	// collected while the pack is read, the player is told which content and which mods, and the lobby is left; any other exception in a lobby pack ends the join the same way
+	std::unique_ptr<CPack> pack;
+	std::vector<std::string> unknownContent;
+	std::string failure;
+	{
+		UnresolvedIdentifiers unresolved;
+		try
+		{
+			pack = logicConnection->retrievePack(message);
+		}
+		catch(const TerminationRequestedException &)
+		{
+			throw;
+		}
+		catch(const InterruptionRequestedException &)
+		{
+			throw;
+		}
+		catch(const std::exception & e)
+		{
+			failure = e.what();
+		}
+		unknownContent = unresolved.list();
+	}
+	if(!pack || !unknownContent.empty())
+	{
+		refuseUnreadablePack(failure, unknownContent);
+		return;
+	}
+
+	try
+	{
+		ServerHandlerCPackVisitor visitor(*this);
+		pack->visit(visitor);
+	}
+	catch(const TerminationRequestedException &)
+	{
+		throw;
+	}
+	catch(const InterruptionRequestedException &)
+	{
+		throw;
+	}
+	catch(const std::exception & e)
+	{
+		refuseUnreadablePack(e.what(), {});
+	}
+}
+
+void CServerHandler::refuseUnreadablePack(const std::string & failure, const std::vector<std::string> & unknownContent)
+{
+	logNetwork->error("The host's lobby state could not be read here: %s (%d unknown name(s))", failure.empty() ? "content this PC does not have" : failure, unknownContent.size());
+	for(const auto & name : unknownContent)
+		logNetwork->error("  unknown content: %s", name);
+
+	// the mod an unknown name belongs to: the text before its colon names the mod (a submod's id starts with its mod's id and a dot)
+	std::vector<std::string> mods;
+	for(const auto & name : unknownContent)
+	{
+		const size_t colon = name.find(':');
+		if(colon == std::string::npos || colon == 0)
+			continue;
+		std::string mod = boost::algorithm::to_lower_copy(name.substr(0, colon));
+		mod = mod.substr(0, mod.find('.'));
+		if(!vstd::contains(mods, mod))
+			mods.push_back(mod);
+	}
+
+	const auto installed = LIBRARY->modh->getAllMods();
+	const auto & active = LIBRARY->modh->getActiveMods();
+	std::string text = "Your game could not open this game from the host: the host's game has content that your game does not have";
+	if(!unknownContent.empty())
+	{
+		text += ", such as ";
+		for(size_t i = 0; i < unknownContent.size() && i < 4; ++i)
+			text += (i ? ", " : "") + unknownContent[i];
+		if(unknownContent.size() > 4)
+			text += " and " + std::to_string(unknownContent.size() - 4) + " more";
+	}
+	text += ".\n\nThat happens when your mods are not the same as the host's: a mod is missing, or it is another version.";
+	if(!mods.empty())
+		text += "\n\nThe mods that content belongs to, on this PC:";
+	for(const auto & mod : mods)
+	{
+		text += "\n  " + mod + ": ";
+		if(!vstd::contains(installed, mod))
+			text += "not installed";
+		else
+		{
+			const auto & info = LIBRARY->modh->getModInfo(mod);
+			text += "version " + info.getVersion().toString();
+			if(!info.isCompatible())
+				text += ", switched off (it needs a newer game engine than this version of DMB has)";
+			else if(!vstd::contains(active, mod))
+				text += ", installed but not switched on";
+		}
+	}
+	// every installed mod this engine cannot run is switched off, whatever the host has: said once, so the player sees the whole list
+	std::string switchedOff;
+	for(const auto & id : installed)
+	{
+		if(id.find('.') != std::string::npos)
+			continue;
+		const auto & info = LIBRARY->modh->getModInfo(id);
+		if(!info.isCompatible() && !vstd::contains(mods, id))
+			switchedOff += "\n  " + id + " " + info.getVersion().toString();
+	}
+	if(!switchedOff.empty())
+		text += "\n\nAlso switched off on this PC, because it needs a newer game engine than this version of DMB has:" + switchedOff;
+	text += "\n\nOpen Mods in the launcher, make your mods the same as the host's (the host can read theirs there too), and join again.";
+
+	DmbIssueReport::send("host-content-unknown", "A guest could not read the host's lobby state (" + (failure.empty() ? std::string("unknown content") : failure) + "): " + text);
+
+	if(getState() != EClientState::DISCONNECTING)
+		sendClientDisconnecting();
+	if(!ENGINE) // a headless client has no windows
+		return;
+	ENGINE->dispatchMainThread([text]()
+	{
+		if(auto lobby = ENGINE->windows().topWindow<CLobbyScreen>())
+			lobby->close();
+		CInfoWindow::showInfoDialog(text, {});
+	});
 }
 
 void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & connection, const std::string & errorMessage)

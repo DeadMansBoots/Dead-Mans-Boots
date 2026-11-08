@@ -23,6 +23,26 @@ public:
 	~IdentifierResolutionException() override;
 };
 
+/// DMB (S084, Zach's crash, November 7th): while one of these exists on a thread, an identifier that cannot be resolved (content the other PC's game state names and
+/// this PC's mods do not have, as a hero of a mod that is missing or of another version) is noted here and left without a value, instead of throwing.
+/// A reader of a pack from another PC makes one, reads, and then looks at list(); nothing else is changed, and the config loading never makes one.
+class DLL_LINKAGE UnresolvedIdentifiers
+{
+	std::vector<std::string> names;
+	UnresolvedIdentifiers * outer;
+
+public:
+	UnresolvedIdentifiers();
+	~UnresolvedIdentifiers();
+	UnresolvedIdentifiers(const UnresolvedIdentifiers &) = delete;
+	UnresolvedIdentifiers & operator=(const UnresolvedIdentifiers &) = delete;
+
+	const std::vector<std::string> & list() const { return names; }
+
+	/// true when a collector is active on this thread and took the name
+	static bool note(const std::string & name);
+};
+
 class IdentifierBase
 {
 protected:

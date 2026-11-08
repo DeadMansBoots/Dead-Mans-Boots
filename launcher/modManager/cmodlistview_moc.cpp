@@ -18,6 +18,7 @@
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QTabBar>
+#include <QTemporaryDir>
 
 #include "modstatemodel.h"
 #include "modstateitemmodel_moc.h"
@@ -53,6 +54,37 @@
 
 // DMB: where the mod list's column layout is kept; VCMI's key held a layout without the origin column
 static const QString MODS_VIEW_STATE = "AllModsView/StateWithOrigin";
+
+/// DMB (S084): the mod.json inside a downloaded mod archive (at the top or in its one folder), read before anything of the installed mod is touched
+static bool readArchiveModJson(const QString & archivePath, JsonNode & result)
+{
+	try
+	{
+		ZipArchive archive(qstringToPath(archivePath));
+		std::string entry;
+		for(const auto & file : archive.listFiles())
+		{
+			const QString name = QString::fromStdString(file);
+			if(name.count('/') <= 1 && name.section('/', -1, -1).compare("mod.json", Qt::CaseInsensitive) == 0)
+			{
+				entry = file;
+				break;
+			}
+		}
+		if(entry.empty())
+			return false;
+		QTemporaryDir temp(CLauncherDirs::downloadsPath() + "/check-XXXXXX");
+		if(!temp.isValid() || !archive.extract(qstringToPath(temp.path()), entry))
+			return false;
+		result = JsonUtils::jsonFromFile(temp.filePath(QString::fromStdString(entry)));
+		return !result.isNull();
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Could not read mod.json inside %s: %s", qUtf8Printable(archivePath), e.what());
+		return false;
+	}
+}
 
 // DMB: whether a downloaded index is the default repository's, DMB's own catalog. loadRepositories
 // names each index file after the MD5 of its address.
@@ -419,6 +451,17 @@ QString CModListView::genModInfoText(const ModState & mod)
 			result += replaceIfNotEmpty(mod.getInstalledVersion(), lineTemplate.arg(tr("Installed version")));
 		else
 			result += replaceIfNotEmpty(mod.getRepositoryVersion(), lineTemplate.arg(tr("Latest version")));
+	}
+
+	// DMB (S084): a newer version is out but needs a newer game engine than this DMB has: not offered, and the installed copy stays
+	if(mod.isUpdateBlocked() || (!mod.isInstalled() && !mod.isRepositoryCompatible()))
+	{
+		const auto range = mod.getRepositoryCompatibleVersionRange();
+		const QString engine = QString::fromStdString(CModVersion::GameVersion().toString());
+		const QString asks = range.first.isEmpty() ? QString() : tr(" (it asks for VCMI %1 or newer; this DMB has VCMI %2)").arg(range.first, engine);
+		result += mod.isInstalled()
+			? "**" + tr("Update not offered") + "**: " + tr("version %1 is out, but it needs a newer game engine than this version of DMB has%2. Your installed version %3 stays.").arg(mod.getRepositoryVersion(), asks, mod.getInstalledVersion()) + "\n\n"
+			: "**" + tr("Not offered") + "**: " + tr("version %1 needs a newer game engine than this version of DMB has%2.").arg(mod.getRepositoryVersion(), asks) + "\n\n";
 	}
 
 	if (mod.isInstalled())
@@ -1321,6 +1364,37 @@ void CModListView::installFiles(QStringList files)
 
 void CModListView::installMods(QStringList archives)
 {
+	// DMB (S084, Tides of War 1.0.50, November 7th): the mod.json inside each downloaded archive is read first. An archive whose mod needs a newer game engine than this DMB
+	// has is deleted and not installed, and the installed copy of that mod is never uninstalled, so a working mod is never replaced by one that cannot run
+	QStringList refusals;
+	for(int i = archives.size() - 1; i >= 0; --i)
+	{
+		JsonNode incoming;
+		if(!readArchiveModJson(archives[i], incoming) || ModDescription::engineAllows(incoming))
+			continue;
+
+		const QString modName = archives[i].section('/', -1, -1).section('.', 0, 0);
+		const QString title = incoming["name"].isString() ? QString::fromStdString(incoming["name"].String()) : modName;
+		const QString version = QString::fromStdString(incoming["version"].String());
+		const QString needs = QString::fromStdString(incoming["compatibility"]["min"].String());
+		const QString engine = QString::fromStdString(CModVersion::GameVersion().toString());
+		QString kept = tr("Nothing was changed.");
+		if(modStateModel->isModExists(modName) && modStateModel->getMod(modName).isInstalled())
+			kept = tr("Your installed version %1 was kept.").arg(modStateModel->getMod(modName).getInstalledVersion());
+		refusals.push_front(tr("%1 %2 was not installed: it needs a newer game engine than this version of DMB has%3. %4")
+			.arg(title, version, needs.isEmpty() ? QString() : tr(" (it asks for VCMI %1 or newer; this DMB has VCMI %2)").arg(needs, engine), kept));
+		logGlobal->warn("Mod archive %s not installed: %s %s needs VCMI %s, this is %s", qUtf8Printable(archives[i]), qUtf8Printable(modName), qUtf8Printable(version), qUtf8Printable(needs), qUtf8Printable(engine));
+		QFile::remove(archives[i]);
+		archives.removeAt(i);
+	}
+	if(!refusals.isEmpty())
+		QMessageBox::warning(this, tr("Mod not installed"), refusals.join("\n\n"));
+	if(archives.isEmpty())
+	{
+		reload();
+		return;
+	}
+
 	QStringList modNames;
 	QStringList modsToEnable;
 	QMap<QString, QMap<QString, bool>> submodStateBeforeUpdate;

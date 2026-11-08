@@ -55,6 +55,20 @@
 // DMB: where the mod list's column layout is kept; VCMI's key held a layout without the origin column
 static const QString MODS_VIEW_STATE = "AllModsView/StateWithOrigin";
 
+/// DMB (S084): why this Dead Man's Boots cannot run a mod, in the direction that is true: the mod needs a newer game version, or was made for an older one
+static QString engineProblem(const QString & minText, const QString & maxText)
+{
+	const CModVersion game = CModVersion::GameVersion();
+	const QString engine = QString::fromStdString(game.toString());
+	const CModVersion low = CModVersion::fromString(minText.toStdString());
+	const CModVersion high = CModVersion::fromString(maxText.toStdString());
+	if(!low.isNull() && !game.compatible(low, true, true))
+		return QObject::tr("it needs game version %1 or newer, and this Dead Man's Boots runs on %2").arg(minText, engine);
+	if(!high.isNull() && !high.compatible(game, true, true))
+		return QObject::tr("it was made for an older game version (up to %1), and this Dead Man's Boots runs on %2").arg(maxText, engine);
+	return QObject::tr("it needs a newer add-on interface than this Dead Man's Boots has");
+}
+
 /// DMB (S084): the mod.json inside a downloaded mod archive (at the top or in its one folder), read before anything of the installed mod is touched
 static bool readArchiveModJson(const QString & archivePath, JsonNode & result)
 {
@@ -457,11 +471,10 @@ QString CModListView::genModInfoText(const ModState & mod)
 	if(mod.isUpdateBlocked() || (!mod.isInstalled() && !mod.isRepositoryCompatible()))
 	{
 		const auto range = mod.getRepositoryCompatibleVersionRange();
-		const QString engine = QString::fromStdString(CModVersion::GameVersion().toString());
-		const QString asks = range.first.isEmpty() ? QString() : tr(" (it asks for VCMI %1 or newer; this DMB has VCMI %2)").arg(range.first, engine);
+		const QString problem = engineProblem(range.first, range.second);
 		result += mod.isInstalled()
-			? "**" + tr("Update not offered") + "**: " + tr("version %1 is out, but it needs a newer game engine than this version of DMB has%2. Your installed version %3 stays.").arg(mod.getRepositoryVersion(), asks, mod.getInstalledVersion()) + "\n\n"
-			: "**" + tr("Not offered") + "**: " + tr("version %1 needs a newer game engine than this version of DMB has%2.").arg(mod.getRepositoryVersion(), asks) + "\n\n";
+			? "**" + tr("Update not offered") + "**: " + tr("version %1 is out, but %2. Your installed version %3 stays.").arg(mod.getRepositoryVersion(), problem, mod.getInstalledVersion()) + "\n\n"
+			: "**" + tr("Not offered") + "**: " + tr("version %1 cannot be installed: %2.").arg(mod.getRepositoryVersion(), problem) + "\n\n";
 	}
 
 	if (mod.isInstalled())
@@ -1378,11 +1391,11 @@ void CModListView::installMods(QStringList archives)
 		const QString version = QString::fromStdString(incoming["version"].String());
 		const QString needs = QString::fromStdString(incoming["compatibility"]["min"].String());
 		const QString engine = QString::fromStdString(CModVersion::GameVersion().toString());
+		const QString problem = engineProblem(needs, QString::fromStdString(incoming["compatibility"]["max"].String()));
 		QString kept = tr("Nothing was changed.");
 		if(modStateModel->isModExists(modName) && modStateModel->getMod(modName).isInstalled())
 			kept = tr("Your installed version %1 was kept.").arg(modStateModel->getMod(modName).getInstalledVersion());
-		refusals.push_front(tr("%1 %2 was not installed: it needs a newer game engine than this version of DMB has%3. %4")
-			.arg(title, version, needs.isEmpty() ? QString() : tr(" (it asks for VCMI %1 or newer; this DMB has VCMI %2)").arg(needs, engine), kept));
+		refusals.push_front(tr("%1 %2 was not installed: %3. %4").arg(title, version, problem, kept));
 		logGlobal->warn("Mod archive %s not installed: %s %s needs VCMI %s, this is %s", qUtf8Printable(archives[i]), qUtf8Printable(modName), qUtf8Printable(version), qUtf8Printable(needs), qUtf8Printable(engine));
 		QFile::remove(archives[i]);
 		archives.removeAt(i);

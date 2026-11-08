@@ -1094,10 +1094,12 @@ static Point loadBarShift(const std::string & pictureName)
 /// DMB: a loading picture with a gold frame round its bar (the Horn of the Abyss one, and the pictures made like it) has an ornament standing above the
 /// middle of the frame, and the stage text sat on it (K, October 6th, and again November 7th: "regression: text is back over the load bar for certain
 /// mods": the Horn of the Abyss main menu mod's own loading picture, which the pool draws as the game's own loading screen). The first answer lifted the
-/// text for the player's own pictures only. This looks for the ornament in the picture as the game draws it (800x600 layout units), whichever picture it
-/// is (a mod's, the game's, a dropped-in file): the ornament's rows are the rows just above the frame where gold shows in a narrow band over the bar's middle
-/// and not in the columns beside it (a picture that is gold-coloured everywhere has none). Returns the first row of the ornament, or nothing.
-static std::optional<int> findBarOrnamentTop(const ImagePath & picture, int centerX, int barY)
+/// text for the player's own pictures only. This looks for the frame in the picture as the game draws it (800x600 layout units), whichever picture it is
+/// (a mod's, the game's, a dropped-in file): a thin line of gold (a yellow-gold hue, not the orange or brown of a picture's own colours) across the bar's width
+/// just above its blocks, with the plain picture above it. A picture with that frame has the ornament, and its first row is where gold shows over the
+/// bar's middle and not in the columns beside it (the frame's own height when it is not told apart). Returns that row, or nothing for a picture with no
+/// such frame (the game's own loading picture, Tides of War's), which is left as it is.
+static std::optional<int> findBarOrnamentTop(const ImagePath & picture, int barLeft, int barRight, int barY)
 {
 	try
 	{
@@ -1111,10 +1113,38 @@ static std::optional<int> findBarOrnamentTop(const ImagePath & picture, int cent
 			if(x < 0 || y < 0 || x >= 800 || y >= 600)
 				return false;
 			const ColorRGBA c = canvas.getPixel(Point(x, y));
-			return c.r >= 110 && c.g >= 70 && c.r >= c.g && c.b + 45 <= c.r && c.g >= c.b + 15;
+			// hue 36 to 58 degrees (red is the largest, green between), saturation at least 0.35, value at least 0.5
+			const int r = c.r;
+			const int g = c.g;
+			const int b = c.b;
+			return r >= 128 && g >= b && r > b && (r - b) * 100 >= 35 * r && (g - b) * 1000 >= 600 * (r - b) && (g - b) * 1000 <= 967 * (r - b);
 		};
-		std::vector<int> rows;
-		for(int y = barY - 26; y < barY - 3; ++y)
+		// the share of the bar's width, from 15 pixels inside each end, that is gold in a row
+		const auto goldShare = [&gold, barLeft, barRight](int y)
+		{
+			int total = 0;
+			int found = 0;
+			for(int x = barLeft + 15; x < barRight - 15; x += 2)
+			{
+				++total;
+				found += gold(x, y) ? 1 : 0;
+			}
+			return total > 0 ? static_cast<double>(found) / total : 0.0;
+		};
+		int frameTop = -1;
+		for(int y = barY - 7; y < barY; ++y)
+			if(goldShare(y) >= 0.75)
+			{
+				frameTop = y;
+				break;
+			}
+		if(frameTop < 0 || goldShare(frameTop - 9) >= 0.4)
+			return std::nullopt;
+
+		const int centerX = (barLeft + barRight) / 2;
+		int crest = -1;
+		int crestRows = 0;
+		for(int y = frameTop - 14; y < frameTop; ++y)
 		{
 			int band = 0;
 			int beside = 0;
@@ -1124,20 +1154,13 @@ static std::optional<int> findBarOrnamentTop(const ImagePath & picture, int cent
 				beside += (gold(centerX - dx, y) ? 1 : 0) + (gold(centerX + dx, y) ? 1 : 0);
 			// at least 4 of the band's 45 pixels, and the 102 beside it at most a third as dense
 			if(band >= 4 && beside * 135 <= band * 102)
-				rows.push_back(y);
+			{
+				if(crest < 0)
+					crest = y;
+				++crestRows;
+			}
 		}
-		// the ornament stands on the frame: its lowest row is within 10 rows of the bar, and its rows follow each other
-		if(rows.empty() || rows.back() < barY - 10)
-			return std::nullopt;
-		int top = rows.back();
-		size_t count = 1;
-		for(auto it = rows.rbegin() + 1; it != rows.rend() && *it >= top - 2; ++it)
-		{
-			top = *it;
-			++count;
-		}
-		if(count >= 4)
-			return top;
+		return crestRows >= 4 ? crest : frameTop - 9;
 	}
 	catch(const std::exception & e)
 	{
@@ -1236,7 +1259,7 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	// 6th: "our map generation/loading screen text overlaps with their cool bar"; November 7th: "regression: text is back over the load bar for
 	// certain mods"): the text goes above the ornament wherever the picture is found, a mod's own, the game's or the player's
 	if(loadbarConfig.isStruct() && !conf["phase"].isStruct())
-		if(const auto ornament = findBarOrnamentTop(shownPicture, phasePos.x, loadbarConfig["y"].Integer() + barShift.y))
+		if(const auto ornament = findBarOrnamentTop(shownPicture, static_cast<int>(loadbarConfig["x"].Integer()) + barShift.x, static_cast<int>(loadbarConfig["x"].Integer() + loadbarConfig["size"].Integer() * loadbarConfig["amount"].Integer()) + barShift.x, static_cast<int>(loadbarConfig["y"].Integer()) + barShift.y))
 			phasePos.y = std::min(phasePos.y, *ornament - 11);
 	phaseLabel = std::make_shared<CLabel>(phasePos.x, phasePos.y, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
 }

@@ -17,7 +17,7 @@ Built is approximate: how much of the feature exists and has been seen working i
 In beta 19.2:
 
 | Feature | Status | Built |
-|---|---|---|
+| --- | --- | --- |
 | Installer, updates and the update notice | Working | 80% |
 | Turn progress bars that show how far each player's turn is | Working | 80% |
 | Mod catalog and mod list in the launcher | Working | 70% |
@@ -33,7 +33,7 @@ Known problem in beta 19.2: watching a game as an observer does not work properl
 Next version, not in beta 19.2:
 
 | Feature | Status | Built |
-|---|---|---|
+| --- | --- | --- |
 | Objects drawn in the right order (a hedge no longer covers a tent) | Working | 80% |
 | Observer mode: leave your seat, start a game with every seat a computer, and watch with Pause, Speed and a Battles switch; watched games skip battles by default | Working | 70% |
 | Music in a watched game | Partly built | 40% |

@@ -29,6 +29,8 @@
 #include "../gui/Shortcut.h"
 #include "../gui/WindowHandler.h"
 #include "../render/Canvas.h"
+#include "../render/IImage.h"
+#include "../render/IRenderHandler.h"
 #include "../globalLobby/GlobalLobbyLoginWindow.h"
 #include "../globalLobby/GlobalLobbyClient.h"
 #include "../globalLobby/GlobalLobbyWindow.h"
@@ -337,6 +339,21 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 	return campaignSets;
 }
 
+/// DMB: the leather round the main menu window and the loading screen is the base game's own, "backgroundAround" of the game's own
+/// mainmenu.json (the brown DiBoxBck), whichever picture or menu mod is on screen. The merged config handed it to the last mod that
+/// sets one: the Horn of the Abyss main menu mod sets "around.png", a dark grey leather, so every picture of the pool (the releases'
+/// own, the dropped-in files, the Tides of War menu) stood on grey leather while that mod was on (K, November 7th: "WHY IS THE LEATHER
+/// IN THE MAIN MENU BACKGROUND AREA BLACK AND WHITE NOW?"; the same pictures with that mod off have the brown leather).
+ImagePath CMainMenuConfig::surroundPicture() const
+{
+	static const ImagePath picture = []()
+	{
+		const JsonNode stock(JsonPath::builtin("config/mainmenu.json"), ModScope::scopeBuiltin());
+		return stock["backgroundAround"].isString() ? ImagePath::fromJson(stock["backgroundAround"]) : ImagePath::builtin("DIBOXBCK");
+	}();
+	return picture;
+}
+
 /// DMB: the main menu window, with the picture behind it chosen from a pool (K, September 26th and October 1st: the real
 /// splash screens of the game's release eras, a mod's own menu art included, "cycling randomly on each startup by default
 /// or set manually"). The pool is
@@ -545,12 +562,7 @@ CMainMenu::CMainMenu()
 	menu = std::make_shared<CMenuScreen>(windowConfig);
 	OBJECT_CONSTRUCTION;
 
-	const auto& bgConfig = CMainMenuConfig::get().getConfig()["backgroundAround"];
-
-	if (bgConfig.isString())
-		backgroundAroundMenu = std::make_shared<CFilledTexture>(ImagePath::fromJson(bgConfig), pos);
-	else
-		backgroundAroundMenu = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), pos);
+	backgroundAroundMenu = std::make_shared<CFilledTexture>(CMainMenuConfig::get().surroundPicture(), pos);
 }
 
 CMainMenu::~CMainMenu() = default;
@@ -1079,6 +1091,61 @@ static Point loadBarShift(const std::string & pictureName)
 	return Point(0, 0);
 }
 
+/// DMB: a loading picture with a gold frame round its bar (the Horn of the Abyss one, and the pictures made like it) has an ornament standing above the
+/// middle of the frame, and the stage text sat on it (K, October 6th, and again November 7th: "regression: text is back over the load bar for certain
+/// mods": the Horn of the Abyss main menu mod's own loading picture, which the pool draws as the game's own loading screen). The first answer lifted the
+/// text for the player's own pictures only. This looks for the ornament in the picture as the game draws it (800x600 layout units), whichever picture it
+/// is (a mod's, the game's, a dropped-in file): the ornament's rows are the rows just above the frame where gold shows in a narrow band over the bar's middle
+/// and not in the columns beside it (a picture that is gold-coloured everywhere has none). Returns the first row of the ornament, or nothing.
+static std::optional<int> findBarOrnamentTop(const ImagePath & picture, int centerX, int barY)
+{
+	try
+	{
+		const auto image = ENGINE->renderHandler().loadImage(picture, EImageBlitMode::OPAQUE);
+		if(!image || image->dimensions() != Point(800, 600))
+			return std::nullopt;
+		Canvas canvas(Point(800, 600), CanvasScalingPolicy::IGNORE);
+		canvas.draw(image, Point(0, 0));
+		const auto gold = [&canvas](int x, int y)
+		{
+			if(x < 0 || y < 0 || x >= 800 || y >= 600)
+				return false;
+			const ColorRGBA c = canvas.getPixel(Point(x, y));
+			return c.r >= 110 && c.g >= 70 && c.r >= c.g && c.b + 45 <= c.r && c.g >= c.b + 15;
+		};
+		std::vector<int> rows;
+		for(int y = barY - 26; y < barY - 3; ++y)
+		{
+			int band = 0;
+			int beside = 0;
+			for(int dx = -22; dx <= 22; ++dx)
+				band += gold(centerX + dx, y) ? 1 : 0;
+			for(int dx = 60; dx <= 110; ++dx)
+				beside += (gold(centerX - dx, y) ? 1 : 0) + (gold(centerX + dx, y) ? 1 : 0);
+			// at least 4 of the band's 45 pixels, and the 102 beside it at most a third as dense
+			if(band >= 4 && beside * 135 <= band * 102)
+				rows.push_back(y);
+		}
+		// the ornament stands on the frame: its lowest row is within 10 rows of the bar, and its rows follow each other
+		if(rows.empty() || rows.back() < barY - 10)
+			return std::nullopt;
+		int top = rows.back();
+		size_t count = 1;
+		for(auto it = rows.rbegin() + 1; it != rows.rend() && *it >= top - 2; ++it)
+		{
+			top = *it;
+			++count;
+		}
+		if(count >= 4)
+			return top;
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Loading screen: the bar's ornament could not be looked for: %s", e.what());
+	}
+	return std::nullopt;
+}
+
 CLoadingScreen::CLoadingScreen()
 	: CLoadingScreen(getBackground())
 {
@@ -1097,8 +1164,13 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 	const auto& conf = CMainMenuConfig::get().getConfig()["loading"];
 
 	const auto& backgroundConfig = conf["background"];
+	// the picture on screen: the window's own, or the one the config draws over it
+	ImagePath shownPicture = background;
 	if (!backgroundConfig.Vector().empty() && !customPicture)
-		backimg = std::make_shared<CPicture>(ImagePath::fromJson(*RandomGeneratorUtil::nextItem(backgroundConfig.Vector(), CRandomGenerator::getDefault())));
+	{
+		shownPicture = ImagePath::fromJson(*RandomGeneratorUtil::nextItem(backgroundConfig.Vector(), CRandomGenerator::getDefault()));
+		backimg = std::make_shared<CPicture>(shownPicture);
+	}
 
 	for (const JsonNode& node : conf["images"].Vector())
 	{
@@ -1160,11 +1232,12 @@ CLoadingScreen::CLoadingScreen(ImagePath background)
 		phasePos = Point(conf["phase"]["x"].Integer(), conf["phase"]["y"].Integer());
 	else if(loadbarConfig.isStruct())
 		phasePos = Point(loadbarConfig["x"].Integer() + loadbarConfig["size"].Integer() * loadbarConfig["amount"].Integer() / 2, loadbarConfig["y"].Integer() - 12) + barShift;
-	// the player's loading pictures: Horn of the Abyss's carry a gold frame of their own round the bar, with an ornament standing
-	// above its middle, and the stage text sat on that ornament (K, October 6th: "our map generation/loading screen text
-	// overlaps with their cool bar"); the text goes above the ornament, 12 px higher in the 800x600 layout
-	if(customPicture && !conf["phase"].isStruct())
-		phasePos.y -= 12;
+	// a picture with a gold frame round its bar has an ornament standing above its middle, and the stage text sat on that ornament (K, October
+	// 6th: "our map generation/loading screen text overlaps with their cool bar"; November 7th: "regression: text is back over the load bar for
+	// certain mods"): the text goes above the ornament wherever the picture is found, a mod's own, the game's or the player's
+	if(loadbarConfig.isStruct() && !conf["phase"].isStruct())
+		if(const auto ornament = findBarOrnamentTop(shownPicture, phasePos.x, loadbarConfig["y"].Integer() + barShift.y))
+			phasePos.y = std::min(phasePos.y, *ornament - 11);
 	phaseLabel = std::make_shared<CLabel>(phasePos.x, phasePos.y, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
 }
 

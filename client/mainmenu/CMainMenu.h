@@ -158,6 +158,8 @@ public:
 	static const CMainMenuConfig & get();
 	const JsonNode & getConfig() const;
 	const JsonNode & getCampaigns() const;
+	/// DMB: the picture drawn round the main menu window and the loading screen
+	ImagePath surroundPicture() const;
 
 private:
 	CMainMenuConfig();

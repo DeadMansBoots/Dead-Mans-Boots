@@ -12,25 +12,26 @@ The installer is not signed yet, so Windows may say it protected your PC. Choose
 
 ## Known problems and in construction
 
-Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.2, a test build for playtesting.
+Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.3, a test build for playtesting.
 
-In beta 19.2:
+In beta 19.3:
 
 | Feature | Status | Built |
 | --- | --- | --- |
 | Installer, updates and the update notice | Working | 80% |
 | Turn progress bars that show how far each player's turn is | Working | 80% |
-| Mod catalog and mod list in the launcher | Working | 70% |
+| Mod catalog and mod list in the launcher, with the engine check before an install or update | Working | 75% |
 | Random maps made by OmniMapGen when you press Begin | Working | 70% |
 | Chat with All, Team and Spectators channels | Partly built | 70% |
 | Dark and gold look, the game's own lettering in the launcher, bigger map sizes | Working | 60% |
 | Letting people join a running game, and coming back after a dropped connection | Partly built | 60% |
 | Reporting a problem from inside the game (F12) | Partly built | 60% |
 | A record of your own games on your PC, for finding bugs | Working | 60% |
+| Telling a joining player which content or mods differ from the host's | Partly built | 40% |
 
-Known problem in beta 19.2: watching a game as an observer does not work properly yet. Clicks on the map are lost while a computer player's hero is moving. This is fixed in a test build.
+Known problems in beta 19.3: watching a game as an observer does not work properly yet (clicks on the map are lost while a computer player's hero is moving; fixed in a test build). The window for a joining player names the content that is missing, not the host's full mod list: that needs a new lobby message, so it comes with the next version.
 
-Next version, not in beta 19.2:
+Next version, not in beta 19.3:
 
 | Feature | Status | Built |
 | --- | --- | --- |
@@ -38,6 +39,7 @@ Next version, not in beta 19.2:
 | Observer mode: leave your seat, start a game with every seat a computer, and watch with Pause, Speed and a Battles switch; watched games skip battles by default | Working | 70% |
 | Music in a watched game | Partly built | 40% |
 | The first redrawn interface, with the original look kept as an option | In construction | 10% |
+| The host's full mod list compared with each joining player's, naming every difference | In construction | 0% |
 | A per-seat switch for OmniAI's chat lines, and one for their sound | In construction | 0% |
 | Looking into every player's kingdom while watching: resources, towns, armies | In construction | 0% |
 | Choosing the computer player and its difficulty for each seat in the lobby (difficulty changes only the two standard computer players for now) | In construction | 0% |

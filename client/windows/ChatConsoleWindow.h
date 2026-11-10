@@ -10,6 +10,7 @@
 #include "../render/Colors.h"
 
 #include "../../lib/DmbChatRouting.h"
+#include "../../lib/constants/EntityIdentifiers.h"
 
 class CFilledTexture;
 class TransparentFilledRectangle;
@@ -80,6 +81,11 @@ public:
 
 	/// the colour a channel's lines are drawn in, from the settings general.chatColour* (an index into the palette); the quick overlay uses it too
 	static ColorRGBA channelColour(EChatChannel channel);
+
+	/// the colour a chat line is drawn in (K, November 4th: "the player chats should be colored with their player color by default per individual"; November 5th: "A: true player colours"):
+	/// the sender's own player colour, unchanged; System lines a soft green; a line with no player (a spectator, an observer) its channel's colour.
+	/// A line with no player recorded (saved by a version before 19.4) takes the player whose name it carries in this game's player list
+	static ColorRGBA lineColour(PlayerColor sender, const std::string & senderName, EChatChannel channel);
 
 	/// the player's colour for the bands of the chip and the panel (the mockup's red is the red player's); a dull red for a watcher
 	static ColorRGBA bandColour();

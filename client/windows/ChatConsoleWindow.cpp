@@ -181,8 +181,8 @@ public:
 				continue;
 			const std::string who = entry.channel == EChatChannel::ALL ? entry.senderName : "[" + channelName(entry.channel) + "] " + entry.senderName;
 			const std::string text = (settings["general"]["chatTimestamps"].Bool() ? "[" + entry.dateFormatted + "] " : std::string()) + who + ": " + entry.messageText;
-			// the game's own lines (System) are a soft green, apart from the three channels
-			const ColorRGBA colour = entry.senderName == "System" ? ColorRGBA(130, 215, 130) : ChatConsoleWindow::channelColour(entry.channel);
+			// each player's lines in that player's colour; the game's own lines (System) a soft green (S100)
+			const ColorRGBA colour = ChatConsoleWindow::lineColour(entry.sender, entry.senderName, entry.channel);
 			for(const auto & part : CMessage::breakText(text, pos.w - 22, font))
 				lines.emplace_back(part, colour);
 		}
@@ -520,6 +520,25 @@ ColorRGBA ChatConsoleWindow::bandColour()
 		return ColorRGBA(static_cast<uint8_t>(c.r * 7 / 10), static_cast<uint8_t>(c.g * 7 / 10), static_cast<uint8_t>(c.b * 7 / 10), 255);
 	}
 	return ColorRGBA(160, 0, 0, 255);
+}
+
+ColorRGBA ChatConsoleWindow::lineColour(PlayerColor sender, const std::string & senderName, EChatChannel channel)
+{
+	if(senderName == "System")
+		return ColorRGBA(130, 215, 130);
+	if(!sender.isValidPlayer() && !senderName.empty() && GAME->interface() && GAME->interface()->cb)
+	{
+		if(const auto * startInfo = GAME->interface()->cb->getStartInfo())
+			for(const auto & [colour, player] : startInfo->playerInfos)
+				if(player.name == senderName)
+				{
+					sender = colour;
+					break;
+				}
+	}
+	if(sender.isValidPlayer() && sender.getNum() < static_cast<int>(graphics->playerColors.size()))
+		return graphics->playerColors[sender.getNum()];
+	return channelColour(channel);
 }
 
 ColorRGBA ChatConsoleWindow::channelColour(EChatChannel channel)

@@ -63,9 +63,8 @@ void CInGameConsole::show(Canvas & to)
 		Point leftBottomCorner(0, pos.h);
 		Point textPosition(leftBottomCorner.x + 50, leftBottomCorner.y - texts.size() * 20 - 80 + number * 20);
 
-		// DMB: each channel has its own colour (the console window's settings choose them: green, cyan and grey at first)
-		const ColorRGBA colour = ChatConsoleWindow::channelColour(text.channel);
-		to.drawText(pos.topLeft() + textPosition, FONT_MEDIUM, colour, ETextAlignment::TOPLEFT, text.text);
+		// DMB (S100): each line in its sender's player colour
+		to.drawText(pos.topLeft() + textPosition, FONT_MEDIUM, text.colour, ETextAlignment::TOPLEFT, text.text);
 		number++;
 	}
 }
@@ -114,7 +113,7 @@ std::string CInGameConsole::shownEnteredText() const
 	return currentChannel == EChatChannel::ALL ? enteredText : "[" + channelLabel(currentChannel) + "] " + enteredText;
 }
 
-void CInGameConsole::addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel)
+void CInGameConsole::addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel, PlayerColor sender)
 {
 	MetaString formatted = MetaString::createFromRawString("[%s] %s: %s");
 	formatted.replaceRawString(timeFormatted);
@@ -129,16 +128,17 @@ void CInGameConsole::addMessageSilent(const std::string & timeFormatted, const s
 
 	auto splitText = CMessage::breakText(formatted.toString(), maxWidth, FONT_MEDIUM);
 
+	const ColorRGBA colour = ChatConsoleWindow::lineColour(sender, senderName, channel);
 	for(const auto & entry : splitText)
-		texts.push_back({entry, 0, channel});
+		texts.push_back({entry, 0, colour});
 
 	while(texts.size() > maxDisplayedTexts)
 		texts.erase(texts.begin());
 }
 
-void CInGameConsole::addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel)
+void CInGameConsole::addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel, PlayerColor sender)
 {
-	addMessageSilent(timeFormatted, senderName, messageText, channel);
+	addMessageSilent(timeFormatted, senderName, messageText, channel, sender);
 
 	ENGINE->windows().totalRedraw(); // FIXME: ingame console has no parent widget set
 
@@ -290,7 +290,7 @@ void CInGameConsole::showRecentChatHistory()
 	int firstEntryToShow = history.size() - entriesToShow;
 
 	for (int i = firstEntryToShow; i < history.size(); ++i)
-		addMessageSilent(history[i].dateFormatted, history[i].senderName, history[i].messageText, history[i].channel);
+		addMessageSilent(history[i].dateFormatted, history[i].senderName, history[i].messageText, history[i].channel, history[i].sender);
 
 	ENGINE->windows().totalRedraw();
 }

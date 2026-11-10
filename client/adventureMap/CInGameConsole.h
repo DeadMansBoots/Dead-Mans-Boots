@@ -12,6 +12,8 @@
 #include "../gui/CIntObject.h"
 
 #include "../../lib/DmbChatRouting.h"
+#include "../../lib/Color.h"
+#include "../../lib/constants/EntityIdentifiers.h"
 
 class CInGameConsole : public CIntObject
 {
@@ -20,7 +22,7 @@ private:
 	{
 		std::string text;
 		uint32_t timeOnScreen;
-		EChatChannel channel = EChatChannel::ALL; // DMB: the colour of the line
+		ColorRGBA colour; // DMB (S100): the sender's player colour (ChatConsoleWindow::lineColour)
 	};
 
 	/// DMB (K, October 21st: a team chat mode): the channel the next line goes to; Tab with nothing typed yet cycles it, a prefix a: t: s: picks it for one line and keeps it
@@ -51,9 +53,9 @@ private:
 	bool isEnteringText() const;
 
 	void showRecentChatHistory();
-	void addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
+	void addMessageSilent(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL, PlayerColor sender = PlayerColor::CANNOT_DETERMINE);
 public:
-	void addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL);
+	void addMessage(const std::string & timeFormatted, const std::string & senderName, const std::string & messageText, EChatChannel channel = EChatChannel::ALL, PlayerColor sender = PlayerColor::CANNOT_DETERMINE);
 
 	void tick(uint32_t msPassed) override;
 	void show(Canvas & to) override;

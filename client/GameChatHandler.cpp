@@ -56,6 +56,9 @@ JsonNode GameChatHandler::toJson(bool allChannels) const
 		line["t"].String() = kept[i]->messageText;
 		line["d"].String() = kept[i]->dateFormatted;
 		line["c"].Integer() = static_cast<int>(kept[i]->channel);
+		// DMB (S100): the sender's player, so a reloaded game shows the same colours; a version before 19.4 reads past the key
+		if(kept[i]->sender.isValidPlayer())
+			line["p"].Integer() = kept[i]->sender.getNum();
 		result.Vector().push_back(line);
 	}
 	if(!allChannels)
@@ -130,6 +133,8 @@ void GameChatHandler::fromJson(const JsonNode & node)
 		message.messageText = line["t"].String();
 		message.dateFormatted = line["d"].String();
 		message.channel = static_cast<EChatChannel>(line["c"].Integer());
+		if(line["p"].isNumber())
+			message.sender = PlayerColor(static_cast<int>(line["p"].Integer()));
 		chatHistory.push_back(std::move(message));
 	}
 	logGlobal->info("Chat restored from the save: %d line(s), the last one \"%s\"", chatHistory.size(), chatHistory.empty() ? std::string() : chatHistory.back().messageText);
@@ -194,11 +199,11 @@ void GameChatHandler::onNewGameMessageReceived(PlayerColor sender, const std::st
 	if (sender.isSpectator())
 		playerName = LIBRARY->generaltexth->translate("vcmi.lobby.login.spectator");
 
-	chatHistory.push_back({playerName, messageText, timeFormatted, channel});
+	chatHistory.push_back({playerName, messageText, timeFormatted, channel, sender});
 	if(!consoleWindowOpen)
 		unreadLines++;
 
-	GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText, channel);
+	GAME->interface()->cingconsole->addMessage(timeFormatted, playerName, messageText, channel, sender);
 }
 
 void GameChatHandler::onNewSystemMessageReceived(const std::string & messageText)

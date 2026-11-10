@@ -19,6 +19,9 @@ struct GameChatMessage
 	std::string messageText;
 	std::string dateFormatted;
 	EChatChannel channel = EChatChannel::ALL; // DMB: the channel the line arrived on
+	/// DMB (K, November 4th: "the player chats should be colored with their player color by default per individual"): the sender's player, whose colour the line is drawn in;
+	/// none for System, spectator and observer lines, and for lines saved by a version before 19.4 (their colour then comes from the sender's name)
+	PlayerColor sender = PlayerColor::CANNOT_DETERMINE;
 };
 
 /// Class that manages game chat for current game match

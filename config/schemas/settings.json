@@ -110,8 +110,9 @@
 							"type" : "string",
 							"default" : ""
 						},
+						// DMB (S093): no "type" here on purpose: the settings loader (JsonUtils maximize and minimize, eraseOptionalNodes) erases every key
+						// of a typed object that its "required" list does not name, and an exporter's id is free; with "type" every tick was wiped at load
 						"exporters" : {
-							"type" : "object",
 							"default" : {},
 							"additionalProperties" : { "type" : "boolean" }
 						}

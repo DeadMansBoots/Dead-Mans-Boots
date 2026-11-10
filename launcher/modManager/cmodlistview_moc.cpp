@@ -1496,6 +1496,11 @@ void CModListView::installMods(QStringList archives)
 
 	reload(lastInstalled);
 
+	// installed anyway (rule 38): a mod this game cannot run is switched off in the preset as well, even when the copy it replaced was on
+	for(const QString & mod : stayOff)
+		if(modStateModel->isModExists(mod) && modStateModel->isModEnabled(mod))
+			manager->disableMod(mod);
+
 	if(!modsToEnable.empty())
 	{
 		try

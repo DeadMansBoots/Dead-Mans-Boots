@@ -477,6 +477,13 @@ QString CModListView::genModInfoText(const ModState & mod)
 			: "**" + tr("Not offered") + "**: " + tr("version %1 cannot be installed: %2.").arg(mod.getRepositoryVersion(), problem) + "\n\n";
 	}
 
+	// DMB (rule 38, installed anyway): an installed version this game cannot run says so
+	if(mod.isInstalled() && !mod.isCompatible())
+	{
+		const auto range = mod.getCompatibleVersionRange();
+		result += "**" + tr("Switched off") + "**: " + tr("version %1 is installed, but %2.").arg(mod.getInstalledVersion(), engineProblem(range.first, range.second)) + "\n\n";
+	}
+
 	if (mod.isInstalled())
 		result += replaceIfNotEmpty(modStateModel->getInstalledModSizeFormatted(mod.getID()), lineTemplate.arg(tr("Size")));
 
@@ -1378,8 +1385,10 @@ void CModListView::installFiles(QStringList files)
 void CModListView::installMods(QStringList archives)
 {
 	// DMB (S084, Tides of War 1.0.50, November 7th): the mod.json inside each downloaded archive is read first. An archive whose mod needs a newer game engine than this DMB
-	// has is deleted and not installed, and the installed copy of that mod is never uninstalled, so a working mod is never replaced by one that cannot run
-	QStringList refusals;
+	// has is not installed unless the player says so, and the installed copy of that mod is never uninstalled, so a working mod is never replaced by one that cannot run.
+	// Rule 38 (K, October 18th: "We should never lock the user out and throw away the keys"): each refusal asks, "Keep My Version" (the default) or "Install Anyway";
+	// installed anyway, the mod goes through the normal update path and is left switched off, as stock VCMI leaves an incompatible mod
+	QStringList stayOff;
 	for(int i = archives.size() - 1; i >= 0; --i)
 	{
 		JsonNode incoming;
@@ -1395,13 +1404,25 @@ void CModListView::installMods(QStringList archives)
 		QString kept = tr("Nothing was changed.");
 		if(modStateModel->isModExists(modName) && modStateModel->getMod(modName).isInstalled())
 			kept = tr("Your installed version %1 was kept.").arg(modStateModel->getMod(modName).getInstalledVersion());
-		refusals.push_front(tr("%1 %2 was not installed: %3. %4").arg(title, version, problem, kept));
+		QMessageBox box(QMessageBox::Warning, tr("Mod not installed"),
+			tr("%1 %2 was not installed: %3. %4").arg(title, version, problem, kept) + "\n\n"
+				+ tr("If you install it anyway, it stays switched off until Dead Man's Boots runs a game version it supports."),
+			QMessageBox::NoButton, this);
+		QPushButton * keep = box.addButton(tr("Keep My Version"), QMessageBox::RejectRole);
+		QPushButton * anyway = box.addButton(tr("Install Anyway"), QMessageBox::AcceptRole);
+		box.setDefaultButton(keep);
+		box.setEscapeButton(keep);
+		box.exec();
+		if(box.clickedButton() == anyway)
+		{
+			logGlobal->warn("Mod archive %s installed anyway, left switched off: %s %s needs VCMI %s, this is %s", qUtf8Printable(archives[i]), qUtf8Printable(modName), qUtf8Printable(version), qUtf8Printable(needs), qUtf8Printable(engine));
+			stayOff.push_back(modName);
+			continue;
+		}
 		logGlobal->warn("Mod archive %s not installed: %s %s needs VCMI %s, this is %s", qUtf8Printable(archives[i]), qUtf8Printable(modName), qUtf8Printable(version), qUtf8Printable(needs), qUtf8Printable(engine));
 		QFile::remove(archives[i]);
 		archives.removeAt(i);
 	}
-	if(!refusals.isEmpty())
-		QMessageBox::warning(this, tr("Mod not installed"), refusals.join("\n\n"));
 	if(archives.isEmpty())
 	{
 		reload();
@@ -1450,6 +1471,10 @@ void CModListView::installMods(QStringList archives)
 			modsToEnable.push_back(mod);
 		}
 	}
+
+	// installed anyway (rule 38): left switched off, it cannot run on this game version
+	for(const QString & mod : stayOff)
+		modsToEnable.removeAll(mod);
 
 	QString lastInstalled;
 

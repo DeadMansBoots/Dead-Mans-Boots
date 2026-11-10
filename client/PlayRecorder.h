@@ -34,14 +34,17 @@ public:
 	void stopGame(const std::string & why);
 	bool isOpen() const;
 
-	/// A request the player's client sends to the server (called before it is sent)
-	void request(const CPackForServer & pack, PlayerColor player);
+	/// A request the player's client sends to the server (called before it is sent). DMB (S077 R1): also for the AI seats this client runs,
+	/// with ai = the AI's name (empty for the human)
+	void request(const CPackForServer & pack, PlayerColor player, const std::string & ai = "");
 	/// A pack from the server, before the client applies it
 	void clientPack(CPackForClient & pack);
 	void windowOpened(const std::string & name);
 	void windowClosed(const std::string & name);
 	void settingChanged(const std::string & file, const std::vector<std::string> & path, const JsonNode & before, const JsonNode & after);
 	/// The player's seat as OmniAI's TRUTH lines describe a seat (resources, income, towns, buildings, heroes, army, experience), plus heroes in full
+	/// DMB (S077 R2, R3): called for the human's own seat and for the AI seats this client runs, never for another PC's human; read from the
+	/// client's game state, so an AI seat is described as the human's is
 	void snapshot(PlayerColor seat, const std::string & reason);
 	/// Any other event: kind and a JSON object body without braces (key/value pairs), e.g. R"("what":"selected hero")"
 	void event(const std::string & kind, const std::string & body);

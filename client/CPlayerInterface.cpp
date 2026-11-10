@@ -2110,7 +2110,11 @@ bool CPlayerInterface::capturedAllEvents()
 		return true;
 	}
 
-	bool needToLockAdventureMap = adventureInt && adventureInt->isActive() && GAME->map().hasOngoingAnimations();
+	// DMB (K, November 5th: "none of the observer controls work"): the animation lock is for a player whose own hero is on the move. A client that only watches
+	// (the interface CClient installs for session.spectate) has no hero to protect, and in a watched game an AI hero is animating nearly every frame, so the lock
+	// emptied the input queue before any press, release or move reached a widget: Pause, Step, Speed, the chat chip and the minimap could not be clicked
+	const bool watcher = playerID == PlayerColor::SPECTATOR;
+	bool needToLockAdventureMap = !watcher && adventureInt && adventureInt->isActive() && GAME->map().hasOngoingAnimations();
 	bool quickCombatOngoing = isAutoFightOn && !battleInt;
 	// DMB: not while the auto-combat retreat question is up: it holds the stack's turn until it is answered, so swallowing the input
 	// here would leave the battle waiting for good (the Opus Reviewer, seat session mv5quick)

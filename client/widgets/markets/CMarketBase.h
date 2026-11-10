@@ -11,6 +11,7 @@
 
 #include "TradePanels.h"
 #include "../../widgets/Slider.h"
+#include "../../widgets/CAmountInput.h"
 #include "../../render/EFont.h"
 #include "../../render/Colors.h"
 
@@ -105,10 +106,16 @@ public:
 	std::shared_ptr<CSlider> offerSlider;
 	std::shared_ptr<CButton> maxAmount;
 	const Point dealButtonPosWithSlider = Point(306, 520);
+	/// DMB (S016): typed amounts on the showcases' numbers, bound to offerSlider
+	std::vector<std::shared_ptr<CAmountInput>> amountInputs;
 
 	explicit CMarketSlider(const CSlider::SliderMovingFunctor & movingCallback);
 	void deselect() override;
 	virtual void onOfferSliderMoved(int newVal);
+	/// a typed field over a showcase's number (call after the showcase is placed); per is how many of the shown thing one slider step is
+	void addAmountInput(const std::shared_ptr<CTradeableItem> & showcase, const std::function<int()> & per);
+	/// shows the fields (with the slider's numbers) when the slider can be used, hides them when it cannot
+	void syncAmountInputs(bool usable);
 };
 
 class CMarketTraderText : virtual public CMarketBase

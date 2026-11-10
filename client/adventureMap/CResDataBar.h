@@ -22,6 +22,7 @@ class CResDataBar : public CIntObject
 
 	std::map<GameResID, Point> resourcePositions;
 	std::optional<Point> datePosition;
+	std::optional<PlayerColor> shownPlayer;
 
 public:
 
@@ -35,6 +36,8 @@ public:
 	void setResourcePosition(const GameResID & resource, const Point & position);
 
 	void setPlayerColor(PlayerColor player);
+	/// DMB (S070): show this player's resources and income instead of the viewer's (an observer's Kingdom Overview)
+	void setShownPlayer(PlayerColor player);
 	void showPopupWindow(const Point & cursorPosition) override;
 	void showAll(Canvas & to) override;
 };

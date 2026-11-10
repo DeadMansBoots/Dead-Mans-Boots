@@ -59,6 +59,7 @@
 #include "../lib/mapObjects/CGTownInstance.h"
 #include "../lib/mapObjects/MiscObjects.h"
 #include "../lib/modding/AIPlugins.h"
+#include "../lib/callback/CDynLibHandler.h"
 #include "../lib/modding/ModIncompatibility.h"
 #include "../lib/modding/CModHandler.h"
 #include "../lib/modding/ModDescription.h"
@@ -601,6 +602,45 @@ void CServerHandler::setPlayerHandicap(PlayerColor color, Handicap handicap) con
 	sendLobbyPack(lsph);
 }
 
+void CServerHandler::setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier, bool aiThoughts) const
+{
+	LobbySetPlayerAI lspa;
+	lspa.color = color;
+	lspa.aiAdventure = aiAdventure;
+	lspa.aiBattle = aiBattle;
+	lspa.aiTier = static_cast<int8_t>(std::clamp(aiTier, -1, 4));
+	lspa.aiThoughts = aiThoughts;
+	sendLobbyPack(lspa);
+}
+
+std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool battle)
+{
+	std::vector<SeatAIChoice> out;
+	// the engine's own, in the launcher's order (launcher/settingsView/csettingsview_moc.cpp), when the library is installed
+	const std::vector<std::string> engine = battle ? std::vector<std::string>{"BattleAI", "MMAI", "StupidAI"} : std::vector<std::string>{"Nullkiller2", "Nullkiller"};
+	for(const auto & name : engine)
+		if(!CDynLibHandler::findAILibrary(name, battle).empty())
+			out.push_back({name, false, false, false}); // the engine's own AIs write no thoughts
+	for(const auto & plugin : AIPlugins::active())
+	{
+		if(battle ? !plugin.battle : !plugin.adventure)
+			continue;
+		if(!plugin.problem.empty() && !plugin.untrusted)
+			continue; // it cannot load at all (another DMB version, a missing library): not offered
+		if(std::any_of(out.begin(), out.end(), [&](const SeatAIChoice & c) { return c.name == plugin.name; }))
+			continue;
+		out.push_back({plugin.name, true, plugin.untrusted, plugin.thoughts});
+	}
+	return out;
+}
+
+std::string CServerHandler::seatAIDefault(bool battle, bool alliedToHuman)
+{
+	if(battle)
+		return settings["ai"][alliedToHuman ? "combatAlliedAI" : "combatEnemyAI"].String();
+	return settings["ai"][alliedToHuman ? "adventureAlliedAI" : "adventureEnemyAI"].String();
+}
+
 void CServerHandler::setPlayerOption(ui8 what, int32_t value, PlayerColor player) const
 {
 	LobbyChangePlayerOption lcpo;
@@ -714,14 +754,23 @@ void CServerHandler::sendGuiAction(ui8 action, const std::string & generator, in
 	sendLobbyPack(lga);
 }
 
-/// The AI plugins the settings choose whose code DMB's mod catalog does not vouch for (and the player has not chosen to run anyway)
-static std::vector<AIPluginInfo> unansweredAIPlugins()
+/// The AI plugins the settings or the seats choose whose code DMB's mod catalog does not vouch for (and the player has not chosen to run anyway)
+static std::vector<AIPluginInfo> unansweredAIPlugins(const StartInfo * si)
 {
 	std::set<std::string> chosen = {settings["ai"]["adventureAlliedAI"].String(), settings["ai"]["adventureEnemyAI"].String(), settings["ai"]["combatEnemyAI"].String(),
 		settings["ai"]["combatAlliedAI"].String(), settings["ai"]["combatNeutralAI"].String()};
 	for(const auto & [colour, choice] : settings["ai"]["playerAIOverrides"].Struct())
 		if(choice.isString() && !choice.String().empty())
 			chosen.insert(choice.String());
+	// DMB (S002): every seat's own choice too, so a seat set to an unvouched plugin is asked about before the start
+	if(si)
+		for(const auto & [colour, seat] : si->playerInfos)
+		{
+			if(!seat.aiAdventure.empty())
+				chosen.insert(seat.aiAdventure);
+			if(!seat.aiBattle.empty())
+				chosen.insert(seat.aiBattle);
+		}
 	std::vector<AIPluginInfo> unanswered;
 	for(const auto & plugin : AIPlugins::active())
 		if(plugin.untrusted && chosen.count(plugin.name))
@@ -756,7 +805,7 @@ bool CServerHandler::aiPluginsAnswered(const std::function<void()> & then) const
 		logGlobal->warn("An AI plugin question was asked with no lobby or game connected; dropped");
 		return false;
 	}
-	std::vector<AIPluginInfo> unanswered = unansweredAIPlugins();
+	std::vector<AIPluginInfo> unanswered = unansweredAIPlugins(si.get());
 	if(unanswered.empty())
 		return true;
 	if(!ENGINE || settings["session"]["headless"].Bool())
@@ -1185,6 +1234,22 @@ void CServerHandler::debugStartTest(std::string filename, bool save)
 		{
 			logGlobal->info("Test map difficulty pinned to %d", int(wanted.Integer()));
 			setDifficulty(int(wanted.Integer()));
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+	}
+
+	// DMB (S065, K 11-07: "as long is it started with the same conditions as nullkiller"): every seat's starting bonus pinned for an
+	// unattended run, as the difficulty is ("none", "gold", "resource", "artifact"; absent or anything else leaves the stock RANDOM)
+	{
+		const std::string wanted = settings["ai"]["testmapStartingBonus"].String();
+		const std::map<std::string, PlayerStartingBonus> names = {{"none", PlayerStartingBonus::NONE}, {"gold", PlayerStartingBonus::GOLD},
+			{"resource", PlayerStartingBonus::RESOURCE}, {"artifact", PlayerStartingBonus::ARTIFACT}};
+		const auto pin = names.find(wanted);
+		if(pin != names.end() && si)
+		{
+			for(const auto & seat : si->playerInfos)
+				setPlayerOption(LobbyChangePlayerOption::BONUS_ID, static_cast<int32_t>(pin->second), seat.first);
+			logGlobal->info("Test map starting bonus pinned to %s for every seat", wanted);
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
 	}

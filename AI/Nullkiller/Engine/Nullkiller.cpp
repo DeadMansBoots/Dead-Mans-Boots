@@ -75,7 +75,12 @@ void Nullkiller::init(std::shared_ptr<CCallback> cb, AIGateway * gateway)
 	this->gateway = gateway;
 	this->playerID = gateway->playerID;
 
-	settings = std::make_unique<Settings>(cb->getStartInfo()->difficulty);
+	// DMB (S002): the seat's own tier when the host set one in the lobby, else the map's difficulty
+	const auto & seat = cb->getStartInfo()->playerInfos;
+	const auto mine = seat.find(playerID);
+	const int tier = mine != seat.end() ? mine->second.aiTierOr(cb->getStartInfo()->difficulty) : cb->getStartInfo()->difficulty;
+	logAi->info("Nullkiller 1 plays %s at tier %d (%s)", playerID.toString(), tier, mine != seat.end() && mine->second.aiTier >= 0 ? "the seat's own" : "the map's");
+	settings = std::make_unique<Settings>(tier);
 
 	PathfinderOptions pathfinderOptions(*cb);
 

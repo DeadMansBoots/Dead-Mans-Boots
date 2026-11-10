@@ -224,10 +224,43 @@ void CMarketSlider::deselect()
 	maxAmount->block(true);
 	offerSlider->scrollTo(0);
 	offerSlider->block(true);
+	syncAmountInputs(false);
+}
+
+void CMarketSlider::addAmountInput(const std::shared_ptr<CTradeableItem> & showcase, const std::function<int()> & per)
+{
+	OBJECT_CONSTRUCTION;
+	// over the showcase's number: the subtitle label is centred on its position
+	const Point centre = showcase->subtitle->pos.topLeft();
+	auto input = std::make_shared<CAmountInput>(Rect(centre - pos.topLeft() - Point(30, 9), Point(60, 18)), FONT_SMALL, offerSlider,
+		[per](int64_t value, bool) -> int
+		{
+			const int64_t each = per();   // a typed amount between whole trades is rounded down to the trade below
+			return each > 0 ? static_cast<int>(std::min<int64_t>(value / each, std::numeric_limits<int>::max())) : 0;
+		},
+		[per](int position) -> int64_t { return static_cast<int64_t>(position) * per(); }, false);
+	input->disable();
+	amountInputs.push_back(input);
+}
+
+void CMarketSlider::syncAmountInputs(bool usable)
+{
+	for(const auto & input : amountInputs)
+	{
+		if(usable)
+		{
+			input->enable();
+			input->sliderMoved(offerSlider->getValue());
+		}
+		else
+			input->disable();
+	}
 }
 
 void CMarketSlider::onOfferSliderMoved(int newVal)
 {
+	for(const auto & input : amountInputs)
+		input->sliderMoved(newVal);
 	if(bidTradePanel->highlightedSlot && offerTradePanel->highlightedSlot)
 	{
 		offerSlider->scrollTo(newVal);

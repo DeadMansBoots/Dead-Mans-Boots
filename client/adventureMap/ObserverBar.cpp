@@ -40,6 +40,15 @@ std::string speedText(int ms)
 {
 	return ms <= 0 ? std::string("Speed max") : "Speed " + std::to_string(100 * 100 / ms) + "%";
 }
+
+/// K, November 5th: "battles aren't optional": the bar's switch for the battles that begin from now on (settings session.spectate-skip-battle, read when each begins)
+std::string battlesText()
+{
+	return settings["session"]["spectate-skip-battle"].Bool() ? "Battles: Skip" : "Battles: Watch";
+}
+const char * const BATTLES_HELP = "Battles: watch or skip the battles that begin from now on";
+/// K, November 5th: "time controls only belong to the host always, and time only controls the speed of the AI players": Pause, Step and Speed are the host's
+const char * const HOST_ONLY_HELP = "Pause, Step and Speed: only the host of the game controls the AI's time";
 }
 
 boost::filesystem::path ObserverBar::flagFolder()
@@ -56,37 +65,46 @@ void ObserverBar::clearFlags()
 	DmbObserverPause::steps = 0;
 }
 
-ObserverBar::ObserverBar(const Rect & area)
+ObserverBar::ObserverBar(const Rect & area, bool ownsFlags)
+	: ownsFlags(ownsFlags)
 {
 	OBJECT_CONSTRUCTION;
-	clearFlags();
+	if(ownsFlags)
+		clearFlags();
+	else
+		paused = DmbObserverPause::paused; // the bar on a battle window shows the state the game is in, it does not reset it
 	canPause = GAME->server().isHost();
 
 	const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
 	const int pauseWidth = static_cast<int>(std::max(font->getStringWidth("Pause"), font->getStringWidth("Resume")));
 	const int stepWidth = static_cast<int>(font->getStringWidth("Step"));
 	const int speedWidth = static_cast<int>(std::max(font->getStringWidth("Speed 200%"), font->getStringWidth("Speed max")));
+	const int battlesWidth = static_cast<int>(std::max(font->getStringWidth("Battles: Watch"), font->getStringWidth("Battles: Skip")));
 	const int dayWidth = static_cast<int>(font->getStringWidth("Day 999"));
-	const int width = PAD + pauseWidth + GAP + stepWidth + GAP + speedWidth + GAP + dayWidth + PAD;
+	const int width = PAD + pauseWidth + GAP + stepWidth + GAP + speedWidth + GAP + battlesWidth + GAP + dayWidth + PAD;
 	pos = Rect(area.x + (area.w - width) / 2, area.y + 4, width, HEIGHT);
 
 	background = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, width, HEIGHT), ColorRGBA(0, 0, 0, 170), ColorRGBA(212, 175, 55, 255), 1);
 	pauseArea = Rect(PAD - 4, 0, pauseWidth + 8, HEIGHT);
 	stepArea = Rect(PAD + pauseWidth + GAP - 4, 0, stepWidth + 8, HEIGHT);
-	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255), "Pause");
+	pauseLabel = std::make_shared<CLabel>(PAD + pauseWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255), paused ? "Resume" : "Pause");
 	stepLabel = std::make_shared<CLabel>(PAD + pauseWidth + GAP + stepWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::WHITE : ColorRGBA(120, 120, 120, 255), "Step");
 	const int speedX = PAD + pauseWidth + GAP + stepWidth + GAP;
 	speedArea = Rect(speedX - 4, 0, speedWidth + 8, HEIGHT);
-	speedLabel = std::make_shared<CLabel>(speedX + speedWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW,
+	speedLabel = std::make_shared<CLabel>(speedX + speedWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, canPause ? Colors::YELLOW : ColorRGBA(120, 120, 120, 255),
 		speedText(static_cast<int>(settings["adventure"]["enemyMoveTime"].Float())));
-	dayLabel = std::make_shared<CLabel>(speedX + speedWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
+	const int battlesX = speedX + speedWidth + GAP;
+	battlesArea = Rect(battlesX - 4, 0, battlesWidth + 8, HEIGHT);
+	battlesLabel = std::make_shared<CLabel>(battlesX + battlesWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, battlesText());
+	dayLabel = std::make_shared<CLabel>(battlesX + battlesWidth + GAP + dayWidth / 2, HEIGHT / 2, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "Day");
 
 	addUsedEvents(LCLICK | TIME | MOVE | HOVER);
 }
 
 ObserverBar::~ObserverBar()
 {
-	clearFlags();
+	if(ownsFlags)
+		clearFlags();
 }
 
 void ObserverBar::showAll(Canvas & to)
@@ -105,6 +123,8 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 	const Point local = cursorPosition - pos.topLeft();
 	if(speedArea.isInside(local))
 	{
+		if(!canPause)
+			return; // a guest does not set the AI's speed: the label is grey and says why
 		// the next stock speed, after the current one (a value between two goes to the faster)
 		const int now = static_cast<int>(settings["adventure"]["enemyMoveTime"].Float());
 		int next = SPEEDS[0];
@@ -120,6 +140,15 @@ void ObserverBar::clickPressed(const Point & cursorPosition)
 		entry->Float() = next;
 		speedLabel->setText(speedText(next));
 		logGlobal->info("Observer: enemy hero speed %d ms a tile", next);
+		return;
+	}
+	if(battlesArea.isInside(local))
+	{
+		// what is watched is the viewer's own choice, the host's or a guest's
+		Settings session = settings.write["session"];
+		session["spectate-skip-battle"].Bool() = !settings["session"]["spectate-skip-battle"].Bool();
+		battlesLabel->setText(battlesText());
+		logGlobal->info("Observer: battles that begin from now on are %s", settings["session"]["spectate-skip-battle"].Bool() ? "skipped" : "watched");
 		return;
 	}
 	if(!canPause)
@@ -159,17 +188,28 @@ void ObserverBar::setPaused(bool on)
 void ObserverBar::mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance)
 {
 	const Point local = cursorPosition - pos.topLeft();
-	static const std::string text = "Pause and Step: only the host of the game can pause the AI";
-	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local)))
-		ENGINE->statusbar()->write(text);
+	static const std::string text = HOST_ONLY_HELP;
+	static const std::string battlesHelp = BATTLES_HELP;
+	const auto status = ENGINE->statusbar(); // a battle window has its own console, and a window with none has no status bar to write to
+	if(!status)
+		return;
+	if(!canPause && (pauseArea.isInside(local) || stepArea.isInside(local) || speedArea.isInside(local)))
+		status->write(text);
 	else
-		ENGINE->statusbar()->clearIfMatching(text);
+		status->clearIfMatching(text);
+	if(battlesArea.isInside(local))
+		status->write(battlesHelp);
+	else
+		status->clearIfMatching(battlesHelp);
 }
 
 void ObserverBar::hover(bool on)
 {
-	if(!on)
-		ENGINE->statusbar()->clearIfMatching("Pause and Step: only the host of the game can pause the AI");
+	if(!on && ENGINE->statusbar())
+	{
+		ENGINE->statusbar()->clearIfMatching(HOST_ONLY_HELP);
+		ENGINE->statusbar()->clearIfMatching(BATTLES_HELP);
+	}
 }
 
 void ObserverBar::tick(uint32_t msPassed)

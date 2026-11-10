@@ -84,6 +84,9 @@ public:
 	virtual void setPlayer(PlayerColor color) const = 0;
 	virtual void setPlayerName(PlayerColor color, const std::string & name) const = 0;
 	virtual void setPlayerHandicap(PlayerColor color, Handicap handicap) const = 0;
+	/// DMB (S002): the host sets one seat's adventure AI, battle AI (empty = the launcher's default), tier (-1 = as the map, 0 to 4) and
+	/// whether its AI writes its thoughts to the chat (S073)
+	virtual void setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier, bool aiThoughts = false) const = 0;
 	virtual void setPlayerOption(ui8 what, int32_t value, PlayerColor player) const = 0;
 	virtual void setDifficulty(int to) const = 0;
 	virtual void setTurnTimerInfo(const TurnTimerInfo &) const = 0;
@@ -212,6 +215,21 @@ public:
 	void setPlayer(PlayerColor color) const override;
 	void setPlayerName(PlayerColor color, const std::string & name) const override;
 	void setPlayerHandicap(PlayerColor color, Handicap handicap) const override;
+	void setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier, bool aiThoughts = false) const override;
+
+	/// DMB (S002): one AI a seat may use, for the lobby's AI Settings window
+	struct SeatAIChoice
+	{
+		std::string name;        // what the seat stores and the loader opens ("Nullkiller2", "OmniAI", "BattleAI")
+		bool fromMod = false;    // an AI plugin from an active mod
+		bool untrusted = false;  // the mod catalog does not vouch for its code: the host is asked before the start
+		bool thoughts = false;   // S073: it can write its thoughts to the chat (the window shows the tick box)
+	};
+	/// The adventure AIs (battle false) or battle AIs (battle true) a seat may pick: the engine's own that are installed, then the active
+	/// mods' AI plugins that can load. EmptyAI is never offered. The launcher's default for a seat is seatAIDefault
+	static std::vector<SeatAIChoice> seatAIChoices(bool battle);
+	/// The launcher's default, resolved to a name: Adventure Map Enemies or Allies (alliedToHuman), or Enemy or Allied AI in battles
+	static std::string seatAIDefault(bool battle, bool alliedToHuman);
 	void setPlayerOption(ui8 what, int32_t value, PlayerColor player) const override;
 	void setDifficulty(int to) const override;
 	void setTurnTimerInfo(const TurnTimerInfo &) const override;

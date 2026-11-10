@@ -25,6 +25,8 @@
 
 #include "../lib/CConfigHandler.h"
 #include "../lib/GameLibrary.h"
+#include "../lib/texts/CGeneralTextHandler.h"
+#include "windows/InfoWindows.h"
 #include "../lib/battle/BattleInfo.h"
 #include "../lib/battle/CPlayerBattleCallback.h"
 #include "../lib/callback/CCallback.h"
@@ -250,6 +252,9 @@ void CClient::initPlayerEnvironments()
 		session["spectate"].Bool() = true;
 		session["spectate-skip-battle-result"].Bool() = true;
 		session["spectate-ignore-hero"].Bool() = true;
+		// DMB (K, November 5th: "i don't want to watch battles"; the Opus Reviewer, S001 row O12): a game where the viewer holds no seat starts with the battles skipped; the bar's
+		// Battles switch flips it, and the command line's --spectate-skip-battle gives the same
+		session["spectate-skip-battle"].Bool() = true;
 	}
 	
 	if(settings["session"]["spectate"].Bool())
@@ -303,6 +308,16 @@ void CClient::initPlayerInterfaces()
 	if(GAME->server().getAllClientPlayers(GAME->server().logicConnection->connectionID).count(PlayerColor::NEUTRAL))
 		installNewBattleInterface(CDynLibHandler::getNewBattleAI(settings["ai"]["combatNeutralAI"].String()), PlayerColor::NEUTRAL);
 
+	// DMB (S002): tell the host which seats' own AIs are missing here and what plays them instead (a save from a PC with another AI mod)
+	if(!seatAIFallbacks.empty() && ENGINE && !settings["session"]["headless"].Bool())
+	{
+		std::string text = LIBRARY->generaltexth->translate("vcmi.dmb.seatAI.missing");
+		for(const auto & line : seatAIFallbacks)
+			text += "\n" + line;
+		ENGINE->dispatchMainThread([text]() { CInfoWindow::showInfoDialog(text, {}); });
+	}
+	seatAIFallbacks.clear();
+
 	logNetwork->trace("Initialized player interfaces %d ms", GAME->server().th->getDiff());
 }
 
@@ -349,6 +364,29 @@ void CClient::releaseAI(PlayerColor color)
 
 std::string CClient::aiNameForPlayer(const PlayerSettings & ps, bool battleAI, bool alliedToHuman) const
 {
+	// DMB (S002, K 11-07: "any mix of any ai at any difficulty in any slot"): the seat's own AI, set by the host in the lobby's AI
+	// Settings, comes first. One the host's PC does not have (a mod removed since the save) falls through to the rules below, and the
+	// log says which seat changed and to what
+	{
+		const std::string & seatAI = battleAI ? ps.aiBattle : ps.aiAdventure;
+		if(!seatAI.empty())
+		{
+			if(!CDynLibHandler::findAILibrary(seatAI, battleAI).empty())
+			{
+				logNetwork->info("Player %s: the seat's own %s AI %s", ps.color.toString(), battleAI ? "battle" : "adventure", seatAI);
+				return seatAI;
+			}
+			// the rest of this function, as if the seat had no choice of its own
+			PlayerSettings rest = ps;
+			(battleAI ? rest.aiBattle : rest.aiAdventure).clear();
+			const std::string fallback = aiNameForPlayer(rest, battleAI, alliedToHuman);
+			logGlobal->warn("Player %s: the seat's %s AI %s is not installed here and no active mod provides it; %s plays the seat",
+				ps.color.toString(), battleAI ? "battle" : "adventure", seatAI, fallback);
+			seatAIFallbacks.push_back(boost::str(boost::format(LIBRARY->generaltexth->translate("vcmi.dmb.seatAI.missingLine"))
+				% ps.color.toString() % seatAI % fallback));
+			return fallback;
+		}
+	}
 	// DMB: an AI plugin from an active mod counts as installed too (CDynLibHandler::findAILibrary)
 	if(ps.name.size() && !CDynLibHandler::findAILibrary(ps.name, battleAI).empty())
 		return ps.name;
@@ -475,8 +513,15 @@ int CClient::sendRequest(const CPackForServer & request, PlayerColor player, boo
 	waitingRequest.pushBack(requestID);
 	request.requestID = requestID;
 	request.player = player;
-	if(vstd::contains(playerint, player) && dynamic_cast<CPlayerInterface *>(playerint[player].get()))
-		PlayRecorder::get().request(request, player); // DMB play recorder: what the human player asked for
+	if(vstd::contains(playerint, player))
+	{
+		// DMB play recorder: what the human player asked for, and (S077 R1) what an AI seat this client runs asked for, with its name
+		const auto & iface = playerint[player];
+		if(dynamic_cast<CPlayerInterface *>(iface.get()))
+			PlayRecorder::get().request(request, player);
+		else
+			PlayRecorder::get().request(request, player, iface->dllName.empty() ? std::string("AI") : iface->dllName);
+	}
 	GAME->server().sendGamePack(request);
 	if(vstd::contains(playerint, player))
 		playerint[player]->requestSent(&request, requestID);
@@ -500,6 +545,11 @@ void CClient::battleStarted(const BattleID & battleID)
 	const auto & leftSide = info->getSide(BattleSide::LEFT_SIDE);
 	const auto & rightSide = info->getSide(BattleSide::RIGHT_SIDE);
 
+	// DMB: whether a watching client shows this battle is decided here, at its start (settings session.spectate-skip-battle: the command line, the observer bar's switch)
+	const bool spectatorWatches = settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool();
+	if(spectatorWatches)
+		spectatedBattles.insert(battleID);
+
 	for(auto & battleCb : battleCallbacks)
 	{
 		if(!battleCb.first.isValidPlayer() || battleCb.first == leftSide.color || battleCb.first == rightSide.color)
@@ -516,7 +566,7 @@ void CClient::battleStarted(const BattleID & battleID)
 	callBattleStart(leftSide.color, BattleSide::LEFT_SIDE);
 	callBattleStart(rightSide.color, BattleSide::RIGHT_SIDE);
 	callBattleStart(PlayerColor::UNFLAGGABLE, BattleSide::RIGHT_SIDE);
-	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+	if(spectatorWatches)
 		callBattleStart(PlayerColor::SPECTATOR, BattleSide::RIGHT_SIDE);
 	
 	if(vstd::contains(playerint, leftSide.color) && playerint[leftSide.color]->human)
@@ -557,7 +607,7 @@ void CClient::battleStarted(const BattleID & battleID)
 		{
 			CPlayerInterface::battleInt = std::make_shared<BattleInterface>(info->getBattleID(), leftSide.getArmy(), rightSide.getArmy(), leftSide.getHero(), rightSide.getHero(), att, def);
 		}
-		else if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+		else if(spectatorWatches)
 		{
 			//TODO: This certainly need improvement
 			auto spectratorInt = std::dynamic_pointer_cast<CPlayerInterface>(playerint[PlayerColor::SPECTATOR]);
@@ -583,7 +633,7 @@ void CClient::battleFinished(const BattleID & battleID)
 			battleCallbacks[gameState().getBattle(battleID)->getSide(side).color]->onBattleEnded(battleID);
 	}
 
-	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool())
+	if(spectatedBattles.erase(battleID))
 	{
 		battleCallbacks[PlayerColor::SPECTATOR]->onBattleEnded(battleID);
 

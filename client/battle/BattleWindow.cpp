@@ -26,6 +26,7 @@
 #include "../GameInstance.h"
 #include "../adventureMap/CInGameConsole.h"
 #include "../adventureMap/ChatChip.h"
+#include "../adventureMap/ObserverBar.h"
 #include "../adventureMap/TurnTimerWidget.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/Shortcut.h"
@@ -128,6 +129,10 @@ BattleWindow::BattleWindow(BattleInterface & Owner)
 
 	// DMB (K, chat panel): the chat key and the chip open the panel over the battlefield's bottom left, above the battle console
 	chatChip = std::make_shared<ChatChip>(Rect(pos.x, pos.y, pos.w, console ? console->pos.y - pos.y : pos.h - 44), true);
+
+	// DMB (K, November 7th: "pause anytime"): the watcher's bar, at the bottom of the battlefield above the battle console; it shares the pause with the adventure map's bar and clears nothing
+	if(settings["session"]["spectate"].Bool())
+		observerBar = std::make_shared<ObserverBar>(Rect(pos.x, (console ? console->pos.y : pos.y + pos.h - 44) - 30, pos.w, 22), false);
 
 	if ( owner.tacticsMode )
 		tacticPhaseStarted();

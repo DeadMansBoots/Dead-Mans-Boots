@@ -127,12 +127,19 @@ class CClient : public Environment, public IClient
 	std::shared_ptr<CGameState> gamestate;
 	int requestCounter = 1;
 	std::set<PlayerColor> advInterfaceReadySent;
+	/// DMB (S002): one line per seat whose own AI is not installed here, shown to the host once the interfaces are made
+	mutable std::vector<std::string> seatAIFallbacks;
 
 public:
 	std::map<PlayerColor, std::shared_ptr<CGameInterface>> playerint;
 	std::map<PlayerColor, std::shared_ptr<CBattleGameInterface>> battleints;
 
 	std::map<PlayerColor, std::vector<std::shared_ptr<IBattleEventsReceiver>>> additionalBattleInts;
+
+	/// DMB: the battles a watching client shows, decided when each one begins: the observer bar's Battles switch may change between battles, and a battle that began
+	/// unseen must end unseen (its end would otherwise reach a spectator that was never told it began)
+	std::set<BattleID> spectatedBattles;
+	bool spectatesBattle(const BattleID & battleID) const { return spectatedBattles.count(battleID) != 0; }
 
 	std::unique_ptr<BattleAction> currentBattleAction;
 

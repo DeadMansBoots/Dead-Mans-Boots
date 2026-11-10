@@ -70,6 +70,8 @@ CAltarCreatures::CAltarCreatures(const IMarket * market, const CGHeroInstance * 
 	bidTradePanel->deleteSlotsCheck = offerTradePanel->deleteSlotsCheck = std::bind(&CCreaturesSelling::slotDeletingCheck, this, _1);
 	
 	readExpValues();
+	// DMB (S016): the number of the chosen creature on the altar can be typed
+	addAmountInput(bidTradePanel->showcaseSlot, [](){ return 1; });
 	CAltarCreatures::deselect();
 };
 
@@ -115,6 +117,7 @@ void CAltarCreatures::highlightingChanged()
 	maxAmount->block(offerSlider->getAmount() == 0);
 	updateShowcases();
 	CMarketTraderText::highlightingChanged();
+	syncAmountInputs(bidTradePanel->isHighlighted() && offerSlider->getAmount() > 0);
 }
 
 void CAltarCreatures::update()
@@ -175,7 +178,7 @@ CMarketBase::MarketShowcasesParams CAltarCreatures::getShowcasesParams() const
 	std::optional<ShowcaseParams> bidSelected = std::nullopt;
 	std::optional<ShowcaseParams> offerSelected = std::nullopt;
 	if(bidTradePanel->isHighlighted())
-		bidSelected = ShowcaseParams {std::to_string(offerSlider->getValue()), LIBRARY->creatures()->getByIndex(bidTradePanel->getHighlightedItemId())->getIconIndex()};
+		bidSelected = ShowcaseParams {amountInputs.empty() ? std::to_string(offerSlider->getValue()) : std::string(), LIBRARY->creatures()->getByIndex(bidTradePanel->getHighlightedItemId())->getIconIndex()};
 	if(offerTradePanel->isHighlighted() && offerSlider->getValue() > 0)
 		offerSelected = ShowcaseParams {offerTradePanel->highlightedSlot->subtitle->getText(), LIBRARY->creatures()->getByIndex(offerTradePanel->getHighlightedItemId())->getIconIndex()};
 	return MarketShowcasesParams {bidSelected, offerSelected};

@@ -84,10 +84,13 @@ void CResDataBar::showAll(Canvas & to)
 
 	// a spectator has no player state: a dash for each resource, and no query (each one logged "No player info", thousands a minute in a watched game)
 	const bool spectator = !GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false);
+	// DMB (S070): a shown player (an observer's Kingdom Overview) is read from its own state
+	const PlayerState * shown = shownPlayer ? GAME->interface()->cb->getPlayerState(*shownPlayer, false) : nullptr;
 	//TODO: all this should be labels, but they require proper text update on change
 	for (auto & entry : resourcePositions)
 	{
-		std::string text = spectator ? "-" : std::to_string(GAME->interface()->cb->getResourceAmount(entry.first));
+		std::string text = shown ? std::to_string(shown->resources[entry.first])
+			: spectator ? "-" : std::to_string(GAME->interface()->cb->getResourceAmount(entry.first));
 
 		to.drawText(pos.topLeft() + entry.second, FONT_SMALL, Colors::WHITE, ETextAlignment::TOPLEFT, text);
 	}
@@ -101,6 +104,13 @@ void CResDataBar::setPlayerColor(PlayerColor player)
 	background->setPlayerColor(player);
 }
 
+void CResDataBar::setShownPlayer(PlayerColor player)
+{
+	shownPlayer = player;
+	background->setPlayerColor(player);
+	redraw();
+}
+
 void CResDataBar::showPopupWindow(const Point & cursorPosition)
 {
 	if((cursorPosition.x - pos.x) > 600)
@@ -108,10 +118,11 @@ void CResDataBar::showPopupWindow(const Point & cursorPosition)
 
 	// only daily income
 	ResourceSet income;
-	auto playerState = GAME->interface()->cb->getPlayerState(GAME->interface()->playerID, false);
+	const PlayerColor whose = shownPlayer ? *shownPlayer : GAME->interface()->playerID;
+	auto playerState = GAME->interface()->cb->getPlayerState(whose, false);
 	if(!playerState)
 		return; // a spectator: no income to show
-	auto playerSettings = GAME->interface()->cb->getPlayerSettings(GAME->interface()->playerID);
+	auto playerSettings = GAME->interface()->cb->getPlayerSettings(whose);
 	for(auto & k : LIBRARY->resourceTypeHandler->getAllObjects())
 	{
 		income += playerState->valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(k));
@@ -125,7 +136,7 @@ void CResDataBar::showPopupWindow(const Point & cursorPosition)
 	std::vector<std::shared_ptr<CComponent>> comp;
 	for (auto & i : LIBRARY->resourceTypeHandler->getAllObjects())
 	{
-		std::string text = std::to_string(GAME->interface()->cb->getResourceAmount(i));
+		std::string text = std::to_string(playerState->resources[i]);
 		if(incomeHandicapped[i])
 			text += "\n{lightgreen|(+" + std::to_string(incomeHandicapped[i]) + ")}";
 		comp.push_back(std::make_shared<CComponent>(ComponentType::RESOURCE, i, text));

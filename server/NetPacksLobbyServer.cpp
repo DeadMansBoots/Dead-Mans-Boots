@@ -345,6 +345,24 @@ void ApplyOnServerNetPackVisitor::visitLobbySetPlayerHandicap(LobbySetPlayerHand
 	result = true;
 }
 
+void ApplyOnServerNetPackVisitor::visitLobbySetPlayerAI(LobbySetPlayerAI & pack)
+{
+	// DMB (S002): the host's choice of one seat's AI and tier, stored in the seat. Only the host gets here (visitForLobby's check).
+	// An AI name is kept as text and resolved by the client that runs the seat (CClient::aiNameForPlayer); a name too long to be an
+	// AI's or a tier outside -1 to 4 is refused, and the seat keeps what it had
+	auto seat = srv.si->playerInfos.find(pack.color);
+	if(seat == srv.si->playerInfos.end() || pack.aiTier < -1 || pack.aiTier > 4 || pack.aiAdventure.size() > 64 || pack.aiBattle.size() > 64)
+	{
+		result = false;
+		return;
+	}
+	seat->second.aiAdventure = pack.aiAdventure;
+	seat->second.aiBattle = pack.aiBattle;
+	seat->second.aiTier = pack.aiTier;
+	seat->second.aiThoughts = pack.aiThoughts;
+	result = true;
+}
+
 void ApplyOnServerNetPackVisitor::visitLobbySetSimturns(LobbySetSimturns & pack)
 {
 	srv.si->simturnsInfo = pack.simturnsInfo;

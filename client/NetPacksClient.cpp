@@ -12,6 +12,7 @@
 
 #include "Client.h"
 #include "CPlayerInterface.h"
+#include "PlayRecorder.h"
 #include "windows/GUIClasses.h"
 #include "windows/CCastleInterface.h"
 #include "mapView/mapHandler.h"
@@ -117,7 +118,7 @@ void callBattleInterfaceIfPresentForBothSides(CClient & cl, const BattleID & bat
 
 	callOnlyThatBattleInterface(cl, cl.gameState().getBattle(battleID)->getSide(BattleSide::ATTACKER).color, ptr, std::forward<Args2>(args)...);
 	callOnlyThatBattleInterface(cl, cl.gameState().getBattle(battleID)->getSide(BattleSide::DEFENDER).color, ptr, std::forward<Args2>(args)...);
-	if(settings["session"]["spectate"].Bool() && !settings["session"]["spectate-skip-battle"].Bool() && GAME->interface()->battleInt)
+	if(cl.spectatesBattle(battleID) && GAME->interface()->battleInt)
 	{
 		callOnlyThatBattleInterface(cl, PlayerColor::SPECTATOR, ptr, std::forward<Args2>(args)...);
 	}
@@ -418,6 +419,9 @@ void ApplyClientNetPackVisitor::visitChangeObjPos(ChangeObjPos & pack)
 
 void ApplyClientNetPackVisitor::visitPlayerEndsGame(PlayerEndsGame & pack)
 {
+	// DMB (S077 R8): who won or lost, and on which day, in this PC's play log (the pack reaches every client already)
+	PlayRecorder::get().event("result", "\"player\":\"" + pack.player.toString() + "\",\"result\":\""
+		+ (pack.victoryLossCheckResult.victory() ? "victory" : "defeat") + "\",\"day\":" + std::to_string(cl.gameInfo().getDate(Date::DAY)));
 	callAllInterfaces(cl, &IGameEventsReceiver::gameOver, pack.player, pack.victoryLossCheckResult);
 
 	bool localHumanWinsGame = vstd::contains(cl.playerint, pack.player) && cl.gameInfo().getPlayerState(pack.player)->human && pack.victoryLossCheckResult.victory();
@@ -752,6 +756,8 @@ void ApplyClientNetPackVisitor::visitPlayerBack(PlayerBack & pack)
 
 void ApplyClientNetPackVisitor::visitAiTakeOver(AiTakeOver & pack)
 {
+	// DMB (S072): every client keeps who plays the seat now, so an AI's chat lines follow the AI chat sound setting
+	GAME->server().getGameChat().setSeatTakenByAI(pack.player, pack.take);
 	// only the host's client plays the AI seats
 	if(!GAME->server().isHost())
 		return;
@@ -1026,6 +1032,10 @@ void ApplyClientNetPackVisitor::visitPlayerBlocked(PlayerBlocked & pack)
 void ApplyClientNetPackVisitor::visitPlayerStartsTurn(PlayerStartsTurn & pack)
 {
 	logNetwork->debug("Server gives turn to %s", pack.player.toString());
+
+	// DMB (S077 R2, R3): an AI seat this client runs gets the human's start-of-turn snapshot; another PC's human never does
+	if(vstd::contains(cl.playerint, pack.player) && !cl.playerint.at(pack.player)->human)
+		PlayRecorder::get().snapshot(pack.player, "start of turn (AI)");
 
 	callAllInterfaces(cl, &IGameEventsReceiver::playerStartsTurn, pack.player);
 	callOnlyThatInterface(cl, pack.player, &CGameInterface::yourTurn, pack.queryID);

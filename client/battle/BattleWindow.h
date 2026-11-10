@@ -23,6 +23,7 @@ class CButton;
 class BattleInterface;
 class BattleConsole;
 class ChatChip;
+class ObserverBar;
 class BattleRenderer;
 class StackQueue;
 class TurnTimerWidget;
@@ -40,6 +41,8 @@ class BattleWindow : public InterfaceObjectConfigurable
 	std::shared_ptr<BattleConsole> console;
 	/// DMB (K, chat panel): chat works in a battle as in stock; the chip and the panel at the bottom left of the battlefield
 	std::shared_ptr<ChatChip> chatChip;
+	/// DMB (K, November 7th: "pause anytime"): a watcher's observer bar on the battle window, which covers the adventure map's bar while a watched battle is open
+	std::shared_ptr<ObserverBar> observerBar;
 	std::shared_ptr<HeroInfoBasicPanel> attackerHeroWindow;
 	std::shared_ptr<HeroInfoBasicPanel> defenderHeroWindow;
 	std::shared_ptr<StackInfoBasicPanel> attackerStackWindow;

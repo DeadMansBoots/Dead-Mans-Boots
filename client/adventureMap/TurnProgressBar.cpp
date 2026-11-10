@@ -571,15 +571,21 @@ std::vector<PlayerColor> TurnProgressBars::members() const
 		return result;
 	const auto & cb = GAME->interface()->cb;
 	const PlayerColor viewer = GAME->interface()->playerID;
-	// a spectator plays no turn of its own (its colour is no player's, and the game holds no state for it): no bar
-	if(!viewer.isValidPlayer())
-		return result;
 	// a player still in the game whose state the callback grants (the viewer and the viewer's allies, CGameInfoCallback::hasAccess); an eliminated one loses the bar
 	const auto inGame = [&cb](PlayerColor player)
 	{
 		const PlayerState * state = cb->getPlayerState(player, false);
 		return state && state->status == EPlayerStatus::INGAME;
 	};
+	// a spectator plays no turn of its own (its colour is no player's, and the game holds no state for it), and sees every player's bar (K, November 5th: "Observers should see
+	// all player bars")
+	if(!viewer.isValidPlayer())
+	{
+		for(auto player = PlayerColor(0); player < PlayerColor::PLAYER_LIMIT; ++player)
+			if(inGame(player))
+				result.push_back(player);
+		return result;
+	}
 	if(inGame(viewer))
 		result.push_back(viewer);
 	for(auto player = PlayerColor(0); player < PlayerColor::PLAYER_LIMIT; ++player)

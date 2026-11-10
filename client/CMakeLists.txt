@@ -65,6 +65,7 @@ set(vcmiclientcommon_SRCS
 	lobby/CSelectionBase.cpp
 	lobby/TurnOptionsTab.cpp
 	lobby/ExtraOptionsTab.cpp
+	lobby/AISettingsWindow.cpp
 	lobby/OptionsTab.cpp
 	lobby/OptionsTabBase.cpp
 	lobby/RandomMapTab.cpp
@@ -144,6 +145,7 @@ set(vcmiclientcommon_SRCS
 	widgets/CGarrisonInt.cpp
 	widgets/CreatureCostBox.cpp
 	widgets/ComboBox.cpp
+	widgets/CAmountInput.cpp
 	widgets/CTextInput.cpp
 	widgets/GraphicalPrimitiveCanvas.cpp
 	widgets/Images.cpp
@@ -301,6 +303,7 @@ set(vcmiclientcommon_HEADERS
 	lobby/CSelectionBase.h
 	lobby/TurnOptionsTab.h
 	lobby/ExtraOptionsTab.h
+	lobby/AISettingsWindow.h
 	lobby/OptionsTab.h
 	lobby/OptionsTabBase.h
 	lobby/TimerString.h
@@ -399,6 +402,7 @@ set(vcmiclientcommon_HEADERS
 	widgets/CGarrisonInt.h
 	widgets/CreatureCostBox.h
 	widgets/ComboBox.h
+	widgets/CAmountInput.h
 	widgets/CTextInput.h
 	widgets/GraphicalPrimitiveCanvas.h
 	widgets/Images.h

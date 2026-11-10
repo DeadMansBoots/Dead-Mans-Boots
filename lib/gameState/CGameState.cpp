@@ -819,6 +819,8 @@ void CGameState::initStartingBonus(IGameRandomizer & gameRandomizer)
 		case PlayerStartingBonus::GOLD:
 			elem.second.resources[EGameResID::GOLD] += gameRandomizer.getDefault().nextInt(5, 10) * 100;
 			break;
+		case PlayerStartingBonus::NONE: // DMB (S065): the map's start and nothing more
+			break;
 		case PlayerStartingBonus::RESOURCE:
 			{
 				auto res = (*LIBRARY->townh)[scenarioOps->playerInfos[elem.first].castle]->town->primaryRes;

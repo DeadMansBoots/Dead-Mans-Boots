@@ -327,6 +327,28 @@ struct DLL_LINKAGE LobbySetPlayerHandicap : public CLobbyPackToServer
 	}
 };
 
+/// DMB (S002): the host sets one seat's AI (adventure, battle) and tier. Host-only like every server-bound lobby pack
+/// (ClientPermissionsCheckerNetPackVisitor::visitForLobby); the lobby update carries it to every client and saves keep it
+struct DLL_LINKAGE LobbySetPlayerAI : public CLobbyPackToServer
+{
+	PlayerColor color = PlayerColor::CANNOT_DETERMINE;
+	std::string aiAdventure;
+	std::string aiBattle;
+	int8_t aiTier = -1;
+	bool aiThoughts = false;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler &h)
+	{
+		h & color;
+		h & aiAdventure;
+		h & aiBattle;
+		h & aiTier;
+		h & aiThoughts;
+	}
+};
+
 struct DLL_LINKAGE LobbySetSimturns : public CLobbyPackToServer
 {
 	SimturnsInfo simturnsInfo;

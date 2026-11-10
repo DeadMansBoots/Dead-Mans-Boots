@@ -74,7 +74,12 @@ void Nullkiller::init(const std::shared_ptr<CCallback> & cbInput, AIGateway * ai
 	aiGw = aiGwInput;
 	playerID = aiGwInput->playerID;
 
-	settings = std::make_unique<Settings>(cc->getStartInfo()->difficulty);
+	// DMB (S002): the seat's own tier when the host set one in the lobby, else the map's difficulty
+	const auto & seat = cc->getStartInfo()->playerInfos;
+	const auto mine = seat.find(playerID);
+	const int tier = mine != seat.end() ? mine->second.aiTierOr(cc->getStartInfo()->difficulty) : cc->getStartInfo()->difficulty;
+	logAi->info("Nullkiller 2 plays %s at tier %d (%s)", playerID.toString(), tier, mine != seat.end() && mine->second.aiTier >= 0 ? "the seat's own" : "the map's");
+	settings = std::make_unique<Settings>(tier);
 
 	PathfinderOptions pathfinderOptions(*cc);
 	pathfinderOptions.useTeleportTwoWay = true;

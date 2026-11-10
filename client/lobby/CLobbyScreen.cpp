@@ -464,7 +464,7 @@ void CLobbyScreen::start(bool campaign)
 	else if(campaign)
 		startCampaign();
 	else
-		startScenario(false);
+		startScenario(true); // DMB (K, November 7th: "i should still be able to start a game in that state"): no human seat is allowed in a new game or a scenario (a campaign keeps the check)
 }
 
 void CLobbyScreen::startCampaign()

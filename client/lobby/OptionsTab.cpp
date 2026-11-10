@@ -9,6 +9,7 @@
  */
 #include "StdInc.h"
 #include "OptionsTab.h"
+#include "AISettingsWindow.h"
 
 #include "CSelectionBase.h"
 
@@ -76,6 +77,10 @@ void OptionsTab::recreate()
 	for (auto heroOverview : ENGINE->windows().findWindows<CHeroOverview>())
 		heroOverview->close();
 
+	// DMB (S002): an open AI Settings window shows the seat as the lobby state now holds it
+	for(auto aiWindow : ENGINE->windows().findWindows<AISettingsWindow>())
+		aiWindow->refresh();
+
 	for (auto selectionWindow : ENGINE->windows().findWindows<SelectionWindow>())
 		selectionWindow->reopen();
 
@@ -140,6 +145,8 @@ size_t OptionsTab::CPlayerSettingsHelper::getImageIndex(bool big)
 		{
 		case PlayerStartingBonus::RANDOM:
 			return RANDOM;
+		case PlayerStartingBonus::NONE:
+			return RANDOM; // DMB (S065): the bonuses file has no picture of its own for it; the name says what it is
 		case PlayerStartingBonus::ARTIFACT:
 			return ARTIFACT;
 		case PlayerStartingBonus::GOLD:
@@ -240,6 +247,8 @@ std::string OptionsTab::CPlayerSettingsHelper::getTitle()
 		{
 		case PlayerStartingBonus::RANDOM:
 			return LIBRARY->generaltexth->allTexts[86]; //{Random Bonus}
+		case PlayerStartingBonus::NONE:
+			return LIBRARY->generaltexth->translate("vcmi.dmb.bonus.none"); // DMB (S065)
 		case PlayerStartingBonus::ARTIFACT:
 			return LIBRARY->generaltexth->allTexts[83]; //{Artifact Bonus}
 		case PlayerStartingBonus::GOLD:
@@ -311,6 +320,8 @@ std::string OptionsTab::CPlayerSettingsHelper::getDescription()
 		{
 		case PlayerStartingBonus::RANDOM:
 			return LIBRARY->generaltexth->allTexts[94]; //Gold, wood and ore, or an artifact is randomly chosen as your starting bonus
+		case PlayerStartingBonus::NONE:
+			return LIBRARY->generaltexth->translate("vcmi.dmb.bonus.none.help"); // DMB (S065)
 		case PlayerStartingBonus::ARTIFACT:
 			return LIBRARY->generaltexth->allTexts[90]; //An artifact is randomly chosen and equipped to your starting hero
 		case PlayerStartingBonus::GOLD:
@@ -1035,7 +1046,29 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 
 	background = std::make_shared<CPicture>(ImagePath::builtin(bgs[s->color]), 0, 0);
 	if(s->isControlledByAI() || GAME->server().isGuest())
-		labelPlayerName = std::make_shared<CLabel>(55, 10, EFonts::FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, name, 95);
+	{
+		// DMB (S002, K: "a configure AI button where it says computer ... the button text should reflect the currently selected AI"): a computer seat names its AI, with its tier
+		// (the seat's own, or the map's) as a chess piece in the margin beside the row; the host clicks the name for the seat's AI Settings window
+		const bool computerSeat = s->isControlledByAI();
+		labelPlayerName = std::make_shared<CLabel>(55, 10, EFonts::FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, computerSeat ? AISettingsWindow::displayName(AISettingsWindow::resolvedAdventure(*s)) : name, 95);
+		if(computerSeat)
+		{
+			// the margin beside the row holds the flag of a seat a human may take; a seat only the computer plays has none, and shows the tier there
+			if(!pi->canHumanPlay)
+			{
+				static const std::array<std::string, 5> tierIcons = {{"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"}};
+				aiTierIcon = std::make_shared<CAnimImage>(AnimationPath::builtin(tierIcons[AISettingsWindow::effectiveTier(*s)]), 0, 0, -43, 8);
+			}
+			const PlayerColor seatColor = s->color;
+			aiSeatArea = std::make_shared<LRClickableArea>(Rect(6, 3, 95, 15), [seatColor]()
+			{
+				if(GAME->server().isHost())
+					ENGINE->windows().createAndPushWindow<AISettingsWindow>(seatColor);
+			}, [](){
+				CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.seatHelp"));
+			});
+		}
+	}
 	else
 		labelPlayerNameEdit = std::make_shared<CTextInputWithConfirm>(Rect(6, 3, 95, 15), EFonts::FONT_SMALL, ETextAlignment::CENTER, name, false, [this](){ updateName(); });
 
@@ -1128,8 +1161,11 @@ void OptionsTab::PlayerOptionsEntry::updateName() {
 
 void OptionsTab::onSetPlayerClicked(const PlayerSettings & ps) const
 {
-	if(ps.isControlledByAI() || humanPlayers > 1)
-		GAME->server().setPlayer(ps.color);
+	// DMB (K, November 7th: "i should be able to click my (the host's) slot color to remove myself (and then be unslotted)" and "other unseated players should also be able to be
+	// brought in as observers"): stock lets a click through only for an AI's seat or when more than one human is seated, so a lone human could not leave a seat, the host's own or a
+	// guest's (the two-client proof, 11:13: the host could not unseat the one guest). The flag of a seat is the host's only (a guest's is blocked), and a game with no human seat is allowed,
+	// so the host may click any seat: the server gives the host's own seat to the AI, and a guest's to the next player or the AI
+	GAME->server().setPlayer(ps.color);
 }
 
 void OptionsTab::PlayerOptionsEntry::hideUnavailableButtons()

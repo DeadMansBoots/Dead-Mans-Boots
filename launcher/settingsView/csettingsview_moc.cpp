@@ -22,11 +22,15 @@
 #include "../vcmiqt/jsonutils.h"
 #include "../languages.h"
 
+#include <QCheckBox>
+#include <QFileDialog>
 #include <QFileInfo>
+#include <QLineEdit>
 #include <QGuiApplication>
 #include <QStandardItemModel>
 
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/DmbHarvest.h"
 #include "../../lib/filesystem/MenuBackgrounds.h"
 
 #ifndef VCMI_MOBILE
@@ -789,6 +793,94 @@ void CSettingsView::buildCategoryPages()
 			Settings asked = settings.write["launcher"]["crashReportsAsked"]; // pressing the switch is an answer: the launcher's question is not asked after it
 			asked->Bool() = true;
 			updateCheckbuttonText(crashButton);
+		});
+	}
+
+	// DMB (S093): the gameplay data framework, a category of its own after the others. K, November 7th: "a switch that gets turned on in DMB for data
+	// acquisition for various outputs", "a checkbox for each of the criteria ... maybe a scroll panel that's hidden unless you open it?", "the output path
+	// url should be configurable, and you should be able to set it"; November 10th: "switch on whatever you need", "yes, output folder on pc"
+	{
+		int last = 0;
+		for(const auto & cell : cells)
+			last = std::max(last, cell.row + cell.rowSpan - 1);
+		const int first = last + 1;
+		auto * header = new QLabel(tr("Gameplay Data"), this);
+		header->setObjectName("labelGameplayData");
+		header->setFont(ui->labelMiscellaneous->font());
+		header->setMargin(ui->labelMiscellaneous->margin());
+		cells.push_back({new QWidgetItem(header), first, 0, 1, 1});
+		starts[first] = header;
+
+		auto * switchLabel = new QLabel(tr("Record gameplay data on this PC (every game gets a folder of its own; nothing is sent anywhere)"), this);
+		switchLabel->setWordWrap(true);
+		auto * switchButton = new QToolButton(this);
+		switchButton->setObjectName("buttonHarvestEnabled");
+		switchButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+		switchButton->setCheckable(true);
+		setCheckbuttonState(switchButton, Harvest::switchedOn());
+		cells.push_back({new QWidgetItem(switchLabel), first + 1, 0, 1, 1});
+		cells.push_back({new QWidgetItem(switchButton), first + 1, 1, 1, 5});
+		connect(switchButton, &QToolButton::toggled, this, [this, switchButton](bool value)
+		{
+			Settings node = settings.write["general"]["harvest"]["enabled"];
+			node->Bool() = value;
+			updateCheckbuttonText(switchButton);
+		});
+
+		auto * folderLabel = new QLabel(tr("Output folder"), this);
+		auto * folderField = new QLineEdit(this);
+		folderField->setObjectName("lineEditHarvestFolder");
+		folderField->setReadOnly(true);
+		folderField->setText(QString::fromStdString(Harvest::outputFolder().string()));
+		auto * folderButton = new QPushButton(tr("Choose Folder"), this);
+		folderButton->setObjectName("buttonHarvestFolder");
+		cells.push_back({new QWidgetItem(folderLabel), first + 2, 0, 1, 1});
+		cells.push_back({new QWidgetItem(folderField), first + 2, 1, 1, 4});
+		cells.push_back({new QWidgetItem(folderButton), first + 2, 5, 1, 1});
+		connect(folderButton, &QPushButton::clicked, this, [this, folderField]()
+		{
+			const QString chosen = QFileDialog::getExistingDirectory(this, tr("Where gameplay data goes"), folderField->text());
+			if(chosen.isEmpty())
+				return;
+			Settings node = settings.write["general"]["harvest"]["folder"];
+			node->String() = QDir::toNativeSeparators(chosen).toStdString();
+			folderField->setText(QString::fromStdString(Harvest::outputFolder().string()));
+		});
+
+		auto * listLabel = new QLabel(tr("What is recorded"), this);
+		auto * listButton = new QToolButton(this);
+		listButton->setObjectName("buttonHarvestExporters");
+		listButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+		listButton->setCheckable(true);
+		listButton->setText(tr("Show the List"));
+		auto * listArea = new QScrollArea(this);
+		listArea->setObjectName("scrollHarvestExporters");
+		listArea->setWidgetResizable(true);
+		listArea->setMaximumHeight(240);
+		auto * listPage = new QWidget(listArea);
+		auto * listLayout = new QVBoxLayout(listPage);
+		for(const auto & exporter : Harvest::get().exporters())
+		{
+			auto * box = new QCheckBox(QString::fromStdString(exporter->name() + ": " + exporter->description()), listPage);
+			box->setObjectName(QString::fromStdString("checkBoxHarvest_" + exporter->id()));
+			box->setChecked(Harvest::ticked(*exporter));
+			listLayout->addWidget(box);
+			connect(box, &QCheckBox::toggled, this, [id = exporter->id()](bool value)
+			{
+				Settings node = settings.write["general"]["harvest"]["exporters"][id];
+				node->Bool() = value;
+			});
+		}
+		listLayout->addStretch(1);
+		listArea->setWidget(listPage);
+		listArea->setVisible(false);
+		cells.push_back({new QWidgetItem(listLabel), first + 3, 0, 1, 1});
+		cells.push_back({new QWidgetItem(listButton), first + 3, 1, 1, 5});
+		cells.push_back({new QWidgetItem(listArea), first + 4, 0, 1, 6});
+		connect(listButton, &QToolButton::toggled, this, [listButton, listArea](bool open)
+		{
+			listArea->setVisible(open);
+			listButton->setText(open ? tr("Hide the List") : tr("Show the List"));
 		});
 	}
 

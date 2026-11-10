@@ -59,6 +59,8 @@ public:
 	virtual int getScalingFactor() const = 0;
 
 	virtual void screenShot() const = 0;
+	/// DMB (S093): the screen as a PNG at this path, with no message in the chat (the Screenshots exporter)
+	virtual void screenShotTo(const boost::filesystem::path & file) const = 0;
 
 	/// Window has focus
 	virtual bool hasFocus() = 0;

@@ -24,6 +24,8 @@ VCMI_LIB_NAMESPACE_END
 /// armies and losses, objects visited, resources, levels), windows opened and closed, settings changed with old and new value, and a snapshot
 /// of the player's seat at the start of each of their turns. Never changes the game: every call is wrapped, a failed write is dropped.
 /// Bounded: one file stops at 100 MB, and only the newest 40 files (1 GB together) are kept.
+/// DMB (S093, November 10th): the recorder is now the source of the harvest framework's events (lib/DmbHarvest.h): the switch, the output folder and
+/// one tick per exporter are in the launcher's Settings; each game gets its own folder with events.jsonl and manifest.json.
 class PlayRecorder
 {
 public:
@@ -51,8 +53,9 @@ public:
 
 private:
 	PlayRecorder() = default;
+	/// DMB (S093): every line goes to the harvest framework (lib/DmbHarvest.h), which hands it to the ticked exporters that want its topic
 	void write(const std::string & kind, const std::string & body);
-	void pruneOldFiles(const std::string & folder);
+	void writeTopic(const std::string & topic, const std::string & kind, const std::string & body);
 
 	struct Impl;
 	std::shared_ptr<Impl> impl;

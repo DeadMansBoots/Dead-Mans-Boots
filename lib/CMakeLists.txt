@@ -341,6 +341,7 @@ set(lib_MAIN_SRCS
 	TurnTimerInfo.cpp
 	GameLibrary.cpp
 	DmbIssueReport.cpp
+	DmbHarvest.cpp
 	GameButtonLettering.cpp
 )
 
@@ -810,6 +811,7 @@ set(lib_MAIN_HEADERS
 	Color.h
 	DmbIssueReport.h
 	DmbChatRouting.h
+	DmbHarvest.h
 	DmbIssueReportLimit.h
 	GameButtonLettering.h
 	CPlayerState.h

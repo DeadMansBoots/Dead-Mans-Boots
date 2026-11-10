@@ -60,6 +60,7 @@
 				"chatMuteSpectators",
 				"chatMuteSystem",
 				"chatSound",
+				"harvest",
 				"chatSoundAI",
 				"chatGlass",
 				"chatPanelW",
@@ -91,6 +92,30 @@
 				"chatMuteSystem" : {
 					"type" : "boolean",
 					"default" : false
+				},
+				// DMB (S093, K 11-07 and 11-10: "a switch that gets turned on in DMB for data acquisition", "switch on whatever you need", "output folder on pc"):
+				// the gameplay data framework (lib/DmbHarvest.h). enabled: the switch; folder: where each game's folder goes (empty: the PlayLogs folder);
+				// exporters: a tick per exporter id, an id not listed takes the exporter's own default
+				"harvest" : {
+					"type" : "object",
+					"default" : {},
+					"additionalProperties" : false,
+					"required" : [ "enabled", "folder", "exporters" ],
+					"properties" : {
+						"enabled" : {
+							"type" : "boolean",
+							"default" : true
+						},
+						"folder" : {
+							"type" : "string",
+							"default" : ""
+						},
+						"exporters" : {
+							"type" : "object",
+							"default" : {},
+							"additionalProperties" : { "type" : "boolean" }
+						}
+					}
 				},
 				// the stock chime when a line comes in
 				"chatSound" : {

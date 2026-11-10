@@ -127,6 +127,7 @@ public:
 	Rect convertLogicalPointsToWindow(const Rect & input) const final;
 
 	void screenShot() const final;
+	void screenShotTo(const boost::filesystem::path & file) const final;
 
 	void setColorScheme(ColorScheme filter) final;
 };

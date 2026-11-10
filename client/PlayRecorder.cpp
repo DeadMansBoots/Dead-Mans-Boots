@@ -18,6 +18,9 @@
 
 #include "../lib/CConfigHandler.h"
 #include "../lib/CPlayerState.h"
+#include "../lib/DmbHarvest.h"
+#include "../lib/modding/CModHandler.h"
+#include "../lib/modding/ModDescription.h"
 #include "../lib/GameLibrary.h"
 #include "../lib/VCMIDirs.h"
 #include "../lib/battle/BattleAction.h"
@@ -37,15 +40,16 @@
 #include "../lib/networkPacks/PacksForClientBattle.h"
 #include "../lib/networkPacks/PacksForServer.h"
 
+#include "GameEngine.h"
+#include "render/IScreenHandler.h"
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 
 namespace
 {
-constexpr uint64_t FILE_LIMIT_BYTES = 100ull * 1024 * 1024; // one game's file stops here
-constexpr uint64_t FOLDER_LIMIT_BYTES = 1024ull * 1024 * 1024; // the whole folder
-constexpr size_t FILE_LIMIT_COUNT = 40;
+// DMB (S093): the disk limits (100 MB a game, 40 games and 1 GB a folder) are kept by the harvest framework, lib/DmbHarvest.cpp
 
 std::string escape(const std::string & text)
 {
@@ -579,19 +583,36 @@ void flattenJson(const std::string & prefix, const JsonNode & node, std::map<std
 
 struct PlayRecorder::Impl
 {
-	std::mutex mutex;
-	boost::filesystem::ofstream file;
-	boost::filesystem::path path;
-	uint64_t bytes = 0;
-	bool open = false;
-	bool capped = false;
-	int64_t lines = 0;
 	std::string seat;
-	/// when the file was last flushed: a hero's step is several events, and a flush each (a system call, and a virus scanner's look) made
-	/// moving a hero choppy (K, October 10th, a first suspect); the file is flushed at the player's own actions, snapshots and the end, and
-	/// at most half a second apart in between
-	std::chrono::steady_clock::time_point lastFlush = std::chrono::steady_clock::now();
+	int pictures = 0;
 };
+
+/// DMB (S093): the topic an exporter asks for, from the kind of line the recorder writes (the line keeps its kind as "ev", as in 19.3)
+static std::string topicOf(const std::string & kind)
+{
+	if(kind == "request")
+		return "request";
+	if(kind == "snapshot")
+		return "snapshot";
+	if(kind == "result")
+		return "result";
+	if(kind == "setting" || kind == "settings_at_start")
+		return "setting";
+	if(kind == "window_open" || kind == "window_close" || kind == "select")
+		return "interface";
+	if(kind == "mods")
+		return "mods";
+	if(kind == "picture")
+		return "picture";
+	return "answer";
+}
+
+/// a pack the server sent that belongs to a battle (its armies, actions and losses go to the Battles exporter)
+static bool isBattlePack(const std::string & type)
+{
+	return boost::starts_with(type, "Battle") || type == "StartAction" || type == "EndAction" || type == "CatapultAttack" || type == "SetStackEffect"
+		|| type == "StacksInjured" || type == "BattleResultAccepted" || type == "BattleResultsApplied" || type == "BattleCancelled";
+}
 
 PlayRecorder & PlayRecorder::get()
 {
@@ -603,77 +624,38 @@ PlayRecorder & PlayRecorder::get()
 
 bool PlayRecorder::isOpen() const
 {
-	return impl && impl->open;
-}
-
-void PlayRecorder::pruneOldFiles(const std::string & folder)
-{
-	try
-	{
-		std::vector<std::pair<std::string, uint64_t>> files;
-		for(boost::filesystem::directory_iterator it(folder), end; it != end; ++it)
-			if(it->path().extension() == ".jsonl")
-				files.emplace_back(it->path().string(), boost::filesystem::file_size(it->path()));
-		std::sort(files.begin(), files.end()); // names start with the date and time: oldest first
-		uint64_t total = 0;
-		for(const auto & f : files)
-			total += f.second;
-		size_t first = 0;
-		while(first + 1 < files.size() && (files.size() - first >= FILE_LIMIT_COUNT || total > FOLDER_LIMIT_BYTES))
-		{
-			total -= files[first].second;
-			boost::filesystem::remove(files[first].first);
-			++first;
-		}
-	}
-	catch(...)
-	{
-	}
+	return Harvest::get().isOpen();
 }
 
 void PlayRecorder::startGame(PlayerColor seat)
 {
+	if(isOpen())
+		return;
+	Harvest::GameInfo info;
 	try
 	{
 		get();
-		std::lock_guard lock(impl->mutex);
-		if(impl->open)
-			return;
-		const auto folder = VCMIDirs::get().userDataPath() / "PlayLogs";
-		boost::filesystem::create_directories(folder);
-		pruneOldFiles(folder.string());
-
-		std::string map = "game";
+		impl->seat = seat.isValidPlayer() ? seat.toString() : "";
+		impl->pictures = 0;
+		info.seat = impl->seat;
+		info.map = "game";
 		if(GAME && GAME->interface() && GAME->interface()->cb && GAME->interface()->cb->getStartInfo())
 		{
-			map = GAME->interface()->cb->getStartInfo()->mapname;
-			const auto slash = map.find_last_of("/\\");
-			if(slash != std::string::npos)
-				map = map.substr(slash + 1);
-			if(map.empty())
-				map = "random";
+			const auto * startInfo = GAME->interface()->cb->getStartInfo();
+			info.map = startInfo->mapname;
+			info.difficulty = startInfo->difficulty;
+			info.mode = static_cast<int>(startInfo->mode);
+			info.gameStartTime = static_cast<int64_t>(startInfo->startTime); // DMB (S077 R4): with the map, the id that joins this game's files
 		}
-		for(auto & c : map)
-			if(!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_')
-				c = '_';
-		std::string stamp = boost::posix_time::to_iso_extended_string(boost::posix_time::second_clock::local_time());
-		for(auto & c : stamp)
-			if(c == 'T')
-				c = '_';
-			else if(c == ':')
-				c = '-';
-		impl->path = folder / (stamp + "_" + map.substr(0, 60) + ".jsonl");
-		impl->file.open(impl->path, std::ios::out | std::ios::app);
-		impl->open = impl->file.is_open();
-		impl->bytes = 0;
-		impl->capped = false;
-		impl->lines = 0;
-		impl->seat = seat.isValidPlayer() ? seat.toString() : "";
 	}
 	catch(...)
 	{
 		return;
 	}
+	// DMB (S093): the switch and the ticked exporters decide; with the switch off nothing is opened and nothing is written
+	Harvest::get().startGame(info);
+	if(!isOpen())
+		return;
 
 	setSettingsChangeObserver([](const std::string & file, const std::vector<std::string> & path, const JsonNode & before, const JsonNode & after)
 	{
@@ -681,30 +663,37 @@ void PlayRecorder::startGame(PlayerColor seat)
 	});
 
 	Line start;
-	start.str("file", impl->path.string()).str("seat", impl->seat);
+	start.str("folder", Harvest::get().gameFolder().string()).str("seat", impl->seat).str("map", info.map).num("difficulty", info.difficulty).num("mode", info.mode);
+	start.num("gameStartTime", info.gameStartTime);
+	Harvest::get().emit("core", "game_start", start.get());
+
+	// every setting as the game starts, so a change made between two games (in the launcher, for one) shows in the first line of the next
 	try
 	{
-		if(GAME && GAME->interface() && GAME->interface()->cb && GAME->interface()->cb->getStartInfo())
+		if(Harvest::get().wanted("setting"))
 		{
-			const auto * info = GAME->interface()->cb->getStartInfo();
-			start.str("map", info->mapname).num("difficulty", info->difficulty).num("mode", static_cast<int>(info->mode));
-			start.num("gameStartTime", static_cast<int64_t>(info->startTime)); // DMB (S077 R4): with the map, the id that joins this game's files
+			std::map<std::string, std::string> flat;
+			flattenJson("", settings.toJsonNode(), flat);
+			Line values;
+			for(const auto & entry : flat)
+				values.str(entry.first, entry.second);
+			write("settings_at_start", Line().raw("settings", "{" + values.get() + "}").get());
 		}
 	}
 	catch(...)
 	{
 	}
-	write("game_start", start.get());
 
-	// every setting as the game starts, so a change made between two games (in the launcher, for one) shows in the first line of the next
+	// the mods in use, with their versions
 	try
 	{
-		std::map<std::string, std::string> flat;
-		flattenJson("", settings.toJsonNode(), flat);
-		Line values;
-		for(const auto & entry : flat)
-			values.str(entry.first, entry.second);
-		write("settings_at_start", Line().raw("settings", "{" + values.get() + "}").get());
+		if(Harvest::get().wanted("mods") && LIBRARY && LIBRARY->modh)
+		{
+			std::vector<std::string> mods;
+			for(const auto & mod : LIBRARY->modh->getActiveMods())
+				mods.push_back(object(Line().str("id", mod).str("version", LIBRARY->modh->getModInfo(mod).getVersion().toString())));
+			write("mods", Line().raw("mods", array(mods)).get());
+		}
 	}
 	catch(...)
 	{
@@ -715,54 +704,30 @@ void PlayRecorder::stopGame(const std::string & why)
 {
 	if(!isOpen())
 		return;
-	write("game_end", Line().str("why", why).get());
-	try
-	{
-		std::lock_guard lock(impl->mutex);
-		impl->file.close();
-		impl->open = false;
-	}
-	catch(...)
-	{
-	}
+	Harvest::get().emit("core", "game_end", Line().str("why", why).get());
+	Harvest::get().stopGame(why);
 }
 
 void PlayRecorder::write(const std::string & kind, const std::string & body)
+{
+	writeTopic(topicOf(kind), kind, body);
+}
+
+void PlayRecorder::writeTopic(const std::string & topic, const std::string & kind, const std::string & body)
 {
 	if(!isOpen())
 		return;
 	try
 	{
-		Line head;
-		head.str("t", boost::posix_time::to_iso_extended_string(boost::posix_time::microsec_clock::local_time()).substr(0, 23));
 		try
 		{
 			if(GAME && GAME->interface() && GAME->interface()->cb)
-				head.num("day", GAME->interface()->cb->getDate(Date::DAY));
+				Harvest::get().setDay(GAME->interface()->cb->getDate(Date::DAY));
 		}
 		catch(...)
 		{
 		}
-		head.str("seat", impl->seat).str("ev", kind);
-		std::string text = "{" + head.get() + (body.empty() ? "" : "," + body) + "}\n";
-
-		std::lock_guard lock(impl->mutex);
-		if(!impl->open || impl->capped)
-			return;
-		if(impl->bytes + text.size() > FILE_LIMIT_BYTES)
-		{
-			impl->capped = true;
-			text = "{\"ev\":\"file_full\",\"limitBytes\":" + std::to_string(FILE_LIMIT_BYTES) + "}\n";
-		}
-		impl->file << text;
-		const auto now = std::chrono::steady_clock::now();
-		if(kind != "game" || now - impl->lastFlush > std::chrono::milliseconds(500))
-		{
-			impl->file.flush();
-			impl->lastFlush = now;
-		}
-		impl->bytes += text.size();
-		++impl->lines;
+		Harvest::get().emit(topic, kind, body);
 	}
 	catch(...)
 	{
@@ -776,7 +741,7 @@ void PlayRecorder::event(const std::string & kind, const std::string & body)
 
 void PlayRecorder::request(const CPackForServer & pack, PlayerColor player, const std::string & ai)
 {
-	if(!isOpen())
+	if(!Harvest::get().wanted("request"))
 		return;
 	try
 	{
@@ -807,11 +772,14 @@ void PlayRecorder::clientPack(CPackForClient & pack)
 		const std::string type = withoutPrefix(typeid(pack).name());
 		if(isNoise(type))
 			return;
+		const std::string topic = isBattlePack(type) ? "battle" : "answer";
+		if(!Harvest::get().wanted(topic))
+			return;
 		ClientDescriber describer;
 		pack.visit(describer);
 		if(!describer.described)
 			describer.line.str("type", type);
-		write("game", describer.line.get());
+		writeTopic(topic, "game", describer.line.get());
 	}
 	catch(...)
 	{
@@ -857,7 +825,30 @@ void PlayRecorder::settingChanged(const std::string & file, const std::vector<st
 
 void PlayRecorder::snapshot(PlayerColor seat, const std::string & reason)
 {
-	if(!isOpen())
+	// DMB (S093, the Screenshots exporter, off unless ticked): a picture of the screen at the start of the player's own turn, at most 300 a game
+	if(reason == "start of turn" && Harvest::get().wanted("picture") && impl && impl->pictures < 300)
+	{
+		++impl->pictures;
+		const auto folder = Harvest::get().gameFolder() / "pictures";
+		int day = 0;
+		try
+		{
+			if(GAME && GAME->interface() && GAME->interface()->cb)
+				day = GAME->interface()->cb->getDate(Date::DAY);
+		}
+		catch(...)
+		{
+		}
+		const auto file = folder / ("day" + std::to_string(day) + "-" + seat.toString() + "-" + std::to_string(impl->pictures) + ".png");
+		ENGINE->dispatchMainThread([folder, file]()
+		{
+			boost::system::error_code ec;
+			boost::filesystem::create_directories(folder, ec);
+			ENGINE->screenHandler().screenShotTo(file);
+		});
+		write("picture", Line().str("file", file.filename().string()).str("player", seat.toString()).get());
+	}
+	if(!Harvest::get().wanted("snapshot"))
 		return;
 	try
 	{

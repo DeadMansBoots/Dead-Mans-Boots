@@ -733,6 +733,19 @@ void ScreenHandler::setColorScheme(ColorScheme scheme)
 	colorScheme = scheme;
 }
 
+void ScreenHandler::screenShotTo(const boost::filesystem::path & file) const
+{
+	try
+	{
+		auto img = std::make_shared<SDLImageShared>(screen);
+		img->exportBitmap(file, nullptr);
+	}
+	catch(const std::exception & e)
+	{
+		logGlobal->warn("Screenshot not written to %s: %s", file.string(), e.what());
+	}
+}
+
 void ScreenHandler::screenShot() const
 {
 	const boost::filesystem::path outPath = VCMIDirs::get().userExtractedPath() / "screenshots";

@@ -39,6 +39,7 @@
 #include "windows/InfoWindows.h"
 
 #include "../lib/CConfigHandler.h"
+#include "../lib/DmbRelease.h"
 #include "../lib/campaign/CampaignState.h"
 #include "../lib/serializer/GameConnection.h"
 #include "../lib/texts/CGeneralTextHandler.h"
@@ -59,6 +60,25 @@ void ApplyOnLobbyHandlerNetPackVisitor::visitLobbyClientConnected(LobbyClientCon
 	// Check if it's LobbyClientConnected for our client
 	if(isLocalClient)
 	{
+		// DMB (S095 row 95.6): a host whose game writes an older format (a Dead Man's Boots from before this one) answers with it; the game cannot be
+		// played together, so the player is told in one line and leaves, before anything of the host's lobby is read
+		if(pack.version != ESerializationVersion::CURRENT)
+		{
+			logNetwork->warn("The host's game writes another game data format (%d, this game %d): not joined", static_cast<int>(pack.version), static_cast<int>(ESerializationVersion::CURRENT));
+			const std::string text = std::string("You cannot join this game: the host runs a different version of Dead Man's Boots from yours (") + DMB_RELEASE_TEXT
+				+ "). Everyone in a game needs the same version: the host updates in the launcher, then you join again.";
+			result = false;
+			if(handler.getState() != EClientState::DISCONNECTING)
+				handler.sendClientDisconnecting();
+			if(ENGINE)
+				ENGINE->dispatchMainThread([text]()
+				{
+					if(auto join = ENGINE->windows().topWindow<CSimpleJoinScreen>())
+						ENGINE->windows().popWindow(join);
+					CInfoWindow::showInfoDialog(text, {});
+				});
+			return;
+		}
 		handler.logicConnection->setSerializationVersion(pack.version);
 		handler.logicConnection->connectionID = pack.clientId;
 		if(handler.mapToStart)

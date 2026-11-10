@@ -869,6 +869,7 @@
 	"vcmi.chat.window.muteTeam": "Mute Team:",
 	"vcmi.chat.window.muteSpectators": "Mute Spectators:",
 	"vcmi.chat.window.colour": "colour:",
+	"vcmi.chat.window.colourFor": "Typing line and spectators,",
 	"vcmi.chat.window.fontSize": "Text size:",
 	"vcmi.chat.window.fontSmall": "Small",
 	"vcmi.chat.window.fontMedium": "Medium",

@@ -605,7 +605,8 @@ void ChatConsoleWindow::refreshSettingsRows()
 	{
 		const int index = std::clamp(static_cast<int>(settings["general"][colourKey(row)].Float()), 0, static_cast<int>(PALETTE.size()) - 1);
 		const std::string label = text->translate(row == 0 ? "vcmi.chat.channel.all" : row == 1 ? "vcmi.chat.channel.team" : "vcmi.chat.channel.spectators");
-		settingsRows[4 + row]->setText(label + " " + text->translate("vcmi.chat.window.colour") + " " + text->translate(PALETTE_NAMES[index]));
+		// S100: a player's lines are in that player's colour; these colour the typing line and the lines of spectators and observers
+		settingsRows[4 + row]->setText(text->translate("vcmi.chat.window.colourFor") + " " + label + ": " + text->translate(PALETTE_NAMES[index]));
 	}
 	const double size = settings["general"]["chatFontSize"].Float();
 	settingsRows[7]->setText(text->translate("vcmi.chat.window.fontSize") + " " + text->translate(size >= 2 ? "vcmi.chat.window.fontLarge" : size >= 1 ? "vcmi.chat.window.fontMedium" : "vcmi.chat.window.fontSmall"));

@@ -85,7 +85,7 @@ public:
 };
 ```
 
-Register it once, before a game starts: `Harvest::get().add(std::make_shared<GoldByDay>());`. An exporter added in `lib` (in the `Harvest` constructor's list) is listed in the launcher's Settings as well; one added by a client or an AI library is used by the game and remembered by its id.
+Register it once. In `lib`, put `DMB_HARVEST_EXPORTER(GoldByDay)` at file scope in the exporter's own `.cpp` and add the file to `lib/CMakeLists.txt`: it is registered when the library loads, listed in the launcher's Settings, and `DmbHarvest.cpp` does not change. Elsewhere (a client or an AI library), call `Harvest::get().add(std::make_shared<GoldByDay>());` before a game starts; the game uses it and remembers its tick by its id. An exporter that throws is switched off for the rest of that game, logged once, and marked `"failed": true` in `manifest.json`, which also lists the files each exporter wrote.
 
 The points an exporter is called at: `gameStarted`, `eventHappened` for every event of a topic it `wants`, and `gameEnded`. The topics are `request`, `answer`, `battle`, `snapshot`, `result`, `setting`, `mods`, `interface`, `ai_reason` and `picture`. The default `eventHappened` writes the event as one line of `events.jsonl`.
 

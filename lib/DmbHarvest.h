@@ -21,10 +21,11 @@ VCMI_LIB_NAMESPACE_BEGIN
 /// How it works: the game hands every event to Harvest::emit (the play recorder in the client does it for the human's and the AI seats this PC runs; an AI
 /// library may emit its own, such as OmniAI's reasons). Each exporter says which topics it wants; an event goes to every exporter that is ticked and wants
 /// it. The built-in exporters write the event as one JSON line into the game's events.jsonl; an exporter of your own can do anything with it (its own file,
-/// a summary at the end). The format of every line and file is in docs/harvest/README.md.
+/// a summary at the end). The format of every line and file is in docs/developers/Harvest_Framework.md.
 ///
 /// Writing an exporter: derive from HarvestExporter, give it an id, a name and a description, say which topics it wants, and register it once with
-/// Harvest::get().add(std::make_shared<MyExporter>()) (a lib exporter does it in Harvest's list of built-ins, so the launcher's Settings list it too).
+/// DMB_HARVEST_EXPORTER(MyExporter) at file scope in its own .cpp in lib (or Harvest::get().add(std::make_shared<MyExporter>()) from code that runs
+/// before a game starts). An exporter in lib is then listed by the launcher's Settings too, and DmbHarvest.cpp never changes for it.
 
 /// One game's folder and its files, as an exporter sees them
 class DLL_LINKAGE HarvestGame
@@ -75,7 +76,7 @@ public:
 class DLL_LINKAGE Harvest
 {
 public:
-	/// the version of the line format (docs/harvest/README.md); every line carries it as "v"
+	/// the version of the line format (docs/developers/Harvest_Framework.md); every line carries it as "v"
 	static constexpr int SCHEMA_VERSION = 1;
 
 	static Harvest & get();
@@ -115,5 +116,15 @@ private:
 	struct Impl;
 	std::shared_ptr<Impl> impl;
 };
+
+/// DMB (S093 93.8, OmniAI Dev): registers an exporter when the library loads, from the exporter's own file. Windows, Linux and macOS build lib as
+/// a shared library, which keeps every object file. A build with ENABLE_STATIC_LIBS (Android, iOS) can drop an object file nothing refers to:
+/// there, call Harvest::get().add from code that is linked instead.
+struct DLL_LINKAGE HarvestAutoAdd
+{
+	explicit HarvestAutoAdd(std::shared_ptr<HarvestExporter> exporter);
+};
+
+#define DMB_HARVEST_EXPORTER(Class) static HarvestAutoAdd dmbHarvestAutoAdd_##Class(std::make_shared<Class>());
 
 VCMI_LIB_NAMESPACE_END

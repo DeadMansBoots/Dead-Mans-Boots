@@ -313,6 +313,11 @@ Harvest::Harvest()
 	add(std::make_shared<TopicExporter>("screenshots", "Screenshots", "A picture of the screen at the start of each of your turns, at most 300 a game.", std::set<std::string>{"picture"}, false));
 }
 
+HarvestAutoAdd::HarvestAutoAdd(std::shared_ptr<HarvestExporter> exporter)
+{
+	Harvest::get().add(std::move(exporter));
+}
+
 Harvest & Harvest::get()
 {
 	static Harvest instance;

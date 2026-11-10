@@ -14,6 +14,8 @@
 #include "CGameHandler.h"
 
 #include "../lib/StartInfo.h"
+#include "../lib/DmbRelease.h"
+#include "../lib/networkPacks/PacksForLobby.h"
 #include "../lib/GameLibrary.h"
 #include "../lib/VCMIDirs.h"
 
@@ -59,6 +61,28 @@ void ClientPermissionsCheckerNetPackVisitor::visitLobbyQuickLoadGame(LobbyQuickL
 void ClientPermissionsCheckerNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected & pack)
 {
 	result = srv.getState() == EServerState::LOBBY;
+	// DMB (S095 row 95.6; S077, K 11-07: "make sure it doesn't cause incompatability for me and the others in our multiplayer games though"): the observer
+	// suite and the per-seat AI settings change what the lobby and the game send, so a player whose game writes another format cannot play in this one.
+	// Stock VCMI talks down to an older client; here the player is told in one line, and the connection ends
+	if(result && pack.version != ESerializationVersion::CURRENT)
+	{
+		logNetwork->warn("A player with another game data format (%d, this game %d) asked to join: told that both need the same Dead Man's Boots version",
+			static_cast<int>(pack.version), static_cast<int>(ESerializationVersion::CURRENT));
+		try
+		{
+			connection->setSerializationVersion(std::min(pack.version, ESerializationVersion::CURRENT)); // the message in the player's own format
+			LobbyShowMessage why;
+			why.message.appendRawString(std::string("You cannot join this game: the host runs Dead Man's Boots ") + DMB_RELEASE_TEXT
+				+ ", a different version from yours. Everyone in a game needs the same version: update in the launcher, then join again.");
+			connection->sendPack(why);
+		}
+		catch(const std::exception &)
+		{
+		}
+		if(auto network = connection->getConnection())
+			network->close();
+		result = false;
+	}
 }
 
 void ApplyOnServerNetPackVisitor::visitLobbyClientConnected(LobbyClientConnected & pack)

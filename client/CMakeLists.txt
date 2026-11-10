@@ -220,6 +220,9 @@ set(vcmiclientcommon_SRCS
 	CPlayerInterface.cpp
 	PlayerLocalState.cpp
 	PlayRecorder.cpp
+	harvest/Exporters.cpp
+	harvest/Harvest.cpp
+	harvest/OmniAIReasons.cpp
 	CServerHandler.cpp
 	Client.cpp
 	ClientCommandManager.cpp
@@ -481,6 +484,8 @@ set(vcmiclientcommon_HEADERS
 	GameInstance.h
 	PlayerLocalState.h
 	PlayRecorder.h
+	harvest/Harvest.h
+	harvest/OmniAIReasons.h
 	CServerHandler.h
 	Client.h
 	ClientCommandManager.h

@@ -10,6 +10,7 @@
 #include "StdInc.h"
 #include <chrono>
 #include "PlayRecorder.h"
+#include "harvest/Harvest.h"
 
 #include "CPlayerInterface.h"
 #include "GameInstance.h"
@@ -46,6 +47,38 @@ namespace
 constexpr uint64_t FILE_LIMIT_BYTES = 100ull * 1024 * 1024; // one game's file stops here
 constexpr uint64_t FOLDER_LIMIT_BYTES = 1024ull * 1024 * 1024; // the whole folder
 constexpr size_t FILE_LIMIT_COUNT = 40;
+
+/// DMB (S093 93.5): which built-in exporter a recorder line belongs to; "" for the lines every game folder has (game_start,
+/// settings_at_start, result, game_end, file_full)
+std::string exporterOf(const std::string & kind)
+{
+	if(kind == "request")
+		return "actions";
+	if(kind == "game")
+		return "answers";
+	if(kind == "snapshot")
+		return "snapshots";
+	if(kind == "window_open" || kind == "window_close" || kind == "select" || kind == "setting")
+		return "interface";
+	return "";
+}
+
+/// the "player" field of a recorder line body, when it has one
+PlayerColor playerOf(const std::string & body)
+{
+	const auto at = body.find("\"player\":\"");
+	if(at == std::string::npos)
+		return PlayerColor::CANNOT_DETERMINE;
+	const auto from = at + 10;
+	const auto to = body.find('"', from);
+	if(to == std::string::npos)
+		return PlayerColor::CANNOT_DETERMINE;
+	const std::string name = body.substr(from, to - from);
+	for(const auto & c : PlayerColor::ALL_PLAYERS())
+		if(c.toString() == name)
+			return c;
+	return PlayerColor::CANNOT_DETERMINE;
+}
 
 std::string escape(const std::string & text)
 {
@@ -582,6 +615,8 @@ struct PlayRecorder::Impl
 	std::mutex mutex;
 	boost::filesystem::ofstream file;
 	boost::filesystem::path path;
+	/// DMB (S093): this game's folder (play.jsonl, manifest.json, the exporters' files)
+	boost::filesystem::path gameFolder;
 	uint64_t bytes = 0;
 	bool open = false;
 	bool capped = false;
@@ -612,8 +647,19 @@ void PlayRecorder::pruneOldFiles(const std::string & folder)
 	{
 		std::vector<std::pair<std::string, uint64_t>> files;
 		for(boost::filesystem::directory_iterator it(folder), end; it != end; ++it)
+		{
 			if(it->path().extension() == ".jsonl")
 				files.emplace_back(it->path().string(), boost::filesystem::file_size(it->path()));
+			else if(boost::filesystem::is_directory(it->path()) && boost::filesystem::exists(it->path() / "manifest.json"))
+			{
+				// DMB (S093 93.9, 93.10): a game folder counts as one game, its size all its files
+				uint64_t size = 0;
+				for(boost::filesystem::recursive_directory_iterator f(it->path()), e; f != e; ++f)
+					if(boost::filesystem::is_regular_file(f->path()))
+						size += boost::filesystem::file_size(f->path());
+				files.emplace_back(it->path().string(), size);
+			}
+		}
 		std::sort(files.begin(), files.end()); // names start with the date and time: oldest first
 		uint64_t total = 0;
 		for(const auto & f : files)
@@ -622,7 +668,7 @@ void PlayRecorder::pruneOldFiles(const std::string & folder)
 		while(first + 1 < files.size() && (files.size() - first >= FILE_LIMIT_COUNT || total > FOLDER_LIMIT_BYTES))
 		{
 			total -= files[first].second;
-			boost::filesystem::remove(files[first].first);
+			boost::filesystem::remove_all(files[first].first);
 			++first;
 		}
 	}
@@ -639,7 +685,10 @@ void PlayRecorder::startGame(PlayerColor seat)
 		std::lock_guard lock(impl->mutex);
 		if(impl->open)
 			return;
-		const auto folder = VCMIDirs::get().userDataPath() / "PlayLogs";
+		// DMB (S093 93.1, 93.2, 93.5): nothing at all with the switch off; the folder is the one the player set
+		if(!Harvest::Settings::enabled())
+			return;
+		const auto folder = Harvest::Settings::resolvedOutputFolder();
 		boost::filesystem::create_directories(folder);
 		pruneOldFiles(folder.string());
 
@@ -662,7 +711,10 @@ void PlayRecorder::startGame(PlayerColor seat)
 				c = '_';
 			else if(c == ':')
 				c = '-';
-		impl->path = folder / (stamp + "_" + map.substr(0, 60) + ".jsonl");
+		// DMB (S093 93.9): each game its own folder, its lines in play.jsonl beside the manifest and the exporters' files
+		impl->gameFolder = folder / (stamp + "_" + map.substr(0, 60));
+		boost::filesystem::create_directories(impl->gameFolder);
+		impl->path = impl->gameFolder / "play.jsonl";
 		impl->file.open(impl->path, std::ios::out | std::ios::app);
 		impl->open = impl->file.is_open();
 		impl->bytes = 0;
@@ -689,7 +741,10 @@ void PlayRecorder::startGame(PlayerColor seat)
 			const auto * info = GAME->interface()->cb->getStartInfo();
 			start.str("map", info->mapname).num("difficulty", info->difficulty).num("mode", static_cast<int>(info->mode));
 			start.num("gameStartTime", static_cast<int64_t>(info->startTime)); // DMB (S077 R4): with the map, the id that joins this game's files
+			Harvest::Registry::get().gameStart(static_cast<int64_t>(info->startTime), info->mapname, seat, impl->gameFolder);
 		}
+		else
+			Harvest::Registry::get().gameStart(0, "", seat, impl->gameFolder);
 	}
 	catch(...)
 	{
@@ -715,6 +770,7 @@ void PlayRecorder::stopGame(const std::string & why)
 {
 	if(!isOpen())
 		return;
+	Harvest::Registry::get().gameEnd(why); // DMB (S093): the exporters' last call, while play.jsonl is still open
 	write("game_end", Line().str("why", why).get());
 	try
 	{
@@ -728,6 +784,39 @@ void PlayRecorder::stopGame(const std::string & why)
 }
 
 void PlayRecorder::write(const std::string & kind, const std::string & body)
+{
+	if(!isOpen())
+		return;
+	// DMB (S093 93.5, 93.8): the line goes into play.jsonl only when its built-in exporter is ticked; the exporters get it either way
+	const std::string owner = exporterOf(kind);
+	if(owner.empty() || Harvest::Registry::get().exporterActive(owner))
+		writeLine(kind, body);
+	try
+	{
+		Harvest::Line line;
+		line.kind = kind;
+		line.fields = body;
+		line.player = playerOf(body);
+		if(GAME && GAME->interface() && GAME->interface()->cb)
+			line.day = GAME->interface()->cb->getDate(Date::DAY);
+		auto & registry = Harvest::Registry::get();
+		if(kind == "request")
+			registry.request(line);
+		else if(kind == "game")
+		{
+			registry.answer(line);
+			if(body.find("\"type\":\"BattleResult\"") != std::string::npos)
+				registry.battleEnd(line);
+		}
+		else if(kind != "snapshot" && kind != "game_start" && kind != "game_end")
+			registry.other(line);
+	}
+	catch(...)
+	{
+	}
+}
+
+void PlayRecorder::writeLine(const std::string & kind, const std::string & body)
 {
 	if(!isOpen())
 		return;
@@ -947,6 +1036,9 @@ void PlayRecorder::snapshot(PlayerColor seat, const std::string & reason)
 		}
 		line.raw("townList", array(townTexts));
 		write("snapshot", line.get());
+		// DMB (S093 93.8): the start of a seat's turn, for the exporters
+		if(reason.rfind("start of turn", 0) == 0 && GAME && GAME->interface() && GAME->interface()->cb)
+			Harvest::Registry::get().turnStart(seat, GAME->interface()->cb->getDate(Date::DAY));
 	}
 	catch(...)
 	{

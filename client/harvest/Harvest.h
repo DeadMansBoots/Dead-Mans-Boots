@@ -115,7 +115,8 @@ public:
 	std::vector<ExporterInfo> list() const;
 
 	/// called by PlayRecorder at its own points; each forwards to the enabled exporters and does nothing with the switch off
-	void gameStart(int64_t gameStartTime, const std::string & map, PlayerColor seat);
+	/// folder: this game's folder, made by the recorder inside Settings::resolvedOutputFolder()
+	void gameStart(int64_t gameStartTime, const std::string & map, PlayerColor seat, const boost::filesystem::path & folder);
 	void turnStart(PlayerColor player, int day);
 	void request(const Line & line);
 	void answer(const Line & line);
@@ -124,10 +125,13 @@ public:
 	void gameEnd(const std::string & why);
 	/// true between gameStart and gameEnd of a game the switch was on for
 	bool recording() const;
+	/// true when that exporter is ticked for this game and has not failed (the recorder asks it before writing a built-in exporter's lines)
+	bool exporterActive(const std::string & id) const;
+
+	struct Impl;
 
 private:
 	Registry() = default;
-	struct Impl;
 	std::shared_ptr<Impl> impl;
 };
 

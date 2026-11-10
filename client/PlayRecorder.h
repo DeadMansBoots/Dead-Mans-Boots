@@ -48,6 +48,9 @@ public:
 	void snapshot(PlayerColor seat, const std::string & reason);
 	/// Any other event: kind and a JSON object body without braces (key/value pairs), e.g. R"("what":"selected hero")"
 	void event(const std::string & kind, const std::string & body);
+	/// DMB (S093): writes one line into play.jsonl and calls no exporter (Harvest::Game::write uses it, so an exporter's own line
+	/// never comes back to it)
+	void writeLine(const std::string & kind, const std::string & body);
 
 private:
 	PlayRecorder() = default;

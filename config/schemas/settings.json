@@ -61,6 +61,9 @@
 				"chatMuteSystem",
 				"chatSound",
 				"chatSoundAI",
+				"harvestEnabled",
+				"harvestFolder",
+				"harvestExporters",
 				"chatGlass",
 				"chatPanelW",
 				"chatPanelH",
@@ -101,6 +104,21 @@
 				"chatSoundAI" : {
 					"type" : "boolean",
 					"default" : false
+				},
+				// DMB (S093, K 11-07: "a switch that gets turned on in DMB for data acquisition"; client/harvest/Harvest.h): the switch (on by
+				// default, K 11-10: "switch on whatever you need"), the output folder ("" = <user data>/PlayLogs) and one tick per exporter id
+				"harvestEnabled" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				"harvestFolder" : {
+					"type" : "string",
+					"default" : ""
+				},
+				"harvestExporters" : {
+					"type" : "object",
+					"default" : {},
+					"additionalProperties" : { "type" : "boolean" }
 				},
 				// the chat panel as glass (the map shows through it) instead of the opaque panel texture
 				"chatGlass" : {

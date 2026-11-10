@@ -16,10 +16,12 @@
 #include "VCMIDirs.h"
 #include "modding/CModHandler.h"
 #include "modding/ModDescription.h"
+#include "modding/CModVersion.h"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
+#include <set>
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -56,7 +58,7 @@ std::string escape(const std::string & text)
 	return out;
 }
 
-std::string quoted(const std::string & text)
+std::string jsonQuoted(const std::string & text)
 {
 	return "\"" + escape(text) + "\"";
 }
@@ -155,6 +157,10 @@ struct Harvest::Impl final : public HarvestGame
 	boost::filesystem::path gameFolder;
 	boost::filesystem::ofstream events;
 	std::map<std::string, std::unique_ptr<boost::filesystem::ofstream>> ownFiles;
+	/// DMB (S093, OmniAI Dev): exporters that threw this game (not called again until the next game, marked in the manifest), and the
+	/// files each exporter wrote through appendFile (listed in the manifest)
+	std::set<const HarvestExporter *> failed;
+	std::map<std::string, std::set<std::string>> filesBy;
 	GameInfo info;
 	std::string started;
 	uint64_t bytes = 0;
@@ -169,6 +175,28 @@ struct Harvest::Impl final : public HarvestGame
 		return gameFolder;
 	}
 
+	/// calls one exporter; one that throws is logged once, skipped for the rest of the game and marked "failed" in the manifest
+	template<typename F>
+	void call(const std::shared_ptr<HarvestExporter> & exporter, const char * point, F && f)
+	{
+		if(failed.count(exporter.get()))
+			return;
+		try
+		{
+			f();
+		}
+		catch(const std::exception & e)
+		{
+			failed.insert(exporter.get());
+			logGlobal->error("Harvest: exporter '%s' failed at %s (%s); it is off for the rest of this game", exporter->id(), point, e.what());
+		}
+		catch(...)
+		{
+			failed.insert(exporter.get());
+			logGlobal->error("Harvest: exporter '%s' failed at %s; it is off for the rest of this game", exporter->id(), point);
+		}
+	}
+
 	/// counts against the game's limit; false when the game is full (one "file_full" line is written then)
 	bool roomFor(size_t size)
 	{
@@ -177,7 +205,7 @@ struct Harvest::Impl final : public HarvestGame
 		if(bytes + size > GAME_LIMIT_BYTES)
 		{
 			full = true;
-			const std::string last = "{\"v\":" + std::to_string(SCHEMA_VERSION) + ",\"t\":" + quoted(nowText()) + ",\"ev\":\"file_full\",\"x\":\"core\",\"limitBytes\":"
+			const std::string last = "{\"v\":" + std::to_string(SCHEMA_VERSION) + ",\"t\":" + jsonQuoted(nowText()) + ",\"ev\":\"file_full\",\"x\":\"core\",\"limitBytes\":"
 				+ std::to_string(GAME_LIMIT_BYTES) + "}\n";
 			events << last;
 			events.flush();
@@ -192,8 +220,8 @@ struct Harvest::Impl final : public HarvestGame
 		std::lock_guard lock(mutex);
 		if(!open)
 			return;
-		std::string text = "{\"v\":" + std::to_string(SCHEMA_VERSION) + ",\"t\":" + quoted(nowText()) + ",\"day\":" + std::to_string(day) + ",\"seat\":"
-			+ quoted(info.seat) + ",\"ev\":" + quoted(kind) + ",\"x\":" + quoted(exporter) + (body.empty() ? "" : "," + body) + "}\n";
+		std::string text = "{\"v\":" + std::to_string(SCHEMA_VERSION) + ",\"t\":" + jsonQuoted(nowText()) + ",\"day\":" + std::to_string(day) + ",\"seat\":"
+			+ jsonQuoted(info.seat) + ",\"ev\":" + jsonQuoted(kind) + ",\"x\":" + jsonQuoted(exporter) + (body.empty() ? "" : "," + body) + "}\n";
 		if(!roomFor(text.size()))
 			return;
 		events << text;
@@ -216,6 +244,7 @@ struct Harvest::Impl final : public HarvestGame
 		for(auto & c : fileName)
 			if(!std::isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_' && c != '.')
 				c = '_';
+		filesBy[exporter].insert(fileName);
 		auto & file = ownFiles[fileName];
 		if(!file)
 			file = std::make_unique<boost::filesystem::ofstream>(gameFolder / fileName, std::ios::out | std::ios::app | std::ios::binary);
@@ -230,7 +259,7 @@ struct Harvest::Impl final : public HarvestGame
 		{
 			if(LIBRARY && LIBRARY->modh)
 				for(const auto & mod : LIBRARY->modh->getActiveMods())
-					mods += std::string(mods.empty() ? "" : ",") + "{\"id\":" + quoted(mod) + ",\"version\":" + quoted(LIBRARY->modh->getModInfo(mod).getVersion().toString()) + "}";
+					mods += std::string(mods.empty() ? "" : ",") + "{\"id\":" + jsonQuoted(mod) + ",\"version\":" + jsonQuoted(LIBRARY->modh->getModInfo(mod).getVersion().toString()) + "}";
 		}
 		catch(...)
 		{
@@ -239,20 +268,27 @@ struct Harvest::Impl final : public HarvestGame
 		for(const auto & exporter : exporters)
 		{
 			const bool on = std::find(active.begin(), active.end(), exporter) != active.end();
-			list += std::string(list.empty() ? "" : ",") + "{\"id\":" + quoted(exporter->id()) + ",\"name\":" + quoted(exporter->name()) + ",\"version\":"
-				+ quoted(exporter->version()) + ",\"on\":" + (on ? "true" : "false") + "}";
+			std::string files;
+			const auto written = filesBy.find(exporter->id());
+			if(written != filesBy.end())
+				for(const auto & f : written->second)
+					files += std::string(files.empty() ? "" : ",") + jsonQuoted(f);
+			list += std::string(list.empty() ? "" : ",") + "{\"id\":" + jsonQuoted(exporter->id()) + ",\"name\":" + jsonQuoted(exporter->name()) + ",\"version\":"
+				+ jsonQuoted(exporter->version()) + ",\"on\":" + (on ? "true" : "false") + ",\"failed\":" + (failed.count(exporter.get()) ? "true" : "false")
+				+ ",\"files\":[" + files + "]}";
 		}
 		const std::string text = "{\n\t\"schema\" : " + std::to_string(SCHEMA_VERSION)
-			+ ",\n\t\"gameId\" : " + quoted(info.map + "#" + std::to_string(info.gameStartTime))
-			+ ",\n\t\"dmbVersion\" : " + quoted(DMB_RELEASE_TEXT)
-			+ ",\n\t\"map\" : " + quoted(info.map)
-			+ ",\n\t\"seat\" : " + quoted(info.seat)
+			+ ",\n\t\"gameId\" : " + jsonQuoted(info.map + "#" + std::to_string(info.gameStartTime))
+			+ ",\n\t\"dmbVersion\" : " + jsonQuoted(DMB_RELEASE_TEXT)
+			+ ",\n\t\"map\" : " + jsonQuoted(info.map)
+			+ ",\n\t\"seat\" : " + jsonQuoted(info.seat)
 			+ ",\n\t\"difficulty\" : " + std::to_string(info.difficulty)
 			+ ",\n\t\"mode\" : " + std::to_string(info.mode)
 			+ ",\n\t\"gameStartTime\" : " + std::to_string(info.gameStartTime)
-			+ ",\n\t\"started\" : " + quoted(started)
-			+ ",\n\t\"ended\" : " + quoted(ended)
-			+ ",\n\t\"why\" : " + quoted(why)
+			+ ",\n\t\"started\" : " + jsonQuoted(started)
+			+ ",\n\t\"ended\" : " + jsonQuoted(ended)
+			+ ",\n\t\"complete\" : " + (ended.empty() ? "false" : "true")
+			+ ",\n\t\"why\" : " + jsonQuoted(why)
 			+ ",\n\t\"lines\" : " + std::to_string(lines)
 			+ ",\n\t\"mods\" : [" + mods + "]"
 			+ ",\n\t\"exporters\" : [" + list + "]\n}\n";
@@ -366,17 +402,11 @@ void Harvest::startGame(const GameInfo & info)
 		impl->lines = 0;
 		impl->full = false;
 		impl->ownFiles.clear();
+		impl->failed.clear();
+		impl->filesBy.clear();
 		impl->writeManifest("", "");
 		for(const auto & exporter : impl->active)
-		{
-			try
-			{
-				exporter->gameStarted(*impl);
-			}
-			catch(...)
-			{
-			}
-		}
+			impl->call(exporter, "game start", [&]() { exporter->gameStarted(*impl); });
 	}
 	catch(...)
 	{
@@ -390,15 +420,7 @@ void Harvest::stopGame(const std::string & why)
 	if(!impl->open)
 		return;
 	for(const auto & exporter : impl->active)
-	{
-		try
-		{
-			exporter->gameEnded(why, *impl);
-		}
-		catch(...)
-		{
-		}
-	}
+		impl->call(exporter, "game end", [&]() { exporter->gameEnded(why, *impl); });
 	try
 	{
 		impl->writeManifest(nowText(), why);
@@ -445,13 +467,7 @@ void Harvest::emit(const std::string & topic, const std::string & kind, const st
 	{
 		if(!exporter->wants(topic))
 			continue;
-		try
-		{
-			exporter->eventHappened(event, *impl);
-		}
-		catch(...)
-		{
-		}
+		impl->call(exporter, topic.c_str(), [&]() { exporter->eventHappened(event, *impl); });
 	}
 }
 

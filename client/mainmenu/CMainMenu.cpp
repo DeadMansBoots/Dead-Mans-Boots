@@ -343,7 +343,9 @@ const JsonNode & CMainMenuConfig::getCampaigns() const
 /// mainmenu.json (the brown DiBoxBck), whichever picture or menu mod is on screen. The merged config handed it to the last mod that
 /// sets one: the Horn of the Abyss main menu mod sets "around.png", a dark grey leather, so every picture of the pool (the releases'
 /// own, the dropped-in files, the Tides of War menu) stood on grey leather while that mod was on (K, November 7th: "WHY IS THE LEATHER
-/// IN THE MAIN MENU BACKGROUND AREA BLACK AND WHITE NOW?"; the same pictures with that mod off have the brown leather).
+/// IN THE MAIN MENU BACKGROUND AREA BLACK AND WHITE NOW?"; the same pictures with that mod off have the brown leather). K, November 10th: "hota doesn't
+/// have a grey leather background that i am aware of....it should remain brown, and in version 20, the user will be able to specify their own colors".
+/// Stock VCMI honours a mod's backgroundAround; DMB does not (roster\PARITY-DMB-1028.md, row S090). Version 20's own colour choice (S101) is set here.
 ImagePath CMainMenuConfig::surroundPicture() const
 {
 	static const ImagePath picture = []()

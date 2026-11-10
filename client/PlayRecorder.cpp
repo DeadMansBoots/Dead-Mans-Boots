@@ -665,7 +665,7 @@ void PlayRecorder::startGame(PlayerColor seat)
 	Line start;
 	start.str("folder", Harvest::get().gameFolder().string()).str("seat", impl->seat).str("map", info.map).num("difficulty", info.difficulty).num("mode", info.mode);
 	start.num("gameStartTime", info.gameStartTime);
-	Harvest::get().emit("core", "game_start", start.get());
+	Harvest::get().record("core", "game_start", start.get());
 
 	// every setting as the game starts, so a change made between two games (in the launcher, for one) shows in the first line of the next
 	try
@@ -704,7 +704,7 @@ void PlayRecorder::stopGame(const std::string & why)
 {
 	if(!isOpen())
 		return;
-	Harvest::get().emit("core", "game_end", Line().str("why", why).get());
+	Harvest::get().record("core", "game_end", Line().str("why", why).get());
 	Harvest::get().stopGame(why);
 }
 
@@ -727,7 +727,7 @@ void PlayRecorder::writeTopic(const std::string & topic, const std::string & kin
 		catch(...)
 		{
 		}
-		Harvest::get().emit(topic, kind, body);
+		Harvest::get().record(topic, kind, body);
 	}
 	catch(...)
 	{

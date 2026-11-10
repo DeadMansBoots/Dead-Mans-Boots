@@ -456,7 +456,7 @@ bool Harvest::wanted(const std::string & topic) const
 	return false;
 }
 
-void Harvest::emit(const std::string & topic, const std::string & kind, const std::string & body)
+void Harvest::record(const std::string & topic, const std::string & kind, const std::string & body)
 {
 	std::lock_guard lock(impl->mutex);
 	if(!impl->open)

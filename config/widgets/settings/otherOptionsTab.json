@@ -1,4 +1,7 @@
 {
+	"library" : [
+		"config/widgets/commonPrimitives.json"
+	],
 	"items":
 	[
 		{
@@ -56,6 +59,51 @@
 			"help": "vcmi.otherOptions.allowJoin",
 			"position": {"x": 25, "y": 92},
 			"callback": "allowJoinChanged"
+		},
+
+		{
+			"name": "harvestLabel",
+			"type": "label",
+			"font": "medium",
+			"alignment": "left",
+			"color": "white",
+			"text": "vcmi.otherOptions.harvest.hover",
+			"position": {"x": 61, "y": 126}
+		},
+
+		{
+			"name": "harvestCheckbox",
+			"type": "toggleButton",
+			"image": "sysopchk.def",
+			"help": "vcmi.otherOptions.harvest",
+			"position": {"x": 25, "y": 125},
+			"callback": "harvestChanged"
+		},
+
+		{
+			"name": "harvestFolderLabel",
+			"type": "label",
+			"font": "small",
+			"alignment": "left",
+			"color": "yellow",
+			"text": "vcmi.otherOptions.harvestFolder.hover",
+			"position": {"x": 61, "y": 154}
+		},
+
+		{
+			"name": "harvestFolderBackground",
+			"type": "boxWithBackground",
+			"rect": {"x": 61, "y": 170, "w": 330, "h": 23}
+		},
+
+		{
+			"name": "harvestFolderInput",
+			"type": "textInput",
+			"alignment": "left",
+			"font": "small",
+			"help": "vcmi.otherOptions.harvestFolder",
+			"rect": {"x": 65, "y": 170, "w": 322, "h": 23},
+			"offset": {"x": 0, "y": 0}
 		}
 	]
 }

@@ -18,7 +18,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 /// session"; "I want it built into dmb so other devs may use it as well (analytics or whatever)"; November 10th: "switch on whatever you need" and "yes,
 /// output folder on pc". Everything is written to a folder on this PC; nothing is sent anywhere.
 ///
-/// How it works: the game hands every event to Harvest::emit (the play recorder in the client does it for the human's and the AI seats this PC runs; an AI
+/// How it works: the game hands every event to Harvest::record (the play recorder in the client does it for the human's and the AI seats this PC runs; an AI
 /// library may emit its own, such as OmniAI's reasons). Each exporter says which topics it wants; an event goes to every exporter that is ticked and wants
 /// it. The built-in exporters write the event as one JSON line into the game's events.jsonl; an exporter of your own can do anything with it (its own file,
 /// a summary at the end). The format of every line and file is in docs/harvest/README.md.
@@ -104,7 +104,8 @@ public:
 	bool isOpen() const;
 	/// whether a ticked exporter wants this topic (the recorder builds an event only then)
 	bool wanted(const std::string & topic) const;
-	void emit(const std::string & topic, const std::string & kind, const std::string & body);
+	/// DMB: not named emit, which Qt defines as a macro (the launcher includes this header)
+	void record(const std::string & topic, const std::string & kind, const std::string & body);
 	/// the game day for the lines' "day" (the client sets it; an AI's line takes the last one set)
 	void setDay(int day);
 	/// the game's folder, empty when no game is open

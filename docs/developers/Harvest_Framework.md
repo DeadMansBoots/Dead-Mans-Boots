@@ -89,4 +89,4 @@ Register it once, before a game starts: `Harvest::get().add(std::make_shared<Gol
 
 The points an exporter is called at: `gameStarted`, `eventHappened` for every event of a topic it `wants`, and `gameEnded`. The topics are `request`, `answer`, `battle`, `snapshot`, `result`, `setting`, `mods`, `interface`, `ai_reason` and `picture`. The default `eventHappened` writes the event as one line of `events.jsonl`.
 
-Any code can add events: `Harvest::get().emit(topic, kind, body)`, where `body` is the members of a JSON object without the braces, for example `"\"player\":\"red\",\"why\":\"the guard is too strong\""`. An AI library emits its reasons with the topic `ai_reason`.
+Any code can add events: `Harvest::get().record(topic, kind, body)`, where `body` is the members of a JSON object without the braces, for example `"\"player\":\"red\",\"why\":\"the guard is too strong\""`. An AI library emits its reasons with the topic `ai_reason`.

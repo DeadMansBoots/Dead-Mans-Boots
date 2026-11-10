@@ -342,6 +342,7 @@ set(lib_MAIN_SRCS
 	GameLibrary.cpp
 	DmbIssueReport.cpp
 	DmbHarvest.cpp
+	DmbHarvestTestExporter.cpp
 	GameButtonLettering.cpp
 )
 

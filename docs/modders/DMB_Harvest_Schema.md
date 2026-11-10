@@ -7,10 +7,12 @@ Schema version 1 (the `schema` field of each game's `manifest.json`). Code: `cli
 DMB's settings have one switch for data acquisition (on by default), an output folder (empty means
 `<user data>/PlayLogs`) and one tick per exporter. Each game played with the switch on gets its own folder:
 
-    <output folder>/<YYYY-MM-DD>_<HH-MM-SS>_<map>/
-        play.jsonl       the recorded lines (below)
-        manifest.json    what this folder is
-        <exporter files> anything an exporter writes, for example omniai/decisions-red.jsonl
+```text
+<output folder>/<YYYY-MM-DD>_<HH-MM-SS>_<map>/
+    play.jsonl       the recorded lines (below)
+    manifest.json    what this folder is
+    <exporter files> anything an exporter writes, for example omniai/decisions-red.jsonl
+```
 
 Nothing is written with the switch off. Everything stays on this computer: no packet, no save change, nothing in the lobby, so
 players with different settings play together. Limits: `play.jsonl` stops at 100 MB (its last line is then `file_full`); the
@@ -19,7 +21,7 @@ output folder keeps the newest 40 games and at most 1 GB, oldest first out. A ch
 ## manifest.json
 
 | key | meaning |
-|---|---|
+| --- | --- |
 | `schema` | this document's version |
 | `gameStartTime` | the game id: the time the host started the game (StartInfo), the same on every computer in that game |
 | `map` | the map as the game names it (StartInfo mapname); with `gameStartTime` it joins files from several computers or programs |
@@ -35,7 +37,7 @@ output folder keeps the newest 40 games and at most 1 GB, oldest first out. A ch
 One JSON object per line. Every line starts with:
 
 | key | meaning |
-|---|---|
+| --- | --- |
 | `t` | local time, `YYYY-MM-DDTHH:MM:SS.mmm` |
 | `day` | the game day (1 is the first day), when a game is running |
 | `seat` | this computer's colour |
@@ -44,7 +46,7 @@ One JSON object per line. Every line starts with:
 Kinds, and the exporter whose tick decides whether they are written:
 
 | `ev` | exporter | what it is |
-|---|---|---|
+| --- | --- | --- |
 | `game_start` | always | `file`, `map`, `difficulty`, `mode`, `gameStartTime` |
 | `settings_at_start` | always | every setting as the game starts |
 | `request` | `actions` | an order a seat of this computer sends: `type`, its fields, `player`, `ai` for an AI seat |

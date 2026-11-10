@@ -1490,7 +1490,7 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 		DmbIssueReport::send("connection-lost", std::string("This client lost its connection to the server (") + (isHost() ? "it is the host" : "it is a guest") + (client ? ", in a game" : ", in the lobby") + "): " + errorMessage + "." + context);
 	}
 
-	// DMB (automatic reconnect, K): a guest of a direct connection that holds its rejoin secret does not go back to the main menu with an error, it keeps trying to come back
+	// DMB (automatic reconnect, K): a guest of a direct connection that holds its rejoin secret does not go back to the main menu with an error; it is asked whether to come back (S012)
 	bool comeBack = false;
 	const std::string comeBackAddress = serverHostname;
 	const ui16 comeBackPort = serverPort;
@@ -1513,8 +1513,16 @@ void CServerHandler::onDisconnected(const std::shared_ptr<INetworkConnection> & 
 
 	networkConnection.reset();
 
+	// DMB (S012, K 10-31: "rejoins should be a prompt to the player that dropped"; 11-05: "Reconnect should be optional for the party that got dropped"):
+	// the player is asked first. Yes starts the return (the connecting window, and the server's offer answered yes, since the player already chose);
+	// no leaves the player in the main menu with the secret kept, so starting the game again later still offers the seats (the offer asks then)
 	if(comeBack)
-		beginAutoRejoin(comeBackAddress, comeBackPort);
+	{
+		GAME->mainmenu()->menu->switchToTab("main");
+		CInfoWindow::showYesNoDialog("You lost the connection to this game. Reconnect?", {},
+			[this, comeBackAddress, comeBackPort]() { beginAutoRejoin(comeBackAddress, comeBackPort); },
+			[]() { logNetwork->info("Reconnect: the player chose not to come back now"); });
+	}
 }
 
 void CServerHandler::beginAutoRejoin(const std::string & addr, ui16 port)

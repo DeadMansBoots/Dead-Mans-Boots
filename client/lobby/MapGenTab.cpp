@@ -1310,7 +1310,7 @@ namespace
 /// of the template list and shows the entry that is selected; its facts and description are the module's own template-info.json
 /// DMB (S025, K November 5th, Question 7): one map level of a template's preview at full screen: "let the player click them to open full screen, put arrows to
 /// the sides when it is fullscreen, as well as an "X" at the top right to leave the preview, and clicking the right and left arrows should go to the other
-/// preview". Escape closes it too, the left and right keys step like the arrows.
+/// preview". (Escape closing it is table addition 25.4a and waits for K, so the window has no keys of its own.)
 class TemplatePreviewViewer : public CWindowObject
 {
 public:
@@ -1372,9 +1372,9 @@ public:
 		pos = Rect(Point(0, 0), ENGINE->screenDimensions());
 		shade = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(0, 0, 0, 255));
 		label = std::make_shared<CLabel>(pos.w / 2, 30, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, "");
-		buttonLeft = std::make_shared<CButton>(Point(24, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this](){ step(-1); }, EShortcut::MOVE_LEFT); // 22x46
-		buttonRight = std::make_shared<CButton>(Point(pos.w - 24 - 22, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this](){ step(1); }, EShortcut::MOVE_RIGHT);
-		buttonClose = std::make_shared<CButton>(Point(pos.w - 32 - 12, 12), AnimationPath::builtin("settingsWindow/button32"), CButton::tooltip(), [this](){ close(); }, EShortcut::GLOBAL_CANCEL);
+		buttonLeft = std::make_shared<CButton>(Point(24, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this](){ step(-1); }); // 22x46
+		buttonRight = std::make_shared<CButton>(Point(pos.w - 24 - 22, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this](){ step(1); });
+		buttonClose = std::make_shared<CButton>(Point(pos.w - 32 - 12, 12), AnimationPath::builtin("settingsWindow/button32"), CButton::tooltip(), [this](){ close(); });
 		buttonClose->setTextOverlay("X", FONT_MEDIUM, Colors::YELLOW);
 		showLayer();
 	}
@@ -1467,8 +1467,6 @@ public:
 		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, area.w, area.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2);
 		slider = std::make_shared<CSlider>(Point(area.w - SLIDER_WIDTH - 2, 2), area.h - 4, [this](int to){ scroll = to; redraw(); }, area.h - 4, area.h - 4, 0, Orientation::VERTICAL, CSlider::BLUE);
 		slider->setScrollStep(24);
-		slider->setPanningStep(1);
-		slider->setInertiaEnabled(true);
 		slider->setScrollBounds(pos - slider->pos.topLeft());
 		// the scrollbar's track is the game's black, which beside the blue handle read as a black block over half the bar (K, October 6th); a dark blue of the panel's own
 		slider->setTrackColor(ColorRGBA(10, 20, 60, 255));

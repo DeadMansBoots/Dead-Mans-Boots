@@ -1310,7 +1310,8 @@ namespace
 /// of the template list and shows the entry that is selected; its facts and description are the module's own template-info.json
 /// DMB (S025, K November 5th, Question 7): one map level of a template's preview at full screen: "let the player click them to open full screen, put arrows to
 /// the sides when it is fullscreen, as well as an "X" at the top right to leave the preview, and clicking the right and left arrows should go to the other
-/// preview". (Escape closing it is table addition 25.4a and waits for K, so the window has no keys of its own.)
+/// preview". Escape closes it too: rule 38 (never lock the player out), the lead's call of November 11th after the "X" did not close it in a
+/// 3440x1440 test; the other keys of table addition 25.4a still wait for K.
 class TemplatePreviewViewer : public CWindowObject
 {
 public:
@@ -1374,9 +1375,17 @@ public:
 		label = std::make_shared<CLabel>(pos.w / 2, 30, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, "");
 		buttonLeft = std::make_shared<CButton>(Point(24, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this](){ step(-1); }); // 22x46
 		buttonRight = std::make_shared<CButton>(Point(pos.w - 24 - 22, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this](){ step(1); });
-		buttonClose = std::make_shared<CButton>(Point(pos.w - 32 - 12, 12), AnimationPath::builtin("settingsWindow/button32"), CButton::tooltip(), [this](){ close(); });
+		buttonClose = std::make_shared<CButton>(Point(pos.w - 32 - 12, 12), AnimationPath::builtin("settingsWindow/button32"), CButton::tooltip(), [this](){ close(); }, EShortcut::GLOBAL_CANCEL); // Escape: the rule 38 way out
 		buttonClose->setTextOverlay("X", FONT_MEDIUM, Colors::YELLOW);
+		addUsedEvents(LCLICK);
 		showLayer();
+	}
+
+	/// every click the viewer gets, beside where its "X" is (the "X" did not close it in a 3440x1440 test: this line says whether the click arrives and where)
+	void clickPressed(const Point & cursorPosition) override
+	{
+		logGlobal->info("Template preview viewer: click at %d,%d; the X button at %d,%d size %dx%d; the window %dx%d", cursorPosition.x, cursorPosition.y,
+			buttonClose->pos.x, buttonClose->pos.y, buttonClose->pos.w, buttonClose->pos.h, pos.w, pos.h);
 	}
 };
 

@@ -571,13 +571,23 @@ void TurnBarFoldButton::setFolded(bool value)
 
 void TurnBarFoldButton::hover(bool on)
 {
+	if(on != hovered)
+		logGlobal->info("Turn bars: minimize button %s (S015)", on ? "lit, the pointer is over it" : "unlit, the pointer left it");
 	hovered = on;
 }
 
 void TurnBarFoldButton::clickPressed(const Point &)
 {
-	// one flash as the click's feedback (K's "blink"), then the fold or unfold
-	flashMs = 180;
+	// one flash as the click's feedback (K's "blink"), then the fold or unfold. DMB_FOLD_FLASH_MS: test only, a longer flash so a picture can catch it
+	static const int flashLength = []()
+	{
+		const char * text = std::getenv("DMB_FOLD_FLASH_MS");
+		if(text)
+			logGlobal->warn("Turn bars: DMB_FOLD_FLASH_MS holds the minimize button's flash for %s ms (a test setting)", text);
+		return text ? std::clamp(std::atoi(text), 0, 10000) : 180;
+	}();
+	flashMs = flashLength;
+	logGlobal->info("Turn bars: minimize button clicked, flashing for %d ms (S015)", flashMs);
 	if(onClick)
 		onClick();
 }

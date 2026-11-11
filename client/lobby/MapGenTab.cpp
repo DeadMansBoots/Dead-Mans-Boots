@@ -30,6 +30,7 @@
 #include "../widgets/Images.h"
 #include "../widgets/MiscWidgets.h"
 #include "../widgets/ObjectLists.h"
+#include "../widgets/Slider.h"
 #include "../widgets/TextControls.h"
 #include "../windows/GUIClasses.h"
 #include "../windows/InfoWindows.h"
@@ -1307,37 +1308,126 @@ namespace
 /// K, October 5th: "we should expand the template selection window with a side window that gives some details on the template: original game
 /// size, player counts, underground on/off, etc and also give a description of what makes it unique as a template". The panel stands to the right
 /// of the template list and shows the entry that is selected; its facts and description are the module's own template-info.json
+/// DMB (S025, K November 5th, Question 7): one map level of a template's preview at full screen: "let the player click them to open full screen, put arrows to
+/// the sides when it is fullscreen, as well as an "X" at the top right to leave the preview, and clicking the right and left arrows should go to the other
+/// preview". Escape closes it too, the left and right keys step like the arrows.
+class TemplatePreviewViewer : public CWindowObject
+{
+public:
+	struct Layer
+	{
+		std::string image; // a sprite of the module, no extension
+		std::string label;
+	};
+
+private:
+	std::vector<Layer> layers;
+	size_t at;
+	std::shared_ptr<TransparentFilledRectangle> shade;
+	std::shared_ptr<CPicture> picture;
+	std::shared_ptr<TransparentFilledRectangle> pictureFrame;
+	std::shared_ptr<CLabel> label;
+	std::shared_ptr<CButton> buttonLeft;
+	std::shared_ptr<CButton> buttonRight;
+	std::shared_ptr<CButton> buttonClose;
+
+	void showLayer()
+	{
+		OBJECT_CONSTRUCTION;
+		picture.reset();
+		pictureFrame.reset();
+		label->setText(layers[at].label);
+		auto image = ENGINE->renderHandler().loadImage(ImagePath::builtin(layers[at].image), EImageBlitMode::OPAQUE);
+		if(image && image->width() > 0 && image->height() > 0)
+		{
+			// the picture as large as the screen allows between the arrows and under the heading, in its own proportions
+			const int boxWidth = pos.w - 2 * 70;
+			const int boxHeight = pos.h - 60 - 20;
+			const double scale = std::min(static_cast<double>(boxWidth) / image->width(), static_cast<double>(boxHeight) / image->height());
+			const Point size(std::max(1, static_cast<int>(image->width() * scale + 0.5)), std::max(1, static_cast<int>(image->height() * scale + 0.5)));
+			const Point at((pos.w - size.x) / 2, 60 + (boxHeight - size.y) / 2);
+			picture = std::make_shared<CPicture>(image, at);
+			picture->scaleTo(size);
+			pictureFrame = std::make_shared<TransparentFilledRectangle>(Rect(at.x - 1, at.y - 1, size.x + 2, size.y + 2), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
+		}
+		const bool several = layers.size() > 1;
+		buttonLeft->block(!several);
+		buttonRight->block(!several);
+		redraw();
+	}
+
+	void step(int distance)
+	{
+		at = (at + layers.size() + distance) % layers.size();
+		showLayer();
+	}
+
+public:
+	TemplatePreviewViewer(std::vector<Layer> layersToShow, size_t first)
+		: CWindowObject(0), layers(std::move(layersToShow)), at(first)
+	{
+		OBJECT_CONSTRUCTION;
+		if(at >= layers.size())
+			at = 0;
+		pos = Rect(Point(0, 0), ENGINE->screenDimensions());
+		shade = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(0, 0, 0, 255));
+		label = std::make_shared<CLabel>(pos.w / 2, 30, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, "");
+		buttonLeft = std::make_shared<CButton>(Point(24, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this](){ step(-1); }, EShortcut::MOVE_LEFT); // 22x46
+		buttonRight = std::make_shared<CButton>(Point(pos.w - 24 - 22, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this](){ step(1); }, EShortcut::MOVE_RIGHT);
+		buttonClose = std::make_shared<CButton>(Point(pos.w - 32 - 12, 12), AnimationPath::builtin("settingsWindow/button32"), CButton::tooltip(), [this](){ close(); }, EShortcut::GLOBAL_CANCEL);
+		buttonClose->setTextOverlay("X", FONT_MEDIUM, Colors::YELLOW);
+		showLayer();
+	}
+};
+
 class TemplateInfoPanel : public CIntObject
 {
+	static constexpr int SLIDER_WIDTH = 16;
+
 	std::shared_ptr<FilledTexturePlayerColored> background;
 	std::shared_ptr<TransparentFilledRectangle> frame;
-	std::shared_ptr<CLabel> title;
-	std::shared_ptr<CTextBox> body;
-	std::shared_ptr<TransparentFilledRectangle> specsFrame;
-	std::shared_ptr<CLabel> specsTitle;
-	std::shared_ptr<CMultiLineLabel> specs;
+	std::shared_ptr<CSlider> slider;
 	Rect area;
 	JsonNode info;
 	std::vector<std::string> values;
 	std::vector<std::string> names;
 	std::optional<boost::filesystem::path> module; // the generator module's folder: its Content/config/mapgen/preview holds the pictures' captions and the open layout's frames
 
-	/// the layout picture (and its heading and caption) under the facts; a gallery of the open layout cycles on a timer
-	std::shared_ptr<CLabel> pictureTitle;
-	std::shared_ptr<TransparentFilledRectangle> pictureFrame;
-	std::shared_ptr<CPicture> picture;
-	std::shared_ptr<CMultiLineLabel> pictureCaption;
+	/// DMB (S025, K November 5th, Question 7): "allow the player to scroll down to see the full description, but the title should be first, then the previews,
+	/// the brief description or most important parts, and then the full/rest of the description". Everything the panel shows is one column, in that order,
+	/// scrolled as a whole. The column is made of ordinary widgets that are never part of the window (so none of them takes a click or a key) and drawn
+	/// into `rendered`; the panel shows the part of it `scroll` pixels down, under its own frame and beside its own scrollbar.
 	struct GalleryFrame
 	{
-		std::string image;
+		std::vector<TemplatePreviewViewer::Layer> layers; // one picture per level, stacked top to bottom; or the one composite picture
+		std::string legend; // a sprite, or empty
 		std::string caption;
-		uint32_t milliseconds;
+		uint32_t milliseconds = 2500;
 	};
-	std::vector<GalleryFrame> gallery;
+	struct Sheet
+	{
+		std::string title;
+		std::string specs; // the box of the original game's facts; none when empty
+		std::string heading; // the yellow line above the pictures (the open layout's "example maps"); none when empty
+		std::vector<GalleryFrame> gallery; // shown one after the other on a timer when there are several
+		std::string brief; // the important parts, after the pictures
+		std::string body; // the rest
+	};
+	Sheet sheet;
 	size_t galleryAt = 0;
 	uint32_t galleryElapsed = 0;
-	int pictureTop = 0;
-	int pictureBoxHeight = 0;
+
+	std::shared_ptr<CIntObject> column;
+	std::vector<std::shared_ptr<CIntObject>> columnParts; // the column's widgets (children only point at them); destroyed before the column
+	std::unique_ptr<Canvas> rendered;
+	int columnHeight = 0;
+	int scroll = 0;
+	struct PreviewPlace
+	{
+		Rect place; // in the column
+		size_t layer;
+	};
+	std::vector<PreviewPlace> previewPlaces;
 
 	static std::string whole(const JsonNode & node)
 	{
@@ -1360,9 +1450,14 @@ class TemplateInfoPanel : public CIntObject
 		return zones;
 	}
 
+	int columnWidth() const
+	{
+		return area.w - SLIDER_WIDTH - 2;
+	}
+
 public:
 	TemplateInfoPanel(const Rect & area, const JsonNode & infoFile, std::vector<std::string> entryValues, std::vector<std::string> entryNames, std::optional<boost::filesystem::path> moduleFolder)
-		: CIntObject(TIME, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues)), names(std::move(entryNames)), module(std::move(moduleFolder))
+		: CIntObject(TIME | LCLICK, area.topLeft()), area(area), info(infoFile), values(std::move(entryValues)), names(std::move(entryNames)), module(std::move(moduleFolder))
 	{
 		OBJECT_CONSTRUCTION;
 		pos.w = area.w;
@@ -1370,8 +1465,14 @@ public:
 		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, area.w, area.h));
 		background->setPlayerColor(PlayerColor(1));
 		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, area.w, area.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2);
-		title = std::make_shared<CLabel>(area.w / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, "");
-		setBody(44, "");
+		slider = std::make_shared<CSlider>(Point(area.w - SLIDER_WIDTH - 2, 2), area.h - 4, [this](int to){ scroll = to; redraw(); }, area.h - 4, area.h - 4, 0, Orientation::VERTICAL, CSlider::BLUE);
+		slider->setScrollStep(24);
+		slider->setPanningStep(1);
+		slider->setInertiaEnabled(true);
+		slider->setScrollBounds(pos - slider->pos.topLeft());
+		// the scrollbar's track is the game's black, which beside the blue handle read as a black block over half the bar (K, October 6th); a dark blue of the panel's own
+		slider->setTrackColor(ColorRGBA(10, 20, 60, 255));
+		build();
 	}
 
 	/// the module's name for a template's picture: lower case letters and digits, apostrophes dropped, anything else one underscore ("Coldshadow's Fantasy" is coldshadows_fantasy)
@@ -1401,146 +1502,233 @@ public:
 		return JsonNode(text.data(), text.size(), file);
 	}
 
-	void clearPicture()
+	static bool spriteExists(const std::string & imageName)
 	{
-		pictureTitle.reset();
-		pictureFrame.reset();
-		picture.reset();
-		pictureCaption.reset();
-		gallery.clear();
-		galleryAt = 0;
-		galleryElapsed = 0;
+		return !imageName.empty() && CResourceHandler::get()->existsResource(ImagePath::builtin("SPRITES/" + imageName)); // the loader adds the sprites folder itself, the lookup does not
 	}
 
-	/// the picture named `imageName` (a sprite of the module, no extension) scaled into the panel's width and `boxHeight` high, kept in its proportions and centred; false when the
-	/// module has no such picture
-	bool placeImage(const std::string & imageName, const std::string & caption)
+	/// the frames of a <name>.frames.json: each frame's levels as their own pictures when the module names them ("layers", S025 rows 25.2 and 25.3), else its one picture
+	std::vector<GalleryFrame> readFrames(const std::string & framesFile) const
 	{
-		const ImagePath path = ImagePath::builtin(imageName);
-		if(!CResourceHandler::get()->existsResource(ImagePath::builtin("SPRITES/" + imageName))) // the loader adds the sprites folder itself, the lookup does not
-			return false;
-		auto image = ENGINE->renderHandler().loadImage(path, EImageBlitMode::OPAQUE);
-		if(!image || image->width() <= 0 || image->height() <= 0)
-			return false;
-		OBJECT_CONSTRUCTION;
-		const int boxWidth = area.w - 28;
-		const double scale = std::min(static_cast<double>(boxWidth) / image->width(), static_cast<double>(pictureBoxHeight) / image->height());
-		const Point size(std::max(1, static_cast<int>(image->width() * scale + 0.5)), std::max(1, static_cast<int>(image->height() * scale + 0.5)));
-		const Point at((area.w - size.x) / 2, pictureTop + (pictureBoxHeight - size.y) / 2);
-		picture = std::make_shared<CPicture>(image, at);
-		picture->scaleTo(size);
-		pictureFrame = std::make_shared<TransparentFilledRectangle>(Rect(at.x - 1, at.y - 1, size.x + 2, size.y + 2), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
-		pictureCaption = std::make_shared<CMultiLineLabel>(Rect(14, pictureTop + pictureBoxHeight + 4, area.w - 28, 28), FONT_TINY, ETextAlignment::TOPCENTER, Colors::WHITE);
-		pictureCaption->setText(caption);
-		return true;
-	}
-
-	/// the heading and the box of a picture from `top` down; returns where the text below may start (`top` itself when there is no picture)
-	int placePicture(int top, const std::string & heading, int boxHeight, const std::string & imageName, const std::string & caption)
-	{
-		pictureTop = top + (heading.empty() ? 6 : 22);
-		pictureBoxHeight = boxHeight;
-		if(!placeImage(imageName, caption))
-			return top;
-		OBJECT_CONSTRUCTION;
-		if(!heading.empty())
-			pictureTitle = std::make_shared<CLabel>(area.w / 2, top + 10, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, heading);
-		return pictureTop + pictureBoxHeight + 4 + 26 + 4;
-	}
-
-	/// the open layout ("None"): the module's gallery of generated examples, one after the other
-	int placeGallery(int top, const std::string & framesFile = "frames.json", const std::string & heading = std::string())
-	{
+		std::vector<GalleryFrame> result;
 		const JsonNode frames = previewConfig(framesFile);
 		if(!frames["frames"].isVector())
-			return top;
-		for(const auto & frame : frames["frames"].Vector())
+			return result;
+		for(const auto & item : frames["frames"].Vector())
 		{
-			if(!frame["path"].isString())
+			if(!item["path"].isString())
 				continue;
-			const double seconds = frame["seconds"].isNumber() ? frame["seconds"].Float() : 2.5;
-			gallery.push_back({frame["path"].String(), frame["caption"].isString() ? frame["caption"].String() : std::string(), static_cast<uint32_t>(std::max(0.5, seconds) * 1000)});
+			GalleryFrame entry;
+			const std::string path = item["path"].String();
+			const std::string folder = path.substr(0, path.find_last_of('/') + 1);
+			const auto stem = [](const std::string & file) { return file.substr(0, file.find_last_of('.')); };
+			if(item["layers"].isVector())
+			{
+				const char * const labels[] = {"template.preview.surface", "template.preview.underground"};
+				size_t level = 0;
+				for(const auto & layer : item["layers"].Vector())
+				{
+					if(layer["file"].isString() && spriteExists(folder + stem(layer["file"].String())))
+						entry.layers.push_back({folder + stem(layer["file"].String()), layer["label"].isString() ? layer["label"].String() : tabText(labels[std::min<size_t>(level, 1)])});
+					level++;
+				}
+			}
+			if(entry.layers.empty() && spriteExists(path))
+				entry.layers.push_back({path, std::string()});
+			if(entry.layers.empty())
+				continue;
+			if(item["legendFile"].isString() && spriteExists(folder + stem(item["legendFile"].String())))
+				entry.legend = folder + stem(item["legendFile"].String());
+			entry.caption = item["caption"].isString() ? item["caption"].String() : std::string();
+			const double seconds = item["seconds"].isNumber() ? item["seconds"].Float() : 2.5;
+			entry.milliseconds = static_cast<uint32_t>(std::max(0.5, seconds) * 1000);
+			result.push_back(entry);
 		}
-		if(gallery.empty())
-			return top;
-		const int next = placePicture(top, heading, (area.w - 28) / 2, gallery.front().image, gallery.front().caption);
-		if(next == top)
-			gallery.clear();
-		return next;
+		return result;
 	}
 
-	/// a template's own picture (the module's `preview` name in template-info.json when it gives one, else the slug of the template's name)
-	int placeTemplatePicture(int top, const std::string & name, const JsonNode & entry)
+	/// a picture with no frames file: mapgen/preview/<slug> and the caption of <slug>.json
+	std::vector<GalleryFrame> readPicture(const std::string & slug) const
+	{
+		const std::string image = "mapgen/preview/" + slug;
+		if(!spriteExists(image))
+			return {};
+		GalleryFrame entry;
+		entry.layers.push_back({image, std::string()});
+		const JsonNode config = previewConfig(slug + ".json");
+		entry.caption = config["caption"].isString() ? config["caption"].String() : std::string();
+		return {entry};
+	}
+
+	/// a template's own pictures (the module's `preview` name in template-info.json when it gives one, else the slug of the template's name)
+	std::vector<GalleryFrame> templatePictures(const std::string & name, const JsonNode & entry) const
 	{
 		const std::string slug = entry["preview"].isString() ? entry["preview"].String() : pictureSlug(name);
 		if(slug.empty())
-			return top;
+			return {};
 		// DMB (K, November 2nd): a template with a <slug>.frames.json shows one picture per size it supports, one after the other, like the open layout's gallery
-		if(previewConfig(slug + ".frames.json")["frames"].isVector())
-		{
-			const int next = placeGallery(top, slug + ".frames.json");
-			if(next != top)
-				return next;
-		}
-		const JsonNode config = previewConfig(slug + ".json");
-		const std::string caption = config["caption"].isString() ? config["caption"].String() : std::string();
-		const bool wide = config["levels"].isNumber() && config["levels"].Integer() >= 2;
-		return placePicture(top, std::string(), wide ? (area.w - 28) / 2 : 150, "mapgen/preview/" + slug, caption);
+		auto frames = readFrames(slug + ".frames.json");
+		return frames.empty() ? readPicture(slug) : frames;
 	}
 
-	void showGalleryFrame()
+	/// makes the column for `sheet` and the gallery's current frame, and draws it; the scroll stays where it was unless `toTop`
+	void build(bool toTop = true)
 	{
-		if(gallery.empty())
-			return;
-		picture.reset();
-		pictureFrame.reset();
-		pictureCaption.reset();
-		placeImage(gallery[galleryAt].image, gallery[galleryAt].caption);
+		const int width = columnWidth();
+		previewPlaces.clear();
+		columnParts.clear();
+		column = std::make_shared<CIntObject>();
+		if(column->parent)
+			column->parent->removeChild(column.get()); // made while a window is being built: it must stay outside every window
+		column->moveTo(Point(0, 0));
+		{
+			OBJECT_CONSTRUCTION_TARGETED(column.get());
+			const auto keep = [this](auto widget) { columnParts.push_back(widget); return widget; };
+			auto columnBackground = keep(std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, width, 1)));
+			columnBackground->setPlayerColor(PlayerColor(1));
+			keep(std::make_shared<CLabel>(width / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, sheet.title));
+			int y = 44;
+			if(!sheet.specs.empty())
+			{
+				auto specs = keep(std::make_shared<CMultiLineLabel>(Rect(24, y + 30, width - 48, 400), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE));
+				specs->setText(sheet.specs);
+				const int boxHeight = 36 + specs->textSize.y + 10;
+				specs->pos.h = specs->textSize.y;
+				keep(std::make_shared<TransparentFilledRectangle>(Rect(12, y, width - 24, boxHeight), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1));
+				keep(std::make_shared<CLabel>(width / 2, y + 16, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, tabText("template.details.specs")));
+				y += boxHeight + 10;
+			}
+			if(!sheet.gallery.empty())
+			{
+				const GalleryFrame & shown = sheet.gallery[galleryAt % sheet.gallery.size()];
+				if(!sheet.heading.empty())
+				{
+					keep(std::make_shared<CLabel>(width / 2, y + 10, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, sheet.heading));
+					y += 22;
+				}
+				// K, November 5th: "give the template previews the entire width of the description/preview sidebar" and "stack underground preview vertically";
+				// each picture spans the column from the panel's frame to the scrollbar, in its own proportions
+				const int pictureWidth = width - 2 * 2;
+				const auto placeImage = [&](const std::string & imageName) -> Rect
+				{
+					auto image = ENGINE->renderHandler().loadImage(ImagePath::builtin(imageName), EImageBlitMode::OPAQUE);
+					if(!image || image->width() <= 0 || image->height() <= 0)
+						return Rect();
+					const Point size(pictureWidth, std::max(1, static_cast<int>(static_cast<double>(image->height()) * pictureWidth / image->width() + 0.5)));
+					auto picture = keep(std::make_shared<CPicture>(image, Point(2, y)));
+					picture->scaleTo(size);
+					return Rect(Point(2, y), size);
+				};
+				for(size_t layer = 0; layer < shown.layers.size(); layer++)
+				{
+					if(!shown.layers[layer].label.empty())
+					{
+						keep(std::make_shared<CLabel>(width / 2, y + 10, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, shown.layers[layer].label));
+						y += 22;
+					}
+					const Rect placed = placeImage(shown.layers[layer].image);
+					if(placed.w > 0)
+					{
+						previewPlaces.push_back({placed, layer});
+						y += placed.h + 6;
+					}
+				}
+				if(!shown.legend.empty())
+				{
+					const Rect placed = placeImage(shown.legend);
+					if(placed.w > 0)
+						y += placed.h + 6;
+				}
+				if(!shown.caption.empty())
+				{
+					auto caption = keep(std::make_shared<CMultiLineLabel>(Rect(14, y, width - 28, 200), FONT_TINY, ETextAlignment::TOPCENTER, Colors::WHITE));
+					caption->setText(shown.caption);
+					caption->pos.h = caption->textSize.y;
+					y += caption->textSize.y + 8;
+				}
+			}
+			for(const std::string * text : {&sheet.brief, &sheet.body})
+			{
+				if(text->empty())
+					continue;
+				auto label = keep(std::make_shared<CMultiLineLabel>(Rect(14, y, width - 28, 20000), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE));
+				label->setText(*text);
+				label->pos.h = label->textSize.y;
+				y += label->textSize.y + 10;
+			}
+			columnHeight = std::max(y + 4, area.h);
+			columnBackground->pos.h = columnHeight;
+		}
+		rendered = std::make_unique<Canvas>(Point(width, columnHeight), CanvasScalingPolicy::AUTO);
+		column->showAll(*rendered);
+
+		const int view = area.h - 4;
+		slider->setAmount(columnHeight - 4);
+		slider->block(columnHeight - 4 <= view);
+		if(toTop)
+			slider->scrollTo(0, false);
+		scroll = std::min(slider->getValue(), std::max(0, columnHeight - 4 - view));
 	}
 
-public:
+	void showAll(Canvas & to) override
+	{
+		background->showAll(to);
+		if(rendered)
+		{
+			const int view = area.h - 4;
+			Canvas visible(*rendered, Rect(0, scroll + 2, columnWidth(), std::min(view, columnHeight - scroll - 2)));
+			to.draw(visible, pos.topLeft() + Point(0, 2));
+		}
+		frame->showAll(to);
+		slider->showAll(to);
+	}
+
+	/// a click on a picture opens that level at full screen (S025 row 25.4)
+	void clickPressed(const Point & cursorPosition) override
+	{
+		const Point inColumn = cursorPosition - pos.topLeft() + Point(0, scroll);
+		if(cursorPosition.x >= slider->pos.x || sheet.gallery.empty())
+			return;
+		for(const auto & place : previewPlaces)
+		{
+			if(!place.place.isInside(inColumn))
+				continue;
+			const GalleryFrame & shown = sheet.gallery[galleryAt % sheet.gallery.size()];
+			std::vector<TemplatePreviewViewer::Layer> layers = shown.layers;
+			for(auto & layer : layers)
+				if(layer.label.empty())
+					layer.label = shown.caption;
+			ENGINE->windows().createAndPushWindow<TemplatePreviewViewer>(layers, place.layer);
+			return;
+		}
+	}
+
 	void tick(uint32_t msPassed) override
 	{
-		if(gallery.size() < 2)
+		if(sheet.gallery.size() < 2)
 			return;
 		galleryElapsed += msPassed;
-		if(galleryElapsed < gallery[galleryAt].milliseconds)
+		if(galleryElapsed < sheet.gallery[galleryAt % sheet.gallery.size()].milliseconds)
 			return;
 		galleryElapsed = 0;
-		galleryAt = (galleryAt + 1) % gallery.size();
-		showGalleryFrame();
+		galleryAt = (galleryAt + 1) % sheet.gallery.size();
+		build(false);
 		redraw();
 	}
 
 	int shown = -2;
 
-	/// the scrolling text, from `top` down to the panel's foot (made again for each entry: its place depends on the box above it)
-	void setBody(int top, const std::string & text)
-	{
-		OBJECT_CONSTRUCTION;
-		body = std::make_shared<CTextBox>(text, Rect(14, top, area.w - 28, area.h - top - 14), 1);
-		// the scrollbar's track is the game's black, which beside the blue handle read as a black block over half the bar (K, October 6th); a dark blue of the panel's own
-		body->setSliderTrackColor(ColorRGBA(10, 20, 60, 255));
-	}
-
-	/// the box of the original game's facts (K, October 6th: "i think everything in this box should be original game spec"); none when `lines` is empty
-	void setSpecs(const std::string & lines)
-	{
-		specsFrame.reset();
-		specsTitle.reset();
-		specs.reset();
-		if(lines.empty())
-			return;
-		OBJECT_CONSTRUCTION;
-		specs = std::make_shared<CMultiLineLabel>(Rect(24, 76, area.w - 48, 200), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE);
-		specs->setText(lines);
-		specsFrame = std::make_shared<TransparentFilledRectangle>(Rect(12, 46, area.w - 24, 36 + specs->textSize.y + 10), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
-		specsTitle = std::make_shared<CLabel>(area.w / 2, 62, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, tabText("template.details.specs"));
-	}
-
 	using CIntObject::show; // the id overload below must not hide the drawing one (clang's -Woverloaded-virtual, -Werror)
 
 	int shownWater = -2;
+
+	void setSheet(Sheet next)
+	{
+		sheet = std::move(next);
+		galleryAt = 0;
+		galleryElapsed = 0;
+		build(true);
+	}
 
 	/// DMB (item 18): the panel for a water layout (`stop`: 0 Lakes ... 6 Archipelago; anything else has no block and shows its list name only); a repeat is ignored
 	void showWater(int stop, const std::string & listName)
@@ -1549,30 +1737,23 @@ public:
 			return;
 		shownWater = stop;
 		shown = -2;
-		setSpecs("");
-		clearPicture();
 		static const char * const IDS[] = {"lakes", "coastal", "continental", "mediterranean", "highland", "islands", "archipelago"};
 		const bool known = stop >= 0 && stop < 7;
 		const JsonNode & entry = known ? info["waterLayouts"][IDS[stop]] : info["waterLayouts"]["none"];
-		title->setText(entry["label"].isString() ? entry["label"].String() : listName);
-		int next = 44;
+		Sheet next;
+		next.title = entry["label"].isString() ? entry["label"].String() : listName;
 		if(known)
 		{
 			const std::string slug = std::string("water_") + IDS[stop];
-			if(previewConfig(slug + ".frames.json")["frames"].isVector())
-				next = placeGallery(44, slug + ".frames.json");
-			if(next == 44)
-			{
-				const JsonNode config = previewConfig(slug + ".json");
-				next = placePicture(44, std::string(), (area.w - 28) / 2, "mapgen/preview/" + slug, config["caption"].isString() ? config["caption"].String() : std::string());
-			}
+			next.gallery = readFrames(slug + ".frames.json");
+			if(next.gallery.empty())
+				next.gallery = readPicture(slug);
 		}
-		std::string text;
 		if(entry["oneLine"].isString())
-			text += "{" + entry["oneLine"].String() + "}\n\n";
+			next.brief = "{" + entry["oneLine"].String() + "}";
 		if(entry["description"].isString())
-			text += entry["description"].String();
-		setBody(next, text);
+			next.body = entry["description"].String();
+		setSheet(std::move(next));
 	}
 
 	/// the entry with this id (an index of the list the window was made from; -1 for none, when a search matches nothing); a repeat is ignored
@@ -1581,12 +1762,10 @@ public:
 		if(id == shown)
 			return;
 		shown = id;
-		setSpecs("");
-		clearPicture();
+		Sheet next;
 		if(id < 0 || id >= static_cast<int>(values.size()))
 		{
-			title->setText("");
-			setBody(44, "");
+			setSheet(std::move(next));
 			return;
 		}
 		std::string value = values[id];
@@ -1619,21 +1798,27 @@ public:
 		if(value.empty())
 		{
 			// the entry in the list is cut to the list's width: the whole line is the first line here
-			title->setText(tabText("template.details.noneTitle"));
-			setBody(placeGallery(44, "frames.json", tabText("template.details.layoutOpen")), "{" + tabText("template.none") + "}" + std::string(2, '\n') + tabText("template.details.none"));
+			next.title = tabText("template.details.noneTitle");
+			next.heading = tabText("template.details.layoutOpen");
+			next.gallery = readFrames("frames.json");
+			next.brief = "{" + tabText("template.none") + "}";
+			next.body = tabText("template.details.none");
+			setSheet(std::move(next));
 			return;
 		}
 		if(value == RANDOM_TEMPLATE)
 		{
-			title->setText(tabText("template.random"));
-			setBody(44, tabText("template.details.random"));
+			next.title = tabText("template.random");
+			next.body = tabText("template.details.random");
+			setSheet(std::move(next));
 			return;
 		}
-		title->setText(value);
+		next.title = value;
 		const JsonNode & entry = info["templates"][value];
 		if(!entry.isStruct())
 		{
-			setBody(44, tabText("template.details.missing"));
+			next.body = tabText("template.details.missing");
+			setSheet(std::move(next));
 			return;
 		}
 		std::string lines;
@@ -1685,10 +1870,13 @@ public:
 		}
 		if(!lines.empty() && lines.back() == '\n')
 			lines.pop_back();
-		setSpecs(lines);
+		next.specs = lines;
 
-		// outside the box: what this suite does with it. The module's underground sentence names the original's levels first and then
-		// what the suite adds, after a semicolon; the part after it stands here
+		// after the pictures: the module's brief text (S025 row 25.7, when it gives one), then what this suite does with the template (the module's
+		// underground sentence names the original's levels first and then what the suite adds, after a semicolon; the part after it stands here) and the
+		// full description
+		if(entry["brief"].isString())
+			next.brief = entry["brief"].String();
 		std::string text;
 		const std::string underground = entry["underground"].isString() ? entry["underground"].String() : std::string();
 		const auto cut = underground.find("; ");
@@ -1701,12 +1889,15 @@ public:
 		}
 		if(entry["description"].isString())
 			text += entry["description"].String();
-		const int top = specsFrame ? specsFrame->pos.h + 46 + 10 : 44;
-		int next = placeTemplatePicture(top, value, entry);
+		next.body = text;
+		next.gallery = templatePictures(value, entry);
 		// the module's open layout is an entry of the list now (Classic), with no picture of its own: the gallery of generated examples stands there, as it did on "None"
-		if(next == top && entry["openLayout"].isBool() && entry["openLayout"].Bool())
-			next = placeGallery(top, "frames.json", tabText("template.details.layoutOpen"));
-		setBody(next, text);
+		if(next.gallery.empty() && entry["openLayout"].isBool() && entry["openLayout"].Bool())
+		{
+			next.heading = tabText("template.details.layoutOpen");
+			next.gallery = readFrames("frames.json");
+		}
+		setSheet(std::move(next));
 	}
 };
 

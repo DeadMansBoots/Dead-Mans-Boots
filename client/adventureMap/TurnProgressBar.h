@@ -98,6 +98,30 @@ public:
 	void endTurn();
 };
 
+/// DMB (K, November 5th, S015: "there should be a minimize button (I think we should make it the top-left corner ui button, we can make it light up
+/// when a player hovers over it, and have it blink when a player clicks it as visual feedback)"): a small framed button at the top left of the turn bars, left of
+/// the first bar's frame. A click folds the bars to one line (the button and a square in each listed player's colour) and a second click unfolds them; the choice
+/// is kept in settings (adventure.turnBarFolded, per PC). It lights while the pointer is over it and flashes once when clicked.
+class TurnBarFoldButton : public CIntObject
+{
+	std::function<void()> onClick;
+	bool hovered = false;
+	/// the time left of the flash a click starts, in milliseconds
+	int flashMs = 0;
+	bool folded = false;
+
+	void hover(bool on) override;
+	void clickPressed(const Point & cursorPosition) override;
+	void tick(uint32_t msPassed) override;
+	void showAll(Canvas & to) override;
+	void show(Canvas & to) override;
+
+public:
+	static constexpr int SIZE = 14;
+	TurnBarFoldButton(std::function<void()> onClick);
+	void setFolded(bool value);
+};
+
 /// DMB (K, October 18th: "it should show my allies, their names, their colors, their progress"): the viewing player's bar first, then one for each ally in colour order,
 /// AI allies included, stacked downward from the top left of the map, under the turn timer when there is one. Who is listed is read from the game state at every
 /// frame: an ally who is eliminated loses the bar, and in hot seat the list follows the player whose screen it is. Shown when more than one human plays or the
@@ -110,17 +134,30 @@ class TurnProgressBars : public CIntObject
 	Rect mapArea;
 	int humans;
 	std::vector<std::shared_ptr<TurnProgressBar>> bars;
+	/// S015: the minimize button, and whether the bars are folded to the one-line strip of colour squares
+	std::shared_ptr<TurnBarFoldButton> foldButton;
+	bool folded = false;
+	/// the strip's squares when folded: one per listed player, right of the button
+	std::vector<std::pair<Rect, PlayerColor>> squares;
 	/// where bars were before they moved or went: the map paints those tiles fresh once
 	std::vector<Rect> vacated;
 
 	/// the players listed now: the viewer, then the viewer's allies in colour order, each still in the game
 	std::vector<PlayerColor> members() const;
-	/// matches the bars to the members, keeping each bar that stays, and places them
-	void refresh();
+	/// matches the bars to the members, keeping each bar that stays, and places them (force: place them again, after a fold or an unfold)
+	void refresh(bool force = false);
+	void toggleFold();
 	void tick(uint32_t msPassed) override;
+	void showAll(Canvas & to) override;
+	void show(Canvas & to) override;
 
 public:
 	TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans);
+	~TurnProgressBars();
+
+	/// the minimize button's area on screen while it is shown: a click there is the button's, not the map's (MapViewActions::receiveEvent)
+	static Rect buttonArea;
+	static bool coversPoint(const Point & point);
 
 	/// the screen areas whose tiles the map paints fresh this frame: every bar, and where a bar was before it moved or went
 	std::vector<Rect> takeRepaintAreas();

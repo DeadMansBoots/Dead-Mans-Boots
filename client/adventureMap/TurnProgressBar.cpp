@@ -21,6 +21,7 @@
 #include "../render/IRenderHandler.h"
 #include "../widgets/TextControls.h"
 
+#include "../../lib/CConfigHandler.h"
 #include "../../lib/CPlayerState.h"
 #include "../../lib/StartInfo.h"
 #include "../../lib/callback/CCallback.h"
@@ -554,6 +555,68 @@ void TurnProgressBar::show(Canvas & to)
 	}
 }
 
+TurnBarFoldButton::TurnBarFoldButton(std::function<void()> onClick)
+	: CIntObject(LCLICK | HOVER | TIME)
+	, onClick(onClick)
+{
+	pos.w = SIZE;
+	pos.h = SIZE;
+	recActions &= ~DEACTIVATE;
+}
+
+void TurnBarFoldButton::setFolded(bool value)
+{
+	folded = value;
+}
+
+void TurnBarFoldButton::hover(bool on)
+{
+	hovered = on;
+}
+
+void TurnBarFoldButton::clickPressed(const Point &)
+{
+	// one flash as the click's feedback (K's "blink"), then the fold or unfold
+	flashMs = 180;
+	if(onClick)
+		onClick();
+}
+
+void TurnBarFoldButton::tick(uint32_t msPassed)
+{
+	flashMs = std::max(0, flashMs - static_cast<int>(msPassed));
+}
+
+void TurnBarFoldButton::showAll(Canvas & to)
+{
+	show(to);
+}
+
+void TurnBarFoldButton::show(Canvas & to)
+{
+	// a small box in the bars' own metal: dark outline, gold rim, a plum face; lit (brighter rim and face) while the pointer is over it, white-gold for the flash
+	const ColorRGBA dark(45, 28, 8, 255);
+	const ColorRGBA gold = flashMs > 0 ? ColorRGBA(255, 246, 200, 255) : hovered ? ColorRGBA(255, 226, 130, 255) : ColorRGBA(214, 170, 70, 255);
+	const ColorRGBA face = flashMs > 0 ? ColorRGBA(250, 232, 160, 255) : hovered ? ColorRGBA(96, 40, 104, 255) : ColorRGBA(44, 10, 48, 255);
+	const ColorRGBA mark = flashMs > 0 ? dark : hovered ? ColorRGBA(255, 246, 200, 255) : gold;
+	to.drawColor(pos, face);
+	to.drawBorder(pos, dark, 1);
+	to.drawBorder(Rect(pos.x + 1, pos.y + 1, pos.w - 2, pos.h - 2), gold, 1);
+	// the mark: a bar for fold, a cross for unfold
+	const int cx = pos.x + pos.w / 2;
+	const int cy = pos.y + pos.h / 2;
+	to.drawColor(Rect(cx - 3, cy - 1, 7, 2), mark);
+	if(folded)
+		to.drawColor(Rect(cx - 1, cy - 3, 2, 7), mark);
+}
+
+Rect TurnProgressBars::buttonArea = Rect();
+
+bool TurnProgressBars::coversPoint(const Point & point)
+{
+	return buttonArea.w > 0 && buttonArea.isInside(point);
+}
+
 TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans)
 	: CIntObject(TIME)
 	, timer(timer)
@@ -561,7 +624,28 @@ TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapAr
 	, humans(humans)
 {
 	recActions &= ~DEACTIVATE;
-	refresh();
+	folded = settings["adventure"]["turnBarFolded"].Bool();
+	{
+		OBJECT_CONSTRUCTION;
+		foldButton = std::make_shared<TurnBarFoldButton>([this](){ toggleFold(); });
+	}
+	foldButton->setFolded(folded);
+	refresh(true);
+}
+
+TurnProgressBars::~TurnProgressBars()
+{
+	buttonArea = Rect();
+}
+
+void TurnProgressBars::toggleFold()
+{
+	folded = !folded;
+	Settings entry = settings.write["adventure"]["turnBarFolded"];
+	entry->Bool() = folded;
+	foldButton->setFolded(folded);
+	logGlobal->info("Turn bars %s (S015 minimize button)", folded ? "folded" : "unfolded");
+	refresh(true);
 }
 
 std::vector<PlayerColor> TurnProgressBars::members() const
@@ -597,10 +681,10 @@ std::vector<PlayerColor> TurnProgressBars::members() const
 	return result;
 }
 
-void TurnProgressBars::refresh()
+void TurnProgressBars::refresh(bool force)
 {
 	const auto wanted = members();
-	bool changed = wanted.size() != bars.size();
+	bool changed = force || wanted.size() != bars.size();
 	for(size_t i = 0; !changed && i < wanted.size(); ++i)
 		changed = bars[i]->getPlayer() != wanted[i];
 	if(!changed)
@@ -620,13 +704,47 @@ void TurnProgressBars::refresh()
 		if(std::find(next.begin(), next.end(), bar) == next.end())
 			vacated.push_back(bar->pos);
 	bars = std::move(next);
+	// enable() opens every action again; the bars and the button keep running while a window covers the map, as built (DEACTIVATE stays off)
+	const auto setShown = [](CIntObject & widget, bool on)
+	{
+		widget.setEnabled(on);
+		if(on)
+			widget.recActions &= ~DEACTIVATE;
+	};
+	// the button and the strip's squares lie over the map like the bars: their old places are painted fresh once
+	vacated.push_back(foldButton->pos);
+	for(const auto & square : squares)
+		vacated.push_back(square.first);
+	squares.clear();
 	if(bars.empty())
+	{
+		setShown(*foldButton, false);
+		buttonArea = Rect();
 		return;
+	}
 
 	// placed by what each draws: with the timer, the first bar's top is 6 pixels below the timer's bottom and its frame lines up with the timer's left edge; without
-	// one, its frame is where the timer would be
+	// one, its frame is where the timer would be. S015: the minimize button takes that corner, level with the first bar's frame, and the bars start right of it
 	const Point frame = bars.front()->frameOffset();
-	const Point origin = timer ? Point(timer->x - frame.x, timer->y + timer->h + 6) : Point(24, 24) - frame;
+	const Point corner = timer ? Point(timer->x, timer->y + timer->h + 6 + frame.y) : Point(24, 24);
+	const int frameHeight = bars.front()->pos.h - frame.y;
+	setShown(*foldButton, true);
+	foldButton->moveTo(Point(corner.x, corner.y + (frameHeight - TurnBarFoldButton::SIZE) / 2));
+	buttonArea = foldButton->pos;
+	const int step = TurnBarFoldButton::SIZE + 4;
+	for(const auto & bar : bars)
+		setShown(*bar, !folded);
+	if(folded)
+	{
+		// one line: a square in each listed player's colour, right of the button, in the order the bars stand
+		for(size_t i = 0; i < bars.size(); ++i)
+		{
+			vacated.push_back(bars[i]->pos);
+			squares.emplace_back(Rect(foldButton->pos.x + static_cast<int>(i + 1) * step, foldButton->pos.y, TurnBarFoldButton::SIZE, TurnBarFoldButton::SIZE), bars[i]->getPlayer());
+		}
+		return;
+	}
+	const Point origin = Point(corner.x + step, corner.y) - frame;
 	std::vector<TurnProgressMath::Size> sizes;
 	for(const auto & bar : bars)
 		sizes.push_back({bar->pos.w, bar->pos.h});
@@ -647,10 +765,37 @@ void TurnProgressBars::tick(uint32_t)
 	refresh();
 }
 
+void TurnProgressBars::showAll(Canvas & to)
+{
+	show(to);
+}
+
+void TurnProgressBars::show(Canvas & to)
+{
+	CIntObject::show(to);
+	// the folded strip: each square in the player's colour, in the button's dark outline and gold rim
+	for(const auto & [area, player] : squares)
+	{
+		const ColorRGBA colour = player.isValidPlayer() && player.getNum() < 8 ? graphics->playerColors[player.getNum()] : ColorRGBA(150, 150, 150, 255);
+		to.drawColor(area, colour);
+		to.drawBorder(area, ColorRGBA(45, 28, 8, 255), 1);
+		to.drawBorder(Rect(area.x + 1, area.y + 1, area.w - 2, area.h - 2), ColorRGBA(214, 170, 70, 255), 1);
+	}
+}
+
 std::vector<Rect> TurnProgressBars::takeRepaintAreas()
 {
 	std::vector<Rect> areas = std::move(vacated);
 	vacated.clear();
+	if(bars.empty())
+		return areas;
+	areas.push_back(foldButton->pos);
+	if(folded)
+	{
+		for(const auto & square : squares)
+			areas.push_back(square.first);
+		return areas;
+	}
 	for(const auto & bar : bars)
 		areas.push_back(bar->pos);
 	return areas;

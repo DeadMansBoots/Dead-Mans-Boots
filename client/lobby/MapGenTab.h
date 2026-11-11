@@ -45,6 +45,8 @@ public:
 	std::shared_ptr<CLabel> label(const std::string & name) const;
 	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
 	std::shared_ptr<CTextInput> textInput(const std::string & name) const;
+	/// every widget the page's layout named (the tab greys some: D94)
+	using InterfaceObjectConfigurable::namedWidgets;
 };
 
 class MapGenTab : public InterfaceObjectConfigurable
@@ -107,6 +109,16 @@ class MapGenTab : public InterfaceObjectConfigurable
 	std::string templateName() const;
 	/// DMB (K, November 1st): the sentence the module's help text takes for {templatePreference}: the chosen template's own start rule (template-info.json)
 	std::string templatePreferenceSentence() const;
+	/// the chosen template's entry of the module's template-info.json (the open layout's and Random's own entries for those choices); null when there is none
+	JsonNode chosenTemplateInfo() const;
+	/// DMB (D94 and S044, K October 6th: a switch that says "Restrict all settings to original template preferences"; K November 1st: "template preference
+	/// setting for coldshadow would mean 2 levels"). The switch is map/restrictToTemplate (1 on), so it travels with the other settings to the guests and is
+	/// remembered with them. On: every lever the chosen template's originalPreferences names is set to its value, the underground follows the template, size,
+	/// humans and players are moved inside its ranges; off: everything is the player's again.
+	bool templateRestricted() const;
+	void applyTemplatePreferences();
+	/// greys on a page built while the switch is on: the controls bound to a lever the template names and the size, humans and computer choices outside its ranges
+	void greyRestricted(MapGenPage & page, const JsonNode & items) const;
 	/// the chosen template as a label shows it: its name, "(Random)" or the tab's "none" text
 	std::string templateLabel() const;
 	std::string preset() const;

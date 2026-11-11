@@ -463,6 +463,13 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	// that together again (at Begin it would be too late: a new map resets the towns picked)
 	onSettingChanged = [this](const std::string & setting)
 	{
+		// DMB (D94, S044): the switch to the template's own preferences: on applies them; on or off, the pages are built again with the controls greyed or not
+		if(setting == "persistent:mapGen/map/restrictToTemplate")
+		{
+			if(templateRestricted())
+				applyTemplatePreferences();
+			refreshPagesAfterClick();
+		}
 		if(setting == "persistent:mapGen/map/size")
 			clearCustomSize(); // a standard size picked after a custom one replaces it
 		if(setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
@@ -635,7 +642,8 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 		logGlobal->error("Map generator %s: page %d is missing from the mod %s", generator.name, static_cast<int>(index), generator.modID);
 		return std::make_shared<CIntObject>();
 	}
-	return std::make_shared<MapGenPage>(JsonNode(JsonPath::builtin(pageFiles[index]), generator.modID),
+	const JsonNode layout(JsonPath::builtin(pageFiles[index]), generator.modID);
+	return std::make_shared<MapGenPage>(layout,
 		[this](MapGenPage & page)
 		{
 			page.setCallback("chooseMapGenTemplate", [this](int) { chooseTemplate(); });
@@ -651,8 +659,10 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 				return chooseWaterLayout(generator.modID, setting, names, values, current, title, help, apply);
 			});
 		},
-		[this](MapGenPage & page)
+		[this, layout](MapGenPage & page)
 		{
+			if(templateRestricted())
+				greyRestricted(page, layout["items"]);
 			if(auto name = page.label("labelTemplateName"))
 				name->setText(templateLabel());
 			// the page is not the tab's current one yet while it is built: grey its own boxes
@@ -1146,19 +1156,18 @@ std::vector<std::string> MapGenTab::approvedNames() const
 	return names;
 }
 
-std::string MapGenTab::templatePreferenceSentence() const
+JsonNode MapGenTab::chosenTemplateInfo() const
 {
-	const std::string fallback = "the chosen template's own rule";
 	const auto folder = AddonCode::modFolder(generator.modID);
 	if(!folder)
-		return fallback;
+		return JsonNode();
 	std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
 	if(!in)
-		return fallback;
+		return JsonNode();
 	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 	const JsonNode info(text.data(), text.size(), "template-info.json");
 	if(!info["templates"].isStruct())
-		return fallback;
+		return JsonNode();
 	// the value stored for the choice: empty is the open layout's entry, RANDOM_TEMPLATE the Random entry, else the template of that name
 	const std::string chosen = templateName();
 	std::string key = chosen;
@@ -1173,9 +1182,161 @@ std::string MapGenTab::templatePreferenceSentence() const
 			}
 	}
 	for(const auto & item : info["templates"].Struct())
-		if(boost::iequals(item.first, key) && item.second["templatePreference"].isString() && !item.second["templatePreference"].String().empty())
-			return item.second["templatePreference"].String();
-	return fallback;
+		if(boost::iequals(item.first, key))
+			return item.second;
+	return JsonNode();
+}
+
+std::string MapGenTab::templatePreferenceSentence() const
+{
+	const JsonNode entry = chosenTemplateInfo();
+	if(entry["templatePreference"].isString() && !entry["templatePreference"].String().empty())
+		return entry["templatePreference"].String();
+	return "the chosen template's own rule";
+}
+
+bool MapGenTab::templateRestricted() const
+{
+	const JsonNode & stored = persistentStorage["mapGen"]["map"]["restrictToTemplate"];
+	return stored.isNumber() && stored.Integer() != 0;
+}
+
+void MapGenTab::applyTemplatePreferences()
+{
+	const JsonNode preferences = chosenTemplateInfo()["originalPreferences"];
+	if(!preferences.isStruct())
+		return;
+	for(const auto & [lever, value] : preferences["levers"].Struct())
+	{
+		Settings stored = persistentStorage.write["mapGen"]["params"][lever];
+		*stored.operator->() = value;
+	}
+	const JsonNode & ranges = preferences["ranges"];
+	if(ranges["underground"].isString())
+	{
+		Settings stored = persistentStorage.write["mapGen"]["map"]["underground"];
+		stored->Integer() = ranges["underground"].String() == "on" ? 1 : 0;
+	}
+	// the size: a standard size (or a custom one, read by its width) outside the template's range becomes the nearest standard size inside it; Random too
+	if(ranges["sizeMin"].isNumber() && ranges["sizeMax"].isNumber())
+	{
+		const int low = static_cast<int>(ranges["sizeMin"].Integer());
+		const int high = static_cast<int>(ranges["sizeMax"].Integer());
+		int size = mapSetting("size");
+		if(size == 0)
+			size = mapSetting("width");
+		if(size < low || size > high)
+		{
+			static const int STANDARD[] = {36, 72, 108, 144, 180, 216, 252};
+			int nearest = 0;
+			for(const int standard : STANDARD)
+				if(standard >= low && standard <= high && (nearest == 0 || std::abs(standard - size) < std::abs(nearest - size)))
+					nearest = standard;
+			if(nearest != 0)
+			{
+				clearCustomSize();
+				Settings stored = persistentStorage.write["mapGen"]["map"]["size"];
+				stored->Integer() = nearest;
+			}
+		}
+	}
+	// humans, and the computer players beside them, inside the template's player counts; Random humans become the most it allows
+	int humans = mapSetting("humans");
+	if(ranges["humansMax"].isNumber() && (humans < 0 || humans > ranges["humansMax"].Integer()))
+	{
+		humans = static_cast<int>(ranges["humansMax"].Integer());
+		Settings stored = persistentStorage.write["mapGen"]["map"]["humans"];
+		stored->Integer() = humans;
+	}
+	const JsonNode & computersStored = persistentStorage["mapGen"]["params"]["compOnly"];
+	const int computers = computersStored.isNumber() ? static_cast<int>(computersStored.Integer()) : -1;
+	if(humans >= 0 && computers >= 0)
+	{
+		int wanted = computers;
+		if(ranges["playersMax"].isNumber() && humans + wanted > ranges["playersMax"].Integer())
+			wanted = std::max(0, static_cast<int>(ranges["playersMax"].Integer()) - humans);
+		if(ranges["playersMin"].isNumber() && humans + wanted < ranges["playersMin"].Integer())
+			wanted = static_cast<int>(ranges["playersMin"].Integer()) - humans;
+		if(wanted != computers)
+		{
+			Settings stored = persistentStorage.write["mapGen"]["params"]["compOnly"];
+			stored->Integer() = wanted;
+		}
+	}
+}
+
+void MapGenTab::greyRestricted(MapGenPage & page, const JsonNode & items) const
+{
+	const JsonNode preferences = chosenTemplateInfo()["originalPreferences"];
+	if(!preferences.isStruct())
+		return;
+	const JsonNode & ranges = preferences["ranges"];
+	std::map<std::string, std::shared_ptr<CIntObject>> widgets;
+	for(const auto & [name, object] : page.namedWidgets())
+		widgets[name] = object;
+	const auto grey = [](const std::shared_ptr<CIntObject> & object)
+	{
+		if(auto slider = std::dynamic_pointer_cast<CSlider>(object))
+			slider->block(true);
+		else if(auto button = std::dynamic_pointer_cast<CButton>(object))
+			button->block(true);
+		else if(auto group = std::dynamic_pointer_cast<CToggleGroup>(object))
+		{
+			for(const auto & entry : group->buttons)
+				if(auto toggle = std::dynamic_pointer_cast<CButton>(entry.second))
+					toggle->block(true);
+		}
+		else if(auto input = std::dynamic_pointer_cast<CTextInput>(object))
+			input->disable();
+	};
+	const int humans = mapSetting("humans");
+	for(const auto & item : items.Vector())
+	{
+		if(!item["name"].isString() || !item["setting"].isString())
+			continue;
+		const auto found = widgets.find(item["name"].String());
+		if(found == widgets.end())
+			continue;
+		const std::string setting = item["setting"].String();
+		const std::string lever = boost::algorithm::starts_with(setting, "persistent:mapGen/params/") ? setting.substr(std::string("persistent:mapGen/params/").size()) : std::string();
+		if(!lever.empty() && lever != "compOnly" && preferences["levers"][lever].isNumber())
+		{
+			grey(found->second);
+			continue;
+		}
+		if(setting == "persistent:mapGen/map/underground" && ranges["underground"].isString())
+		{
+			grey(found->second);
+			continue;
+		}
+		if(setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
+		{
+			if(ranges["sizeMin"].isNumber())
+				grey(found->second); // a custom size would leave the template's range; the standard sizes inside it stay
+			continue;
+		}
+		// a row of choices: the ones outside the template's range are greyed (Random among them, which could leave it)
+		auto group = std::dynamic_pointer_cast<CToggleGroup>(found->second);
+		if(!group || !item["values"].isVector())
+			continue;
+		for(const auto & entry : group->buttons)
+		{
+			if(entry.first < 0 || entry.first >= static_cast<int>(item["values"].Vector().size()))
+				continue;
+			const int value = static_cast<int>(item["values"].Vector()[entry.first].Integer());
+			bool outside = false;
+			if(setting == "persistent:mapGen/map/size" && ranges["sizeMin"].isNumber() && ranges["sizeMax"].isNumber())
+				outside = value < ranges["sizeMin"].Integer() || value > ranges["sizeMax"].Integer();
+			else if(setting == "persistent:mapGen/map/humans" && ranges["humansMax"].isNumber())
+				outside = value < 0 || value > ranges["humansMax"].Integer();
+			else if(setting == "persistent:mapGen/params/compOnly" && humans >= 0)
+				outside = (ranges["playersMax"].isNumber() && (value < 0 || humans + value > ranges["playersMax"].Integer()))
+					|| (ranges["playersMin"].isNumber() && value >= 0 && humans + value < ranges["playersMin"].Integer());
+			if(outside)
+				if(auto toggle = std::dynamic_pointer_cast<CButton>(entry.second))
+					toggle->block(true);
+		}
+	}
 }
 
 static std::vector<std::pair<std::string, bool>> listEntriesFor(const std::string & modID);

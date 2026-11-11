@@ -744,7 +744,8 @@ void TurnProgressBars::refresh(bool force)
 		}
 		return;
 	}
-	const Point origin = Point(corner.x + step, corner.y) - frame;
+	// the bars' frames start right of the button by the gem the trim sets over each end (END_PIECE): the first pictures had Anna's left gem over the button
+	const Point origin = Point(corner.x + step + END_PIECE, corner.y) - frame;
 	std::vector<TurnProgressMath::Size> sizes;
 	for(const auto & bar : bars)
 		sizes.push_back({bar->pos.w, bar->pos.h});

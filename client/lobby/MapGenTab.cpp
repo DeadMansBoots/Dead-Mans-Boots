@@ -1385,7 +1385,6 @@ class TemplateInfoPanel : public CIntObject
 	static constexpr int SLIDER_WIDTH = 16;
 
 	std::shared_ptr<FilledTexturePlayerColored> background;
-	std::shared_ptr<TransparentFilledRectangle> frame;
 	std::shared_ptr<CSlider> slider;
 	Rect area;
 	JsonNode info;
@@ -1464,7 +1463,6 @@ public:
 		pos.h = area.h;
 		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, area.w, area.h));
 		background->setPlayerColor(PlayerColor(1));
-		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, area.w, area.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2);
 		slider = std::make_shared<CSlider>(Point(area.w - SLIDER_WIDTH - 2, 2), area.h - 4, [this](int to){ scroll = to; redraw(); }, area.h - 4, area.h - 4, 0, Orientation::VERTICAL, CSlider::BLUE);
 		slider->setScrollStep(24);
 		slider->setScrollBounds(pos - slider->pos.topLeft());
@@ -1677,7 +1675,7 @@ public:
 			Canvas visible(*rendered, Rect(0, scroll + 2, columnWidth(), std::min(view, columnHeight - scroll - 2)));
 			to.draw(visible, pos.topLeft() + Point(0, 2));
 		}
-		frame->showAll(to);
+		to.drawBorder(Rect(pos.topLeft(), Point(area.w, area.h)), ColorRGBA(212, 175, 55, 255), 2); // the panel's gold frame, over the column's edges
 		slider->showAll(to);
 	}
 

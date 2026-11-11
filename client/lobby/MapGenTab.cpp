@@ -1716,40 +1716,12 @@ public:
 
 	using CIntObject::show; // the id overload below must not hide the drawing one (clang's -Woverloaded-virtual, -Werror)
 
-	int shownWater = -2;
-
 	void setSheet(Sheet next)
 	{
 		sheet = std::move(next);
 		galleryAt = 0;
 		galleryElapsed = 0;
 		build(true);
-	}
-
-	/// DMB (item 18): the panel for a water layout (`stop`: 0 Lakes ... 6 Archipelago; anything else has no block and shows its list name only); a repeat is ignored
-	void showWater(int stop, const std::string & listName)
-	{
-		if(stop == shownWater)
-			return;
-		shownWater = stop;
-		shown = -2;
-		static const char * const IDS[] = {"lakes", "coastal", "continental", "mediterranean", "highland", "islands", "archipelago"};
-		const bool known = stop >= 0 && stop < 7;
-		const JsonNode & entry = known ? info["waterLayouts"][IDS[stop]] : info["waterLayouts"]["none"];
-		Sheet next;
-		next.title = entry["label"].isString() ? entry["label"].String() : listName;
-		if(known)
-		{
-			const std::string slug = std::string("water_") + IDS[stop];
-			next.gallery = readFrames(slug + ".frames.json");
-			if(next.gallery.empty())
-				next.gallery = readPicture(slug);
-		}
-		if(entry["oneLine"].isString())
-			next.brief = "{" + entry["oneLine"].String() + "}";
-		if(entry["description"].isString())
-			next.body = entry["description"].String();
-		setSheet(std::move(next));
 	}
 
 	/// the entry with this id (an index of the list the window was made from; -1 for none, when a search matches nothing); a repeat is ignored
@@ -1897,29 +1869,126 @@ public:
 	}
 };
 
-/// DMB (K, November 3rd, item 18): the Water layout list's panel is the template panel showing a block of the module's template-info.json "waterLayouts" (label, description) and
-/// the layout's pictures (water_<id>.frames.json, else water_<id>.png). `stop` is the layout's number in the module's list (0 Lakes ... 6 Archipelago; Random and Template have no block)
-class WaterLayoutListWindow : public CObjectListWindow
+/// DMB (S036, K November 4th): "use the preview symbology/theme to illustrate water configurations as well in that water template selection menu, along with
+/// their descriptions"; on the mockup water_menu_v2.png: "AMAZING, AND EXACTLY WHAT I WANT TO SEE". Every layout at once, two to a row: its map picture (the
+/// module's water_<id> picture: the preferred frame of water_<id>.frames.json, else water_<id>.png), its name and its brief line (template-info.json
+/// "waterLayouts" oneLine) beside it. A click on a layout picks it; the cancel button leaves the choice as it was. A choice with no block (Random, Template)
+/// is its name alone.
+class WaterLayoutMenu : public CWindowObject
 {
-	std::shared_ptr<TemplateInfoPanel> panel;
-	std::vector<std::string> optionNames;
-	std::vector<int> stops;
+	std::shared_ptr<FilledTexturePlayerColored> background;
+	std::shared_ptr<CLabel> heading;
+	std::vector<std::shared_ptr<CIntObject>> parts;
+	std::vector<std::pair<Rect, int>> cards; // where each choice is drawn, and its index in the list
+	std::function<void(int)> apply;
+	std::shared_ptr<CButton> buttonCancel;
+
+	static std::string pictureFor(const std::optional<boost::filesystem::path> & module, const std::string & slug)
+	{
+		const auto exists = [](const std::string & image) { return CResourceHandler::get()->existsResource(ImagePath::builtin("SPRITES/" + image)); };
+		if(module)
+		{
+			std::ifstream in((*module / "Content" / "config" / "mapgen" / "preview" / (slug + ".frames.json")).c_str(), std::ios::binary);
+			if(in)
+			{
+				const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+				const JsonNode frames(text.data(), text.size(), slug + ".frames.json");
+				std::string first;
+				for(const auto & frame : frames["frames"].Vector())
+				{
+					if(!frame["path"].isString() || !exists(frame["path"].String()))
+						continue;
+					if(frame["preferred"].isBool() && frame["preferred"].Bool())
+						return frame["path"].String();
+					if(first.empty())
+						first = frame["path"].String();
+				}
+				if(!first.empty())
+					return first;
+			}
+		}
+		const std::string single = "mapgen/preview/" + slug;
+		return exists(single) ? single : std::string();
+	}
 
 public:
-	WaterLayoutListWindow(const std::vector<std::string> & names, const std::vector<int> & stopOf, const JsonNode & infoFile, const std::optional<boost::filesystem::path> & moduleFolder,
-		std::string heading, std::string description, std::function<void(int)> callback, size_t current)
-		: CObjectListWindow(names, nullptr, heading, description, callback, current, std::vector<std::shared_ptr<IImage>>(), true), optionNames(names), stops(stopOf)
+	WaterLayoutMenu(const std::vector<std::string> & names, const std::vector<int> & stops, const JsonNode & info, const std::optional<boost::filesystem::path> & module,
+		const std::string & title, std::function<void(int)> callback, size_t current)
+		: CWindowObject(BORDERED | SHADOW_DISABLED), apply(std::move(callback))
 	{
 		OBJECT_CONSTRUCTION;
-		const int gap = 6, width = 310, height = 560;
-		panel = std::make_shared<TemplateInfoPanel>(Rect(pos.w + gap, (pos.h - height) / 2, width, height), infoFile, std::vector<std::string>(), names, moduleFolder);
-		panel->showWater(current < stops.size() ? stops[current] : -1, current < optionNames.size() ? optionNames[current] : std::string());
-		onSelectionChanged = [this]()
+		static const char * const IDS[] = {"lakes", "coastal", "continental", "mediterranean", "highland", "islands", "archipelago"};
+		const Point screen = ENGINE->screenDimensions();
+		const int columns = 2;
+		const int rows = std::max<int>(1, (static_cast<int>(names.size()) + columns - 1) / columns);
+		const int top = 44, bottom = 52, gap = 8, margin = 14;
+		const int width = std::min(screen.x - 20, 1140);
+		// the pictures as large as the screen allows, every row on it at once
+		const int picture = std::clamp((screen.y - 20 - top - bottom) / rows - gap, 32, 216);
+		const int height = top + rows * (picture + gap) + bottom;
+		pos = Rect((screen.x - width) / 2, (screen.y - height) / 2, width, height);
+		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, width, height));
+		background->setPlayerColor(PlayerColor(1));
+		parts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(0, 0, width, height), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2));
+		heading = std::make_shared<CLabel>(width / 2, 22, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, title);
+		const int cardWidth = (width - 2 * margin - (columns - 1) * gap) / columns;
+		for(size_t i = 0; i < names.size(); i++)
 		{
-			const int id = idAt(selected);
-			panel->showWater(id >= 0 && id < static_cast<int>(stops.size()) ? stops[id] : -1, id >= 0 && id < static_cast<int>(optionNames.size()) ? optionNames[id] : std::string());
-			panel->redraw();
-		};
+			const int column = static_cast<int>(i) % columns;
+			const int row = static_cast<int>(i) / columns;
+			const Rect card(margin + column * (cardWidth + gap), top + row * (picture + gap), cardWidth, picture);
+			const int stop = i < stops.size() ? stops[i] : -1;
+			const bool known = stop >= 0 && stop < 7;
+			static const JsonNode none;
+			const JsonNode & entry = known ? info["waterLayouts"][IDS[stop]] : none;
+			int textLeft = card.x + 10;
+			const std::string image = known ? pictureFor(module, std::string("water_") + IDS[stop]) : std::string();
+			if(!image.empty())
+			{
+				auto loaded = ENGINE->renderHandler().loadImage(ImagePath::builtin(image), EImageBlitMode::OPAQUE);
+				if(loaded && loaded->width() > 0 && loaded->height() > 0)
+				{
+					const double scale = std::min(static_cast<double>(picture) / loaded->width(), static_cast<double>(picture) / loaded->height());
+					const Point size(std::max(1, static_cast<int>(loaded->width() * scale + 0.5)), std::max(1, static_cast<int>(loaded->height() * scale + 0.5)));
+					auto shown = std::make_shared<CPicture>(loaded, Point(card.x, card.y + (picture - size.y) / 2));
+					shown->scaleTo(size);
+					parts.push_back(shown);
+					textLeft = card.x + size.x + 12;
+				}
+			}
+			const std::string name = entry["label"].isString() ? entry["label"].String() : names[i];
+			parts.push_back(std::make_shared<CLabel>(textLeft, card.y + 12, FONT_MEDIUM, ETextAlignment::CENTERLEFT, Colors::WHITE, name));
+			if(entry["oneLine"].isString())
+			{
+				auto brief = std::make_shared<CMultiLineLabel>(Rect(textLeft, card.y + 26, card.x + card.w - textLeft - 6, picture - 30), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE);
+				brief->setText(entry["oneLine"].String());
+				parts.push_back(brief);
+			}
+			// the choice in use has the gold frame the lobby's own choices have
+			if(i == current)
+				parts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(card.x - 3, card.y - 3, card.w + 6, card.h + 6), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 2));
+			cards.emplace_back(card + pos.topLeft(), static_cast<int>(i));
+		}
+		buttonCancel = std::make_shared<CButton>(Point((width - 64) / 2, height - 44), AnimationPath::builtin("MuBcanc"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_CANCEL);
+		addUsedEvents(LCLICK);
+	}
+
+	void clickPressed(const Point & cursorPosition) override
+	{
+		for(const auto & [place, index] : cards)
+		{
+			if(!place.isInside(cursorPosition))
+				continue;
+			const auto choose = apply;
+			const int chosen = index;
+			close();
+			if(choose)
+				choose(chosen);
+			return;
+		}
+	}
+};
+
 		moveBy(Point(-(width + gap) / 2, 0));
 	}
 };
@@ -1969,7 +2038,8 @@ static bool chooseWaterLayout(const std::string & modID, const std::string & set
 	std::vector<int> stops;
 	for(const auto & value : values)
 		stops.push_back(value.isNumber() ? static_cast<int>(value.Float()) : -1);
-	ENGINE->windows().createAndPushWindow<WaterLayoutListWindow>(names, stops, details, moduleFolder, title, help, apply, current);
+	(void)help; // the menu's cards say what each layout is
+	ENGINE->windows().createAndPushWindow<WaterLayoutMenu>(names, stops, details, moduleFolder, title, apply, current);
 	return true;
 }
 

@@ -818,7 +818,10 @@ CStackWindow::CStackWindow(const CStackInstance * stack, std::function<void()> d
 	info->creature = stack->getCreature();
 	info->creatureCount = stack->getCount();
 
-	if(upgradeInfo.canUpgrade())
+	// DMB (S117): the caller gives no callback when this player may not upgrade the stack (another player's hero visiting
+	// the town, CGarrisonSlot::viewInfo). The button used to appear anyway, and pressing Yes called the empty callback
+	// (std::bad_function_call, K's crash of November 10th). Dismiss already works this way.
+	if(upgradeInfo.canUpgrade() && callback)
 	{
 		info->upgradeInfo = std::make_optional(UnitView::StackUpgradeInfo(upgradeInfo));
 		info->upgradeInfo->callback = callback;

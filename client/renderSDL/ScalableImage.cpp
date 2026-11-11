@@ -167,8 +167,12 @@ void ScalableImageParameters::shiftPalette(const SDL_Palette * originalPalette, 
 {
 	std::vector<SDL_Color> shifterColors(colorsToMove);
 
+	// DMB (S117): a colour the original picture does not have is taken from our 256-colour copy (see adjustPalette)
 	for(uint32_t i=0; i<colorsToMove; ++i)
-		shifterColors[(i+distanceToMove)%colorsToMove] = originalPalette->colors[firstColorID + i];
+	{
+		const uint32_t from = firstColorID + i;
+		shifterColors[(i+distanceToMove)%colorsToMove] = from < static_cast<uint32_t>(originalPalette->ncolors) ? originalPalette->colors[from] : palette->colors[from];
+	}
 
 	SDL_SetPaletteColors(palette, shifterColors.data(), firstColorID, colorsToMove);
 }
@@ -178,12 +182,15 @@ void ScalableImageParameters::setShadowTransparency(const SDL_Palette * original
 	ColorRGBA shadow50(0, 0, 0, 128 * factor);
 	ColorRGBA shadow25(0, 0, 0,  64 * factor);
 
+	// DMB (S117): a mod's paletted picture can have fewer than 5 colours; read only the colours it has
+	// (the rest of our 256-colour copy is never used by its pixels)
+	const auto sourceColor = [&](int i) { return i < originalPalette->ncolors ? originalPalette->colors[i] : palette->colors[i]; };
 	std::array<SDL_Color, 5> colorsSDL = {
-		originalPalette->colors[0],
-		originalPalette->colors[1],
-		originalPalette->colors[2],
-		originalPalette->colors[3],
-		originalPalette->colors[4]
+		sourceColor(0),
+		sourceColor(1),
+		sourceColor(2),
+		sourceColor(3),
+		sourceColor(4)
 	};
 
 	// seems to be used unconditionally
@@ -192,10 +199,10 @@ void ScalableImageParameters::setShadowTransparency(const SDL_Palette * original
 	colorsSDL[4] = CSDL_Ext::toSDL(shadow50);
 
 	// seems to be used only if color matches
-	if (colorsSimilar(originalPalette->colors[2], sourcePalette[2]))
+	if (originalPalette->ncolors > 2 && colorsSimilar(originalPalette->colors[2], sourcePalette[2]))
 		colorsSDL[2] = CSDL_Ext::toSDL(shadow25);
 
-	if (colorsSimilar(originalPalette->colors[3], sourcePalette[3]))
+	if (originalPalette->ncolors > 3 && colorsSimilar(originalPalette->colors[3], sourcePalette[3]))
 		colorsSDL[3] = CSDL_Ext::toSDL(shadow50);
 
 	SDL_SetPaletteColors(palette, colorsSDL.data(), 0, colorsSDL.size());
@@ -208,7 +215,11 @@ void ScalableImageParameters::adjustPalette(const SDL_Palette * originalPalette,
 		colorsToSkipMask |= (1 << 0) + (1 << 1) + (1 << 4);
 
 	// Note: here we skip first colors in the palette that are predefined in H3 images
-	for(int i = 0; i < palette->ncolors; i++)
+	// DMB (S117): stop at the last colour the original picture has. Our copy always has 256 colours, and a mod's
+	// paletted picture can have fewer (6 in K's crash of November 10th): reading past its end crashed the castle
+	// screen while a new building's outline faded in. Colours past that end are never used by the picture's pixels.
+	const int colorsToAdjust = std::min(palette->ncolors, originalPalette->ncolors);
+	for(int i = 0; i < colorsToAdjust; i++)
 	{
 		if (i < std::size(sourcePalette) && colorsSimilar(sourcePalette[i], originalPalette->colors[i]))
 			continue;

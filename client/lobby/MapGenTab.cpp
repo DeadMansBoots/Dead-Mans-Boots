@@ -1584,16 +1584,6 @@ public:
 			columnBackground->setPlayerColor(PlayerColor(1));
 			keep(std::make_shared<CLabel>(width / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, sheet.title));
 			int y = 44;
-			if(!sheet.specs.empty())
-			{
-				auto specs = keep(std::make_shared<CMultiLineLabel>(Rect(24, y + 30, width - 48, 400), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE));
-				specs->setText(sheet.specs);
-				const int boxHeight = 36 + specs->textSize.y + 10;
-				specs->pos.h = specs->textSize.y;
-				keep(std::make_shared<TransparentFilledRectangle>(Rect(12, y, width - 24, boxHeight), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1));
-				keep(std::make_shared<CLabel>(width / 2, y + 16, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, tabText("template.details.specs")));
-				y += boxHeight + 10;
-			}
 			if(!sheet.gallery.empty())
 			{
 				const GalleryFrame & shown = sheet.gallery[galleryAt % sheet.gallery.size()];
@@ -1643,10 +1633,23 @@ public:
 					y += caption->textSize.y + 8;
 				}
 			}
-			for(const std::string * text : {&sheet.brief, &sheet.body})
+			// K, November 5th: "the title should be first, then the previews, the brief description or most important parts, and then the full/rest of the
+			// description": the original game's facts box is part of the rest, after the brief
+			for(const std::string * text : {&sheet.brief, &sheet.specs, &sheet.body})
 			{
 				if(text->empty())
 					continue;
+				if(text == &sheet.specs)
+				{
+					auto specs = keep(std::make_shared<CMultiLineLabel>(Rect(24, y + 30, width - 48, 400), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE));
+					specs->setText(sheet.specs);
+					const int boxHeight = 36 + specs->textSize.y + 10;
+					specs->pos.h = specs->textSize.y;
+					keep(std::make_shared<TransparentFilledRectangle>(Rect(12, y, width - 24, boxHeight), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1));
+					keep(std::make_shared<CLabel>(width / 2, y + 16, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, tabText("template.details.specs")));
+					y += boxHeight + 10;
+					continue;
+				}
 				auto label = keep(std::make_shared<CMultiLineLabel>(Rect(14, y, width - 28, 20000), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE));
 				label->setText(*text);
 				label->pos.h = label->textSize.y;

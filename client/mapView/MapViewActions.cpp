@@ -23,6 +23,7 @@
 #include "../CPlayerInterface.h"
 #include "../adventureMap/CInGameConsole.h"
 #include "../windows/ChatConsoleWindow.h"
+#include "../adventureMap/TurnProgressBar.h"
 
 #include "../../lib/CConfigHandler.h"
 
@@ -47,6 +48,9 @@ bool MapViewActions::receiveEvent(const Point & position, int eventType) const
 {
 	// DMB: the chat panel and its chip lie over the map; a click, hover or wheel on them is not the map's
 	if(ChatConsoleWindow::coversPoint(position))
+		return false;
+	// DMB (S015): the turn bars' minimize button lies over the map; a click or hover on it is the button's
+	if(TurnProgressBars::coversPoint(position))
 		return false;
 	return CIntObject::receiveEvent(position, eventType);
 }

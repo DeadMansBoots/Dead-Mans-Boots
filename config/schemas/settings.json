@@ -550,7 +550,7 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "heroMoveTime", "enemyMoveTime", "scrollSpeedPixels", "heroReminder", "quickCombat", "objectAnimation", "terrainAnimation", "forceQuickCombat", "borderScroll", "leftButtonDrag", "rightButtonDrag", "smoothDragging", "backgroundDimLevel", "hideBackground", "backgroundDimSmallWindows", "tileZoom", "minimapShowHeroes", "showMovePath" ],
+			"required" : [ "heroMoveTime", "enemyMoveTime", "scrollSpeedPixels", "heroReminder", "quickCombat", "objectAnimation", "terrainAnimation", "forceQuickCombat", "borderScroll", "leftButtonDrag", "rightButtonDrag", "smoothDragging", "backgroundDimLevel", "hideBackground", "backgroundDimSmallWindows", "tileZoom", "minimapShowHeroes", "showMovePath", "turnBarFolded" ],
 			"properties" : {
 				"heroMoveTime" : {
 					"type" : "number",
@@ -626,6 +626,11 @@
 				"showMovePath" : {
 					"type" : "boolean",
 					"default" : true
+				},
+				// DMB (K, November 5th, S015): the turn bars folded to one line by their minimize button; kept per PC
+				"turnBarFolded" : {
+					"type" : "boolean",
+					"default" : false
 				}
 			}
 		},

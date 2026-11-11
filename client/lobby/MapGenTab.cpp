@@ -1992,10 +1992,6 @@ public:
 	}
 };
 
-		moveBy(Point(-(width + gap) / 2, 0));
-	}
-};
-
 /// the template list, with the panel beside it
 class TemplateListWindow : public CObjectListWindow
 {

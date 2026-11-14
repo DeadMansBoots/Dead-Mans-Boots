@@ -612,12 +612,17 @@ void TurnBarFoldButton::show(Canvas & to)
 	to.drawColor(pos, face);
 	to.drawBorder(pos, dark, 1);
 	to.drawBorder(Rect(pos.x + 1, pos.y + 1, pos.w - 2, pos.h - 2), gold, 1);
-	// the mark: a bar for fold, a cross for unfold
+	// the mark: a bar for fold, a cross for unfold. S164 (K, November 12th: "the plus and minus symbol for the turn progress bars are not symmetrical"): each stroke is
+	// 2 px thick and 6 px long, even sizes on the even box, so both lie on the box's middle lines, 2 px clear of the gold rim on every side, and the cross's four arms are
+	// 2 px each. The 7 px strokes before had 2 px of face on one side and 1 on the other, and the cross's right and bottom arms were a pixel longer than its left and top
+	static_assert(SIZE % 2 == 0, "the mark is centred only on a box of even size");
+	constexpr int stroke = 2;
+	constexpr int length = 6;
 	const int cx = pos.x + pos.w / 2;
 	const int cy = pos.y + pos.h / 2;
-	to.drawColor(Rect(cx - 3, cy - 1, 7, 2), mark);
+	to.drawColor(Rect(cx - length / 2, cy - stroke / 2, length, stroke), mark);
 	if(folded)
-		to.drawColor(Rect(cx - 1, cy - 3, 2, 7), mark);
+		to.drawColor(Rect(cx - stroke / 2, cy - length / 2, stroke, length), mark);
 }
 
 Rect TurnProgressBars::buttonArea = Rect();

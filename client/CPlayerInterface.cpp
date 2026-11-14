@@ -323,6 +323,10 @@ void CPlayerInterface::performAutosave()
 
 void CPlayerInterface::gamePause(bool pause)
 {
+	// DMB (S170): a watcher has no seat to pause the game for. Stock sends the pause and the resume as the spectator, the server refuses the resume
+	// (QueryReply) and tells every client "Server encountered a problem: Got false in applying struct QueryReply... that request must have been fishy!"
+	if(playerID == PlayerColor::SPECTATOR)
+		return;
 	cb->gamePause(pause);
 }
 

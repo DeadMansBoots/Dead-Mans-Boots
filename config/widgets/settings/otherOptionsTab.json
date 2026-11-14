@@ -101,7 +101,7 @@
 			"type": "textInput",
 			"alignment": "left",
 			"font": "small",
-			"help": "vcmi.otherOptions.harvestFolder",
+			"dmbHelp": "vcmi.otherOptions.harvestFolder",
 			"rect": {"x": 65, "y": 170, "w": 322, "h": 23},
 			"offset": {"x": 0, "y": 0}
 		}

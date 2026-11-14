@@ -130,8 +130,9 @@ void BattleHero::heroLeftClicked()
 
 void BattleHero::heroRightClicked() const
 {
-	if(settings["battle"]["stickyHeroInfoWindows"].Bool())
-		return;
+	// DMB (S167): with the hero panels kept on screen (battle.stickyHeroInfoWindows) stock shows nothing here, the panel being there already; the artifacts
+	// popup below still shows
+	const bool panelsKept = settings["battle"]["stickyHeroInfoWindows"].Bool();
 
 	Point windowPosition;
 	if(ENGINE->screenDimensions().x < 1000)
@@ -149,8 +150,11 @@ void BattleHero::heroRightClicked() const
 	if(owner.makingTurn() || settings["session"]["spectate"].Bool())
 	{
 		const auto * h = defender ? owner.defendingHeroInstance : owner.attackingHeroInstance;
-		targetHero.initFromHero(h, InfoAboutHero::EInfoLevel::INBATTLE);
-		ENGINE->windows().createAndPushWindow<HeroInfoWindow>(targetHero, &windowPosition);
+		if(!panelsKept)
+		{
+			targetHero.initFromHero(h, InfoAboutHero::EInfoLevel::INBATTLE);
+			ENGINE->windows().createAndPushWindow<HeroInfoWindow>(targetHero, &windowPosition);
+		}
 		// DMB (S167, K November 12th: "i want the ability to right-click my character inventory and see what i have equipped during battles"): the player's own
 		// hero also shows the artifacts it wears, beside the stock popup (inward, toward the battle field)
 		const auto * playerInterface = owner.getCurrentPlayerInterface();

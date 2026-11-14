@@ -92,7 +92,7 @@ const QRect BAR_FRAME(390, 543, 368, 25); // 800x600 pixels
 /// Horn of the Abyss's whole bar: the frame and its gold cartouches at the ends, the top and the bottom (K, October 14th: "upgrade all of the load screens to the HOTA compiled look so they all match")
 const QRect ORNATE_RECT(368, 528, 412, 54);
 /// recorded in the pictures' index.json: a set made before the frames were stamped is made again by the pictures button (the client keeps using it meanwhile)
-const int LOAD_BARS_VERSION = 4; // 3 (October 14th): the Restoration of Erathia picture's own dark bar is taken out and it gets the common frame too; 4: the common frame is Horn of the Abyss's whole ornate bar
+const int LOAD_BARS_VERSION = 5; // 3 (October 14th): the Restoration of Erathia picture's own dark bar is taken out and it gets the common frame too; 4: the common frame is Horn of the Abyss's whole ornate bar; 5 (S172, November 13th): that picture's frame stands where its own bar was
 
 /// Whether the picture (800x600) already has a bar of its own near the bottom: a straight horizontal edge, strong over a stretch of the width,
 /// which two pictures have (the Horn of the Abyss one 203 and the Restoration of Erathia one 97 as the mean change of grey between two rows) and the six without do not (under 4);
@@ -882,6 +882,11 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 		const bool ownBar = plain && hasOwnBar(original);
 		const OwnBar foreign = plain && ownBar && !hota ? findOwnBar(original) : OwnBar();
 		const bool stamp = plain && !hota && (!ownBar || foreign.valid);
+		// DMB (S172, K November 13th: "the load bar trim on the restoration of erathia load screen is still kind of crowding the "Restoration of Erathia" text on the load
+		// screen"): the common bar's lower cartouche reaches 15 pixels below its frame, and at the usual place it stood on the lettering that picture has under its own bar.
+		// A picture whose own bar is taken out gets the common bar where its own bar was (the Restoration of Erathia one: 60 pixels left and 19 up), clear of the art
+		// laid out round it; the client finds the bar in the picture's file (findBarSlot), so the progress blocks follow it
+		const QPoint barOrigin = foreign.valid ? art1.origin + QPoint(foreign.left - BAR_FRAME.x(), foreign.top - BAR_FRAME.y()) : art1.origin;
 		const QString slug = slugOf(p.title);
 		const QString place = userFolder(p.loading ? "LoadingScreens" : "MenuBackgrounds");
 		const QString prefix = p.loading ? "DMBLoad-" : "DMBMenuFile-";
@@ -890,7 +895,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 		QDir().mkpath(place + "/Upscaled/DATA2X");
 		const QString finalName = p.title + ".png";
 		QFile::remove(place + "/" + finalName);
-		if(stamp ? !stampBarFrame(foreign.valid ? removeOwnBar(original, foreign, 1) : original, art1.frame, art1.origin, 1, art1.fill).save(place + "/" + finalName) : !QFile::copy(p.originalPath, place + "/" + finalName))
+		if(stamp ? !stampBarFrame(foreign.valid ? removeOwnBar(original, foreign, 1) : original, art1.frame, barOrigin, 1, art1.fill).save(place + "/" + finalName) : !QFile::copy(p.originalPath, place + "/" + finalName))
 		{
 			failure = QString("%1 could not be put in the %2 folder").arg(finalName, p.loading ? "LoadingScreens" : "MenuBackgrounds");
 			return false;
@@ -901,7 +906,7 @@ bool LegacyPicturesWorker::sharpenPictures(const QVector<Picture> & pictures, co
 			failure = QString("the sharpened %1 is missing").arg(p.wikiName);
 			return false;
 		}
-		const QImage four = stamp ? stampBarFrame(foreign.valid ? removeOwnBar(fourTimes(big), foreign, 4) : fourTimes(big), art4.frame, art4.origin, 4, art4.fill) : fourTimes(big);
+		const QImage four = stamp ? stampBarFrame(foreign.valid ? removeOwnBar(fourTimes(big), foreign, 4) : fourTimes(big), art4.frame, barOrigin, 4, art4.fill) : fourTimes(big);
 		const QString file = prefix + slugOf(finalName.left(finalName.size() - 4)) + ".png";
 		four.save(place + "/Upscaled/DATA4X/" + file);
 		four.scaled(2400, 1800, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).save(place + "/Upscaled/DATA3X/" + file);

@@ -427,6 +427,28 @@ void ApplyClientNetPackVisitor::visitPlayerEndsGame(PlayerEndsGame & pack)
 	bool localHumanWinsGame = vstd::contains(cl.playerint, pack.player) && cl.gameInfo().getPlayerState(pack.player)->human && pack.victoryLossCheckResult.victory();
 	bool lastHumanEndsGame = GAME->server().howManyPlayerInterfaces() == 1 && vstd::contains(cl.playerint, pack.player) && cl.gameInfo().getPlayerState(pack.player)->human && !settings["session"]["spectate"].Bool();
 
+	// DMB (S170, K November 12th: "I was defeated and so it just ripped Meg out of the game (she wasn't defeated yet)"): stock ends this client's game when its only
+	// human is defeated, and when this client is the host, its leaving ends the game for everyone (CVCMIServer::clientDisconnected). The host stays and watches
+	// while a human on another PC still plays
+	if(lastHumanEndsGame && pack.victoryLossCheckResult.loss() && !pack.silentEnd && cl.hostStaysToWatch(pack.player))
+	{
+		cl.watchAfterDefeat(pack.player);
+		lastHumanEndsGame = false;
+	}
+	// and once no human on another PC plays (one won or lost, or the game is over), the watching host's game ends as stock ends a defeated player's
+	else if(cl.watchingAfterDefeat && !cl.humanPlaysElsewhere())
+	{
+		logNetwork->info("DMB (S170): after %s's end no human on another PC plays: the watching host's game ends", pack.player.toString());
+		const PlayerColor defeated = *cl.watchingAfterDefeat;
+		if(adventureInt)
+		{
+			ENGINE->windows().popWindows(ENGINE->windows().count());
+			adventureInt.reset();
+		}
+		GAME->server().showHighScoresAndEndGameplay(defeated, false, pack.statistic);
+		return; // this client's game is over (the client is gone)
+	}
+
 	if(lastHumanEndsGame || localHumanWinsGame || pack.silentEnd)
 	{
 		assert(adventureInt);

@@ -1798,7 +1798,13 @@ void CPlayerInterface::gameOver(PlayerColor player, const EVictoryLossCheckResul
 	if (player == playerID)
 	{
 		if (victoryLossCheckResult.loss())
-			showInfoDialog(LIBRARY->generaltexth->allTexts[95]);
+		{
+			std::string text = LIBRARY->generaltexth->allTexts[95];
+			// DMB (S170): the host's defeat no longer ends the game for a human on another PC; the defeat says so (NetPacksClient's visitPlayerEndsGame)
+			if(GAME->server().client && GAME->server().client->hostStaysToWatch(player))
+				text += "\n\n" + LIBRARY->generaltexth->translate("vcmi.dmb.defeat.hostWatches");
+			showInfoDialog(text);
+		}
 
 		auto previousInterface = GAME->interface(); //without multiple player interfaces some of lines below are useless, but for hotseat we wanna swap player interface temporarily
 

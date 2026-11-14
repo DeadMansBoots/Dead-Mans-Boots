@@ -1020,6 +1020,13 @@ void CServerHandler::endGameplay()
 		ENGINE->discord().setStatus("", "", {0, 0});
 }
 
+std::string CServerHandler::leaveQuestion(const std::string & question) const
+{
+	if(client && client->watchingAfterDefeat && client->humanPlaysElsewhere())
+		return question + "\n\n" + LIBRARY->generaltexth->translate("vcmi.dmb.leave.endsGameForOthers");
+	return question;
+}
+
 std::optional<std::string> CServerHandler::canQuickLoadGame(const std::string & path) const
 {
 	auto mapInfo = std::make_shared<CMapInfo>();

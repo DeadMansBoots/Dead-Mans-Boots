@@ -352,7 +352,7 @@ void AdventureMapShortcuts::showScenarioInfo()
 void AdventureMapShortcuts::toMainMenu()
 {
 	GAME->interface()->showYesNoDialog(
-		LIBRARY->generaltexth->allTexts[578],
+		GAME->server().leaveQuestion(LIBRARY->generaltexth->allTexts[578]), // DMB (S170): the host's warning
 		[]()
 		{
 			GAME->server().endGameplay();
@@ -365,7 +365,7 @@ void AdventureMapShortcuts::toMainMenu()
 void AdventureMapShortcuts::newGame()
 {
 	GAME->interface()->showYesNoDialog(
-		LIBRARY->generaltexth->allTexts[578],
+		GAME->server().leaveQuestion(LIBRARY->generaltexth->allTexts[578]), // DMB (S170): the host's warning
 		[]()
 		{
 			GAME->server().endGameplay();
@@ -378,7 +378,7 @@ void AdventureMapShortcuts::newGame()
 void AdventureMapShortcuts::quitGame()
 {
 	GAME->interface()->showYesNoDialog(
-		LIBRARY->generaltexth->allTexts[578],
+		GAME->server().leaveQuestion(LIBRARY->generaltexth->allTexts[578]), // DMB (S170): the host's warning
 		[](){ GAME->onShutdownRequested(false);},
 		nullptr
 		);

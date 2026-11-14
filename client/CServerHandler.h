@@ -257,6 +257,9 @@ public:
 	std::optional<std::string> canQuickLoadGame(const std::string & path) const; // returns reason why not compatible, or nullopt if can
 	void quickLoadGame(const std::string & path);
 	void showHighScoresAndEndGameplay(PlayerColor player, bool victory, const StatisticDataSet & statistic);
+	/// DMB (S170): the question asked before this client leaves its game, with a warning while this PC hosts, stays to watch after its player's defeat, and a
+	/// human on another PC still plays (leaving ends the game for them)
+	std::string leaveQuestion(const std::string & question) const;
 	void endNetwork();
 	void endGameplay();
 	void restartGameplay();

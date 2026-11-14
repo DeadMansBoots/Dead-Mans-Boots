@@ -202,8 +202,88 @@ void CClient::endGame()
 	gamestate->currentBattles.clear();
 	gamestate.reset();
 
+	// DMB: a game this client watched turned the watching settings on (session settings live until the program ends): the next game starts as before it
+	endDmbWatching();
+
 	logNetwork->info("Deleted playerInts.");
 	logNetwork->info("Client stopped.");
+}
+
+namespace
+{
+/// the session settings of a watching client (the command line can give each of them too: --spectate and its companions)
+const std::vector<std::string> dmbWatchingKeys = { "spectate", "spectate-skip-battle-result", "spectate-ignore-hero", "spectate-skip-battle" };
+}
+
+void CClient::startDmbWatching()
+{
+	if(settings["session"]["dmb-watching"].Bool())
+		return;
+	JsonNode before;
+	for(const auto & key : dmbWatchingKeys)
+		before[key].Bool() = settings["session"][key].Bool();
+	Settings session = settings.write["session"];
+	session["dmb-watching-before"] = before;
+	session["dmb-watching"].Bool() = true;
+	for(const auto & key : dmbWatchingKeys)
+		session[key].Bool() = true;
+}
+
+void CClient::endDmbWatching()
+{
+	if(!settings["session"]["dmb-watching"].Bool())
+		return;
+	const JsonNode before = settings["session"]["dmb-watching-before"];
+	Settings session = settings.write["session"];
+	for(const auto & key : dmbWatchingKeys)
+		session[key].Bool() = before[key].Bool();
+	session["dmb-watching"].Bool() = false;
+	session["dmb-watching-before"] = JsonNode();
+}
+
+bool CClient::humanPlaysElsewhere() const
+{
+	if(!gamestate)
+		return false;
+	for(const auto & entry : gamestate->players)
+	{
+		if(entry.second.status != EPlayerStatus::INGAME || !entry.second.isHuman())
+			continue;
+		if(playerint.count(entry.first))
+			continue; // played here: this client's own human, or an AI it runs for a seat whose player left
+		return true;
+	}
+	return false;
+}
+
+bool CClient::hostStaysToWatch(PlayerColor defeated) const
+{
+	if(watchingAfterDefeat || settings["session"]["spectate"].Bool() || settings["session"]["headless"].Bool())
+		return false;
+	if(!GAME->server().isHost())
+		return false;
+	const auto own = playerint.find(defeated);
+	if(own == playerint.end() || !dynamic_cast<CPlayerInterface *>(own->second.get()))
+		return false;
+	if(GAME->server().howManyPlayerInterfaces() != 1)
+		return false;
+	return humanPlaysElsewhere();
+}
+
+void CClient::watchAfterDefeat(PlayerColor defeated)
+{
+	logNetwork->info("DMB (S170): %s, this host's only human, is defeated while a human on another PC still plays: this client stays and watches, and the game goes on", defeated.toString());
+	watchingAfterDefeat = defeated;
+	startDmbWatching();
+
+	playerEnvironments[PlayerColor::SPECTATOR] = std::make_shared<CPlayerEnvironment>(PlayerColor::SPECTATOR, this, std::make_shared<CCallback>(gamestate, std::nullopt, this));
+
+	// the defeated player's map closes as stock closes it at a defeat; the watcher's map, made by the watcher's interface, opens in its place
+	if(ENGINE)
+		ENGINE->windows().popWindows(ENGINE->windows().count());
+	installNewPlayerInterface(std::make_shared<CPlayerInterface>(PlayerColor::SPECTATOR), PlayerColor::SPECTATOR, true);
+	if(ENGINE && adventureInt)
+		ENGINE->windows().pushWindow(adventureInt);
 }
 
 void CClient::initMapHandler()
@@ -248,13 +328,9 @@ void CClient::initPlayerEnvironments()
 
 	if(!hasHumanPlayer && !settings["session"]["headless"].Bool())
 	{
-		Settings session = settings.write["session"];
-		session["spectate"].Bool() = true;
-		session["spectate-skip-battle-result"].Bool() = true;
-		session["spectate-ignore-hero"].Bool() = true;
 		// DMB (K, November 5th: "i don't want to watch battles"; the Opus Reviewer, S001 row O12): a game where the viewer holds no seat starts with the battles skipped; the bar's
-		// Battles switch flips it, and the command line's --spectate-skip-battle gives the same
-		session["spectate-skip-battle"].Bool() = true;
+		// Battles switch flips it, and the command line's --spectate-skip-battle gives the same. The settings are put back when the game ends (endGame)
+		startDmbWatching();
 	}
 	
 	if(settings["session"]["spectate"].Bool())

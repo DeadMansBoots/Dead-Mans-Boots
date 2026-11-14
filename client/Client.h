@@ -172,6 +172,21 @@ public:
 	void releaseAI(PlayerColor color);
 	/// DMB hot join: the seats this client plays with an AI (the host's), which the host may give to a newcomer
 	std::vector<PlayerColor> aiSeats();
+
+	/// DMB (S170, K November 12th: "I was defeated and so it just ripped Meg out of the game (she wasn't defeated yet)"): the seat of this client's only human, defeated
+	/// while a human on another PC still played. Stock ends a client's game when its last human is defeated, and the host leaving ends the game for everyone
+	/// (CVCMIServer::clientDisconnected), so the host stays and watches (DMB's observer mode) until no human on another PC plays; then its game ends as stock's does
+	std::optional<PlayerColor> watchingAfterDefeat;
+	/// a player in the game who is human and is not played from this client (neither this client's own human nor an AI it runs for a seat whose player left)
+	bool humanPlaysElsewhere() const;
+	/// the defeat of `defeated` would end this client's game and with it the game of a human on another PC: this client hosts, `defeated` is its only human,
+	/// and a human elsewhere still plays
+	bool hostStaysToWatch(PlayerColor defeated) const;
+	/// the host's only human is defeated: this client turns into a watcher and the game goes on for the others
+	void watchAfterDefeat(PlayerColor defeated);
+	/// DMB: the watching settings DMB turns on for one game (no seat on this client, or a defeated host who stays), put back as they were when that game ends
+	static void startDmbWatching();
+	static void endDmbWatching();
 	std::string aiNameForPlayer(const PlayerSettings & ps, bool battleAI, bool alliedToHuman) const; //empty means no AI -> human
 	std::string aiNameForPlayer(bool battleAI, bool alliedToHuman) const;
 	void installNewPlayerInterface(std::shared_ptr<CGameInterface> gameInterface, PlayerColor color, bool battlecb = false);

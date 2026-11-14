@@ -109,7 +109,7 @@ void GameInstance::onShutdownRequested(bool ask)
 	else
 	{
 		if (interface())
-			interface()->showYesNoDialog(LIBRARY->generaltexth->allTexts[69], doQuit, nullptr);
+			interface()->showYesNoDialog(server().leaveQuestion(LIBRARY->generaltexth->allTexts[69]), doQuit, nullptr); // DMB (S170): the host's warning
 		else
 			CInfoWindow::showYesNoDialog(LIBRARY->generaltexth->allTexts[69], {}, doQuit, {}, PlayerColor(1));
 	}

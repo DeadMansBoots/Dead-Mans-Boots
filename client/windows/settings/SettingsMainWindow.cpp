@@ -121,7 +121,7 @@ void SettingsMainWindow::close()
 void SettingsMainWindow::quitGameButtonCallback()
 {
 	GAME->interface()->showYesNoDialog(
-		LIBRARY->generaltexth->allTexts[578],
+		GAME->server().leaveQuestion(LIBRARY->generaltexth->allTexts[578]), // DMB (S170): the host's warning
 		[this]()
 		{
 			close();
@@ -139,7 +139,7 @@ void SettingsMainWindow::backButtonCallback()
 void SettingsMainWindow::mainMenuButtonCallback()
 {
 	GAME->interface()->showYesNoDialog(
-		LIBRARY->generaltexth->allTexts[578],
+		GAME->server().leaveQuestion(LIBRARY->generaltexth->allTexts[578]), // DMB (S170): the host's warning
 		[this]()
 		{
 			close();

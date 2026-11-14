@@ -260,6 +260,10 @@ public:
 	/// DMB (S170): the question asked before this client leaves its game, with a warning while this PC hosts, stays to watch after its player's defeat, and a
 	/// human on another PC still plays (leaving ends the game for them)
 	std::string leaveQuestion(const std::string & question) const;
+	/// DMB (S170): another client is still connected to this game (a player or a watcher on another PC)
+	bool otherClientConnected() const;
+	/// DMB (S170): the watching host's game, which has ended, ends here too, as stock ends a defeated player's (high scores, main menu)
+	void endWatchedGame();
 	void endNetwork();
 	void endGameplay();
 	void restartGameplay();

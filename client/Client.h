@@ -22,6 +22,7 @@ VCMI_LIB_NAMESPACE_BEGIN
 
 struct CPackForClient;
 struct CPackForServer;
+class StatisticDataSet;
 class IBattleEventsReceiver;
 class CBattleGameInterface;
 class CGameInterface;
@@ -177,6 +178,9 @@ public:
 	/// while a human on another PC still played. Stock ends a client's game when its last human is defeated, and the host leaving ends the game for everyone
 	/// (CVCMIServer::clientDisconnected), so the host stays and watches (DMB's observer mode) until no human on another PC plays; then its game ends as stock's does
 	std::optional<PlayerColor> watchingAfterDefeat;
+	/// the game ended while this host watched: its statistics for the high scores, kept while another PC is still connected (its player reading its own
+	/// defeat or victory); the watcher's game ends when that PC has left (CServerHandler::endWatchedGame)
+	std::shared_ptr<StatisticDataSet> watchEndStatistic;
 	/// a player in the game who is human and is not played from this client (neither this client's own human nor an AI it runs for a seat whose player left)
 	bool humanPlaysElsewhere() const;
 	/// the defeat of `defeated` would end this client's game and with it the game of a human on another PC: this client hosts, `defeated` is its only human,

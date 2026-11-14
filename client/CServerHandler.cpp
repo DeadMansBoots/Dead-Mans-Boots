@@ -1027,6 +1027,31 @@ std::string CServerHandler::leaveQuestion(const std::string & question) const
 	return question;
 }
 
+bool CServerHandler::otherClientConnected() const
+{
+	if(!logicConnection)
+		return false;
+	for(const auto & entry : playerNames)
+		if(entry.second.connection != logicConnection->connectionID)
+			return true;
+	return false;
+}
+
+void CServerHandler::endWatchedGame()
+{
+	if(!client || !client->watchingAfterDefeat || !client->watchEndStatistic || getState() != EClientState::GAMEPLAY)
+		return;
+	const PlayerColor defeated = *client->watchingAfterDefeat;
+	const StatisticDataSet statistic = *client->watchEndStatistic;
+	logNetwork->info("DMB (S170): the watched game is over and no other PC is connected: the watching host's game ends");
+	if(ENGINE && adventureInt)
+	{
+		ENGINE->windows().popWindows(ENGINE->windows().count());
+		adventureInt.reset();
+	}
+	showHighScoresAndEndGameplay(defeated, false, statistic);
+}
+
 std::optional<std::string> CServerHandler::canQuickLoadGame(const std::string & path) const
 {
 	auto mapInfo = std::make_shared<CMapInfo>();

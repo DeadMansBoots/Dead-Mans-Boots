@@ -438,14 +438,16 @@ void ApplyClientNetPackVisitor::visitPlayerEndsGame(PlayerEndsGame & pack)
 	// and once no human on another PC plays (one won or lost, or the game is over), the watching host's game ends as stock ends a defeated player's
 	else if(cl.watchingAfterDefeat && !cl.humanPlaysElsewhere())
 	{
-		logNetwork->info("DMB (S170): after %s's end no human on another PC plays: the watching host's game ends", pack.player.toString());
-		const PlayerColor defeated = *cl.watchingAfterDefeat;
-		if(adventureInt)
+		cl.watchEndStatistic = std::make_shared<StatisticDataSet>(pack.statistic);
+		// the server stays up until its clients have left (CVCMIServer::endGameWhenClientsLeave), and this host leaving would end it: while another PC is
+		// still connected (its player reading its own defeat or victory) the watcher waits for it to leave (visitLobbyUpdateState)
+		if(GAME->server().otherClientConnected())
 		{
-			ENGINE->windows().popWindows(ENGINE->windows().count());
-			adventureInt.reset();
+			logNetwork->info("DMB (S170): after %s's end no human on another PC plays: the watching host's game ends once the other PCs have left", pack.player.toString());
+			return;
 		}
-		GAME->server().showHighScoresAndEndGameplay(defeated, false, pack.statistic);
+		logNetwork->info("DMB (S170): after %s's end no human on another PC plays: the watching host's game ends", pack.player.toString());
+		GAME->server().endWatchedGame();
 		return; // this client's game is over (the client is gone)
 	}
 

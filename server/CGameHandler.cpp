@@ -3868,7 +3868,7 @@ void CGameHandler::checkVictoryLossConditionsForPlayer(PlayerColor player)
 
 			if(p->human)
 			{
-				gameServer().setState(EServerState::SHUTDOWN);
+				gameServer().endGameWhenClientsLeave(); // DMB (S170): stock shuts down here at once; each client now leaves after its own end screens
 			}
 		}
 		else
@@ -3918,11 +3918,11 @@ void CGameHandler::checkVictoryLossConditionsForPlayer(PlayerColor player)
 
 			// everyone lost (e.g. time runs out)
 			if (!hasAlivePlayers)
-				gameServer().setState(EServerState::SHUTDOWN);
+				gameServer().endGameWhenClientsLeave(); // DMB (S170): as above
 
 			// give turn to next player(s)
 			// FIXME: this may cause multiple calls to resumeTurnOrder if multiple players lose in chain reaction
-			if(gameServer().getState() != EServerState::SHUTDOWN)
+			if(gameServer().getState() != EServerState::SHUTDOWN && !gameServer().gameHasEnded())
 				turnOrder->resumeTurnOrder();
 		}
 	}

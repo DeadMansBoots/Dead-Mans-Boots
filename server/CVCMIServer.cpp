@@ -667,9 +667,19 @@ void CVCMIServer::onTimer()
 	// DMB: a paused watched game holds its timers too (the turn timers of every player), and sends on what the pause held once it ends; the next timer
 	// is set first, so a held request that throws cannot stop the timer (the Reviewer's note)
 	networkHandler->createTimer(*this, serverUpdateInterval);
-	if (msDelta.count() && !DmbObserverPause::paused)
+	if (msDelta.count() && !DmbObserverPause::paused && !gameEnded) // DMB (S170): an ended game's turn timers stand still while its clients leave
 		gh->tick(msDelta.count());
 	releaseHeldPacks();
+}
+
+void CVCMIServer::endGameWhenClientsLeave()
+{
+	if(gameEnded)
+		return;
+	gameEnded = true;
+	logNetwork->info("DMB (S170): the game is over; the server stays until its clients have left (%d connected)", static_cast<int>(activeConnections.size()));
+	if(activeConnections.empty())
+		setState(EServerState::SHUTDOWN);
 }
 
 void CVCMIServer::prepareToRestart()
@@ -696,6 +706,7 @@ void CVCMIServer::prepareToRestart()
 
 bool CVCMIServer::prepareToStartGame()
 {
+	gameEnded = false; // DMB (S170): a new or restarted game
 	Load::ProgressAccumulator progressTracking;
 	Load::Progress current(1);
 	progressTracking.include(current);

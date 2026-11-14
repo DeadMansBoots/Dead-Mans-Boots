@@ -261,6 +261,9 @@ void ApplyOnLobbyHandlerNetPackVisitor::visitLobbyUpdateState(LobbyUpdateState &
 {
 	pack.hostChanged = pack.state.hostClientId != handler.hostClientId;
 	static_cast<LobbyState &>(handler) = pack.state;
+	// DMB (S170): a watching host whose game is over waits for the other PCs to leave (NetPacksClient's visitPlayerEndsGame); the server says so here when one goes
+	if(handler.client && handler.client->watchEndStatistic && !handler.otherClientConnected() && ENGINE)
+		ENGINE->dispatchMainThread([](){ GAME->server().endWatchedGame(); });
 	if(handler.mapToStart && handler.mi)
 	{
 		handler.startMapAfterConnection(nullptr);

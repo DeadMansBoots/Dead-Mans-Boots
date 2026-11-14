@@ -37,4 +37,7 @@ public:
 	virtual bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const = 0;
 	virtual void applyPack(CPackForClient & pack) = 0;
 	virtual void sendPack(CPackForClient & pack, GameConnectionID connectionID) = 0;
+	/// DMB (S170): the game is over (everyone lost, or a human won); stock shuts the server down here at once
+	virtual void endGameWhenClientsLeave() { setState(EServerState::SHUTDOWN); }
+	virtual bool gameHasEnded() const { return getState() == EServerState::SHUTDOWN; }
 };

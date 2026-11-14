@@ -119,6 +119,12 @@ public:
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const override;
 	void applyPack(CPackForClient & pack) override;
 	void sendPack(CPackForClient & pack, GameConnectionID connectionID) override;
+	/// DMB (S170, K November 12th: "I was defeated and so it just ripped Meg out of the game (she wasn't defeated yet)"): when the game is over the server keeps
+	/// its connections until the clients leave (the host leaving still ends it, clientDisconnected); stock stops the network at once, and a guest still reading
+	/// the game's last packs lost them (it saw the connection drop instead of its own defeat or victory)
+	void endGameWhenClientsLeave() override;
+	bool gameHasEnded() const override { return gameEnded; }
+	bool gameEnded = false;
 
 	/// DMB: a chat line goes only where its channel reaches (DmbChatRouting.h); the line is stamped with the channel it went out on
 	void sendChatMessage(PlayerMessageClient & pack, GameConnectionID senderConnection, EChatChannel requested);

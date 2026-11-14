@@ -959,10 +959,13 @@ std::shared_ptr<CTextInput> InterfaceObjectConfigurable::buildTextInput(const Js
 	auto offset = readPosition(config["backgroundOffset"]);
 	auto bgName = ImagePath::fromJson(config["background"]);
 	std::shared_ptr<CTextInput> result;
-	if(config["help"].isNull())
+	// DMB: the key is "dmbHelp". Stock 1.7.5 never reads a text box's "help", and its own layouts give one to the lobby's turn timer
+	// fields (turnOptionsTab.json, a full text id such as vcmi.optionsTab.chessFieldBase.help); read as a hint prefix it asked for
+	// eight texts that do not exist (<id>.help.hover and <id>.help.help), which the regression gate's text audit found
+	if(config["dmbHelp"].isNull())
 		result = std::make_shared<CTextInput>(rect, offset, bgName);
 	else
-		result = std::make_shared<HelpTextInput>(rect, offset, bgName, readHintText(config["help"]));
+		result = std::make_shared<HelpTextInput>(rect, offset, bgName, readHintText(config["dmbHelp"]));
 	// DMB: this constructor always grabs keyboard focus on creation (CTextInput::createLabel); a page
 	// with more than one, or any single-key lobby shortcut (Begin, Advanced Options), stops working the
 	// moment the page opens, silently, since a digit-only field just swallows a non-digit key and does

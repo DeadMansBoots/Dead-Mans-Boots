@@ -13,9 +13,11 @@
 
 class CLabel;
 class CAnimImage;
+class FilledTexturePlayerColored;
 
 VCMI_LIB_NAMESPACE_BEGIN
 struct InfoAboutHero;
+class CGHeroInstance;
 VCMI_LIB_NAMESPACE_END
 
 class HeroInfoBasicPanel : public CIntObject //extracted from InfoWindow to fit better as non-popup embed element
@@ -41,4 +43,17 @@ private:
 
 public:
 	HeroInfoWindow(const InfoAboutHero & hero, const Point * position);
+};
+
+/// DMB (S167, K November 12th: "i want the ability to right-click my character inventory and see what i have equipped during battles"): beside the stock
+/// hero popup of a battle, the artifacts the player's own hero wears, while the right button is held
+class HeroArtifactsPopup : public CWindowObject
+{
+	std::shared_ptr<FilledTexturePlayerColored> backgroundTexture;
+	std::shared_ptr<CLabel> title;
+	std::vector<std::shared_ptr<CAnimImage>> icons;
+
+public:
+	/// `beside`: the stock popup's top left corner; `toTheLeft`: drawn left of it (the defender's side), else right of it
+	HeroArtifactsPopup(const CGHeroInstance * hero, const Point & beside, bool toTheLeft);
 };

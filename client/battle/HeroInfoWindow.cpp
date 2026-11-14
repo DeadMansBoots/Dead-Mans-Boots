@@ -16,6 +16,9 @@
 #include "../../lib/GameLibrary.h"
 #include "../../lib/gameState/InfoAboutArmy.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
+#include "../../lib/entities/artifact/CArtifact.h"
+#include "../../lib/entities/artifact/CArtifactInstance.h"
+#include "../../lib/mapObjects/CGHeroInstance.h"
 
 HeroInfoBasicPanel::HeroInfoBasicPanel(const InfoAboutHero & hero, const Point * position, bool initializeBackground)
 	: CIntObject(0)
@@ -94,4 +97,32 @@ HeroInfoWindow::HeroInfoWindow(const InfoAboutHero & hero, const Point * positio
 	background->setPlayerColor(hero.owner); //maybe add this functionality to base class?
 
 	content = std::make_shared<HeroInfoBasicPanel>(hero, nullptr, false);
+}
+
+HeroArtifactsPopup::HeroArtifactsPopup(const CGHeroInstance * hero, const Point & beside, bool toTheLeft)
+	: CWindowObject(RCLICK_POPUP | SHADOW_DISABLED)
+{
+	OBJECT_CONSTRUCTION;
+	std::vector<const CArtifactInstance *> worn;
+	for(const auto & slot : hero->artifactsWorn)
+		if(const auto * art = slot.second.getArt())
+			worn.push_back(art);
+
+	// the game's 44x44 artifact icons (the hero screen's), four to a row, in the slots' order
+	const int columns = 4;
+	const int cell = 46;
+	const int pad = 8;
+	const int top = 26;
+	const int rows = std::max(1, (static_cast<int>(worn.size()) + columns - 1) / columns);
+	pos.w = pad * 2 + columns * cell;
+	pos.h = top + pad + rows * cell;
+	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
+	backgroundTexture->setPlayerColor(hero->getOwner());
+	title = std::make_shared<CLabel>(pos.w / 2, 14, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW,
+		LIBRARY->generaltexth->translate(worn.empty() ? "vcmi.dmb.battle.heroWearsNothing" : "vcmi.dmb.battle.heroWears"));
+	for(size_t i = 0; i < worn.size(); ++i)
+		icons.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("Artifact"), worn[i]->getType()->getIconIndex(), 0,
+			pad + static_cast<int>(i % columns) * cell + 1, top + static_cast<int>(i / columns) * cell));
+	moveTo(Point(toTheLeft ? beside.x - pos.w - 3 : beside.x + 80, beside.y));
+	fitToScreen(10);
 }

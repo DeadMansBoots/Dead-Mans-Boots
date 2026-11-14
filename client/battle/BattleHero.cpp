@@ -16,6 +16,7 @@
 #include "BattleRenderer.h"
 #include "HeroInfoWindow.h"
 
+#include "../CPlayerInterface.h"
 #include "../GameEngine.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/WindowHandler.h"
@@ -150,6 +151,11 @@ void BattleHero::heroRightClicked() const
 		const auto * h = defender ? owner.defendingHeroInstance : owner.attackingHeroInstance;
 		targetHero.initFromHero(h, InfoAboutHero::EInfoLevel::INBATTLE);
 		ENGINE->windows().createAndPushWindow<HeroInfoWindow>(targetHero, &windowPosition);
+		// DMB (S167, K November 12th: "i want the ability to right-click my character inventory and see what i have equipped during battles"): the player's own
+		// hero also shows the artifacts it wears, beside the stock popup (inward, toward the battle field)
+		const auto * playerInterface = owner.getCurrentPlayerInterface();
+		if(h && playerInterface && playerInterface->playerID == h->getOwner())
+			ENGINE->windows().createAndPushWindow<HeroArtifactsPopup>(h, windowPosition, defender);
 	}
 }
 

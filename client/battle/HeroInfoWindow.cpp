@@ -123,6 +123,7 @@ HeroArtifactsPopup::HeroArtifactsPopup(const CGHeroInstance * hero, const Point 
 	for(size_t i = 0; i < worn.size(); ++i)
 		icons.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("Artifact"), worn[i]->getType()->getIconIndex(), 0,
 			pad + static_cast<int>(i % columns) * cell + 1, top + static_cast<int>(i / columns) * cell));
-	moveTo(Point(toTheLeft ? beside.x - pos.w - 3 : beside.x + 80, beside.y));
+	// clear of the hero panel beside it, the stock popup (77 wide) or the kept panel, which reaches about 10 pixels further (seen at 3440x1440, 200 percent)
+	moveTo(Point(toTheLeft ? beside.x - pos.w - 12 : beside.x + 92, beside.y));
 	fitToScreen(10);
 }

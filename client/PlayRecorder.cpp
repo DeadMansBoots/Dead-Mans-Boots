@@ -39,6 +39,11 @@
 #include "../lib/networkPacks/PacksForClient.h"
 #include "../lib/networkPacks/PacksForClientBattle.h"
 #include "../lib/networkPacks/PacksForServer.h"
+#include "../lib/StartInfo.h"
+#include "../lib/json/JsonNode.h"
+#include "../lib/mapping/CMapHeader.h"
+#include "../lib/rmg/CMapGenOptions.h"
+#include "../lib/rmg/CRmgTemplate.h"
 
 #include "GameEngine.h"
 #include "render/IScreenHandler.h"
@@ -49,6 +54,57 @@
 
 namespace
 {
+/// DMB (S191, K November 13th: "do you have a skill or tool to figure out what map i've been playing recently? so you can get that info and log it?"): a random map
+/// has no file name in the start info, so the play log's "map" was empty. It names the generated map (OmniMapGen names it after its file: size, players, seed)
+/// and, on the PC that made it, the generator's sidecar beside that file (Maps/RandomMaps/<name>.vmap.zones.json) gives its template, preset, size and seed;
+/// on another PC (a guest's), or for VCMI's own generator, the lobby's generator options stand in
+std::string randomMapText(const StartInfo & startInfo, const CMapHeader * header)
+{
+	const std::string name = header ? header->name.toString() : std::string();
+	const auto value = [](const JsonNode & node) -> std::string
+	{
+		if(node.isString())
+			return node.String();
+		if(node.isNumber())
+			return std::to_string(node.Integer());
+		return "";
+	};
+	try
+	{
+		const auto sidecar = VCMIDirs::get().userDataPath() / "Maps" / "RandomMaps" / (name + ".vmap.zones.json");
+		if(!name.empty() && boost::filesystem::exists(sidecar))
+		{
+			boost::filesystem::ifstream file(sidecar, std::ios::binary);
+			const std::string data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+			const JsonNode node(reinterpret_cast<const std::byte *>(data.data()), data.size(), sidecar.string());
+			const JsonNode & options = node["options"];
+			std::string text = value(options["template"]).empty() ? std::string("free layout") : value(options["template"]);
+			if(!value(options["preset"]).empty())
+				text += " (" + value(options["preset"]) + " preset)";
+			text += ", " + value(options["w"]) + "x" + value(options["h"]);
+			if(value(options["underground"]) == "1")
+				text += " with underground";
+			text += ", " + value(options["players"]) + " players, seed " + value(options["seed"]) + ", " + name + ".vmap";
+			return text;
+		}
+	}
+	catch(...)
+	{
+	}
+	std::string text = name.empty() ? std::string("random map") : name;
+	if(const auto & options = startInfo.mapGenOptions)
+	{
+		text += " (random map";
+		if(const auto * pickedTemplate = options->getMapTemplate())
+			text += ", template " + pickedTemplate->getName();
+		text += ", " + std::to_string(options->getWidth()) + "x" + std::to_string(options->getHeight());
+		if(options->getLevels() > 1)
+			text += " with underground";
+		text += ")";
+	}
+	return text;
+}
+
 // DMB (S093): the disk limits (100 MB a game, 40 games and 1 GB a folder) are kept by the harvest framework, lib/DmbHarvest.cpp
 
 std::string escape(const std::string & text)
@@ -643,6 +699,8 @@ void PlayRecorder::startGame(PlayerColor seat)
 		{
 			const auto * startInfo = GAME->interface()->cb->getStartInfo();
 			info.map = startInfo->mapname;
+			if(info.map.empty() && startInfo->createRandomMap())
+				info.map = randomMapText(*startInfo, GAME->interface()->cb->getMapHeader()); // DMB (S191)
 			info.difficulty = startInfo->difficulty;
 			info.mode = static_cast<int>(startInfo->mode);
 			info.gameStartTime = static_cast<int64_t>(startInfo->startTime); // DMB (S077 R4): with the map, the id that joins this game's files

@@ -202,6 +202,16 @@ public:
 
 	ThreadSafeVector<int> waitingRequest;
 
+	/// DMB (S236, K 11-15: "ZACH GOT EJECTED, IT TRIED TO REJOIN HIM AUTOMATICALLY, BUT CRASHED MY CLIENT"): the seat each sent request is for, and the seats
+	/// whose stand-in AI is letting go (releaseAI). A request of such a seat ends its wait with TerminationRequestedException, as stock's finishGameplay ends
+	/// every wait at a game's end, so the AI's turn thread returns before its interface is destroyed. Before this the network thread destroyed the AI while the
+	/// AI's turn thread waited for an answer only that network thread could deliver: the host's client froze
+	std::mutex requestSeatsMutex;
+	std::map<int, PlayerColor> requestSeats;
+	std::set<int> droppedRequests;
+	std::set<PlayerColor> releasingSeats;
+	void requestAnswered(int requestID);
+
 	void handlePack(CPackForClient & pack); //applies the given pack and deletes it
 	int sendRequest(const CPackForServer & request, PlayerColor player, bool waitTillRealize) override; //returns ID given to that request
 	std::optional<BattleAction> makeSurrenderRetreatDecision(PlayerColor player, const BattleID & battleID, const BattleStateInfoForRetreat & battleState) override;

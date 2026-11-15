@@ -1036,6 +1036,7 @@ void ApplyClientNetPackVisitor::visitEndAction(EndAction & pack)
 void ApplyClientNetPackVisitor::visitPackageApplied(PackageApplied & pack)
 {
 	callInterfaceIfPresent(cl, pack.player, &IGameEventsReceiver::requestRealized, &pack);
+	cl.requestAnswered(pack.requestID); // S236: the request's seat is no longer needed
 	if(!cl.waitingRequest.tryRemovingElement(pack.requestID))
 		logNetwork->warn("Surprising server message! PackageApplied for unknown requestID!");
 }

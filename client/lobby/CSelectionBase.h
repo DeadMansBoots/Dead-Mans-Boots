@@ -31,6 +31,7 @@ class ExtraOptionsTab;
 class SelectionTab;
 class BattleOnlyModeTab;
 class InfoCard;
+class MapGenPreviewBox;
 class CChatBox;
 class PvPBox;
 class TownSelector;
@@ -119,6 +120,12 @@ class InfoCard : public CIntObject
 	std::shared_ptr<CButton> buttonOpenGlobalLobby;
 
 	std::shared_ptr<PvPBox> pvpBox;
+
+	/// DMB (S035): the picture of the map a generator mod would make from the lobby's settings, beside the description (MapGenPreview.h)
+	std::shared_ptr<MapGenPreviewBox> mapGenPreview;
+	/// the levels it shows, 0 when it is not shown
+	int mapGenPreviewLevels = 0;
+	void setMapGenPreview(int levels);
 public:
 
 	bool showChat;

@@ -75,8 +75,14 @@ namespace MapGenerators
 	/// it is ended. Both its output streams go to `logPath`, and it opens no console window over the
 	/// game. Returns its exit code; throws std::runtime_error when it cannot start or runs too long.
 	/// While it runs, the stages it announces set currentPhase() and `progress`.
+	/// `announcesPhases` false: the stages it announces are not read (the lobby's preview, which may run while a game's map is made).
 	DLL_LINKAGE int run(const MapGeneratorInfo & generator, const std::vector<std::string> & args,
-		const boost::filesystem::path & logPath, std::chrono::seconds timeout, Load::Progress * progress = nullptr);
+		const boost::filesystem::path & logPath, std::chrono::seconds timeout, Load::Progress * progress = nullptr, bool announcesPhases = true);
+	/// The arguments generateForGame gives the generator for these options and this game's players (every argument it lists above),
+	/// with `outPath`, the .vmap it is told to write in the user's Maps/RandomMaps, set. The lobby's preview of the current settings
+	/// (client/lobby/MapGenPreview.h) runs the generator with the same arguments, so the picture is of the map Begin would make.
+	DLL_LINKAGE std::vector<std::string> gameArguments(const MapGeneratorInfo & generator, const CMapGenOptions & options, const StartInfo & start, int seed,
+		boost::filesystem::path & outPath);
 
 	/// The cmd.exe line that runs a .cmd or .bat generator `script` with `args`: cmd /c ""script" "arg" ...", every argument
 	/// in quotes, so & | < > ^ ( ) in a template name or a folder are text. A quote, a percent sign or a line break cannot be

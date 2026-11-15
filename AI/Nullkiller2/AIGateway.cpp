@@ -37,6 +37,7 @@
 
 #include "AIGateway.h"
 #include "Goals/Goals.h"
+#include "Pathfinding/AINodeStorage.h"
 
 namespace NK2AI
 {
@@ -842,6 +843,16 @@ void AIGateway::makeTurn()
 		auto day = cc->getDate(Date::DAY);
 		logAi->info("Player %d (%s) starting turn, day %d", playerID, playerID.toString(), day);
 
+		// DMB (S239, K 11-15: "diagnose the crash issue", the host froze at 14:22 with two stand-in AIs playing at once): the shared pathfinding storage's
+		// lock is taken before the game state's lock, not inside it (Nullkiller::makeTurn did). A turn holds it while its requests wait for answers, and
+		// those waits let go of the game state's lock only (CClient::sendRequest). Taken inside, a second AI's turn waited for it holding the game state,
+		// the network thread waited for the game state to apply the first AI's answer, and the first AI waited for that answer: the client froze
+		std::unique_lock<std::mutex> sharedStorageLock(AISharedStorage::locker, std::try_to_lock);
+		if(!sharedStorageLock.owns_lock())
+		{
+			logAi->info("Player %s waits for another Nullkiller 2 turn on this PC to end (S239)", playerID.toString());
+			sharedStorageLock.lock();
+		}
 		std::shared_lock gsLock(CGameState::mutex);
 		cheatMapReveal(nullkiller);
 		memorizeVisitableObjs(nullkiller->memory, nullkiller->dangerHitMap, playerID, cc);

@@ -35,6 +35,7 @@
 
 #include "AIGateway.h"
 #include "Goals/Goals.h"
+#include "Pathfinding/AINodeStorage.h"
 
 namespace NKAI
 {
@@ -857,6 +858,14 @@ void AIGateway::makeTurn() noexcept
 	auto day = cb->getDate(Date::DAY);
 	logAi->info("Player %d (%s) starting turn, day %d", playerID, playerID.toString(), day);
 
+	// DMB (S239): the shared pathfinding storage's lock before the game state's lock, as in Nullkiller 2's makeTurn (see there: taken inside, two AI turns
+	// at once on one client froze it, because a turn's request waits let go of the game state's lock only)
+	std::unique_lock<std::mutex> sharedStorageLock(AISharedStorage::locker, std::try_to_lock);
+	if(!sharedStorageLock.owns_lock())
+	{
+		logAi->info("Player %s waits for another Nullkiller turn on this PC to end (S239)", playerID.toString());
+		sharedStorageLock.lock();
+	}
 	std::shared_lock gsLock(CGameState::mutex);
 
 	if(nullkiller->isOpenMap())

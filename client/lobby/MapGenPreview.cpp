@@ -413,13 +413,18 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 	}
 
 	// the starts: castles in the player's colour, no numbers (K, November 5th: "player starts dont need numbers, only colors corresponding to the player color that gets it")
+	// a start on the map's edge keeps its whole castle inside the panel, as the template previews do (layout_render.py spread_castles keeps
+	// every castle a margin inside its panel)
 	const int castleHeight = std::max(7, side / 11);
+	const int castleOutline = std::max(1, static_cast<int>(std::lround(castleHeight * 0.12)));
+	const int marginX = static_cast<int>(std::ceil(castleHeight * 1.15 / 2)) + castleOutline + 1;
+	const int marginY = static_cast<int>(std::ceil(castleHeight / 2.0)) + castleOutline + 1;
 	for(const auto & start : layout["starts"].Vector())
 	{
 		if(static_cast<size_t>(start["level"].Integer()) != level)
 			continue;
-		const int cx = offX + static_cast<int>((start["x"].Float() + 0.5) * width / W);
-		const int cy = offY + static_cast<int>((start["y"].Float() + 0.5) * height / H);
+		const int cx = std::clamp(offX + static_cast<int>((start["x"].Float() + 0.5) * width / W), marginX, side - marginX);
+		const int cy = std::clamp(offY + static_cast<int>((start["y"].Float() + 0.5) * height / H), marginY, side - marginY);
 		drawCastle(*canvas, cx, cy, castleHeight, playerColor(start["color"].String()));
 	}
 	return canvas;

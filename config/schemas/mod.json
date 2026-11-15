@@ -227,8 +227,8 @@
 				},
 				"arguments" : {
 					"type" : "array",
-					"items" : { "type" : "string", "enum" : [ "humanColors" ] },
-					"description" : "The optional arguments the command takes, which DMB passes only to a generator that lists them: humanColors (--humanColors red,green, the colours the seated humans took in the lobby)"
+					"items" : { "type" : "string", "enum" : [ "humanColors", "heroes" ] },
+					"description" : "The optional arguments the command takes, which DMB passes only to a generator that lists them: humanColors (--humanColors red,green, the colours the seated humans took in the lobby); heroes (--heroes red=hero,blue=hero, the heroes the players picked in the lobby, so the map does not also place them)"
 				}
 			}
 		},

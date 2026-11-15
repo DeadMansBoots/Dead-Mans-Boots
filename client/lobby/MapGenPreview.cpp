@@ -101,7 +101,12 @@ JsonNode runOnce(const MapGeneratorInfo & generator, const std::vector<std::stri
 		logGlobal->warn("Map preview: %s wrote a layout DMB cannot read (%s)", generator.name, layoutPath.string());
 		return JsonNode();
 	}
-	logGlobal->info("Map preview: %s made the layout in %d ms", generator.name, static_cast<int>(took));
+	std::vector<std::string> colors;
+	for(const auto & start : layout["starts"].Vector())
+		colors.push_back(start["color"].String());
+	logGlobal->info("Map preview: %s made the layout in %d ms: %dx%d, %d level(s), starts %s", generator.name, static_cast<int>(took),
+		static_cast<int>(layout["size"]["w"].Integer()), static_cast<int>(layout["size"]["h"].Integer()), static_cast<int>(layout["layout"].Vector().size()),
+		boost::algorithm::join(colors, ","));
 	return layout;
 }
 

@@ -70,6 +70,7 @@ set(vcmiclientcommon_SRCS
 	lobby/OptionsTabBase.cpp
 	lobby/RandomMapTab.cpp
 	lobby/MapGenTab.cpp
+	lobby/MapGenPreview.cpp
 	lobby/SelectionTab.cpp
 
 	mainmenu/CCampaignScreen.cpp
@@ -309,6 +310,7 @@ set(vcmiclientcommon_HEADERS
 	lobby/TimerString.h
 	lobby/RandomMapTab.h
 	lobby/MapGenTab.h
+	lobby/MapGenPreview.h
 	lobby/SelectionTab.h
 
 	mainmenu/CCampaignScreen.h

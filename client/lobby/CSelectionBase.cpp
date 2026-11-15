@@ -15,6 +15,7 @@
 #include "OptionsTab.h"
 #include "RandomMapTab.h"
 #include "MapGenTab.h"
+#include "MapGenPreview.h"
 #include "SelectionTab.h"
 
 #include "../CPlayerInterface.h"
@@ -170,6 +171,8 @@ InfoCard::InfoCard()
 	mapName = std::make_shared<CLabel>(26, 39, FONT_BIG, ETextAlignment::TOPLEFT, Colors::YELLOW, "", SEL->screenType == ESelectionScreen::campaignList ? 325 : 280);
 	Rect descriptionRect(26, 149, 320, 115);
 	mapDescription = std::make_shared<CTextBox>("", descriptionRect, 1);
+	mapGenPreview = std::make_shared<MapGenPreviewBox>(Rect(0, 0, 0, 0));
+	mapGenPreview->disable();
 	playerListBg = std::make_shared<CPicture>(ImagePath::builtin("CHATPLUG.bmp"), 16, 276);
 	chat = std::make_shared<CChatBox>(Rect(18, 126, 335, 143));
 	pvpBox = std::make_shared<PvPBox>(Rect(17, 396, 338, 105));
@@ -269,6 +272,17 @@ void InfoCard::changeSelection()
 		}
 		labelScenarioName->setText(heading);
 	}
+	// DMB (K, November 4th, S035: "a preview of what the map the user's currently selected settings will generate (approximately)"): a generator mod's
+	// random map whose generator takes "layout" gets its picture beside the description, asked for again at every change of the settings (every client
+	// draws its own, from the host's settings)
+	int previewLevels = 0;
+	if(SEL->screenType != ESelectionScreen::campaignList && mapInfo->isRandomMap && GAME->server().si && GAME->server().si->mapGenOptions
+		&& MapGenPreview::applies(*GAME->server().si->mapGenOptions))
+	{
+		previewLevels = GAME->server().si->mapGenOptions->getLevels() > 1 ? 2 : 1;
+		MapGenPreview::request(*GAME->server().si->mapGenOptions, *GAME->server().si);
+	}
+	setMapGenPreview(previewLevels);
 	mapDescription->setText(mapInfo->getDescriptionTranslated());
 
 	mapDescription->label->scrollTextTo(0, false);
@@ -342,8 +356,38 @@ void InfoCard::changeSelection()
 	}
 }
 
+void InfoCard::setMapGenPreview(int levels)
+{
+	if(levels == mapGenPreviewLevels)
+		return;
+	mapGenPreviewLevels = levels;
+	OBJECT_CONSTRUCTION;
+	// the description's box gives the picture its right side: one level a square as high as the box, two levels two smaller squares side by side
+	const Rect whole(26, 149, 320, 115);
+	Rect text = whole;
+	if(levels > 0)
+	{
+		constexpr int gap = 6;
+		const int side = levels == 1 ? whole.h : 97;
+		const int width = side * levels + 4 * (levels - 1);
+		text.w = whole.w - width - gap;
+		mapGenPreview->pos = Rect(pos.x + whole.x + whole.w - width, pos.y + whole.y + (whole.h - side) / 2, width, side);
+	}
+	const std::string description = mapDescription->label->getText();
+	mapDescription = std::make_shared<CTextBox>(description, text, 1);
+	mapDescription->label->setAutoRedraw(false);
+	if(showChat)
+		mapDescription->disable();
+	if(levels > 0 && !showChat)
+		mapGenPreview->enable();
+	else
+		mapGenPreview->disable();
+	ENGINE->windows().totalRedraw();
+}
+
 void InfoCard::clearSelection()
 {
+	setMapGenPreview(0);
 	labelSaveDate->setText("");
 	mapName->setText("");
 	mapDescription->setText("");
@@ -394,6 +438,7 @@ void InfoCard::setChat(bool activateChat)
 			flagbox->disable();
 			iconDifficulty->disable();
 			mapDescription->disable();
+			mapGenPreview->disable();
 			chat->enable();
 			pvpBox->enable();
 			playerListBg->enable();
@@ -409,6 +454,8 @@ void InfoCard::setChat(bool activateChat)
 		buttonInvitePlayers->disable();
 		buttonOpenGlobalLobby->disable();
 		mapDescription->enable();
+		if(mapGenPreviewLevels > 0)
+			mapGenPreview->enable();
 		chat->disable();
 		pvpBox->disable();
 		playerListBg->disable();

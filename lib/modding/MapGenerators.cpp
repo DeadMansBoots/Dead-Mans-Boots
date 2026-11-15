@@ -172,22 +172,10 @@ std::vector<MapGeneratorInfo> MapGenerators::active()
 	return result;
 }
 
-boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & options, const StartInfo & start, int seed, Load::Progress * progress)
+std::vector<std::string> MapGenerators::gameArguments(const MapGeneratorInfo & generatorInfo, const CMapGenOptions & options, const StartInfo & start, int seed,
+	boost::filesystem::path & outPath)
 {
-	std::optional<MapGeneratorInfo> generator;
-	for(const auto & found : active())
-		if(found.modID == options.getExternalGenerator())
-			generator = found;
-	if(!generator)
-		throw std::runtime_error("the map generator of the mod " + options.getExternalGenerator() + " is not enabled");
-	if(!generator->problem.empty())
-		throw std::runtime_error(generator->name + " cannot run: " + generator->problem);
-	if(!generator->atBegin)
-		throw std::runtime_error(generator->name + " makes maps from its own tab, not when a game starts");
-	const std::string refused = AddonCode::trustProblem(generator->modID, generator->codeFolder);
-	if(!refused.empty())
-		throw std::runtime_error(generator->name + " cannot run: " + refused);
-
+	const MapGeneratorInfo * generator = &generatorInfo;
 	// the generator's settings as the host's lobby tab left them (MapGenTab::updateMapInfoByHost)
 	const JsonNode & chosen = options.getExternalSettings();
 	const auto mapSetting = [&chosen](const std::string & key) -> const JsonNode &
@@ -242,11 +230,10 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 	}
 
 	const auto outDir = VCMIDirs::get().userDataPath() / "Maps" / "RandomMaps";
-	boost::filesystem::create_directories(outDir);
 	// a size left on Random (-1) with no custom size is rolled by the generator from the seed (the lobby shows a middle size meanwhile)
 	const bool randomSize = mapSetting("size").isNumber() && mapSetting("size").Integer() < 0
 		&& !(mapSetting("width").isNumber() && mapSetting("width").Integer() > 0 && mapSetting("height").isNumber() && mapSetting("height").Integer() > 0);
-	const auto outPath = outDir / ("mapgen_" + (randomSize ? std::string("random") : std::to_string(options.getWidth()) + "x" + std::to_string(options.getHeight()))
+	outPath = outDir / ("mapgen_" + (randomSize ? std::string("random") : std::to_string(options.getWidth()) + "x" + std::to_string(options.getHeight()))
 		+ "_p" + (playersGiven < 0 ? std::string("R") : std::to_string(playersGiven)) + "_s" + std::to_string(seed) + ".vmap");
 
 	std::vector<std::string> args {
@@ -331,7 +318,28 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 		args.push_back(lever.first == "rivers" ? "--rivers" : "--bio." + lever.first);
 		args.push_back(value.str());
 	}
+	return args;
+}
 
+boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & options, const StartInfo & start, int seed, Load::Progress * progress)
+{
+	std::optional<MapGeneratorInfo> generator;
+	for(const auto & found : active())
+		if(found.modID == options.getExternalGenerator())
+			generator = found;
+	if(!generator)
+		throw std::runtime_error("the map generator of the mod " + options.getExternalGenerator() + " is not enabled");
+	if(!generator->problem.empty())
+		throw std::runtime_error(generator->name + " cannot run: " + generator->problem);
+	if(!generator->atBegin)
+		throw std::runtime_error(generator->name + " makes maps from its own tab, not when a game starts");
+	const std::string refused = AddonCode::trustProblem(generator->modID, generator->codeFolder);
+	if(!refused.empty())
+		throw std::runtime_error(generator->name + " cannot run: " + refused);
+
+	boost::filesystem::path outPath;
+	const std::vector<std::string> args = gameArguments(*generator, options, start, seed, outPath);
+	boost::filesystem::create_directories(outPath.parent_path());
 	const auto logPath = VCMIDirs::get().userLogsPath() / "extmapgen_log.txt";
 	logGlobal->info("Map generator %s (mod %s) makes the game's map: %s -> %s", generator->name, generator->modID, generator->command.string(), outPath.string());
 	// DMB: a map an earlier run left under this name (another template or other factions, same size, players and seed) is not this
@@ -351,11 +359,12 @@ boost::filesystem::path MapGenerators::generateForGame(const CMapGenOptions & op
 }
 
 int MapGenerators::run(const MapGeneratorInfo & generator, const std::vector<std::string> & args,
-	const boost::filesystem::path & logPath, std::chrono::seconds timeout, Load::Progress * progress)
+	const boost::filesystem::path & logPath, std::chrono::seconds timeout, Load::Progress * progress, bool announcesPhases)
 {
-	// the stages this run announces; none once it ends, however it ends
-	setPhase({});
-	auto clearPhase = vstd::makeScopeGuard([]() { setPhase({}); });
+	// the stages this run announces; none once it ends, however it ends. A run that does not announce them (the lobby's preview) leaves them to a game's run
+	if(announcesPhases)
+		setPhase({});
+	auto clearPhase = vstd::makeScopeGuard([announcesPhases]() { if(announcesPhases) setPhase({}); });
 	std::streamoff logRead = 0;
 
 	const std::string command = generator.command.string();
@@ -388,7 +397,8 @@ int MapGenerators::run(const MapGeneratorInfo & generator, const std::vector<std
 			throw std::runtime_error(generator.name + " did not finish in " + std::to_string(timeout.count() / 60) + " minutes");
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
-		readPhases(generator, logPath, logRead, progress);
+		if(announcesPhases)
+			readPhases(generator, logPath, logRead, progress);
 	}
 	child->wait();
 	return child->exit_code();

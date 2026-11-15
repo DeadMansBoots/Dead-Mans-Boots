@@ -28,6 +28,7 @@
 #include "../lib/texts/CGeneralTextHandler.h"
 #include "windows/InfoWindows.h"
 #include "../lib/battle/BattleInfo.h"
+#include "../lib/CStack.h"
 #include "../lib/battle/CPlayerBattleCallback.h"
 #include "../lib/callback/CCallback.h"
 #include "../lib/callback/CDynLibHandler.h"

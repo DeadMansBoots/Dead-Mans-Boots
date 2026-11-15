@@ -50,5 +50,4 @@ class MapGenPreviewBox : public CIntObject
 public:
 	explicit MapGenPreviewBox(const Rect & position);
 	void showAll(Canvas & to) override;
-	void show(Canvas & to) override;
 };

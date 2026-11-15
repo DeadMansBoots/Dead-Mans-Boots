@@ -158,6 +158,8 @@ void work()
 			{
 				shownLayout = layout;
 				shownSerial++;
+				// the lobby is drawn again on the next frame, the card's picture with it (a picture of fewer levels leaves nothing of the last behind)
+				ENGINE->windows().totalRedraw();
 			});
 			state.running = false;
 			return;
@@ -464,11 +466,4 @@ void MapGenPreviewBox::showAll(Canvas & to)
 	}
 	for(size_t i = 0; i < panels.size(); ++i)
 		to.draw(*panels[i], pos.topLeft() + panelAt[i]);
-}
-
-void MapGenPreviewBox::show(Canvas & to)
-{
-	// a new layout arrives between frames: the card is drawn again on the next one (a picture of fewer levels leaves nothing of the last behind)
-	if(drawnSerial != shownSerial)
-		ENGINE->windows().totalRedraw();
 }

@@ -432,10 +432,38 @@ std::vector<PlayerColor> CClient::aiSeats()
 void CClient::releaseAI(PlayerColor color)
 {
 	logNetwork->info("Player %s is back: the AI lets go of the seat", color.toString());
+	// S236: this runs on the network thread, the one that delivers every answer. The AI's turn thread may be waiting for one (K's hosts froze at 13:53 and
+	// 14:01 on November 15th: MoveHero and HireHero requests, then ~AIGateway here waited for that thread forever). So, as stock's finishGameplay does for
+	// a whole game: the seat's waits end first and it sends nothing more, then the AI stops its own threads (finish), then it is destroyed
+	std::vector<int> pending;
+	{
+		std::scoped_lock lock(requestSeatsMutex);
+		releasingSeats.insert(color);
+		for(const auto & [id, seat] : requestSeats)
+			if(seat == color)
+				pending.push_back(id);
+		droppedRequests.insert(pending.begin(), pending.end());
+	}
+	for(int id : pending)
+		if(waitingRequest.tryRemovingElement(id))
+			logNetwork->info("Player %s: the AI's request %d will not be answered here; its wait ends (S236)", color.toString(), id);
+	const auto iface = playerint.find(color);
+	if(iface != playerint.end())
+		iface->second->finish();
 	playerint.erase(color);
 	battleints.erase(color);
 	battleCallbacks.erase(color);
 	advInterfaceReadySent.erase(color);
+	{
+		std::scoped_lock lock(requestSeatsMutex);
+		releasingSeats.erase(color);
+		for(int id : pending)
+		{
+			droppedRequests.erase(id);
+			requestSeats.erase(id);
+		}
+	}
+	logNetwork->info("Player %s: the AI has let go of the seat (S236)", color.toString());
 }
 
 std::string CClient::aiNameForPlayer(const PlayerSettings & ps, bool battleAI, bool alliedToHuman) const
@@ -586,7 +614,18 @@ int CClient::sendRequest(const CPackForServer & request, PlayerColor player, boo
 	ui32 requestID = requestCounter++;
 	logNetwork->trace("Sending a request \"%s\". It'll have an ID=%d.", typeid(request).name(), requestID);
 
-	waitingRequest.pushBack(requestID);
+	{
+		// S236: a seat whose stand-in AI is letting go sends nothing more; its AI's turn ends as at a game's end
+		std::scoped_lock lock(requestSeatsMutex);
+		if(releasingSeats.count(player))
+		{
+			logNetwork->info("Request \"%s\" of seat %s not sent: its AI is letting go of the seat (S236)", typeid(request).name(), player.toString());
+			throw TerminationRequestedException();
+		}
+		requestSeats[requestID] = player;
+		// under the same lock, so releaseAI never collects a request that is not yet in waitingRequest
+		waitingRequest.pushBack(requestID);
+	}
 	request.requestID = requestID;
 	request.player = player;
 	if(vstd::contains(playerint, player))
@@ -607,9 +646,27 @@ int CClient::sendRequest(const CPackForServer & request, PlayerColor player, boo
 		logGlobal->trace("We'll wait till request %d is answered.\n", requestID);
 		auto gsUnlocker = vstd::makeUnlockSharedGuard(CGameState::mutex);
 		waitingRequest.waitWhileContains(requestID);
+		// S236: the wait ended because the seat's AI is letting go (releaseAI), not because the server answered
+		bool dropped = false;
+		{
+			std::scoped_lock lock(requestSeatsMutex);
+			dropped = droppedRequests.erase(requestID) > 0;
+			requestSeats.erase(requestID);
+		}
+		if(dropped)
+		{
+			logNetwork->info("Request %d of seat %s: the wait ended without an answer, the seat's AI lets go (S236)", requestID, player.toString());
+			throw TerminationRequestedException();
+		}
 	}
 
 	return requestID;
+}
+
+void CClient::requestAnswered(int requestID)
+{
+	std::scoped_lock lock(requestSeatsMutex);
+	requestSeats.erase(requestID);
 }
 
 void CClient::battleStarted(const BattleID & battleID)

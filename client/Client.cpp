@@ -413,6 +413,37 @@ void CClient::takeOverByAI(PlayerColor color)
 	advInterfaceReadySent.insert(color);
 	AdvInterfaceReady air;
 	sendRequest(air, color, /* waitTillRealize = */ false);
+
+	// S239 (K 11-15, the host froze at 14:22 after "zach's cat batted at his ethernet cable and yanked it out" mid-battle): a seat that leaves in the
+	// middle of its battle hands the battle to the stand-in too. The AI was made after the battle began, so it never had battleStart and nobody played
+	// the seat's units: the battle query stayed open, and the AI's turn asked the server for map actions it refused 300 times in 17 seconds ("has to answer
+	// queries"), each one shown to every player. Now the AI gets the battle as at its start (its turn then waits for the battle's end, as an AI's does),
+	// and the move the seat owes now
+	if(const BattleInfo * battle = gameState().getBattle(color))
+	{
+		const BattleID battleID = battle->getBattleID();
+		const auto & leftSide = battle->getSide(BattleSide::LEFT_SIDE);
+		const auto & rightSide = battle->getSide(BattleSide::RIGHT_SIDE);
+		const BattleSide side = leftSide.color == color ? BattleSide::LEFT_SIDE : BattleSide::RIGHT_SIDE;
+		logNetwork->info("Player %s left in the middle of a battle: %s plays the battle from here (S239)", color.toString(), aiName);
+		if(battleCallbacks.count(color))
+			battleCallbacks[color]->onBattleStarted(battle);
+		if(battleints.count(color))
+			battleints[color]->battleStart(battleID, leftSide.getArmy(), rightSide.getArmy(), battle->tile, leftSide.getHero(), rightSide.getHero(), side, battle->replayAllowed);
+		if(battle->tacticDistance && battle->getSide(battle->tacticsSide).color == color && battleints.count(color))
+			battleints[color]->yourTacticPhase(battleID, battle->tacticDistance);
+		else if(const CStack * active = battle->battleGetStackByID(battle->activeStack, false))
+		{
+			const PlayerColor owner = active->isHypnotized()
+				? (leftSide.color == active->unitOwner() ? rightSide.color : leftSide.color)
+				: active->unitOwner();
+			if(owner == color)
+			{
+				logNetwork->info("Player %s: the stand-in makes the move its unit owes (S239)", color.toString());
+				startPlayerBattleAction(battleID, color);
+			}
+		}
+	}
 }
 
 std::vector<PlayerColor> CClient::aiSeats()

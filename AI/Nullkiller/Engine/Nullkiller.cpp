@@ -379,7 +379,7 @@ HeroLockedReason Nullkiller::getHeroLockedReason(const CGHeroInstance * hero) co
 
 void Nullkiller::makeTurn()
 {
-	std::lock_guard<std::mutex> sharedStorageLock(AISharedStorage::locker);
+	// AISharedStorage::locker is held by the caller, AIGateway::makeTurn, taken before the game state's lock (DMB S239)
 
 	const int MAX_DEPTH = 10;
 

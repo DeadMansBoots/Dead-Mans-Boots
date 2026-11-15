@@ -358,11 +358,13 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 		return darkened(fillOf(kindOf(id)));
 	};
 
-	// water, when the generator gives it: one entry a tile, per level
+	// water, when the generator gives it: one entry a tile, per level ("waterTiles", MapGen Dev's key, beside the "water" summary of shape and
+	// coverage; "water" itself when it is the per-level mask, as in the generator's dump that layout_render.py reads)
 	std::vector<bool> water;
-	if(layout["water"].isVector() && level < layout["water"].Vector().size())
+	const JsonNode & mask = layout["waterTiles"].isVector() ? layout["waterTiles"] : layout["water"];
+	if(mask.isVector() && level < mask.Vector().size())
 	{
-		const auto & wet = layout["water"].Vector()[level].Vector();
+		const auto & wet = mask.Vector()[level].Vector();
 		if(wet.size() == cells.size())
 			for(const auto & tile : wet)
 				water.push_back(tile.isNumber() ? tile.Integer() != 0 : tile.Bool());

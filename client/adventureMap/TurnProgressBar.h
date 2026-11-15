@@ -122,6 +122,27 @@ public:
 	void setFolded(bool value);
 };
 
+/// DMB (K, November 14th, S162, Meg's proposal: "in the minimized screen, that you be able to select specific colors to enable their turn progress bars individually.
+/// hitting + and - again would reset effectively"; S216 "WHY? BUILD IT"): a square of the folded strip in one player's colour. A click picks the player, and that
+/// player's bar shows under the strip while the rest stay folded; a second click on the same square puts the bar away again. Picked squares wear a bright rim.
+class TurnBarColourSquare : public CIntObject
+{
+	PlayerColor player;
+	std::function<void(PlayerColor)> onClick;
+	bool hovered = false;
+	bool picked = false;
+
+	void hover(bool on) override;
+	void clickPressed(const Point & cursorPosition) override;
+	void showAll(Canvas & to) override;
+	void show(Canvas & to) override;
+
+public:
+	TurnBarColourSquare(PlayerColor player, std::function<void(PlayerColor)> onClick);
+	PlayerColor getPlayer() const;
+	void setPicked(bool value);
+};
+
 /// DMB (K, October 18th: "it should show my allies, their names, their colors, their progress"): the viewing player's bar first, then one for each ally in colour order,
 /// AI allies included, stacked downward from the top left of the map, under the turn timer when there is one. Who is listed is read from the game state at every
 /// frame: an ally who is eliminated loses the bar, and in hot seat the list follows the player whose screen it is. Shown when more than one human plays or the
@@ -137,8 +158,12 @@ class TurnProgressBars : public CIntObject
 	/// S015: the minimize button, and whether the bars are folded to the one-line strip of colour squares
 	std::shared_ptr<TurnBarFoldButton> foldButton;
 	bool folded = false;
-	/// the strip's squares when folded: one per listed player, right of the button
-	std::vector<std::pair<Rect, PlayerColor>> squares;
+	/// the strip's squares when folded: one per listed player, right of the button, in the order the bars stand
+	std::vector<std::shared_ptr<TurnBarColourSquare>> squares;
+	/// S162: the players whose bars show under the folded strip, picked by a click on their square; cleared by the minimize button ("+" then "-" resets)
+	std::set<PlayerColor> picked;
+	/// a square was clicked: the bars are placed again at the next tick, so the square is not touched from inside its own click
+	bool pendingRefresh = false;
 	/// where bars were before they moved or went: the map paints those tiles fresh once
 	std::vector<Rect> vacated;
 
@@ -147,6 +172,8 @@ class TurnProgressBars : public CIntObject
 	/// matches the bars to the members, keeping each bar that stays, and places them (force: place them again, after a fold or an unfold)
 	void refresh(bool force = false);
 	void toggleFold();
+	/// S162: a click on a player's square in the folded strip shows that player's bar, or puts it away when it shows
+	void togglePick(PlayerColor player);
 	void tick(uint32_t msPassed) override;
 	void showAll(Canvas & to) override;
 	void show(Canvas & to) override;
@@ -155,8 +182,8 @@ public:
 	TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans);
 	~TurnProgressBars();
 
-	/// the minimize button's area on screen while it is shown: a click there is the button's, not the map's (MapViewActions::receiveEvent)
-	static Rect buttonArea;
+	/// the minimize button's area on screen while it is shown, and the folded strip's squares (S162): a click there is theirs, not the map's (MapViewActions::receiveEvent)
+	static std::vector<Rect> clickAreas;
 	static bool coversPoint(const Point & point);
 
 	/// the screen areas whose tiles the map paints fresh this frame: every bar, and where a bar was before it moved or went

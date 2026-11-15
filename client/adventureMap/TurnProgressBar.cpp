@@ -625,11 +625,61 @@ void TurnBarFoldButton::show(Canvas & to)
 		to.drawColor(Rect(cx - stroke / 2, cy - length / 2, stroke, length), mark);
 }
 
-Rect TurnProgressBars::buttonArea = Rect();
+TurnBarColourSquare::TurnBarColourSquare(PlayerColor player, std::function<void(PlayerColor)> onClick)
+	: CIntObject(LCLICK | HOVER)
+	, player(player)
+	, onClick(onClick)
+{
+	pos.w = TurnBarFoldButton::SIZE;
+	pos.h = TurnBarFoldButton::SIZE;
+	recActions &= ~DEACTIVATE;
+}
+
+PlayerColor TurnBarColourSquare::getPlayer() const
+{
+	return player;
+}
+
+void TurnBarColourSquare::setPicked(bool value)
+{
+	picked = value;
+}
+
+void TurnBarColourSquare::hover(bool on)
+{
+	hovered = on;
+}
+
+void TurnBarColourSquare::clickPressed(const Point &)
+{
+	if(onClick)
+		onClick(player);
+}
+
+void TurnBarColourSquare::showAll(Canvas & to)
+{
+	show(to);
+}
+
+void TurnBarColourSquare::show(Canvas & to)
+{
+	// the player's colour in the minimize button's dark outline and gold rim, as the strip was drawn in S015; a picked square's rim is the button's lit white-gold and
+	// two pixels wide, so the picked colours read at a glance; the pointer over a square lights its rim like the button's
+	const ColorRGBA dark(45, 28, 8, 255);
+	const ColorRGBA rim = picked ? ColorRGBA(255, 246, 200, 255) : hovered ? ColorRGBA(255, 226, 130, 255) : ColorRGBA(214, 170, 70, 255);
+	const ColorRGBA colour = player.isValidPlayer() && player.getNum() < 8 ? graphics->playerColors[player.getNum()] : ColorRGBA(150, 150, 150, 255);
+	to.drawColor(pos, colour);
+	to.drawBorder(pos, dark, 1);
+	to.drawBorder(Rect(pos.x + 1, pos.y + 1, pos.w - 2, pos.h - 2), rim, 1);
+	if(picked)
+		to.drawBorder(Rect(pos.x + 2, pos.y + 2, pos.w - 4, pos.h - 4), rim, 1);
+}
+
+std::vector<Rect> TurnProgressBars::clickAreas;
 
 bool TurnProgressBars::coversPoint(const Point & point)
 {
-	return buttonArea.w > 0 && buttonArea.isInside(point);
+	return std::any_of(clickAreas.begin(), clickAreas.end(), [&point](const Rect & area){ return area.isInside(point); });
 }
 
 TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans)
@@ -650,7 +700,7 @@ TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapAr
 
 TurnProgressBars::~TurnProgressBars()
 {
-	buttonArea = Rect();
+	clickAreas.clear();
 }
 
 void TurnProgressBars::toggleFold()
@@ -659,8 +709,23 @@ void TurnProgressBars::toggleFold()
 	Settings entry = settings.write["adventure"]["turnBarFolded"];
 	entry->Bool() = folded;
 	foldButton->setFolded(folded);
+	// S162: "hitting + and - again would reset": either press of the button clears the picked colours, so "+" shows every bar and "-" folds them all again
+	if(!picked.empty())
+		logGlobal->info("Turn bars: %d picked colours cleared by the minimize button (S162)", static_cast<int>(picked.size()));
+	picked.clear();
 	logGlobal->info("Turn bars %s (S015 minimize button)", folded ? "folded" : "unfolded");
 	refresh(true);
+}
+
+void TurnProgressBars::togglePick(PlayerColor player)
+{
+	const bool on = !picked.count(player);
+	if(on)
+		picked.insert(player);
+	else
+		picked.erase(player);
+	logGlobal->info("Turn bars: the square of player %d clicked, its bar %s (S162, %d picked)", player.getNum(), on ? "shows under the folded strip" : "put away", static_cast<int>(picked.size()));
+	pendingRefresh = true;
 }
 
 std::vector<PlayerColor> TurnProgressBars::members() const
@@ -726,15 +791,20 @@ void TurnProgressBars::refresh(bool force)
 		if(on)
 			widget.recActions &= ~DEACTIVATE;
 	};
-	// the button and the strip's squares lie over the map like the bars: their old places are painted fresh once
+	// the button and the strip's squares lie over the map like the bars: their old places are painted fresh once. A square that stays is kept (its hover with it);
+	// the rest go when oldSquares does
 	vacated.push_back(foldButton->pos);
-	for(const auto & square : squares)
-		vacated.push_back(square.first);
+	std::vector<std::shared_ptr<TurnBarColourSquare>> oldSquares = std::move(squares);
 	squares.clear();
+	for(const auto & square : oldSquares)
+		vacated.push_back(square->pos);
+	// a picked player who left the list (eliminated, or no longer an ally) is no longer picked
+	for(auto it = picked.begin(); it != picked.end();)
+		it = std::find(wanted.begin(), wanted.end(), *it) == wanted.end() ? picked.erase(it) : std::next(it);
+	clickAreas.clear();
 	if(bars.empty())
 	{
 		setShown(*foldButton, false);
-		buttonArea = Rect();
 		return;
 	}
 
@@ -745,29 +815,46 @@ void TurnProgressBars::refresh(bool force)
 	const int frameHeight = bars.front()->pos.h - frame.y;
 	setShown(*foldButton, true);
 	foldButton->moveTo(Point(corner.x, corner.y + (frameHeight - TurnBarFoldButton::SIZE) / 2));
-	buttonArea = foldButton->pos;
+	clickAreas.push_back(foldButton->pos);
 	const int step = TurnBarFoldButton::SIZE + 4;
-	for(const auto & bar : bars)
-		setShown(*bar, !folded);
-	if(folded)
-	{
-		// one line: a square in each listed player's colour, right of the button, in the order the bars stand
-		for(size_t i = 0; i < bars.size(); ++i)
-		{
-			vacated.push_back(bars[i]->pos);
-			squares.emplace_back(Rect(foldButton->pos.x + static_cast<int>(i + 1) * step, foldButton->pos.y, TurnBarFoldButton::SIZE, TurnBarFoldButton::SIZE), bars[i]->getPlayer());
-		}
-		return;
-	}
-	// the bars' frames start right of the button by the gem the trim sets over each end (END_PIECE): the first pictures had Anna's left gem over the button
-	const Point origin = Point(corner.x + step + END_PIECE, corner.y) - frame;
-	std::vector<TurnProgressMath::Size> sizes;
-	for(const auto & bar : bars)
-		sizes.push_back({bar->pos.w, bar->pos.h});
-	const auto places = TurnProgressMath::layout(sizes, {origin.x, origin.y}, 6, mapArea.y + mapArea.h / 2);
+	// S162: folded, only the picked players' bars show
+	std::vector<size_t> shown;
 	for(size_t i = 0; i < bars.size(); ++i)
 	{
-		const Point place(places[i].x, places[i].y);
+		const bool on = !folded || picked.count(bars[i]->getPlayer());
+		setShown(*bars[i], on);
+		if(on)
+			shown.push_back(i);
+		else
+			vacated.push_back(bars[i]->pos);
+	}
+	// the bars' frames start right of the button by the gem the trim sets over each end (END_PIECE): the first pictures had Anna's left gem over the button
+	Point origin = Point(corner.x + step + END_PIECE, corner.y) - frame;
+	if(folded)
+	{
+		// one line: a square in each listed player's colour, right of the button, in the order the bars stand; a click on one shows or puts away that player's bar
+		for(size_t i = 0; i < bars.size(); ++i)
+		{
+			const PlayerColor player = bars[i]->getPlayer();
+			const auto found = std::find_if(oldSquares.begin(), oldSquares.end(), [player](const auto & square){ return square->getPlayer() == player; });
+			auto square = found != oldSquares.end() ? *found : std::make_shared<TurnBarColourSquare>(player, [this](PlayerColor clicked){ togglePick(clicked); });
+			square->moveTo(Point(foldButton->pos.x + static_cast<int>(i + 1) * step, foldButton->pos.y));
+			square->setPicked(picked.count(player));
+			setShown(*square, true);
+			clickAreas.push_back(square->pos);
+			squares.push_back(square);
+		}
+		// the picked bars stand under the strip, their left edge where the unfolded bars' is, in the order the bars stand (not the order they were picked)
+		origin.y = foldButton->pos.y + TurnBarFoldButton::SIZE + 6;
+	}
+	std::vector<TurnProgressMath::Size> sizes;
+	for(const size_t i : shown)
+		sizes.push_back({bars[i]->pos.w, bars[i]->pos.h});
+	const auto places = TurnProgressMath::layout(sizes, {origin.x, origin.y}, 6, mapArea.y + mapArea.h / 2);
+	for(size_t k = 0; k < shown.size(); ++k)
+	{
+		const size_t i = shown[k];
+		const Point place(places[k].x, places[k].y);
 		if(bars[i]->pos.topLeft() == place)
 			continue;
 		if(kept[i])
@@ -778,7 +865,9 @@ void TurnProgressBars::refresh(bool force)
 
 void TurnProgressBars::tick(uint32_t)
 {
-	refresh();
+	const bool force = pendingRefresh;
+	pendingRefresh = false;
+	refresh(force);
 }
 
 void TurnProgressBars::showAll(Canvas & to)
@@ -788,15 +877,8 @@ void TurnProgressBars::showAll(Canvas & to)
 
 void TurnProgressBars::show(Canvas & to)
 {
+	// the folded strip's squares are children (TurnBarColourSquare) and draw themselves
 	CIntObject::show(to);
-	// the folded strip: each square in the player's colour, in the button's dark outline and gold rim
-	for(const auto & [area, player] : squares)
-	{
-		const ColorRGBA colour = player.isValidPlayer() && player.getNum() < 8 ? graphics->playerColors[player.getNum()] : ColorRGBA(150, 150, 150, 255);
-		to.drawColor(area, colour);
-		to.drawBorder(area, ColorRGBA(45, 28, 8, 255), 1);
-		to.drawBorder(Rect(area.x + 1, area.y + 1, area.w - 2, area.h - 2), ColorRGBA(214, 170, 70, 255), 1);
-	}
 }
 
 std::vector<Rect> TurnProgressBars::takeRepaintAreas()
@@ -806,14 +888,12 @@ std::vector<Rect> TurnProgressBars::takeRepaintAreas()
 	if(bars.empty())
 		return areas;
 	areas.push_back(foldButton->pos);
-	if(folded)
-	{
-		for(const auto & square : squares)
-			areas.push_back(square.first);
-		return areas;
-	}
+	for(const auto & square : squares)
+		areas.push_back(square->pos);
+	// unfolded every bar shows; folded, the picked ones (S162)
 	for(const auto & bar : bars)
-		areas.push_back(bar->pos);
+		if(!folded || picked.count(bar->getPlayer()))
+			areas.push_back(bar->pos);
 	return areas;
 }
 

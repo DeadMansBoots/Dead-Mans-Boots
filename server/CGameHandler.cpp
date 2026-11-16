@@ -514,6 +514,16 @@ void CGameHandler::handleReceivedPack(GameConnectionID connection, CPackForServe
 	);
 	gameServer().sendPack(received, connection);
 
+	// DMB (S236): a request the host's stand-in AI sent before its seat went back to the returning player, arriving after: the seat is no longer the
+	// host's, so it is refused, without the "identified as player ... while expecting ..." and "fishy" messages the host and every player saw for it
+	if(pack.player.isValidPlayer() && gameServer().seatHandedBackFrom(pack.player, connection))
+	{
+		logNetwork->info("Request %s of seat %s from the host's stand-in AI arrived after the seat went back to its player: refused without a message (S236)",
+			typeid(pack).name(), pack.player.toString());
+		sendPackageResponse(false);
+		return;
+	}
+
 	if(isBlockedByQueries(&pack, pack.player))
 	{
 		sendPackageResponse(false);

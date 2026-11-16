@@ -167,8 +167,8 @@ void CVCMIServer::purgePendingRejoin()
 	const auto now = std::chrono::steady_clock::now();
 	for(auto waiting = pendingRejoin.begin(); waiting != pendingRejoin.end();)
 	{
-		// a connection that was offered its seats has a person to answer: 3 minutes
-		if(now - waiting->since > std::chrono::seconds((waiting->offered || waiting->joiner) ? 180 : 20))
+		// a connection that was offered its seats has a person to answer: 3 minutes; one that waits for its seat's battle to end: 30 minutes (S236)
+		if(now - waiting->since > std::chrono::seconds(waiting->waitsForBattle ? 1800 : (waiting->offered || waiting->joiner) ? 180 : 20))
 		{
 			if(auto network = waiting->connection->getConnection())
 				network->close();
@@ -259,11 +259,14 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 			{
 				// a battle opened while the player was deciding: the same one-line answer as before the offer
 				LobbyShowMessage why;
-				why.message.appendRawString("Your seat is in a battle that is still going on. You can come back when it ends, try again then.");
+				why.message.appendRawString("Your seat is in a battle that is still going on. You will be let back in when it ends.");
 				candidate->sendPack(why);
 				PendingRejoin again;
 				again.connection = candidate;
 				again.since = std::chrono::steady_clock::now();
+				again.secret = shown;
+				again.request = kept;
+				again.waitsForBattle = true;
 				pendingRejoin.push_back(again);
 				return true;
 			}
@@ -285,11 +288,16 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 			continue;
 		logNetwork->info("Connection that wanted to come back was told to wait: seat %s is in a battle", seat.toString());
 		LobbyShowMessage why;
-		why.message.appendRawString("Your seat is in a battle that is still going on. You can come back when it ends, try again then.");
+		why.message.appendRawString("Your seat is in a battle that is still going on. You will be let back in when it ends.");
 		candidate->sendPack(why);
+		// S236 (OmniAI Dev's case 2, November 15th: the player stayed out after the battle): the connection waits with its secret and request until the
+		// battle ends (battleEnded), then is offered its seats as below; before, it kept neither and was closed by the 20 second purge
 		PendingRejoin again;
 		again.connection = candidate;
 		again.since = std::chrono::steady_clock::now();
+		again.secret = shown;
+		again.request = std::make_shared<LobbyClientConnected>(*request);
+		again.waitsForBattle = true;
 		pendingRejoin.push_back(again);
 		return true;
 	}
@@ -311,6 +319,34 @@ bool CVCMIServer::handleRejoinPack(const std::shared_ptr<INetworkConnection> & c
 	asked.request = std::make_shared<LobbyClientConnected>(*request);
 	pendingRejoin.push_back(asked);
 	return true;
+}
+
+void CVCMIServer::battleEnded()
+{
+	// S236: a player who came back while the seat's battle went on (the stand-in played it, S239) is offered the seats now, as the normal path does
+	for(auto & waiting : pendingRejoin)
+	{
+		if(!waiting.waitsForBattle || !waiting.request || !rejoinOpen() || !vstd::contains(rejoinSeats, waiting.secret))
+			continue;
+		bool stillFighting = false;
+		for(const PlayerColor & seat : rejoinSeats.at(waiting.secret))
+			stillFighting = stillFighting || (gh && gh->gameState().getBattle(seat));
+		if(stillFighting)
+			continue;
+		RejoinOffer offer;
+		for(const PlayerColor & seat : rejoinSeats.at(waiting.secret))
+		{
+			std::string name = seat.toString();
+			if(!name.empty())
+				name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+			offer.colours.push_back(name);
+		}
+		logNetwork->info("The battle of a seat that waits to come back has ended: the connection is offered its %d seat(s) (S236)", static_cast<int>(offer.colours.size()));
+		waiting.connection->sendPack(offer);
+		waiting.waitsForBattle = false;
+		waiting.offered = true;
+		waiting.since = std::chrono::steady_clock::now();
+	}
 }
 
 void CVCMIServer::sendRejoinSecretTo(GameConnectionID connectionID)

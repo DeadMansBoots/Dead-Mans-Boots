@@ -655,6 +655,9 @@ void BattleResultProcessor::battleFinalize(const BattleID & battleID, const Batt
 
 	finishingBattles.erase(battleID);
 	battleResults.erase(battleID);
+
+	// DMB (S236): a player waiting to come back to a seat that was in this battle is let back in now
+	gameHandler->gameServer().battleEnded();
 }
 
 void BattleResultProcessor::setBattleResult(const CBattleInfoCallback & battle, EBattleResult resultType, BattleSide victoriusSide)

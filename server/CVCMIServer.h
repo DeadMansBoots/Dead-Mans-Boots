@@ -85,7 +85,10 @@ class CVCMIServer : public LobbyInfo, public INetworkServerListener, public INet
 		/// hot join: a new player waiting for the host's answer (requestId names the request the host was shown)
 		bool joiner = false;
 		uint32_t requestId = 0;
+		/// S236: the player came back while the seat was in a battle; offered the seats when the battle ends (battleEnded)
+		bool waitsForBattle = false;
 	};
+	void battleEnded() override;
 	uint32_t nextJoinRequest = 1;
 	bool joinOpen() const;
 	/// the host's choice (JoinPolicy), when it made one: it replaces the settings server.allowJoin and server.allowRejoin

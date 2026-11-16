@@ -907,8 +907,12 @@ void CPlayerInterface::activeStack(const BattleID & battleID, const CStack * sta
 		{
 			//FIXME: we want client rendering to proceed while AI is making actions
 			// so unlock mutex while AI is busy since this might take quite a while, especially if hero has many spells
-			auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
-			autofightingAI->activeStack(battleID, stack);
+			const auto gamesBefore = GAME->server().endedGames();
+			{
+				auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
+				autofightingAI->activeStack(battleID, stack);
+			}
+			GAME->server().leaveIfGameEnded(gamesBefore); // DMB (S254)
 			return;
 		}
 		unregisterBattleInterface(autofightingAI);
@@ -1643,8 +1647,13 @@ void CPlayerInterface::waitWhileDialog()
 		return;
 	}
 
-	auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
-	showingDialog->waitWhileBusy();
+	const auto gamesBefore = GAME->server().endedGames();
+	{
+		auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
+		showingDialog->waitWhileBusy();
+	}
+	// DMB (S254, K November 15th): the dialog may have been the "quit to main menu?" box itself; its Yes frees this wait and then ends the game
+	GAME->server().leaveIfGameEnded(gamesBefore);
 }
 
 void CPlayerInterface::showShipyardDialog(const IShipyard *obj)
@@ -1677,11 +1686,13 @@ void CPlayerInterface::centerView (int3 pos, int focusTime)
 	if (focusTime)
 	{
 		ENGINE->windows().totalRedraw();
+		const auto gamesBefore = GAME->server().endedGames();
 		{
 			IgnoreEvents ignore(*this);
 			auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
 			std::this_thread::sleep_for(std::chrono::milliseconds(focusTime));
 		}
+		GAME->server().leaveIfGameEnded(gamesBefore); // DMB (S254)
 	}
 	ENGINE->cursor().show();
 }
@@ -2037,8 +2048,12 @@ void CPlayerInterface::waitForAllDialogs()
 
 	while(!dialogs.empty())
 	{
-		auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		const auto gamesBefore = GAME->server().endedGames();
+		{
+			auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		}
+		GAME->server().leaveIfGameEnded(gamesBefore); // DMB (S254)
 	}
 	waitWhileDialog();
 }

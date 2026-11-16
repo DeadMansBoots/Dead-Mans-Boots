@@ -20,6 +20,7 @@
 #include "../adventureMap/AdventureMapInterface.h"
 #include "../GameEngine.h"
 #include "../GameInstance.h"
+#include "../CServerHandler.h"
 #include "../gui/WindowHandler.h"
 #include "../eventsSDL/InputHandler.h"
 
@@ -588,8 +589,12 @@ bool MapViewController::hasOngoingAnimations()
 
 void MapViewController::waitForOngoingAnimations()
 {
-	auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
-	animationWait.waitWhileBusy();
+	const auto gamesBefore = GAME->server().endedGames();
+	{
+		auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
+		animationWait.waitWhileBusy();
+	}
+	GAME->server().leaveIfGameEnded(gamesBefore); // DMB (S254)
 }
 
 void MapViewController::endNetwork()

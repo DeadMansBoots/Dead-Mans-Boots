@@ -1025,8 +1025,20 @@ void CServerHandler::showHighScoresAndEndGameplay(PlayerColor player, bool victo
 	}
 }
 
+void CServerHandler::leaveIfGameEnded(uint32_t before) const
+{
+	if(gamesEnded != before)
+	{
+		logNetwork->info("A wait woke after its game was ended: the rest of that game's work on this thread is dropped (S254)");
+		throw TerminationRequestedException();
+	}
+}
+
 void CServerHandler::endGameplay()
 {
+	// DMB (S254): counted first, while this thread has the interface lock: a thread whose wait ended before the termination below (the "quit to
+	// main menu?" box's own Yes frees the dialog wait) gets the lock only after this game is deleted, and must see it ended (leaveIfGameEnded)
+	++gamesEnded;
 	client->endNetwork();
 	client->finishGameplay();
 

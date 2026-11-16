@@ -116,6 +116,8 @@ class CServerHandler final : public IServerAPI, public LobbyInfo, public INetwor
 	std::thread threadNetwork;
 	/// DMB (S254): set when the game program ends its network for good (endNetwork, the destructor); until then the network thread outlives a game
 	std::atomic<bool> networkEnding = false;
+	/// DMB (S254): games ended in this session (endGameplay), see leaveIfGameEnded
+	std::atomic<uint32_t> gamesEnded = 0;
 
 	std::atomic<EClientState> state;
 
@@ -268,6 +270,11 @@ public:
 	void endWatchedGame();
 	void endNetwork();
 	void endGameplay();
+	/// DMB (S254): a thread that lets go of the interface lock to wait (a dialog, an animation, an AI's battle move) reads this before the wait and
+	/// calls leaveIfGameEnded after it has the lock again: the game it was in may have been ended and deleted meanwhile
+	uint32_t endedGames() const { return gamesEnded; }
+	/// DMB (S254): throws TerminationRequestedException when a game ended after `before` was read, so the caller stops working in a deleted game
+	void leaveIfGameEnded(uint32_t before) const;
 	void restartGameplay();
 	void startCampaignScenario(HighScoreParameter param, std::shared_ptr<CampaignState> cs, const StatisticDataSet & statistic);
 	void showServerError(const std::string & txt) const;

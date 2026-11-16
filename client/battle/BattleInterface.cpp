@@ -28,6 +28,7 @@
 #include "../CPlayerInterface.h"
 #include "../GameEngine.h"
 #include "../GameInstance.h"
+#include "../CServerHandler.h"
 #include "../adventureMap/AdventureMapInterface.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/WindowHandler.h"
@@ -837,10 +838,12 @@ void BattleInterface::onAnimationsFinished()
 
 void BattleInterface::waitForAnimations()
 {
+	const auto gamesBefore = GAME->server().endedGames();
 	{
 		auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
 		ongoingAnimationsState.waitWhileBusy();
 	}
+	GAME->server().leaveIfGameEnded(gamesBefore); // DMB (S254)
 
 	assert(!hasAnimations());
 	assert(awaitingEvents.empty());

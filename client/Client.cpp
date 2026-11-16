@@ -820,8 +820,12 @@ void CClient::startPlayerBattleAction(const BattleID & battleID, PlayerColor col
 	if (!battleint->human && ENGINE)
 	{
 		// we want to avoid locking gamestate and causing UI to freeze while AI is making turn
-		auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
-		battleint->activeStack(battleID, gameState().getBattle(battleID)->battleGetStackByID(gameState().getBattle(battleID)->activeStack, false));
+		const auto gamesBefore = GAME->server().endedGames();
+		{
+			auto unlockInterface = vstd::makeUnlockGuard(ENGINE->interfaceMutex);
+			battleint->activeStack(battleID, gameState().getBattle(battleID)->battleGetStackByID(gameState().getBattle(battleID)->activeStack, false));
+		}
+		GAME->server().leaveIfGameEnded(gamesBefore); // DMB (S254)
 	}
 	else
 	{

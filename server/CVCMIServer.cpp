@@ -464,6 +464,7 @@ void CVCMIServer::rejoinConnected(const std::shared_ptr<GameConnection> & c, con
 		letGo.player = seats[i];
 		letGo.take = false;
 		sendPack(letGo, hostClientId);
+		seatsHandedBack.insert(seats[i]);
 		gh->onPlayerRejoined(seats[i]);
 	}
 	logNetwork->info("Connection %d came back to a running game and took %d seat(s)", static_cast<int>(c->connectionID), static_cast<int>(seats.size()));
@@ -1103,6 +1104,7 @@ void CVCMIServer::clientDisconnected(std::shared_ptr<GameConnection> connection)
 			takeOver.take = true;
 			logNetwork->info("Seat %s has no player: the host's AI takes it over", seat.toString());
 			gh->onPlayerRejoined(seat); // its interface will say it is ready, and be given the turn if it is the seat's
+			seatsHandedBack.erase(seat);
 			sendPack(takeOver, hostClientId);
 		}
 	}
@@ -1878,6 +1880,11 @@ bool CVCMIServer::isPlayerHost(const PlayerColor & color) const
 bool CVCMIServer::hasPlayerAt(PlayerColor player, GameConnectionID connectionID) const
 {
 	return vstd::contains(getAllClientPlayers(connectionID), player);
+}
+
+bool CVCMIServer::seatHandedBackFrom(PlayerColor player, GameConnectionID connectionID) const
+{
+	return connectionID == hostClientId && seatsHandedBack.count(player) && !hasPlayerAt(player, connectionID);
 }
 
 bool CVCMIServer::hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const

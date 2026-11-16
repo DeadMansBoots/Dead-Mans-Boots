@@ -114,6 +114,8 @@ class CServerHandler final : public IServerAPI, public LobbyInfo, public INetwor
 	std::vector<std::string> localPlayerNames;
 
 	std::thread threadNetwork;
+	/// DMB (S254): set when the game program ends its network for good (endNetwork, the destructor); until then the network thread outlives a game
+	std::atomic<bool> networkEnding = false;
 
 	std::atomic<EClientState> state;
 

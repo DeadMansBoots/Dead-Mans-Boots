@@ -112,4 +112,9 @@ void NetworkHandler::stop()
 	context->stop();
 }
 
+void NetworkHandler::restart()
+{
+	context->restart();
+}
+
 VCMI_LIB_NAMESPACE_END

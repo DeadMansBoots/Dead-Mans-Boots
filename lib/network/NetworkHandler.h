@@ -30,6 +30,7 @@ public:
 
 	void run() override;
 	void stop() override;
+	void restart() override;
 
 	NetworkContext & getContext() override;
 };

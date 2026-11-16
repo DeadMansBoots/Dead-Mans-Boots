@@ -99,6 +99,7 @@ CServerHandler::~CServerHandler()
 {
 	if (serverRunner)
 		serverRunner->shutdown();
+	networkEnding = true;
 	networkHandler->stop();
 
 	if (serverRunner)
@@ -119,6 +120,7 @@ CServerHandler::~CServerHandler()
 
 void CServerHandler::endNetwork()
 {
+	networkEnding = true;
 	if (client)
 		client->endNetwork();
 	networkHandler->stop();
@@ -158,16 +160,33 @@ void CServerHandler::threadRunNetwork()
 {
 	setThreadName("runNetwork");
 	logGlobal->info("Starting network thread");
-	try {
-		networkHandler->run();
-	}
-	catch (const TerminationRequestedException &)
+	// DMB (S254, K's crash of November 15th 17:26): a game quit while this thread waited in it (the "quit to main menu?" box was open when another
+	// player's hero moved: heroMoved waits for the box) ends that wait by a TerminationRequestedException at endGameplay. Stock (1.7.5 and develop)
+	// then ended this thread, and every later Host or Join in the same session waited forever on its connection ("Connecting...", K cancelled it, and
+	// the quick Host after the cancel was his crash). Only the program's own end (endNetwork, the destructor) ends this thread now; a game's
+	// ended wait is left behind and the thread serves the next game
+	for(;;)
 	{
-		// VCMI can run SDL methods on network thread, leading to usage of thread-local storage by SDL
-		// Such storage needs to be cleaned up manually for threads that were not created by SDL
-		SDL_TLSCleanup();
-		logGlobal->info("Terminating network thread");
-		return;
+		try {
+			networkHandler->run();
+			break;
+		}
+		catch (const TerminationRequestedException &)
+		{
+			if(networkEnding)
+			{
+				// VCMI can run SDL methods on network thread, leading to usage of thread-local storage by SDL
+				// Such storage needs to be cleaned up manually for threads that were not created by SDL
+				SDL_TLSCleanup();
+				logGlobal->info("Terminating network thread");
+				return;
+			}
+			logGlobal->info("A wait of the game that just ended was ended on the network thread: the thread goes on for the next game (S254)");
+			networkHandler->restart();
+			// endNetwork may have stopped the context between the check above and restart(): look again, so a stop is never undone
+			if(networkEnding)
+				break;
+		}
 	}
 	SDL_TLSCleanup();
 	logGlobal->info("Ending network thread");

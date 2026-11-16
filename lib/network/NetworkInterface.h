@@ -184,6 +184,8 @@ public:
 	/// Starts network processing on this thread. Does not returns until networking processing has been terminated
 	virtual void run() = 0;
 	virtual void stop() = 0;
+	/// DMB (S254): lets run() be called again after it ended by an exception (an exception thrown from a handler can leave the context stopped)
+	virtual void restart() = 0;
 
 	virtual NetworkContext & getContext() = 0;
 };

@@ -12,43 +12,49 @@ The installer is not signed yet, so Windows may say it protected your PC. Choose
 
 ## Known problems and in construction
 
-Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.3, a test build for playtesting.
+Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.6, a test build for playtesting.
 
-In beta 19.3:
+In beta 19.6:
 
 | Feature | Status | Built |
 | --- | --- | --- |
 | Installer, updates and the update notice | Working | 80% |
 | Turn progress bars that show how far each player's turn is | Working | 80% |
-| Mod catalog and mod list in the launcher, with the engine check before an install or update | Working | 75% |
+| Folding the turn progress bars with a button, and showing chosen players' bars | Working | 80% |
+| A picture in the random map lobby of the map your settings will make | Partly built | 50% |
+| Brown leather around the menus and loading screens | Working | 90% |
+| Loading text clear of the bar's gold ornament | Working | 90% |
+| Mod catalog and mod list in the launcher, with the check for mods that need a newer game version | Working | 80% |
+| "Install Anyway" for a mod version that needs a newer game version (installed and left switched off) | Partly built | 60% |
 | Random maps made by OmniMapGen when you press Begin | Working | 70% |
-| Chat with All, Team and Spectators channels | Partly built | 70% |
-| Dark and gold look, the game's own lettering in the launcher, bigger map sizes | Working | 60% |
+| The map template panel: one scrolling page, full-width pictures, full-screen view | Partly built | 40% |
+| The Water layout choice with every layout's picture | In construction | 0% |
+| Chat with All, Team and Spectators channels, each player's lines in their colour | Partly built | 70% |
+| Watching a game without a seat (Pause, Speed, Battles) | Partly built | 60% |
+| Music in a watched game | Partly built | 40% |
+| Gameplay data recording to a folder on your PC | Partly built | 60% |
+| Dark and gold look, the game's own lettering in the launcher, bigger map sizes | Partly built | 60% |
 | Letting people join a running game, and coming back after a dropped connection | Partly built | 60% |
 | Reporting a problem from inside the game (F12) | Partly built | 60% |
-| A record of your own games on your PC, for finding bugs | Working | 60% |
+| A computer player and difficulty for each seat (the computer players that come with the game) | In construction | 0% |
 | Telling a joining player which content or mods differ from the host's | Partly built | 40% |
+| Looking into every player's kingdom while watching: resources, towns, armies | In construction | 0% |
 
-Known problems in beta 19.3: watching a game as an observer does not work properly yet (clicks on the map are lost while a computer player's hero is moving; fixed in a test build). The window for a joining player names the content that is missing, not the host's full mod list: that needs a new lobby message, so it comes with the next version.
+Known problems in beta 19.6: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, does not yet match the chosen template and water layout in every case, and leaves out portals, underground passages and neutral towns. With OmniMapGen 0.3.33 (offered in the launcher's mod list) the template panel shows a two-level template's levels one above the other; this has not been seen in a game yet. Not yet shown working: scrolling the template panel. In construction: the Water layout choice that shows every layout at once with its picture (Highland has no picture yet). After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy. Tested side by side with the standard game (VCMI 1.7.5) on this build: a 10-day two-player game with computer players, an elimination (the defeated host stays to watch), battles with spells, retreat and surrender, hero exchange, town building and recruiting, save and load, frame time, the Omni Map Gen mod check, the lobby and loading screen, and the turn bar colour picks. The drop-and-rejoin freeze fixes were tested with two and three players dropping and rejoining during the stand-in's turn and in a battle. Not tested: the fix for pressing Host again right after cancelling a connection (that crash could not be made to happen for the test), a second PC finding a host that has LAN search turned off, games longer than 11 days, and games with more than three players.
 
-Next version, not in beta 19.3:
+Next version, not in beta 19.6:
 
 | Feature | Status | Built |
 | --- | --- | --- |
-| Objects drawn in the right order (a hedge no longer covers a tent) | Working | 80% |
-| Observer mode: leave your seat, start a game with every seat a computer, and watch with Pause, Speed and a Battles switch; watched games skip battles by default | Working | 70% |
-| Music in a watched game | Partly built | 40% |
+| Objects drawn in the right order (a hedge no longer covers a tent) | Partly built | 80% |
 | The first redrawn interface, with the original look kept as an option | In construction | 10% |
+| "Restrict all settings to original template preferences" for map templates | In construction | 0% |
 | The host's full mod list compared with each joining player's, naming every difference | In construction | 0% |
-| A per-seat switch for OmniAI's chat lines, and one for their sound | In construction | 0% |
-| Looking into every player's kingdom while watching: resources, towns, armies | In construction | 0% |
-| Choosing the computer player and its difficulty for each seat in the lobby (difficulty changes only the two standard computer players for now) | In construction | 0% |
+| Choosing your own colours for the menus | In construction | 0% |
 | Typing a number where you choose an amount | In construction | 0% |
 | A host controls window and a Diplomacy screen | In construction | 0% |
-| The host's map list and the map date on the New Game card | In construction | 0% |
-| The starting resource bonus of a Random town | Known problem | 0% |
 
-A feature counts as built only once it has been seen working in a real game. The 0% rows have code written but not yet seen working.
+A feature counts as built only once it has been seen working in a real game. Some 0% rows have code written but not yet seen working.
 
 ## What DMB adds to VCMI
 

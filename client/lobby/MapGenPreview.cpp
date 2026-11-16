@@ -29,6 +29,18 @@ namespace
 constexpr int PREVIEW_SEED = 1;
 /// a run still going after this has hung, and is ended
 constexpr std::chrono::seconds PREVIEW_DEADLINE(60);
+/// S246 (MapGen Dev, November 16th: an islands layout fits the sea and tries 16 zone layouts, 84 s for Islands and 88 s for Archipelago on 108x108 on
+/// K's PC, against 9 s for Coastal; "I would allow 180 s for those two (and keep 60 s for the others)"): runs that ask for island water get longer
+constexpr std::chrono::seconds PREVIEW_DEADLINE_ISLANDS(180);
+
+std::chrono::seconds deadlineFor(const std::vector<std::string> & args)
+{
+	// --bio.waterShape 5 (Islands) or 6 (Archipelago), or --bio.waterContent 2 (Islands content, which the generator makes as the Islands layout)
+	for(size_t i = 0; i + 1 < args.size(); ++i)
+		if((args[i] == "--bio.waterShape" && (args[i + 1] == "5" || args[i + 1] == "6")) || (args[i] == "--bio.waterContent" && args[i + 1] == "2"))
+			return PREVIEW_DEADLINE_ISLANDS;
+	return PREVIEW_DEADLINE;
+}
 /// how long after the last change a run starts, so a slider dragged across its range runs once
 constexpr std::chrono::milliseconds PREVIEW_DEBOUNCE(1000);
 
@@ -107,7 +119,7 @@ JsonNode runOnce(const MapGeneratorInfo & generator, const std::vector<std::stri
 	withLayout.push_back(layoutPath.string());
 	const auto logPath = VCMIDirs::get().userLogsPath() / "extmapgen_preview_log.txt";
 	const auto started = std::chrono::steady_clock::now();
-	const int exitCode = MapGenerators::run(generator, withLayout, logPath, PREVIEW_DEADLINE, nullptr, false);
+	const int exitCode = MapGenerators::run(generator, withLayout, logPath, deadlineFor(args), nullptr, false);
 	const auto took = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
 	if(exitCode != 0 || !boost::filesystem::exists(layoutPath))
 	{

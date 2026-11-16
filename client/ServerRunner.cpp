@@ -33,7 +33,20 @@
 #include <future>
 
 ServerThreadRunner::ServerThreadRunner() = default;
-ServerThreadRunner::~ServerThreadRunner() = default;
+
+// DMB (S254, K November 15th: "check my newest crash report"): a std::thread still joinable when destroyed ends the program (std::terminate, "Disaster
+// happened ... but no current exception found"). The runner of a server that was told to stop but never waited for (a cancelled connection, then Host
+// again) was destroyed so; the runner now stops its server and joins its thread itself
+ServerThreadRunner::~ServerThreadRunner()
+{
+	if(threadRunLocalServer.joinable())
+	{
+		logNetwork->info("A local server that was not waited for is stopped and waited for before its runner goes (S254)");
+		if(server)
+			server->setState(EServerState::SHUTDOWN);
+		threadRunLocalServer.join();
+	}
+}
 
 void ServerThreadRunner::start(bool listenForConnections, bool connectToLobby, std::shared_ptr<StartInfo> startingInfo)
 {
@@ -68,7 +81,9 @@ void ServerThreadRunner::shutdown()
 
 void ServerThreadRunner::wait()
 {
-	threadRunLocalServer.join();
+	// S254: waited for once; a second wait (the runner's own destructor, a later cancel) finds nothing to join
+	if(threadRunLocalServer.joinable())
+		threadRunLocalServer.join();
 }
 
 int ServerThreadRunner::exitCode()

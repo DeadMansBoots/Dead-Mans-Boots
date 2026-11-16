@@ -229,6 +229,16 @@ INetworkHandler & CServerHandler::getNetworkHandler()
 void CServerHandler::startLocalServerAndConnect(bool connectToLobby)
 {
 	logNetwork->trace("\tLocal server startup has been requested");
+	// DMB (S254, K's crash of November 15th 17:26: Host, the connection cancelled, then Host again 12 seconds later): a cancelled connection only asks the
+	// server to stop (setState); it is waited for when the next connection attempt fires, which a quick new Host can come before. The earlier server is
+	// stopped and waited for here, before its runner is replaced
+	if(serverRunner)
+	{
+		logNetwork->info("A local server from an earlier start is still here: it is stopped and waited for before the new one starts (S254)");
+		serverRunner->shutdown();
+		serverRunner->wait();
+		serverRunner.reset();
+	}
 #ifdef VCMI_MOBILE
 	// mobile apps can't spawn separate processes - only thread mode is available
 	serverRunner.reset(new ServerThreadRunner());

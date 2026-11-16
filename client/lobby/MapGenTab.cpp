@@ -254,6 +254,7 @@ const int WATER_NORMAL = 1;
 const int WATER_ISLANDS = 2;
 const int WATER_SHAPE_LAKES = 0;
 const int WATER_SHAPE_ISLANDS = 5;
+const int WATER_SHAPE_TEMPLATE = 8; // the module's "Template" stop: the template's own water (S246)
 struct WaterChoice
 {
 	int content;
@@ -2078,7 +2079,9 @@ public:
 			// water layout is"): over the module's picture, the map the generator makes for the selected template with this layout, once its layout run lands
 			// (MapGenPreview; the module's picture shows until then, and stays when the run fails)
 			const auto * start = GAME->server().si.get();
-			if(known && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
+			// "Template" (the template's own water) has a true picture too: the selected template as the generator makes it with that choice; Random has
+			// none (its layout changes with the seed)
+			if((known || stop == WATER_SHAPE_TEMPLATE) && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
 			{
 				const JsonNode & params = persistentStorage["mapGen"]["params"];
 				const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;

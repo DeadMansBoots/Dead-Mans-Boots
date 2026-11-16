@@ -1143,6 +1143,26 @@ std::vector<std::string> MapGenTab::approvedNames() const
 	for(const auto * tpl : LIBRARY->tplh->getTemplates())
 		if(tpl && approved.count(boost::to_lower_copy(tpl->getName())) != 0)
 			names.push_back(tpl->getName());
+	// S246 (the lead's ruling, November 16th): an approved template the module describes in template-info.json is offered even when the engine
+	// has no template of that name (OmniMapGen's "Mini Nostalgia (approximate)" and "Nostalgia (approximate)" live inside the generator); Begin
+	// passes its name to the generator as --template, as for every other
+	if(folder)
+	{
+		std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			const JsonNode details(text.data(), text.size(), "template-info.json");
+			// the module's own list rows (Random, Classic) are not template names: they stay as the list gives them
+			const auto rows = listEntries();
+			if(details["templates"].isStruct())
+				for(const auto & entry : details["templates"].Struct())
+					if(approved.count(boost::to_lower_copy(entry.first)) != 0
+						&& std::none_of(names.begin(), names.end(), [&entry](const std::string & name) { return boost::iequals(name, entry.first); })
+						&& std::none_of(rows.begin(), rows.end(), [&entry](const auto & row) { return boost::iequals(row.first, entry.first); }))
+						names.push_back(entry.first);
+		}
+	}
 	std::sort(names.begin(), names.end());
 	names.erase(std::unique(names.begin(), names.end()), names.end());
 	return names;

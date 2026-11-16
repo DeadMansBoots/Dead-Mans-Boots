@@ -118,7 +118,7 @@ public:
 	bool hasPlayerAt(PlayerColor player, GameConnectionID connectionID) const override;
 	/// DMB (S236): the seats whose stand-in AI on the host's connection let go to their returning player (AiTakeOver take=false), until a stand-in takes them again
 	std::set<PlayerColor> seatsHandedBack;
-	bool seatHandedBackFrom(PlayerColor player, GameConnectionID connectionID) const override;
+	bool seatHandedBackFrom(const PlayerColor & player, GameConnectionID connectionID) const override;
 	bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const override;
 	void applyPack(CPackForClient & pack) override;
 	void sendPack(CPackForClient & pack, GameConnectionID connectionID) override;

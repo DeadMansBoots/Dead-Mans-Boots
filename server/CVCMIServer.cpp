@@ -1882,7 +1882,7 @@ bool CVCMIServer::hasPlayerAt(PlayerColor player, GameConnectionID connectionID)
 	return vstd::contains(getAllClientPlayers(connectionID), player);
 }
 
-bool CVCMIServer::seatHandedBackFrom(PlayerColor player, GameConnectionID connectionID) const
+bool CVCMIServer::seatHandedBackFrom(const PlayerColor & player, GameConnectionID connectionID) const
 {
 	return connectionID == hostClientId && seatsHandedBack.count(player) && !hasPlayerAt(player, connectionID);
 }

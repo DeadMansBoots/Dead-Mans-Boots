@@ -20,6 +20,7 @@
 #include "../../lib/rmg/CMapGenOptions.h"
 #include "../../lib/StartInfo.h"
 
+#include <deque>
 #include <fstream>
 
 namespace
@@ -31,16 +32,23 @@ constexpr std::chrono::seconds PREVIEW_DEADLINE(60);
 /// how long after the last change a run starts, so a slider dragged across its range runs once
 constexpr std::chrono::milliseconds PREVIEW_DEBOUNCE(1000);
 
-/// what the worker shares with the main thread
+/// one run asked for: its key (the generator and its arguments), and whether it is the lobby card's (a newer card request drops an older queued one)
+struct Job
+{
+	std::string key;
+	MapGeneratorInfo generator;
+	std::vector<std::string> args;
+	bool card = false;
+};
+
+/// what the worker shares with the main thread (S246: a queue of runs, newest first, each set of arguments once)
 struct Pending
 {
 	std::mutex lock;
 	bool running = false;
-	bool waiting = false;
-	MapGeneratorInfo generator;
-	std::vector<std::string> args;
 	std::chrono::steady_clock::time_point askedAt;
-	std::string lastKey;
+	std::deque<Job> jobs;
+	std::set<std::string> asked;
 };
 
 Pending & pending()
@@ -49,9 +57,22 @@ Pending & pending()
 	return state;
 }
 
-/// main thread only: the newest layout, and a number that changes with it
-JsonNode shownLayout;
+/// at most this many runs wait; the oldest is dropped (asked again when it is looked at again)
+constexpr size_t MAX_QUEUED = 12;
+/// at most this many layouts are kept
+constexpr size_t MAX_KEPT = 64;
+
+/// main thread only: the layouts made, by key; the lobby card's newest key; a number that changes with every new layout
+std::map<std::string, JsonNode> shownLayouts;
+std::string cardKey;
 int shownSerial = 0;
+
+const JsonNode & layoutFor(const std::string & key)
+{
+	static const JsonNode none;
+	const auto found = shownLayouts.find(key.empty() ? cardKey : key);
+	return found == shownLayouts.end() ? none : found->second;
+}
 
 std::optional<MapGeneratorInfo> generatorFor(const CMapGenOptions & options)
 {
@@ -115,55 +136,58 @@ void work()
 	auto & state = pending();
 	for(;;)
 	{
-		MapGeneratorInfo generator;
-		std::vector<std::string> args;
+		// one second after the newest request; a request meanwhile starts the second again
+		for(;;)
 		{
-			// one second after the newest change; a change meanwhile starts the second again
-			for(;;)
+			std::chrono::steady_clock::time_point due;
 			{
-				std::chrono::steady_clock::time_point due;
-				{
-					std::lock_guard guard(state.lock);
-					due = state.askedAt + PREVIEW_DEBOUNCE;
-				}
-				if(std::chrono::steady_clock::now() >= due)
-					break;
-				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				std::lock_guard guard(state.lock);
+				due = state.askedAt + PREVIEW_DEBOUNCE;
 			}
+			if(std::chrono::steady_clock::now() >= due)
+				break;
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+		Job job;
+		{
 			std::lock_guard guard(state.lock);
-			generator = state.generator;
-			args = state.args;
-			state.waiting = false;
+			if(state.jobs.empty())
+			{
+				state.running = false;
+				return;
+			}
+			job = state.jobs.front();
+			state.jobs.pop_front();
 		}
 
 		JsonNode layout;
 		try
 		{
-			layout = runOnce(generator, args);
+			layout = runOnce(job.generator, job.args);
 		}
 		catch(const std::exception & e)
 		{
-			logGlobal->warn("Map preview: %s: %s", generator.name, e.what());
+			logGlobal->warn("Map preview: %s: %s", job.generator.name, e.what());
 		}
 		catch(...)
 		{
-			logGlobal->warn("Map preview: %s: an unknown error", generator.name);
+			logGlobal->warn("Map preview: %s: an unknown error", job.generator.name);
 		}
 
-		std::lock_guard guard(state.lock);
-		// a layout of settings already changed again is not shown: the run for the newest follows at once
-		if(!state.waiting)
+		// kept under its key, an empty one too (a run that failed is not run again for the same settings)
+		ENGINE->dispatchMainThread([key = job.key, layout]()
 		{
-			ENGINE->dispatchMainThread([layout]()
+			if(shownLayouts.size() >= MAX_KEPT)
 			{
-				shownLayout = layout;
-				shownSerial++;
-				// the lobby is drawn again on the next frame, the card's picture with it (a picture of fewer levels leaves nothing of the last behind)
-				ENGINE->windows().totalRedraw();
-			});
-			state.running = false;
-			return;
-		}
+				shownLayouts.clear();
+				std::lock_guard guard(pending().lock);
+				pending().asked.clear();
+			}
+			shownLayouts[key] = layout;
+			shownSerial++;
+			// the lobby is drawn again on the next frame, the pictures with it (a picture of fewer levels leaves nothing of the last behind)
+			ENGINE->windows().totalRedraw();
+		});
 	}
 }
 
@@ -176,9 +200,17 @@ bool MapGenPreview::applies(const CMapGenOptions & options)
 
 void MapGenPreview::request(const CMapGenOptions & options, const StartInfo & start)
 {
+	const std::string key = requestWith(options, start, {});
+	if(!key.empty())
+		cardKey = key;
+}
+
+std::string MapGenPreview::requestWith(const CMapGenOptions & options, const StartInfo & start, const std::map<std::string, std::string> & replaced)
+{
+	const bool card = replaced.empty();
 	const auto generator = generatorFor(options);
 	if(!generator)
-		return;
+		return {};
 	std::vector<std::string> args;
 	try
 	{
@@ -188,27 +220,62 @@ void MapGenPreview::request(const CMapGenOptions & options, const StartInfo & st
 	catch(const std::exception & e)
 	{
 		logGlobal->warn("Map preview: the arguments for %s: %s", generator->name, e.what());
-		return;
+		return {};
 	}
 	// the generator is told to write no map in the user's Maps folder: a preview is never in the scenario list
 	for(size_t i = 0; i + 1 < args.size(); ++i)
 		if(args[i] == "--out")
 			args[i + 1] = (previewFolder() / "preview.vmap").string();
+	for(const auto & [flag, value] : replaced)
+	{
+		bool found = false;
+		for(size_t i = 0; i + 1 < args.size(); ++i)
+			if(args[i] == flag)
+			{
+				args[i + 1] = value;
+				found = true;
+			}
+		if(!found)
+		{
+			args.push_back(flag);
+			args.push_back(value);
+		}
+	}
 
+	const std::string key = generator->modID + "\n" + boost::algorithm::join(args, "\n");
+	if(shownLayouts.count(key))
+		return key;
 	auto & state = pending();
 	std::lock_guard guard(state.lock);
-	const std::string key = generator->modID + "\n" + boost::algorithm::join(args, "\n");
-	if(key == state.lastKey)
-		return;
-	state.lastKey = key;
-	state.generator = *generator;
-	state.args = args;
+	if(!state.asked.insert(key).second)
+		return key;
+	if(card)
+	{
+		// the card shows only the newest settings: an older card run still waiting is not needed any more
+		for(auto it = state.jobs.begin(); it != state.jobs.end();)
+		{
+			if(it->card)
+			{
+				state.asked.erase(it->key);
+				it = state.jobs.erase(it);
+			}
+			else
+				++it;
+		}
+	}
+	state.jobs.push_front(Job{key, *generator, args, card});
+	while(state.jobs.size() > MAX_QUEUED)
+	{
+		state.asked.erase(state.jobs.back().key);
+		state.jobs.pop_back();
+	}
 	state.askedAt = std::chrono::steady_clock::now();
-	state.waiting = true;
-	if(state.running)
-		return;
-	state.running = true;
-	std::thread(work).detach();
+	if(!state.running)
+	{
+		state.running = true;
+		std::thread(work).detach();
+	}
+	return key;
 }
 
 namespace
@@ -433,7 +500,9 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 }
 }
 
-MapGenPreviewBox::MapGenPreviewBox(const Rect & position)
+MapGenPreviewBox::MapGenPreviewBox(const Rect & position, std::string key, bool drawEmpty)
+	: key(std::move(key))
+	, drawEmpty(drawEmpty)
 {
 	pos.x += position.x;
 	pos.y += position.y;
@@ -449,6 +518,7 @@ void MapGenPreviewBox::redrawPanels()
 	drawnSerial = shownSerial;
 	drawnScale = scale;
 	drawnSize = Point(pos.w, pos.h);
+	const JsonNode & shownLayout = layoutFor(key);
 	if(!shownLayout["layout"].isVector() || shownLayout["layout"].Vector().empty())
 		return;
 	const size_t levels = shownLayout["layout"].Vector().size();
@@ -468,7 +538,8 @@ void MapGenPreviewBox::showAll(Canvas & to)
 		redrawPanels();
 	if(panels.empty())
 	{
-		to.drawColor(Rect(pos.x + pos.w - pos.h, pos.y, pos.h, pos.h), BACKGROUND);
+		if(drawEmpty)
+			to.drawColor(Rect(pos.x + pos.w - pos.h, pos.y, pos.h, pos.h), BACKGROUND);
 		return;
 	}
 	for(size_t i = 0; i < panels.size(); ++i)

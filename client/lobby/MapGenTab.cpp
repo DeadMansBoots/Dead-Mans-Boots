@@ -15,6 +15,8 @@
 #include "SelectionTab.h"
 
 #include "../CServerHandler.h"
+#include "MapGenPreview.h"
+#include "../../lib/StartInfo.h"
 #include "../GameEngine.h"
 #include "../GameInstance.h"
 #include "../gui/Shortcut.h"
@@ -1955,6 +1957,7 @@ public:
 			const JsonNode & entry = known ? info["waterLayouts"][IDS[stop]] : none;
 			int textLeft = card.x + 10;
 			const std::string image = known ? pictureFor(module, std::string("water_") + IDS[stop]) : std::string();
+			Rect pictureArea(card.x, card.y, picture, picture);
 			if(!image.empty())
 			{
 				auto loaded = ENGINE->renderHandler().loadImage(ImagePath::builtin(image), EImageBlitMode::OPAQUE);
@@ -1965,7 +1968,27 @@ public:
 					auto shown = std::make_shared<CPicture>(loaded, Point(card.x, card.y + (picture - size.y) / 2));
 					shown->scaleTo(size);
 					parts.push_back(shown);
+					pictureArea = Rect(card.x, card.y + (picture - size.y) / 2, size.x, size.y);
 					textLeft = card.x + size.x + 12;
+				}
+			}
+			// S246 (K, November 15th: "They should look how the template maps look, but be focused on various templates with whatever the currently selected
+			// water layout is"): over the module's picture, the map the generator makes for the selected template with this layout, once its layout run lands
+			// (MapGenPreview; the module's picture shows until then, and stays when the run fails)
+			const auto * start = GAME->server().si.get();
+			if(known && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
+			{
+				const JsonNode & params = persistentStorage["mapGen"]["params"];
+				const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;
+				std::map<std::string, std::string> replaced = {{"--bio.waterShape", std::to_string(stop)}};
+				// as a click on this layout does (the change of waterShape above): Islands content goes back to Normal with any layout but Islands
+				if(content == WATER_ISLANDS && stop != WATER_SHAPE_ISLANDS)
+					replaced["--bio.waterContent"] = std::to_string(WATER_NORMAL);
+				const std::string key = MapGenPreview::requestWith(*start->mapGenOptions, *start, replaced);
+				if(!key.empty())
+				{
+					parts.push_back(std::make_shared<MapGenPreviewBox>(pictureArea, key, false));
+					textLeft = std::max(textLeft, card.x + pictureArea.w + 12);
 				}
 			}
 			const std::string name = entry["label"].isString() ? entry["label"].String() : names[i];

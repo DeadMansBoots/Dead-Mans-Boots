@@ -635,6 +635,14 @@ void CVCMIServer::setState(EServerState value)
 }
 void CVCMIServer::startDiscoveryListener()
 {
+	// DMB (S248, S255, November 15th: Meg's search found a hidden test lobby, which also held the port K's own host needed, "port 3030 already in use,
+	// skipping"): a host with settings server.lanDiscovery off, or started with DMB_NO_LAN_DISCOVERY=1, does not answer LAN search
+	const char * noDiscovery = std::getenv("DMB_NO_LAN_DISCOVERY");
+	if((noDiscovery && std::string(noDiscovery) == "1") || !settings["server"]["lanDiscovery"].Bool())
+	{
+		logNetwork->info("LAN search is not answered by this server (settings server.lanDiscovery off or DMB_NO_LAN_DISCOVERY=1)");
+		return;
+	}
 	if(!discoveryListener)
 		discoveryListener = getNetworkHandler().createServerDiscoveryListener(*this);
 

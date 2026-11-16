@@ -12,6 +12,7 @@
 #include "battle/BattleInfo.h"
 
 #include "../CGameHandler.h"
+#include "../IGameServer.h"
 #include "../TurnTimerHandler.h"
 #include "../processors/HeroPoolProcessor.h"
 #include "../queries/QueriesProcessor.h"

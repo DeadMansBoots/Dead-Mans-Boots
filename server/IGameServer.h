@@ -36,6 +36,8 @@ public:
 	virtual bool hasPlayerAt(PlayerColor player, GameConnectionID connectionID) const = 0;
 	/// DMB (S236): the seat went back from this connection's stand-in AI to its returning player; a request of the stand-in still on the wire is refused quietly
 	virtual bool seatHandedBackFrom(const PlayerColor & player, GameConnectionID connectionID) const { return false; }
+	/// DMB (S236): a battle has ended; a player who waits to come back to a seat that was in it is offered the seat
+	virtual void battleEnded() {}
 	virtual bool hasBothPlayersAtSameConnection(PlayerColor left, PlayerColor right) const = 0;
 	virtual void applyPack(CPackForClient & pack) = 0;
 	virtual void sendPack(CPackForClient & pack, GameConnectionID connectionID) = 0;

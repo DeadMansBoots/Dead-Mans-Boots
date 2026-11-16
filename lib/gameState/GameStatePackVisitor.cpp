@@ -1209,6 +1209,16 @@ void GameStatePackVisitor::visitCommanderLevelUp(CommanderLevelUp & pack)
 
 void GameStatePackVisitor::visitBattleStart(BattleStart & pack)
 {
+	// DMB (S236/S239, the guest's crash of November 16th 09:42:09 on OmniAI Dev's drop-and-rejoin run): nextBattleID is not part of a saved game
+	// state, so a client that came back into a running game (DMB's rejoin loads the server's state) counts battles from 0 while the server is at N.
+	// The battle was then filed under 0, and CClient::battleStarted(N) found none (an access violation). The server's number in the pack is the
+	// one every side must use: a client that is behind takes it. On the server the two are always equal
+	if(pack.battleID != gs.nextBattleID)
+	{
+		logGlobal->info("Battle %d starts while this game state counts %d (a game state loaded mid-game, as a rejoin does): the server's number is used (S236)",
+			pack.battleID.getNum(), gs.nextBattleID.getNum());
+		gs.nextBattleID = pack.battleID;
+	}
 	assert(pack.battleID == gs.nextBattleID);
 
 	pack.info->battleID = gs.nextBattleID;

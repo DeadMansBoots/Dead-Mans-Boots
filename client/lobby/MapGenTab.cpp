@@ -1442,6 +1442,7 @@ class TemplateInfoPanel : public CIntObject
 	/// selected water layout is"): the generator's layout of the shown template with the lobby's current settings (water included), drawn over each level's
 	/// picture once it lands (MapGenPreview); the module's picture shows until then, and stays when the run fails. Empty: none asked for
 	std::string liveKey;
+	bool liveShown = false; // the sheet's pictures are the live layout's own (showLive)
 	std::vector<std::shared_ptr<MapGenPreviewBox>> liveBoxes;
 
 	static std::string whole(const JsonNode & node)
@@ -1613,6 +1614,9 @@ public:
 				const int pictureWidth = width - 2 * 2;
 				const auto placeImage = [&](const std::string & imageName) -> Rect
 				{
+					// S246: a live level has no sprite: its square is kept free for the live picture
+					if(imageName.empty())
+						return Rect(Point(2, y), Point(pictureWidth, pictureWidth));
 					auto image = ENGINE->renderHandler().loadImage(ImagePath::builtin(imageName), EImageBlitMode::OPAQUE);
 					if(!image || image->width() <= 0 || image->height() <= 0)
 						return Rect();
@@ -1727,6 +1731,8 @@ public:
 			if(!place.place.isInside(inColumn))
 				continue;
 			const GalleryFrame & shown = sheet.gallery[galleryAt % sheet.gallery.size()];
+			if(place.layer < shown.layers.size() && shown.layers[place.layer].image.empty())
+				return; // S246: a live picture has no sprite for the full-screen viewer
 			std::vector<TemplatePreviewViewer::Layer> layers = shown.layers;
 			for(auto & layer : layers)
 				if(layer.label.empty())
@@ -1738,6 +1744,15 @@ public:
 
 	void tick(uint32_t msPassed) override
 	{
+		if(!liveShown && !liveKey.empty())
+		{
+			if(const JsonNode * layout = MapGenPreview::landedLayout(liveKey))
+			{
+				liveShown = true;
+				showLive(*layout);
+				return;
+			}
+		}
 		if(sheet.gallery.size() < 2)
 			return;
 		galleryElapsed += msPassed;
@@ -1768,6 +1783,7 @@ public:
 			return;
 		shown = id;
 		liveKey.clear();
+		liveShown = false;
 		liveBoxes.clear();
 		Sheet next;
 		if(id < 0 || id >= static_cast<int>(values.size()))
@@ -1906,8 +1922,46 @@ public:
 		}
 		setSheet(std::move(next));
 		const auto * start = GAME->server().si.get();
-		if(!values[id].empty() && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
+		// Random gets none (its pick changes with the seed, so no one picture is true for it); the open layout (Classic, stored empty) is the generator
+		// with no --template
+		if(values[id] != RANDOM_TEMPLATE && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
 			liveKey = MapGenPreview::requestWith(*start->mapGenOptions, *start, {{"--template", values[id]}});
+	}
+
+	/// S246 (K, November 15th: "we should be sure to be careful that these are accurate"): once the shown template's live layout lands, the pictures are
+	/// that layout's own levels (a level the lobby's settings do not make is not shown) and the caption says what made them; the module's legend stays
+	void showLive(const JsonNode & layout)
+	{
+		GalleryFrame live;
+		const size_t levels = layout["layout"].Vector().size();
+		for(size_t level = 0; level < levels; ++level)
+			live.layers.push_back({std::string(), levels > 1 ? tabText(level == 0 ? "template.preview.surface" : "template.preview.underground") : std::string()});
+		for(const auto & frame : sheet.gallery)
+			if(live.legend.empty() && !frame.legend.empty())
+				live.legend = frame.legend;
+		const JsonNode & params = persistentStorage["mapGen"]["params"];
+		const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;
+		const int shape = params["waterShape"].isNumber() ? static_cast<int>(params["waterShape"].Float()) : -1;
+		std::string water;
+		if(content == WATER_NONE)
+			water = tabText("template.preview.noWater");
+		else if(shape >= 0 && LIBRARY->generaltexth->identifierExists("vcmi.mapGen.waterShape.stop" + std::to_string(shape)))
+			water = LIBRARY->generaltexth->translate("vcmi.mapGen.waterShape.stop" + std::to_string(shape));
+		std::string caption = tabText("template.preview.live");
+		const auto put = [&caption](const std::string & name, const std::string & value) { boost::algorithm::replace_all(caption, "{" + name + "}", value); };
+		put("width", std::to_string(layout["size"]["w"].Integer()));
+		put("height", std::to_string(layout["size"]["h"].Integer()));
+		put("players", std::to_string(layout["starts"].Vector().size()));
+		put("levels", std::to_string(levels));
+		put("water", water);
+		live.caption = caption;
+		sheet.heading.clear(); // the open layout's "example maps" line: these are not the examples any more
+		sheet.gallery = {live};
+		galleryAt = 0;
+		galleryElapsed = 0;
+		liveBoxes.clear();
+		build(false);
+		redraw();
 	}
 };
 
@@ -2015,8 +2069,9 @@ public:
 				const std::string key = MapGenPreview::requestWith(*start->mapGenOptions, *start, replaced);
 				if(!key.empty())
 				{
-					parts.push_back(std::make_shared<MapGenPreviewBox>(pictureArea, key, false));
-					textLeft = std::max(textLeft, card.x + pictureArea.w + 12);
+					// the card's whole picture square, the surface alone: the module's picture (its map and its legend) is replaced, not drawn over in part
+					parts.push_back(std::make_shared<MapGenPreviewBox>(Rect(card.x, card.y, picture, picture), key, false, 0));
+					textLeft = std::max(textLeft, card.x + picture + 12);
 				}
 			}
 			const std::string name = entry["label"].isString() ? entry["label"].String() : names[i];

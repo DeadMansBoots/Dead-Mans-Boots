@@ -40,6 +40,8 @@ namespace MapGenPreview
 	/// replaced ("--template" NAME, "--bio.waterShape" N, ...; added when absent). Every distinct set of arguments is run once, the newest asked first;
 	/// the key names its layout for a MapGenPreviewBox. Empty when no picture applies.
 	std::string requestWith(const CMapGenOptions & options, const StartInfo & start, const std::map<std::string, std::string> & replaced);
+	/// S246: the layout of a key once its run has landed with a picture; nullptr while it waits, and when the run made none (main thread only)
+	const JsonNode * landedLayout(const std::string & key);
 }
 
 /// The picture of a layout (the lobby card's newest when its key is empty), one square per level side by side, drawn at the screen's own resolution

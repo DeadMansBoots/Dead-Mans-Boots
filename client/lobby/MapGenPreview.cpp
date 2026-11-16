@@ -228,6 +228,18 @@ std::string MapGenPreview::requestWith(const CMapGenOptions & options, const Sta
 			args[i + 1] = (previewFolder() / "preview.vmap").string();
 	for(const auto & [flag, value] : replaced)
 	{
+		// S246: an empty value takes the flag out (the template menu's open layout, Classic, is the generator with no --template)
+		if(value.empty())
+		{
+			for(size_t i = 0; i + 1 < args.size();)
+			{
+				if(args[i] == flag)
+					args.erase(args.begin() + i, args.begin() + i + 2);
+				else
+					++i;
+			}
+			continue;
+		}
 		bool found = false;
 		for(size_t i = 0; i + 1 < args.size(); ++i)
 			if(args[i] == flag)
@@ -276,6 +288,16 @@ std::string MapGenPreview::requestWith(const CMapGenOptions & options, const Sta
 		std::thread(work).detach();
 	}
 	return key;
+}
+
+const JsonNode * MapGenPreview::landedLayout(const std::string & key)
+{
+	if(key.empty())
+		return nullptr;
+	const auto found = shownLayouts.find(key);
+	if(found == shownLayouts.end() || !found->second["layout"].isVector() || found->second["layout"].Vector().empty())
+		return nullptr;
+	return &found->second;
 }
 
 namespace
@@ -484,7 +506,8 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 	// the starts: castles in the player's colour, no numbers (K, November 5th: "player starts dont need numbers, only colors corresponding to the player color that gets it")
 	// a start on the map's edge keeps its whole castle inside the panel, as the template previews do (layout_render.py spread_castles keeps
 	// every castle a margin inside its panel)
-	const int castleHeight = std::max(7, side / 11);
+	// S246: 5 pixels at least (7 was most of a water menu card's small picture)
+	const int castleHeight = std::max(5, side / 11);
 	const int castleOutline = std::max(1, static_cast<int>(std::lround(castleHeight * 0.12)));
 	const int marginX = static_cast<int>(std::ceil(castleHeight * 1.15 / 2)) + castleOutline + 1;
 	const int marginY = static_cast<int>(std::ceil(castleHeight / 2.0)) + castleOutline + 1;
@@ -553,6 +576,9 @@ void MapGenPreviewBox::showAll(Canvas & to)
 			to.drawColor(Rect(pos.x + pos.w - pos.h, pos.y, pos.h, pos.h), BACKGROUND);
 		return;
 	}
+	// S246: one level in a menu's picture place takes the whole place, so nothing of the module's picture under it shows beside the live one
+	if(onlyLevel >= 0)
+		to.drawColor(pos, BACKGROUND);
 	for(size_t i = 0; i < panels.size(); ++i)
 		to.draw(*panels[i], pos.topLeft() + panelAt[i]);
 }

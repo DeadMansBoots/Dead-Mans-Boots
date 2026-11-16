@@ -47,6 +47,7 @@ class MapGenPreviewBox : public CIntObject
 {
 	std::string key;
 	bool drawEmpty;
+	int onlyLevel;
 	int drawnSerial = -1;
 	int drawnScale = 0;
 	Point drawnSize;
@@ -56,6 +57,7 @@ class MapGenPreviewBox : public CIntObject
 	void redrawPanels();
 public:
 	/// drawEmpty: an empty square while there is no layout (the card); without it nothing is drawn, so what lies under the box shows (the menus)
-	explicit MapGenPreviewBox(const Rect & position, std::string key = {}, bool drawEmpty = true);
+	/// onlyLevel: that level alone, centred in the box (the template menu's one picture per level); -1 every level side by side
+	explicit MapGenPreviewBox(const Rect & position, std::string key = {}, bool drawEmpty = true, int onlyLevel = -1);
 	void showAll(Canvas & to) override;
 };

@@ -1438,6 +1438,11 @@ class TemplateInfoPanel : public CIntObject
 		size_t layer;
 	};
 	std::vector<PreviewPlace> previewPlaces;
+	/// S246 (K, November 15th: the template pictures "should look how the template maps look, but be focused on various templates with whatever the currently
+	/// selected water layout is"): the generator's layout of the shown template with the lobby's current settings (water included), drawn over each level's
+	/// picture once it lands (MapGenPreview); the module's picture shows until then, and stays when the run fails. Empty: none asked for
+	std::string liveKey;
+	std::vector<std::shared_ptr<MapGenPreviewBox>> liveBoxes;
 
 	static std::string whole(const JsonNode & node)
 	{
@@ -1688,6 +1693,24 @@ public:
 			const int view = area.h - 4;
 			Canvas visible(*rendered, Rect(0, scroll + 2, columnWidth(), std::min(view, columnHeight - scroll - 2)));
 			to.draw(visible, pos.topLeft() + Point(0, 2));
+			// S246: the live layout over each level's picture that is wholly in view
+			if(!liveKey.empty())
+			{
+				if(liveBoxes.size() != previewPlaces.size())
+				{
+					liveBoxes.clear();
+					for(const auto & place : previewPlaces)
+						liveBoxes.push_back(std::make_shared<MapGenPreviewBox>(Rect(0, 0, place.place.w, place.place.h), liveKey, false, static_cast<int>(place.layer)));
+				}
+				for(size_t i = 0; i < previewPlaces.size(); ++i)
+				{
+					const Rect onScreen(pos.topLeft() + Point(previewPlaces[i].place.x, previewPlaces[i].place.y - scroll), Point(previewPlaces[i].place.w, previewPlaces[i].place.h));
+					if(onScreen.y < pos.y + 2 || onScreen.y + onScreen.h > pos.y + 2 + view)
+						continue;
+					liveBoxes[i]->pos = onScreen;
+					liveBoxes[i]->showAll(to);
+				}
+			}
 		}
 		to.drawBorder(Rect(pos.topLeft(), Point(area.w, area.h)), ColorRGBA(212, 175, 55, 255), 2); // the panel's gold frame, over the column's edges
 		slider->showAll(to);
@@ -1744,6 +1767,8 @@ public:
 		if(id == shown)
 			return;
 		shown = id;
+		liveKey.clear();
+		liveBoxes.clear();
 		Sheet next;
 		if(id < 0 || id >= static_cast<int>(values.size()))
 		{
@@ -1880,6 +1905,9 @@ public:
 			next.gallery = readFrames("frames.json");
 		}
 		setSheet(std::move(next));
+		const auto * start = GAME->server().si.get();
+		if(!values[id].empty() && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
+			liveKey = MapGenPreview::requestWith(*start->mapGenOptions, *start, {{"--template", values[id]}});
 	}
 };
 

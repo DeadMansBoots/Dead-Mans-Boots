@@ -500,9 +500,10 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 }
 }
 
-MapGenPreviewBox::MapGenPreviewBox(const Rect & position, std::string key, bool drawEmpty)
+MapGenPreviewBox::MapGenPreviewBox(const Rect & position, std::string key, bool drawEmpty, int onlyLevel)
 	: key(std::move(key))
 	, drawEmpty(drawEmpty)
+	, onlyLevel(onlyLevel)
 {
 	pos.x += position.x;
 	pos.y += position.y;
@@ -522,6 +523,16 @@ void MapGenPreviewBox::redrawPanels()
 	if(!shownLayout["layout"].isVector() || shownLayout["layout"].Vector().empty())
 		return;
 	const size_t levels = shownLayout["layout"].Vector().size();
+	if(onlyLevel >= 0)
+	{
+		// one level, the largest square the box holds, centred
+		if(static_cast<size_t>(onlyLevel) >= levels)
+			return;
+		const int side = std::max(8, std::min(pos.w, pos.h));
+		panels.push_back(drawLevel(shownLayout, onlyLevel, side * scale));
+		panelAt.emplace_back((pos.w - side) / 2, (pos.h - side) / 2);
+		return;
+	}
 	constexpr int gap = 4;
 	const int side = std::max(8, std::min(pos.h, (pos.w - gap * static_cast<int>(levels - 1)) / static_cast<int>(levels)));
 	const int used = side * static_cast<int>(levels) + gap * static_cast<int>(levels - 1);

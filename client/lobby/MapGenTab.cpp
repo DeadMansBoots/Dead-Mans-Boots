@@ -349,6 +349,46 @@ std::shared_ptr<CTextInput> MapGenPage::textInput(const std::string & name) cons
 	return widget<CTextInput>(name);
 }
 
+std::shared_ptr<CSlider> MapGenPage::slider(const std::string & name) const
+{
+	return widget<CSlider>(name);
+}
+
+void MapGenTab::greyWaterAmount()
+{
+	// S278 (K, November 16th: "would like for "Random" water content to also mean that the "amount of water" is effectively randomized between
+	// 20% and 60% and for the text to the right of the bar to say the range (when "Random" is selected for water content"): the generator draws
+	// the amount from the map's seed (MapGen Dev's half), so the bar is greyed and its text gives the range; any other content shows the bar as set
+	const JsonNode & params = persistentStorage["mapGen"]["params"];
+	if(!params["waterContent"].isNumber() || static_cast<int>(params["waterContent"].Float()) >= 0)
+		return; // a page built again shows the bar and its own value
+	std::shared_ptr<CSlider> bar;
+	std::shared_ptr<CLabel> value;
+	if(layoutPages)
+	{
+		if(auto page = layoutPages->shownPage())
+		{
+			bar = page->find<CSlider>("slider_waterCoverage");
+			value = page->find<CLabel>("value_waterCoverage");
+		}
+	}
+	else if(pages)
+	{
+		if(auto page = std::dynamic_pointer_cast<MapGenPage>(pages->getItem()))
+		{
+			bar = page->slider("slider_waterCoverage");
+			value = page->label("value_waterCoverage");
+		}
+	}
+	if(bar)
+		bar->block(true);
+	if(value)
+	{
+		value->setColor(ColorRGBA(120, 120, 120));
+		value->setText(tabText("water.randomRange"));
+	}
+}
+
 void MapGenTab::greyCustomSize()
 {
 	const bool random = mapSetting("size") < 0;
@@ -528,6 +568,8 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 				// happened to hold. The map info goes out below, as for every setting.
 				refreshPagesAfterClick();
 			}
+			else
+				refreshPagesAfterClick(); // S278: the Amount of water bar greyed with the range under Random, or back to its own value (greyWaterAmount)
 		}
 		if(setting == "persistent:mapGen/params/waterShape")
 		{
@@ -558,6 +600,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		if(auto name = page.find<CLabel>("labelTemplateName"))
 			name->setText(templateLabel());
 		greyCustomSize();
+		greyWaterAmount();
 	};
 	build(config);
 

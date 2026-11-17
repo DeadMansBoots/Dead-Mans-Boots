@@ -1120,6 +1120,7 @@
 	"vcmi.dmb.mapGenerator.template.details.specs" : "Original game specs",
 	"vcmi.dmb.mapGenerator.template.details.layout" : "Layout (one example map)",
 	"vcmi.dmb.mapGenerator.template.details.layoutOpen" : "Open layout (example maps)",
+	"vcmi.dmb.mapGenerator.water.randomRange" : "20% to 60%",
 	"vcmi.dmb.mapGenerator.template.preview.surface" : "Surface",
 	"vcmi.dmb.mapGenerator.template.preview.underground" : "Underground",
 	"vcmi.dmb.mapGenerator.template.preview.live" : "Made by the generator from your settings: {width}x{height}, {players} players, {levels} level(s), water: {water}",

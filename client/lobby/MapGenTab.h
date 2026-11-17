@@ -14,6 +14,7 @@
 
 class CTabbedInt;
 class CLabel;
+class CSlider;
 
 /// DMB: the tab of a map generator that a mod brings (lib/modding/MapGenerators.h), a third
 /// map-selection tab beside Scenarios and Random Map, reached from its own lobby button. Everything
@@ -45,6 +46,7 @@ public:
 	std::shared_ptr<CLabel> label(const std::string & name) const;
 	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
 	std::shared_ptr<CTextInput> textInput(const std::string & name) const;
+	std::shared_ptr<CSlider> slider(const std::string & name) const;
 };
 
 class MapGenTab : public InterfaceObjectConfigurable
@@ -72,6 +74,8 @@ class MapGenTab : public InterfaceObjectConfigurable
 	void collectHelp(const JsonNode & items, std::map<std::string, std::string> & into);
 	/// the custom size boxes are drawn grey while the size is Random (they stay there: typing in one picks a custom size)
 	void greyCustomSize();
+	/// S278: with the dice picked for Water content, the Amount of water bar is greyed and its text gives the range the generator draws from
+	void greyWaterAmount();
 	/// the module's "reset" block (or its defaults): what the Reset button puts every setting to
 	JsonNode resetValues;
 	bool refreshQueued = false;

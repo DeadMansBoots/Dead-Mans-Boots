@@ -19,6 +19,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPushButton>
+#include <QLabel>
 #include <QFile>
 #include <QCryptographicHash>
 #include <QStandardPaths>
@@ -200,6 +201,8 @@ void UpdateDialog::on_updateNow_clicked()
 		return;
 	updateButton->setEnabled(false);
 	updateButton->setText(tr("Downloading..."));
+	if(failLabel)
+		failLabel->hide();
 
 	QNetworkRequest request{QUrl(installerUrl)};
 	request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -212,10 +215,27 @@ void UpdateDialog::on_updateNow_clicked()
 	connect(reply, &QNetworkReply::finished, this, [this, reply]
 	{
 		reply->deleteLater();
+		// S288 (K, November 17th: "Yes, fix it"): the whole failure text was cut off at both ends of the gold button, whose lettering cannot wrap or
+		// shrink. The button says what to do in two words; the reason is a wrapped line above it, in the dialog's gold type
 		const auto fail = [this](const QString & why)
 		{
+			if(!failLabel)
+			{
+				failLabel = new QLabel(this);
+				failLabel->setObjectName("updateFailed");
+				failLabel->setWordWrap(true);
+				failLabel->setStyleSheet("QLabel { color: #f3d27a; }");
+				const int row = ui->gridLayout->indexOf(updateButton);
+				int buttonRow = 0, column = 0, rowSpan = 0, columnSpan = 0;
+				ui->gridLayout->getItemPosition(row, &buttonRow, &column, &rowSpan, &columnSpan);
+				ui->gridLayout->removeWidget(updateButton);
+				ui->gridLayout->addWidget(failLabel, buttonRow, 0, 1, -1);
+				ui->gridLayout->addWidget(updateButton, buttonRow + 1, 0, 1, -1);
+			}
+			failLabel->setText(tr("The update failed: %1. Try again, or get the installer from the download page.").arg(why));
+			failLabel->show();
 			updateButton->setEnabled(true);
-			updateButton->setText(tr("Update now (failed: %1; try again, or use the download page)").arg(why));
+			updateButton->setText(tr("Try Again"));
 		};
 		if(reply->error() != QNetworkReply::NoError)
 			return fail(reply->errorString());

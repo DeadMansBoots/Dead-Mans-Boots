@@ -12,6 +12,7 @@
 #include <QNetworkAccessManager>
 
 class QPushButton;
+class QLabel;
 
 VCMI_LIB_NAMESPACE_BEGIN
 
@@ -51,6 +52,7 @@ private:
 	bool calledManually;
 	
 	QPushButton * updateButton = nullptr;
+	QLabel * failLabel = nullptr; // S288: why the last "Update now" failed, above the button (the gold button's lettering cannot wrap)
 	QString installerUrl;
 	QString installerSha256;
 

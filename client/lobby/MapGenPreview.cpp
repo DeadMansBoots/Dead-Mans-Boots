@@ -467,6 +467,10 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 	// in no zone are rock. A layout without "terrains" (a module before it) keeps the colours by role.
 	const auto terrainColor = [](const std::string & name) -> std::optional<ColorRGBA>
 	{
+		// S299 (K, November 17th, on the DX doc: plain subterranean floor in the tan of the game's floor art, not the minimap's dark orange):
+		// 165,132,99 is the median of the subterranean floor tiles drawn in the game's art (three generated maps, seeds 3, 7 and 11)
+		if(name == "subterra")
+			return ColorRGBA(165, 132, 99);
 		const auto id = LIBRARY->identifiers()->getIdentifier(ModScope::scopeMap(), "terrain", name, true);
 		if(!id)
 			return std::nullopt;

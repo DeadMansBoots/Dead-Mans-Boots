@@ -15,6 +15,7 @@
 #include "CModHandler.h"
 #include "ModDescription.h"
 
+#include "../DmbRelease.h"
 #include "../GameLibrary.h"
 #include "../VCMIDirs.h"
 #include "../json/JsonNode.h"
@@ -59,8 +60,9 @@ std::optional<AIPluginInfo> AIPlugins::read(const ModDescription & mod)
 	else if(!info.adventure && !info.battle)
 		info.problem = "its mod.json names no kind (adventure or battle)";
 	else if(info.abi >= 0 && info.abi != AIAbi::VERSION)
+		// S293 (OmniAI Dev's rerun: both sides read "DMB 0.1.0"): each side's full version name, the beta number included
 		info.problem = "it was built for AI ABI " + std::to_string(info.abi) + (info.builtFor.empty() ? std::string() : " (DMB " + info.builtFor + ")")
-			+ ", and this game is AI ABI " + std::to_string(AIAbi::VERSION) + " (DMB " DMB_VERSION_STRING "); rebuild it against the SDK of this DMB";
+			+ ", and this game is AI ABI " + std::to_string(AIAbi::VERSION) + " (DMB " DMB_VERSION_STRING "-" DMB_RELEASE_LABEL_TEXT "); rebuild it against the SDK of this DMB";
 	else if(info.abi < 0 && info.builtFor != DMB_VERSION_STRING)
 		info.problem = "it was built for DMB " + (info.builtFor.empty() ? std::string("(none named)") : info.builtFor) + ", and this is DMB " DMB_VERSION_STRING
 			+ "; a plugin built against DMB's AI SDK names its \"abi\" and then loads in every DMB with the same AI ABI";

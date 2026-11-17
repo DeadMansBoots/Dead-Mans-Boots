@@ -502,6 +502,43 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 				water.push_back(tile.isNumber() ? tile.Integer() != 0 : tile.Bool());
 	}
 
+	// S299 (K, November 17th: "we need to remove the areas that are abyssal in the underground at the least.....then paint any
+	// non-standard-subterranean layers with their biome colors"): with the generator's per-tile floor mask ("floorTiles", one array a level,
+	// 1 walkable floor, 0 rock or abyss) a tile off the floor is left empty; with its per-tile terrain ("terrainTiles", an identifier a tile)
+	// each floor tile takes its own terrain's colour, else its zone's. Without them the zones fill the level as before
+	std::vector<bool> floor;
+	const JsonNode & floorMask = layout["floorTiles"];
+	if(floorMask.isVector() && level < floorMask.Vector().size())
+	{
+		const auto & tiles = floorMask.Vector()[level].Vector();
+		if(tiles.size() == cells.size())
+			for(const auto & tile : tiles)
+				floor.push_back(tile.isNumber() ? tile.Integer() != 0 : tile.Bool());
+	}
+	std::vector<std::optional<ColorRGBA>> tileColor;
+	const JsonNode & terrainMask = layout["terrainTiles"];
+	if(terrainMask.isVector() && level < terrainMask.Vector().size())
+	{
+		const auto & tiles = terrainMask.Vector()[level].Vector();
+		if(tiles.size() == cells.size())
+		{
+			std::map<std::string, std::optional<ColorRGBA>> known;
+			for(const auto & tile : tiles)
+			{
+				if(!tile.isString())
+				{
+					tileColor.emplace_back();
+					continue;
+				}
+				auto found = known.find(tile.String());
+				if(found == known.end())
+					found = known.emplace(tile.String(), terrainColor(tile.String())).first;
+				tileColor.push_back(found->second);
+			}
+		}
+	}
+	const auto offFloor = [&floor](int tile) { return !floor.empty() && !floor[tile]; };
+
 	// the map fitted into the square, kept in proportion
 	const double scale = static_cast<double>(side) / std::max(W, H);
 	const int width = std::max(1, static_cast<int>(W * scale));
@@ -523,18 +560,26 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 				const int tile = tileAt(px, py);
 				const bool wet = !water.empty() && water[tile];
 				const int id = zone[tile];
-				bool edge = false;
-				if(!wet)
+				if(offFloor(tile))
 				{
-					for(int k = 1; k <= border && !edge; ++k)
-					{
-						if(px + k < width && zone[tileAt(px + k, py)] != id)
-							edge = true;
-						if(py + k < height && zone[tileAt(px, py + k)] != id)
-							edge = true;
-					}
+					color = BACKGROUND; // S299: the abyss stays empty
 				}
-				color = wet ? waterColor : (edge ? ZONE_BORDER : colorOf(id));
+				else
+				{
+					bool edge = false;
+					if(!wet)
+					{
+						for(int k = 1; k <= border && !edge; ++k)
+						{
+							if(px + k < width && zone[tileAt(px + k, py)] != id && !offFloor(tileAt(px + k, py)))
+								edge = true;
+							if(py + k < height && zone[tileAt(px, py + k)] != id && !offFloor(tileAt(px, py + k)))
+								edge = true;
+						}
+					}
+					const ColorRGBA ground = !tileColor.empty() && tileColor[tile] ? *tileColor[tile] : colorOf(id);
+					color = wet ? waterColor : (edge ? ZONE_BORDER : ground);
+				}
 			}
 			if(px == width || px == 0 || color.r != runColor.r || color.g != runColor.g || color.b != runColor.b)
 			{

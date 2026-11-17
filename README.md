@@ -12,9 +12,9 @@ The installer is not signed yet, so Windows may say it protected your PC. Choose
 
 ## Known problems and in construction
 
-Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.6, a test build for playtesting.
+Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.7, a test build for playtesting.
 
-In beta 19.6:
+In beta 19.7:
 
 | Feature | Status | Built |
 | --- | --- | --- |
@@ -34,19 +34,20 @@ In beta 19.6:
 | Music in a watched game | Partly built | 40% |
 | Gameplay data recording to a folder on your PC | Partly built | 60% |
 | Dark and gold look, the game's own lettering in the launcher, bigger map sizes | Partly built | 60% |
-| Letting people join a running game, and coming back after a dropped connection | Partly built | 60% |
+| Letting people join a running game, and coming back after a dropped connection | Partly built | 65% |
 | Reporting a problem from inside the game (F12) | Partly built | 60% |
 | A computer player and difficulty for each seat (the computer players that come with the game) | In construction | 0% |
 | Telling a joining player which content or mods differ from the host's | Partly built | 40% |
 | Looking into every player's kingdom while watching: resources, towns, armies | In construction | 0% |
 
-Known problems in beta 19.6: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, does not yet match the chosen template and water layout in every case, and leaves out portals, underground passages and neutral towns. With OmniMapGen 0.3.33 (offered in the launcher's mod list) the template panel shows a two-level template's levels one above the other; this has not been seen in a game yet. Not yet shown working: scrolling the template panel. In construction: the Water layout choice that shows every layout at once with its picture (Highland has no picture yet). After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy. Tested side by side with the standard game (VCMI 1.7.5) on this build: a 10-day two-player game with computer players, an elimination (the defeated host stays to watch), battles with spells, retreat and surrender, hero exchange, town building and recruiting, save and load, frame time, the Omni Map Gen mod check, the lobby and loading screen, and the turn bar colour picks. The drop-and-rejoin freeze fixes were tested with two and three players dropping and rejoining during the stand-in's turn and in a battle. Not tested: the fix for pressing Host again right after cancelling a connection (that crash could not be made to happen for the test), a second PC finding a host that has LAN search turned off, games longer than 11 days, and games with more than three players.
+Known problems in beta 19.7: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, does not yet match the chosen template and water layout in every case, and leaves out portals, underground passages and neutral towns. With OmniMapGen 0.3.33 (offered in the launcher's mod list) the template panel shows a two-level template's levels one above the other; this has not been seen in a game yet. Not yet shown working: scrolling the template panel. In construction: the Water layout choice that shows every layout at once with its picture. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy. Tested side by side with the standard game (VCMI 1.7.5) on this build: a 10-day two-player game with computer players, an elimination (the defeated host stays and watches; on the standard game the host's server closes and the other player loses the connection), battles with spells, retreat and surrender, hero exchange, town building and recruiting, save and load (on the standard game the other player lost the connection when the host loaded), frame time, the random map lobby and the text list. The fixes for leaving a game to the main menu and for coming back after a dropped connection were tested with the exact steps that crashed the previous build. Not tested: the loading screen with your own mods, music and sound (the test setup had no music files), a real network drop (the connection was cut by a test tool), closing the game with alt+F4 or a killed process, games longer than 11 days, and games with more than three players.
 
-Next version, not in beta 19.6:
+Next version, not in beta 19.7:
 
 | Feature | Status | Built |
 | --- | --- | --- |
-| Objects drawn in the right order (a hedge no longer covers a tent) | Partly built | 80% |
+| Objects drawn in the right order (a hedge no longer covers a tent, a building no longer hides behind a glacier) | Partly built | 80% |
+| Template and Water layout menus that show the map the generator makes for the chosen template and water, all eight templates listed | Partly built | 70% |
 | The first redrawn interface, with the original look kept as an option | In construction | 10% |
 | "Restrict all settings to original template preferences" for map templates | In construction | 0% |
 | The host's full mod list compared with each joining player's, naming every difference | In construction | 0% |

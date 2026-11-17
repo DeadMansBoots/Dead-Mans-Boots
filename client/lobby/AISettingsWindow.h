@@ -44,10 +44,7 @@ class AISettingsWindow final : public CWindowObject
 	std::vector<Choice> battleChoices;
 	/// index 0 is "as the map", 1 to 5 are the tiers Pawn to King
 	std::vector<std::shared_ptr<TransparentFilledRectangle>> tierMarks;
-	std::vector<std::shared_ptr<LRClickableArea>> tierAreas;
-	std::vector<std::shared_ptr<CButton>> tierButtons;
-	std::shared_ptr<TransparentFilledRectangle> resetFrame;
-	std::shared_ptr<LRClickableArea> resetArea;
+	std::vector<std::shared_ptr<CButton>> tierButtons; // the chess pieces; "as the map" and the reset are in `buttons` (S301)
 	std::shared_ptr<CMultiLineLabel> description;
 	/// S073: "Show this AI's thoughts in the chat", for an adventure AI that can write them
 	std::shared_ptr<TransparentFilledRectangle> thoughtsBox;

@@ -120,7 +120,7 @@ const PlayerSettings * AISettingsWindow::seat() const
 void AISettingsWindow::buildChoices(bool battleList, std::vector<Choice> & into, int x)
 {
 	int y = LIST_TOP;
-	for(const auto & choice : CServerHandler::seatAIChoices(battleList))
+	for(const auto & choice : CServerHandler::seatAIChoices(battleList, true))
 	{
 		if(into.size() >= static_cast<size_t>(LIST_ROWS))
 			break;
@@ -128,6 +128,23 @@ void AISettingsWindow::buildChoices(bool battleList, std::vector<Choice> & into,
 		Choice row;
 		row.name = choice.name;
 		row.mark = std::make_shared<TransparentFilledRectangle>(Rect(x, y, ROW_WIDTH, ROW_HEIGHT - 2), GOLD_FILL, GOLD_LINE, 1);
+		if(!choice.problem.empty())
+		{
+			// S293 D1: an AI that cannot load is shown grey; a click says why in the text under the tiers, and picks nothing
+			const std::string text = displayName(choice.name) + " " + LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.cannotLoad");
+			row.label = std::make_shared<CLabel>(x + 8, y + (ROW_HEIGHT - 2) / 2, FONT_SMALL, ETextAlignment::CENTERLEFT, ColorRGBA(140, 140, 140), text, ROW_WIDTH - 14);
+			std::string why = LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.cannotLoadWhy");
+			boost::algorithm::replace_first(why, "%s", displayName(choice.name));
+			boost::algorithm::replace_first(why, "%s", choice.problem);
+			row.area = std::make_shared<LRClickableArea>(Rect(x, y, ROW_WIDTH, ROW_HEIGHT - 2), [this, why]()
+			{
+				description->setText(why);
+				redraw();
+			}, nullptr);
+			into.push_back(row);
+			y += ROW_HEIGHT;
+			continue;
+		}
 		// an AI plugin the mod catalog does not vouch for is marked, as the launcher marks it: the host is asked before the start
 		const std::string text = displayName(choice.name) + (choice.untrusted ? " *" : "");
 		row.label = std::make_shared<CLabel>(x + 8, y + (ROW_HEIGHT - 2) / 2, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, text, ROW_WIDTH - 14);

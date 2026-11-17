@@ -642,7 +642,7 @@ void CServerHandler::setPlayerAI(PlayerColor color, const std::string & aiAdvent
 	sendLobbyPack(lspa);
 }
 
-std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool battle)
+std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool battle, bool withProblems)
 {
 	std::vector<SeatAIChoice> out;
 	// the engine's own, in the launcher's order (launcher/settingsView/csettingsview_moc.cpp), when the library is installed
@@ -660,6 +660,12 @@ std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool bat
 			continue;
 		out.push_back({plugin.name, true, plugin.untrusted, plugin.thoughts});
 	}
+	// S293 D1 (OmniAI Dev, November 17th: a plugin that cannot load "disappears from "AI Settings" with no word"): listed last, with why
+	if(withProblems)
+		for(const auto & plugin : AIPlugins::active())
+			if((battle ? plugin.battle : plugin.adventure) && !plugin.problem.empty() && !plugin.untrusted
+				&& std::none_of(out.begin(), out.end(), [&](const SeatAIChoice & c) { return c.name == plugin.name; }))
+				out.push_back({plugin.name, true, false, false, plugin.problem});
 	return out;
 }
 

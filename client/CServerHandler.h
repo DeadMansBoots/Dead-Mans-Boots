@@ -228,10 +228,12 @@ public:
 		bool fromMod = false;    // an AI plugin from an active mod
 		bool untrusted = false;  // the mod catalog does not vouch for its code: the host is asked before the start
 		bool thoughts = false;   // S073: it can write its thoughts to the chat (the window shows the tick box)
+		std::string problem;     // S293 D1: why an AI plugin cannot load; listed (withProblems) but never picked
 	};
 	/// The adventure AIs (battle false) or battle AIs (battle true) a seat may pick: the engine's own that are installed, then the active
 	/// mods' AI plugins that can load. EmptyAI is never offered. The launcher's default for a seat is seatAIDefault
-	static std::vector<SeatAIChoice> seatAIChoices(bool battle);
+	/// withProblems (S293 D1): the plugins that cannot load are listed too, after the others, with their problem, so the seat window can say why
+	static std::vector<SeatAIChoice> seatAIChoices(bool battle, bool withProblems = false);
 	/// The launcher's default, resolved to a name: Adventure Map Enemies or Allies (alliedToHuman), or Enemy or Allied AI in battles
 	static std::string seatAIDefault(bool battle, bool alliedToHuman);
 	void setPlayerOption(ui8 what, int32_t value, PlayerColor player) const override;

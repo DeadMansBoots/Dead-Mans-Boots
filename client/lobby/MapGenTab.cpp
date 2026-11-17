@@ -15,6 +15,8 @@
 #include "SelectionTab.h"
 
 #include "../CServerHandler.h"
+#include "MapGenPreview.h"
+#include "../../lib/StartInfo.h"
 #include "../GameEngine.h"
 #include "../GameInstance.h"
 #include "../gui/Shortcut.h"
@@ -252,6 +254,7 @@ const int WATER_NORMAL = 1;
 const int WATER_ISLANDS = 2;
 const int WATER_SHAPE_LAKES = 0;
 const int WATER_SHAPE_ISLANDS = 5;
+const int WATER_SHAPE_TEMPLATE = 8; // the module's "Template" stop: the template's own water (S246)
 struct WaterChoice
 {
 	int content;
@@ -1141,6 +1144,26 @@ std::vector<std::string> MapGenTab::approvedNames() const
 	for(const auto * tpl : LIBRARY->tplh->getTemplates())
 		if(tpl && approved.count(boost::to_lower_copy(tpl->getName())) != 0)
 			names.push_back(tpl->getName());
+	// S246 (the lead's ruling, November 16th): an approved template the module describes in template-info.json is offered even when the engine
+	// has no template of that name (OmniMapGen's "Mini Nostalgia (approximate)" and "Nostalgia (approximate)" live inside the generator); Begin
+	// passes its name to the generator as --template, as for every other
+	if(folder)
+	{
+		std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			const JsonNode details(text.data(), text.size(), "template-info.json");
+			// the module's own list rows (Random, Classic) are not template names: they stay as the list gives them
+			const auto rows = listEntries();
+			if(details["templates"].isStruct())
+				for(const auto & entry : details["templates"].Struct())
+					if(approved.count(boost::to_lower_copy(entry.first)) != 0
+						&& std::none_of(names.begin(), names.end(), [&entry](const std::string & name) { return boost::iequals(name, entry.first); })
+						&& std::none_of(rows.begin(), rows.end(), [&entry](const auto & row) { return boost::iequals(row.first, entry.first); }))
+						names.push_back(entry.first);
+		}
+	}
 	std::sort(names.begin(), names.end());
 	names.erase(std::unique(names.begin(), names.end()), names.end());
 	return names;
@@ -1436,6 +1459,12 @@ class TemplateInfoPanel : public CIntObject
 		size_t layer;
 	};
 	std::vector<PreviewPlace> previewPlaces;
+	/// S246 (K, November 15th: the template pictures "should look how the template maps look, but be focused on various templates with whatever the currently
+	/// selected water layout is"): the generator's layout of the shown template with the lobby's current settings (water included), drawn over each level's
+	/// picture once it lands (MapGenPreview); the module's picture shows until then, and stays when the run fails. Empty: none asked for
+	std::string liveKey;
+	bool liveShown = false; // the sheet's pictures are the live layout's own (showLive)
+	std::vector<std::shared_ptr<MapGenPreviewBox>> liveBoxes;
 
 	static std::string whole(const JsonNode & node)
 	{
@@ -1606,6 +1635,9 @@ public:
 				const int pictureWidth = width - 2 * 2;
 				const auto placeImage = [&](const std::string & imageName) -> Rect
 				{
+					// S246: a live level has no sprite: its square is kept free for the live picture
+					if(imageName.empty())
+						return Rect(Point(2, y), Point(pictureWidth, pictureWidth));
 					auto image = ENGINE->renderHandler().loadImage(ImagePath::builtin(imageName), EImageBlitMode::OPAQUE);
 					if(!image || image->width() <= 0 || image->height() <= 0)
 						return Rect();
@@ -1686,6 +1718,24 @@ public:
 			const int view = area.h - 4;
 			Canvas visible(*rendered, Rect(0, scroll + 2, columnWidth(), std::min(view, columnHeight - scroll - 2)));
 			to.draw(visible, pos.topLeft() + Point(0, 2));
+			// S246: the live layout over each level's picture that is wholly in view
+			if(!liveKey.empty())
+			{
+				if(liveBoxes.size() != previewPlaces.size())
+				{
+					liveBoxes.clear();
+					for(const auto & place : previewPlaces)
+						liveBoxes.push_back(std::make_shared<MapGenPreviewBox>(Rect(0, 0, place.place.w, place.place.h), liveKey, false, static_cast<int>(place.layer)));
+				}
+				for(size_t i = 0; i < previewPlaces.size(); ++i)
+				{
+					const Rect onScreen(pos.topLeft() + Point(previewPlaces[i].place.x, previewPlaces[i].place.y - scroll), Point(previewPlaces[i].place.w, previewPlaces[i].place.h));
+					if(onScreen.y < pos.y + 2 || onScreen.y + onScreen.h > pos.y + 2 + view)
+						continue;
+					liveBoxes[i]->pos = onScreen;
+					liveBoxes[i]->showAll(to);
+				}
+			}
 		}
 		to.drawBorder(Rect(pos.topLeft(), Point(area.w, area.h)), ColorRGBA(212, 175, 55, 255), 2); // the panel's gold frame, over the column's edges
 		slider->showAll(to);
@@ -1702,6 +1752,8 @@ public:
 			if(!place.place.isInside(inColumn))
 				continue;
 			const GalleryFrame & shown = sheet.gallery[galleryAt % sheet.gallery.size()];
+			if(place.layer < shown.layers.size() && shown.layers[place.layer].image.empty())
+				return; // S246: a live picture has no sprite for the full-screen viewer
 			std::vector<TemplatePreviewViewer::Layer> layers = shown.layers;
 			for(auto & layer : layers)
 				if(layer.label.empty())
@@ -1713,6 +1765,15 @@ public:
 
 	void tick(uint32_t msPassed) override
 	{
+		if(!liveShown && !liveKey.empty())
+		{
+			if(const JsonNode * layout = MapGenPreview::landedLayout(liveKey))
+			{
+				liveShown = true;
+				showLive(*layout);
+				return;
+			}
+		}
 		if(sheet.gallery.size() < 2)
 			return;
 		galleryElapsed += msPassed;
@@ -1742,6 +1803,9 @@ public:
 		if(id == shown)
 			return;
 		shown = id;
+		liveKey.clear();
+		liveShown = false;
+		liveBoxes.clear();
 		Sheet next;
 		if(id < 0 || id >= static_cast<int>(values.size()))
 		{
@@ -1878,6 +1942,47 @@ public:
 			next.gallery = readFrames("frames.json");
 		}
 		setSheet(std::move(next));
+		const auto * start = GAME->server().si.get();
+		// Random gets none (its pick changes with the seed, so no one picture is true for it); the open layout (Classic, stored empty) is the generator
+		// with no --template
+		if(values[id] != RANDOM_TEMPLATE && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
+			liveKey = MapGenPreview::requestWith(*start->mapGenOptions, *start, {{"--template", values[id]}});
+	}
+
+	/// S246 (K, November 15th: "we should be sure to be careful that these are accurate"): once the shown template's live layout lands, the pictures are
+	/// that layout's own levels (a level the lobby's settings do not make is not shown) and the caption says what made them; the module's legend stays
+	void showLive(const JsonNode & layout)
+	{
+		GalleryFrame live;
+		const size_t levels = layout["layout"].Vector().size();
+		for(size_t level = 0; level < levels; ++level)
+			live.layers.push_back({std::string(), levels > 1 ? tabText(level == 0 ? "template.preview.surface" : "template.preview.underground") : std::string()});
+		for(const auto & frame : sheet.gallery)
+			if(live.legend.empty() && !frame.legend.empty())
+				live.legend = frame.legend;
+		const JsonNode & params = persistentStorage["mapGen"]["params"];
+		const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;
+		const int shape = params["waterShape"].isNumber() ? static_cast<int>(params["waterShape"].Float()) : -1;
+		std::string water;
+		if(content == WATER_NONE)
+			water = tabText("template.preview.noWater");
+		else if(shape >= 0 && LIBRARY->generaltexth->identifierExists("vcmi.mapGen.waterShape.stop" + std::to_string(shape)))
+			water = LIBRARY->generaltexth->translate("vcmi.mapGen.waterShape.stop" + std::to_string(shape));
+		std::string caption = tabText("template.preview.live");
+		const auto put = [&caption](const std::string & name, const std::string & value) { boost::algorithm::replace_all(caption, "{" + name + "}", value); };
+		put("width", std::to_string(layout["size"]["w"].Integer()));
+		put("height", std::to_string(layout["size"]["h"].Integer()));
+		put("players", std::to_string(layout["starts"].Vector().size()));
+		put("levels", std::to_string(levels));
+		put("water", water);
+		live.caption = caption;
+		sheet.heading.clear(); // the open layout's "example maps" line: these are not the examples any more
+		sheet.gallery = {live};
+		galleryAt = 0;
+		galleryElapsed = 0;
+		liveBoxes.clear();
+		build(false);
+		redraw();
 	}
 };
 
@@ -1955,6 +2060,7 @@ public:
 			const JsonNode & entry = known ? info["waterLayouts"][IDS[stop]] : none;
 			int textLeft = card.x + 10;
 			const std::string image = known ? pictureFor(module, std::string("water_") + IDS[stop]) : std::string();
+			Rect pictureArea(card.x, card.y, picture, picture);
 			if(!image.empty())
 			{
 				auto loaded = ENGINE->renderHandler().loadImage(ImagePath::builtin(image), EImageBlitMode::OPAQUE);
@@ -1965,7 +2071,30 @@ public:
 					auto shown = std::make_shared<CPicture>(loaded, Point(card.x, card.y + (picture - size.y) / 2));
 					shown->scaleTo(size);
 					parts.push_back(shown);
+					pictureArea = Rect(card.x, card.y + (picture - size.y) / 2, size.x, size.y);
 					textLeft = card.x + size.x + 12;
+				}
+			}
+			// S246 (K, November 15th: "They should look how the template maps look, but be focused on various templates with whatever the currently selected
+			// water layout is"): over the module's picture, the map the generator makes for the selected template with this layout, once its layout run lands
+			// (MapGenPreview; the module's picture shows until then, and stays when the run fails)
+			const auto * start = GAME->server().si.get();
+			// "Template" (the template's own water) has a true picture too: the selected template as the generator makes it with that choice; Random has
+			// none (its layout changes with the seed)
+			if((known || stop == WATER_SHAPE_TEMPLATE) && start && start->mapGenOptions && MapGenPreview::applies(*start->mapGenOptions))
+			{
+				const JsonNode & params = persistentStorage["mapGen"]["params"];
+				const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;
+				std::map<std::string, std::string> replaced = {{"--bio.waterShape", std::to_string(stop)}};
+				// as a click on this layout does (the change of waterShape above): Islands content goes back to Normal with any layout but Islands
+				if(content == WATER_ISLANDS && stop != WATER_SHAPE_ISLANDS)
+					replaced["--bio.waterContent"] = std::to_string(WATER_NORMAL);
+				const std::string key = MapGenPreview::requestWith(*start->mapGenOptions, *start, replaced);
+				if(!key.empty())
+				{
+					// the card's whole picture square, the surface alone: the module's picture (its map and its legend) is replaced, not drawn over in part
+					parts.push_back(std::make_shared<MapGenPreviewBox>(Rect(card.x, card.y, picture, picture), key, false, 0));
+					textLeft = std::max(textLeft, card.x + picture + 12);
 				}
 			}
 			const std::string name = entry["label"].isString() ? entry["label"].String() : names[i];

@@ -33,13 +33,23 @@ namespace MapGenPreview
 {
 	/// true when these options are a generator mod's random map and that generator takes "layout"
 	bool applies(const CMapGenOptions & options);
-	/// asks for the picture of these settings; nothing when they are the ones asked for last
+	/// asks for the picture of these settings for the lobby card; nothing when they are the ones asked for last
 	void request(const CMapGenOptions & options, const StartInfo & start);
+	/// DMB (S246, K November 15th: the template and water layout menus' pictures "should look how the template maps look, but be focused on various
+	/// templates with whatever the currently selected water layout is"): asks for the picture of these settings with some of the generator's arguments
+	/// replaced ("--template" NAME, "--bio.waterShape" N, ...; added when absent). Every distinct set of arguments is run once, the newest asked first;
+	/// the key names its layout for a MapGenPreviewBox. Empty when no picture applies.
+	std::string requestWith(const CMapGenOptions & options, const StartInfo & start, const std::map<std::string, std::string> & replaced);
+	/// S246: the layout of a key once its run has landed with a picture; nullptr while it waits, and when the run made none (main thread only)
+	const JsonNode * landedLayout(const std::string & key);
 }
 
-/// The picture of the newest layout, one square per level side by side, drawn at the screen's own resolution
+/// The picture of a layout (the lobby card's newest when its key is empty), one square per level side by side, drawn at the screen's own resolution
 class MapGenPreviewBox : public CIntObject
 {
+	std::string key;
+	bool drawEmpty;
+	int onlyLevel;
 	int drawnSerial = -1;
 	int drawnScale = 0;
 	Point drawnSize;
@@ -48,6 +58,8 @@ class MapGenPreviewBox : public CIntObject
 
 	void redrawPanels();
 public:
-	explicit MapGenPreviewBox(const Rect & position);
+	/// drawEmpty: an empty square while there is no layout (the card); without it nothing is drawn, so what lies under the box shows (the menus)
+	/// onlyLevel: that level alone, centred in the box (the template menu's one picture per level); -1 every level side by side
+	explicit MapGenPreviewBox(const Rect & position, std::string key = {}, bool drawEmpty = true, int onlyLevel = -1);
 	void showAll(Canvas & to) override;
 };

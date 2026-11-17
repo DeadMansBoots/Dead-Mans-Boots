@@ -860,8 +860,26 @@ void MapGenTab::updateMapInfoByHost()
 	const auto options = lobbyOptions();
 	MetaString name;
 	name.appendRawString(generator.name);
+	// S270 (K, November 16th: "Senario description should be the template's description"): the Scenario Description box shows the selected
+	// template's own description from the module's template-info.json (the text the template window shows); the module's description only when
+	// the module describes no such entry
+	std::string templateText;
+	if(const auto folder = AddonCode::modFolder(generator.modID))
+	{
+		std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
+		if(in)
+		{
+			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+			const JsonNode details(text.data(), text.size(), "template-info.json");
+			const std::string label = templateLabel();
+			if(details["templates"].isStruct())
+				for(const auto & [name, entry] : details["templates"].Struct())
+					if(boost::iequals(name, label))
+						templateText = entry["description"].isString() ? entry["description"].String() : (entry["brief"].isString() ? entry["brief"].String() : std::string());
+		}
+	}
 	MetaString description;
-	description.appendRawString(LIBRARY->modh->getModInfo(generator.modID).getLocalizedDescription().String());
+	description.appendRawString(templateText.empty() ? LIBRARY->modh->getModInfo(generator.modID).getLocalizedDescription().String() : templateText);
 	GAME->server().setMapInfo(RandomMapTab::createRandomMapInfo(*options, name, description), options);
 	if(onSettingsChanged)
 		onSettingsChanged(); // the guests are sent the settings too (K, October 10th)

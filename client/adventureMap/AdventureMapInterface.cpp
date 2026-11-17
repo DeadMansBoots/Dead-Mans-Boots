@@ -716,7 +716,9 @@ void AdventureMapInterface::onTileHovered(const int3 &targetPosition)
 	if(!shortcuts->optionMapViewActive())
 		return;
 	//if the player is not ingame (loser, winner, wrong) we are in a shutdown process
-	if (!GAME->interface()->cb || GAME->interface()->cb->getPlayerStatus(GAME->interface()->playerID) != EPlayerStatus::INGAME)
+	// DMB (S293 D3): asked without the error log (verbose false), so a spectator, who has no player of its own, no longer writes "No such
+	// player!" on every hover; the answer and the return are stock's
+	if (!GAME->interface()->cb || GAME->interface()->cb->getPlayerStatus(GAME->interface()->playerID, false) != EPlayerStatus::INGAME)
 		return;
 	//may occur just at the start of game (fake move before full initialization)
 	if(!GAME->interface()->localState->getCurrentArmy())

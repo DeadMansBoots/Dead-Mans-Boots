@@ -63,15 +63,17 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 
 	// the tier: "as the map", then the five chess pieces of the lobby's own difficulty row
 	// S301 (K, November 17th: "Let's change the buttons for "as the map" and "Reset to launcher defaults" with the other button schemas we already
-	// have established....no ui diversions unles i okay them"): the stock text button (settingsWindow/button80, as the key bindings window's Reset),
-	// its yellow lettering, with the same gold mark as the chess pieces when chosen
-	tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(17, TIER_TOP - 1, 86, 38), GOLD_FILL, GOLD_LINE, 1));
-	auto asMap = std::make_shared<CButton>(Point(20, TIER_TOP + 2), AnimationPath::builtin("settingsWindow/button80"), CButton::tooltip(), [this]()
+	// have established....no ui diversions unles i okay them") and S306 (K: "I was thinking they would be gold with black text, you know, like most
+	// the other buttons...we don't have any brown background buttons in the rest of the pre-game ui"): the lobby's gold bar (RANSHOW, made at
+	// this width, as the list window's Delete) with its word carved in black, and the chess pieces' gold mark when chosen
+	tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(17, TIER_TOP - 1, 102, 38), GOLD_FILL, GOLD_LINE, 1));
+	auto asMap = std::make_shared<CButton>(Point(20, TIER_TOP), AnimationPath::builtin("SPRITES/RanShowButton96"), CButton::tooltip(), [this]()
 	{
 		if(const auto * ps = seat())
 			send(ps->aiAdventure, ps->aiBattle, -1);
 	});
-	asMap->setOverlay(std::make_shared<CLabel>(0, 0, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.asMap")));
+	asMap->moveBy(Point(0, 18 - asMap->pos.h / 2)); // centred on the chess pieces' row
+	asMap->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_MEDIUM, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.asMap")));
 	buttons.push_back(asMap);
 
 	constexpr std::array difButns = {"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"};
@@ -98,9 +100,10 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 			GAME->server().setPlayerAI(color, ps->aiAdventure, ps->aiBattle, ps->aiTier, !ps->aiThoughts);
 	}, nullptr);
 
-	// S301: the same stock text button, its 190-pixel width (settingsWindow/button190) for the longer words
-	auto reset = std::make_shared<CButton>(Point(20, 368), AnimationPath::builtin("settingsWindow/button190"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
-	reset->setOverlay(std::make_shared<CLabel>(0, 0, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset")));
+	// S301, S306: the same gold bar at 210 pixels for the longer words, centred on the OK button's row (368 to 400)
+	auto reset = std::make_shared<CButton>(Point(20, 368), AnimationPath::builtin("SPRITES/RanShowButton210"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
+	reset->moveBy(Point(0, 16 - reset->pos.h / 2));
+	reset->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_MEDIUM, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset")));
 	buttons.push_back(reset);
 
 	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 368), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));

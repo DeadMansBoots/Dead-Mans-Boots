@@ -14,7 +14,11 @@
 #include "../gui/WindowHandler.h"
 #include "../render/IScreenHandler.h"
 
+#include "../../lib/GameLibrary.h"
+#include "../../lib/TerrainHandler.h"
 #include "../../lib/VCMIDirs.h"
+#include "../../lib/modding/IdentifierStorage.h"
+#include "../../lib/modding/ModScope.h"
 #include "../../lib/modding/AddonCode.h"
 #include "../../lib/modding/MapGenerators.h"
 #include "../../lib/rmg/CMapGenOptions.h"
@@ -450,10 +454,30 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 			++pick;
 		shade[id] = pick < TREASURE_SHADES.size() ? pick : 0;
 	}
+	// S273 (K, November 16th: "AGAIN, THIS IS NOT HOW UNDERGROUND BIOMES LOOK. WE NEED UPDATE BOTH OF THESE PREVIEW GENERATORS"): each zone in the
+	// minimap colour of the terrain the generator picked for it on this level ("terrains", parallel to "classes", agreed with MapGen Dev on
+	// November 17th), the engine's own colours (terrains.json minimapUnblocked, the table the template pictures use too); the underground's cells
+	// in no zone are rock. A layout without "terrains" (a module before it) keeps the colours by role.
+	const auto terrainColor = [](const std::string & name) -> std::optional<ColorRGBA>
+	{
+		const auto id = LIBRARY->identifiers()->getIdentifier(ModScope::scopeMap(), "terrain", name, true);
+		if(!id)
+			return std::nullopt;
+		return LIBRARY->terrainTypeHandler->getByIndex(*id)->minimapUnblocked;
+	};
+	std::vector<std::optional<ColorRGBA>> terrainOf;
+	if(data["terrains"].isVector())
+		for(const auto & terrain : data["terrains"].Vector())
+			terrainOf.push_back(terrain.isString() ? terrainColor(terrain.String()) : std::nullopt);
+	const bool byTerrain = std::any_of(terrainOf.begin(), terrainOf.end(), [](const auto & color) { return color.has_value(); });
+	const ColorRGBA rock = LIBRARY->terrainTypeHandler->getById(TerrainId(TerrainId::ROCK))->minimapUnblocked;
+	const ColorRGBA waterColor = byTerrain ? LIBRARY->terrainTypeHandler->getById(TerrainId(TerrainId::WATER))->minimapUnblocked : WATER;
 	const auto colorOf = [&](int id)
 	{
 		if(id < 0)
-			return BACKGROUND;
+			return level > 0 ? rock : BACKGROUND;
+		if(byTerrain && id < static_cast<int>(terrainOf.size()) && terrainOf[id])
+			return *terrainOf[id];
 		if(shade.count(id))
 			return darkened(TREASURE_SHADES[shade[id]]);
 		return darkened(fillOf(kindOf(id)));
@@ -503,7 +527,7 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 							edge = true;
 					}
 				}
-				color = wet ? WATER : (edge ? ZONE_BORDER : colorOf(id));
+				color = wet ? waterColor : (edge ? ZONE_BORDER : colorOf(id));
 			}
 			if(px == width || px == 0 || color.r != runColor.r || color.g != runColor.g || color.b != runColor.b)
 			{

@@ -1005,6 +1005,11 @@ std::shared_ptr<CMapGenOptions> MapGenTab::lobbyOptions() const
 	chosen["map"] = layoutDefaults["map"];
 	for(const auto & entry : stored["map"].Struct())
 		chosen["map"][entry.first] = entry.second;
+	// S270 (the lead, November 17th: the dropdown, the card, the description and the generator follow one selection): the template is the one the
+	// Map page shows (templateName), never the layout's "defaults" under an empty store. On a fresh profile that sent OmniMapGen's default
+	// "Coldshadow's Fantasy" (approved "for K's test, not yet signed off") while the page said Classic, the open layout that the module's own
+	// "reset" block and its description ("the place to start if you are new") make the starting choice
+	chosen["map"]["template"].String() = templateName();
 	chosen["params"] = stored["params"];
 	chosen["preset"].String() = preset();
 	options->setExternalGenerator(generator.modID, chosen);

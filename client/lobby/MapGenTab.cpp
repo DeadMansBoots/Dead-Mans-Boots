@@ -355,38 +355,36 @@ std::shared_ptr<CSlider> MapGenPage::slider(const std::string & name) const
 	return widget<CSlider>(name);
 }
 
-void MapGenTab::greyWaterAmount()
+/// S278: the bar and its value label of one page, greyed with the range when Water content is on the dice
+static void greyWaterAmountOn(const std::shared_ptr<CSlider> & bar, const std::shared_ptr<CLabel> & value)
 {
-	// S278 (K, November 16th: "would like for "Random" water content to also mean that the "amount of water" is effectively randomized between
-	// 20% and 60% and for the text to the right of the bar to say the range (when "Random" is selected for water content"): the generator draws
-	// the amount from the map's seed (MapGen Dev's half), so the bar is greyed and its text gives the range; any other content shows the bar as set
 	const JsonNode & params = persistentStorage["mapGen"]["params"];
 	if(!params["waterContent"].isNumber() || static_cast<int>(params["waterContent"].Float()) >= 0)
-		return; // a page built again shows the bar and its own value
-	std::shared_ptr<CSlider> bar;
-	std::shared_ptr<CLabel> value;
-	if(layoutPages)
-	{
-		if(auto page = layoutPages->shownPage())
-		{
-			bar = page->find<CSlider>("slider_waterCoverage");
-			value = page->find<CLabel>("value_waterCoverage");
-		}
-	}
-	else if(pages)
-	{
-		if(auto page = std::dynamic_pointer_cast<MapGenPage>(pages->getItem()))
-		{
-			bar = page->slider("slider_waterCoverage");
-			value = page->label("value_waterCoverage");
-		}
-	}
+		return;
 	if(bar)
 		bar->block(true);
 	if(value)
 	{
 		value->setColor(ColorRGBA(120, 120, 120));
 		value->setText(tabText("water.randomRange"));
+	}
+}
+
+void MapGenTab::greyWaterAmount()
+{
+	// S278 (K, November 16th: "would like for "Random" water content to also mean that the "amount of water" is effectively randomized between
+	// 20% and 60% and for the text to the right of the bar to say the range (when "Random" is selected for water content"): the generator draws
+	// the amount from the map's seed (MapGen Dev's half), so the bar is greyed and its text gives the range; any other content shows the bar as set
+	// (a page built again under any other content shows the bar and its own value)
+	if(layoutPages)
+	{
+		if(auto page = layoutPages->shownPage())
+			greyWaterAmountOn(page->find<CSlider>("slider_waterCoverage"), page->find<CLabel>("value_waterCoverage"));
+	}
+	else if(pages)
+	{
+		if(auto page = std::dynamic_pointer_cast<MapGenPage>(pages->getItem()))
+			greyWaterAmountOn(page->slider("slider_waterCoverage"), page->label("value_waterCoverage"));
 	}
 }
 
@@ -708,6 +706,8 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			for(const char * boxName : {"input_map.width", "input_map.height"})
 				if(auto box = page.textInput(boxName))
 					box->setColor(shown);
+			// S278: the same for the Amount of water bar (greyWaterAmount works on the tab's current page, which this one is not yet)
+			greyWaterAmountOn(page.slider("slider_waterCoverage"), page.label("value_waterCoverage"));
 		});
 }
 
@@ -915,7 +915,9 @@ void MapGenTab::updateMapInfoByHost()
 		{
 			const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 			const JsonNode details(text.data(), text.size(), "template-info.json");
-			const std::string label = templateLabel();
+			// the template the card names above it (InfoCard: templateTitleFor of the settings sent with the map), so the title and the text always agree
+			const JsonNode & sent = options->getExternalSettings()["map"]["template"];
+			const std::string label = templateTitleFor(generator.modID, sent.isString() ? sent.String() : std::string());
 			if(details["templates"].isStruct())
 				for(const auto & [name, entry] : details["templates"].Struct())
 					if(boost::iequals(name, label))

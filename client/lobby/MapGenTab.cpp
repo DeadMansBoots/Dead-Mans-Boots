@@ -2066,7 +2066,8 @@ public:
 			if(live.legend.empty() && !frame.legend.empty())
 				live.legend = frame.legend;
 		const JsonNode & params = persistentStorage["mapGen"]["params"];
-		const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : -2;
+		// a fresh profile stores no water content: the generator's default is None (knobs.js waterContent default 0); the caption read "water:" and nothing
+		const int content = params["waterContent"].isNumber() ? static_cast<int>(params["waterContent"].Float()) : WATER_NONE;
 		// the water layout window's row shows its own layout (S279), the template window the lobby's
 		const int shape = waterStop >= 0 ? waterStop : (params["waterShape"].isNumber() ? static_cast<int>(params["waterShape"].Float()) : -1);
 		std::string water;

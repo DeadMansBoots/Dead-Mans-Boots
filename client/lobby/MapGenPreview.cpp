@@ -11,7 +11,14 @@
 #include "MapGenPreview.h"
 
 #include "../GameEngine.h"
+#include "../gui/Shortcut.h"
 #include "../gui/WindowHandler.h"
+#include "../render/Colors.h"
+#include "../widgets/Buttons.h"
+#include "../widgets/GraphicalPrimitiveCanvas.h"
+#include "../widgets/TextControls.h"
+#include "../windows/CWindowObject.h"
+#include "../../lib/texts/CGeneralTextHandler.h"
 #include "../render/IScreenHandler.h"
 
 #include "../../lib/GameLibrary.h"
@@ -588,6 +595,7 @@ void MapGenPreviewBox::redrawPanels()
 		if(static_cast<size_t>(onlyLevel) >= levels)
 			return;
 		const int side = std::max(8, std::min(pos.w, pos.h));
+		panelSide = side;
 		panels.push_back(drawLevel(shownLayout, onlyLevel, side * scale));
 		panelAt.emplace_back((pos.w - side) / 2, (pos.h - side) / 2);
 		return;
@@ -595,6 +603,7 @@ void MapGenPreviewBox::redrawPanels()
 	constexpr int gap = 4;
 	const int side = std::max(8, std::min(pos.h, (pos.w - gap * static_cast<int>(levels - 1)) / static_cast<int>(levels)));
 	const int used = side * static_cast<int>(levels) + gap * static_cast<int>(levels - 1);
+	panelSide = side;
 	for(size_t level = 0; level < levels; ++level)
 	{
 		panels.push_back(drawLevel(shownLayout, level, side * scale));
@@ -617,4 +626,84 @@ void MapGenPreviewBox::showAll(Canvas & to)
 		to.drawColor(pos, BACKGROUND);
 	for(size_t i = 0; i < panels.size(); ++i)
 		to.draw(*panels[i], pos.topLeft() + panelAt[i]);
+}
+
+void MapGenPreviewBox::setOnClick(std::function<void(int)> callback)
+{
+	onClick = std::move(callback);
+	addUsedEvents(LCLICK);
+}
+
+void MapGenPreviewBox::clickPressed(const Point & cursorPosition)
+{
+	if(!onClick || panels.empty())
+		return;
+	int level = onlyLevel >= 0 ? onlyLevel : 0;
+	if(onlyLevel < 0)
+		for(size_t i = 0; i < panelAt.size(); ++i)
+			if(Rect(pos.topLeft() + panelAt[i], Point(panelSide, panelSide)).isInside(cursorPosition))
+				level = static_cast<int>(i);
+	const auto callback = onClick;
+	callback(level);
+}
+
+namespace
+{
+/// S272: the lobby card's picture over the whole screen, one level at a time, as TemplatePreviewViewer shows a template's pictures (MapGenTab.cpp)
+class MapGenPreviewViewer : public CWindowObject
+{
+	size_t levels;
+	size_t at;
+	std::shared_ptr<TransparentFilledRectangle> shade;
+	std::shared_ptr<MapGenPreviewBox> box;
+	std::shared_ptr<TransparentFilledRectangle> boxFrame;
+	std::shared_ptr<CLabel> label;
+	std::shared_ptr<CButton> buttonLeft;
+	std::shared_ptr<CButton> buttonRight;
+	std::shared_ptr<CButton> buttonClose;
+
+	void showLevel()
+	{
+		OBJECT_CONSTRUCTION;
+		static const char * const LABELS[] = {"vcmi.dmb.mapGenerator.template.preview.surface", "vcmi.dmb.mapGenerator.template.preview.underground"};
+		label->setText(LIBRARY->generaltexth->translate(LABELS[std::min<size_t>(at, 1)]));
+		// the level as large as the screen allows between the arrows and under the heading, square
+		const int side = std::max(8, std::min(pos.w - 2 * 70, pos.h - 60 - 20));
+		const Rect place((pos.w - side) / 2, 60 + (pos.h - 60 - 20 - side) / 2, side, side);
+		box = std::make_shared<MapGenPreviewBox>(place, std::string(), true, static_cast<int>(at));
+		boxFrame = std::make_shared<TransparentFilledRectangle>(Rect(place.x - 1, place.y - 1, place.w + 2, place.h + 2), ColorRGBA(0, 0, 0, 0), ColorRGBA(212, 175, 55, 255), 1);
+		buttonLeft->block(levels < 2);
+		buttonRight->block(levels < 2);
+		redraw();
+	}
+
+	void step(int distance)
+	{
+		at = (at + levels + distance) % levels;
+		showLevel();
+	}
+
+public:
+	MapGenPreviewViewer(size_t levelCount, size_t first)
+		: CWindowObject(0), levels(std::max<size_t>(1, levelCount)), at(first < levelCount ? first : 0)
+	{
+		OBJECT_CONSTRUCTION;
+		pos = Rect(Point(0, 0), ENGINE->screenDimensions());
+		shade = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(0, 0, 0, 255));
+		label = std::make_shared<CLabel>(pos.w / 2, 30, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, "");
+		buttonLeft = std::make_shared<CButton>(Point(24, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS3"), CButton::tooltip(), [this](){ step(-1); }, EShortcut::MOVE_LEFT); // 22x46
+		buttonRight = std::make_shared<CButton>(Point(pos.w - 24 - 22, pos.h / 2 - 23), AnimationPath::builtin("HSBTNS5"), CButton::tooltip(), [this](){ step(1); }, EShortcut::MOVE_RIGHT);
+		buttonClose = std::make_shared<CButton>(Point(pos.w - 32 - 12, 12), AnimationPath::builtin("settingsWindow/button32"), CButton::tooltip(), [this](){ close(); }, EShortcut::GLOBAL_CANCEL); // Escape: the rule 38 way out
+		buttonClose->setTextOverlay("X", FONT_MEDIUM, Colors::YELLOW);
+		showLevel();
+	}
+};
+}
+
+void MapGenPreviewBox::openFullScreen(int level)
+{
+	const JsonNode & shownLayout = layoutFor(std::string());
+	if(!shownLayout["layout"].isVector() || shownLayout["layout"].Vector().empty())
+		return;
+	ENGINE->windows().createAndPushWindow<MapGenPreviewViewer>(shownLayout["layout"].Vector().size(), static_cast<size_t>(std::max(0, level)));
 }

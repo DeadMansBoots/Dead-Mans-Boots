@@ -172,6 +172,7 @@ InfoCard::InfoCard()
 	Rect descriptionRect(26, 149, 320, 115);
 	mapDescription = std::make_shared<CTextBox>("", descriptionRect, 1);
 	mapGenPreview = std::make_shared<MapGenPreviewBox>(Rect(0, 0, 0, 0));
+	mapGenPreview->setOnClick([](int level) { MapGenPreviewBox::openFullScreen(level); }); // S272: a click shows the picture full screen
 	mapGenPreview->disable();
 	playerListBg = std::make_shared<CPicture>(ImagePath::builtin("CHATPLUG.bmp"), 16, 276);
 	chat = std::make_shared<CChatBox>(Rect(18, 126, 335, 143));

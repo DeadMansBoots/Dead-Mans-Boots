@@ -55,9 +55,17 @@ class MapGenPreviewBox : public CIntObject
 	Point drawnSize;
 	std::vector<std::unique_ptr<Canvas>> panels;
 	std::vector<Point> panelAt;
+	int panelSide = 0; // each panel's side, in the box's own pixels
+	std::function<void(int)> onClick;
 
 	void redrawPanels();
 public:
+	/// S272 (K, November 16th: "the player should be able to click the preview and see the fullscreen, as well as the underground (with a left or
+	/// right arrow, like the fullscreen template preview)"): a click on the box calls this with the level clicked (0 the surface)
+	void setOnClick(std::function<void(int)> callback);
+	void clickPressed(const Point & cursorPosition) override;
+	/// S272: the full-screen picture of the lobby card's layout, at this level; the arrows go through its levels, "X" or Escape closes it
+	static void openFullScreen(int level);
 	/// drawEmpty: an empty square while there is no layout (the card); without it nothing is drawn, so what lies under the box shows (the menus)
 	/// onlyLevel: that level alone, centred in the box (the template menu's one picture per level); -1 every level side by side
 	explicit MapGenPreviewBox(const Rect & position, std::string key = {}, bool drawEmpty = true, int onlyLevel = -1);

@@ -88,8 +88,9 @@ private:
 	/// DMB: a stock button without its baked-in word, at any width: `source`'s end caps as they are, and
 	/// between them two word-free column ranges of its middle, repeated in turn. A layout draws its own
 	/// text over it. `name` is the generated animation's name.
+	/// S319: `height` above 0 builds the bar at the width that keeps `source`'s proportions and scales it down to width x height
 	AnimationLayoutMap createBlankButton(const std::string & name, const std::string & source, int width, int cap,
-		std::pair<int, int> tileA, std::pair<int, int> tileB);
+		std::pair<int, int> tileA, std::pair<int, int> tileB, int height = 0);
 	/// DMB: a map size button in the Random Map Setup's own style (RANSIZS..RANSIZX): `source`'s frames as
 	/// they are when `text` is empty, else the XL button with `text` lettered in place of its letters;
 	/// `width` other than 0 narrows the button to it, columns taken out of the middle of its gold face.

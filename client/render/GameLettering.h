@@ -46,5 +46,6 @@ namespace GameLettering
 	/// game pixels tall as the lettering of the game's gold buttons on their 40 pixel bars (K, October 12th 2026: "build OUR OWN FONT SET"),
 	/// carved: a dark letter with a light edge to its lower left, smoothed at the screen's scale. Every letter, digit and mark the face
 	/// has, the accented capitals included. No image when the face's file is missing or the text has a character the face lacks.
-	ButtonWords buttonWords(const std::string & text);
+	/// S313: `capitals`, the capitals' height in game pixels, for a smaller bar than the game's own (22 is theirs)
+	ButtonWords buttonWords(const std::string & text, int capitalHeight = 22);
 }

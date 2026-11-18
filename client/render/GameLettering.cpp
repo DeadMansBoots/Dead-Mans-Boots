@@ -172,9 +172,11 @@ struct ButtonFace
 
 constexpr int CAPITALS = 22; ///< rows tall, as the letters of the game's gold buttons on its 40 pixel bars
 
-const ButtonFace * buttonFace()
+const ButtonFace * buttonFace(int capitals = CAPITALS)
 {
-	static ButtonFace face;
+	// S313: one face for each capitals' height asked for (22, the game's own, unless a smaller bar asks for less)
+	static std::map<int, ButtonFace> faces;
+	ButtonFace & face = faces[capitals];
 	const int factor = std::max(1, ENGINE->screenHandler().getScalingFactor());
 	if(face.font && face.factor == factor)
 		return &face;
@@ -191,7 +193,7 @@ const ButtonFace * buttonFace()
 	int minX = 0, maxX = 0, minY = 0, maxY = 0, advance = 0;
 	if(!big || TTF_GlyphMetrics32(big.get(), 'H', &minX, &maxX, &minY, &maxY, &advance) != 0 || maxY <= 0)
 		return nullptr;
-	const int size = std::max(4, static_cast<int>(std::lround(static_cast<double>(CAPITALS * factor) * probe / maxY)));
+	const int size = std::max(4, static_cast<int>(std::lround(static_cast<double>(capitals * factor) * probe / maxY)));
 	face.font.reset(TTF_OpenFontRW(SDL_RWFromConstMem(face.data.first.get(), face.data.second), 1, size));
 	if(!face.font)
 		return nullptr;
@@ -250,10 +252,10 @@ uint32_t capital(uint32_t c)
 }
 }
 
-GameLettering::ButtonWords GameLettering::buttonWords(const std::string & text)
+GameLettering::ButtonWords GameLettering::buttonWords(const std::string & text, int capitalHeight)
 {
 	ButtonWords result;
-	const ButtonFace * face = buttonFace();
+	const ButtonFace * face = buttonFace(capitalHeight);
 	if(!face)
 		return result;
 	// capitals, as the game's buttons write their words
@@ -312,7 +314,7 @@ GameLettering::ButtonWords GameLettering::buttonWords(const std::string & text)
 	const int left = inkLeft - margin;
 	const int top = capTop - up - margin;
 	const int imageW = inkRight - inkLeft + 1 + 2 * margin;
-	const int imageH = std::max(inkBottom, capTop + CAPITALS * f - 1) - top + 1 + margin;
+	const int imageH = std::max(inkBottom, capTop + capitalHeight * f - 1) - top + 1 + margin;
 	const auto at = [&](int x, int y) -> double
 	{
 		return x < 0 || y < 0 || x >= w || y >= h ? 0.0 : coverage[static_cast<size_t>(y) * w + x] / 255.0;
@@ -333,6 +335,6 @@ GameLettering::ButtonWords GameLettering::buttonWords(const std::string & text)
 		}
 	result.image = image;
 	// the letters' black in game pixels: the words' width, and the capitals' height
-	result.letters = Rect(margin / f, (margin + up) / f, (inkRight - inkLeft + f) / f, CAPITALS);
+	result.letters = Rect(margin / f, (margin + up) / f, (inkRight - inkLeft + f) / f, capitalHeight);
 	return result;
 }

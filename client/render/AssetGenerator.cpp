@@ -198,10 +198,16 @@ void AssetGenerator::initialize()
 	}
 	// 120: the saved settings dialog's Delete button (K, September 29th: black lettering on gold, like the
 	// rest of the menus); 360: AI Settings' two buttons in the lobby's big lettering (S312)
-	for(int width : {400, 360, 337, 166, 120})
+	for(int width : {360, 337, 166, 120})
 	{
 		const std::string name = "RanShowButton" + std::to_string(width);
 		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANSHOW", width, 21, {110, 111}, {110, 111});
+	}
+	// S319 (K, November 17th: "the gold buttons are WAYYYYY TOO BIG"): the same gold bar as tall as the check mark button beside it (32)
+	for(int width : {280, 250})
+	{
+		const std::string name = "RanShowButtonSmall" + std::to_string(width);
+		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANSHOW", width, 21, {110, 111}, {110, 111}, 32);
 	}
 	animationFiles[AnimationPath::builtin("SPRITES/MapGenButton190")] = createMapGenButton(190);
 	// DMB: map size buttons for generators with sizes past XL (K, September 27th: lettered to match the
@@ -1422,8 +1428,8 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createMapGenButton(int width)
 	return layout;
 }
 
-AssetGenerator::AnimationLayoutMap AssetGenerator::createBlankButton(const std::string & name, const std::string & source, int width,
-	int cap, std::pair<int, int> tileA, std::pair<int, int> tileB)
+AssetGenerator::AnimationLayoutMap AssetGenerator::createBlankButton(const std::string & name, const std::string & source, int finalWidth,
+	int cap, std::pair<int, int> tileA, std::pair<int, int> tileB, int height)
 {
 	auto baseImg = ENGINE->renderHandler().loadAnimation(AnimationPath::builtin(source), EImageBlitMode::OPAQUE);
 
@@ -1432,10 +1438,13 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createBlankButton(const std::
 	{
 		ImagePath spriteName = ImagePath::builtin(name + "_" + std::to_string(i) + ".png");
 
-		imageFiles[spriteName] = [baseImg, i, width, cap, tileA, tileB]()
+		imageFiles[spriteName] = [baseImg, i, finalWidth, cap, tileA, tileB, height]()
 		{
 			auto frame = baseImg->getImage(i);
 			const Point size = frame->dimensions();
+			// S319: a smaller bar is the full one built wider in the same proportion, then scaled down as a whole (its ends shrink with it)
+			const bool scaled = height > 0 && height < size.y;
+			const int width = scaled ? (finalWidth * size.y + height / 2) / height : finalWidth;
 			auto newImg = ENGINE->renderHandler().createImage(Point(width, size.y), CanvasScalingPolicy::IGNORE);
 			auto canvas = newImg->getCanvas();
 
@@ -1451,6 +1460,15 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createBlankButton(const std::
 				first = !first;
 			}
 			canvas.draw(frame, Point(width - cap, 0), Rect(size.x - cap, 0, cap, size.y));
+			if(scaled)
+			{
+				// drawn smaller onto a new picture at the game's own size, as the rest of this generated art is; the loader scales it for
+				// the screen afterwards (IImage::scaleTo here made a picture already at the screen's scale, which the loader then scaled
+				// again: twice too big at 150%)
+				auto smaller = ENGINE->renderHandler().createImage(Point(finalWidth, height), CanvasScalingPolicy::IGNORE);
+				smaller->getCanvas().drawScaled(newImg->getCanvas(), Point(0, 0), Point(finalWidth, height));
+				return smaller;
+			}
 			return newImg;
 		};
 

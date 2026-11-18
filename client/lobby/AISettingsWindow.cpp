@@ -49,7 +49,7 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	addUsedEvents(LCLICK);
 
 	// S312: wider and taller than before, so the two gold bars carry their words in the lobby buttons' own lettering
-	pos = Rect(0, 0, 680, 460);
+	pos = Rect(0, 0, 600, 460);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
 	backgroundTexture->setPlayerColor(color);
 
@@ -67,20 +67,26 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	// awful"): the lobby's own RESET widget, the RANSHOW gold bar with its word engraved in the big font (OmniMapGen's mapGenTab.json
 	// defaultsButton: RanShowButton166, "font": "big", "style": "engraved"), which draws the lobby buttons' lettering; at 360 pixels for these words.
 	// The chess pieces' gold mark shows round it when chosen
-	tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(17, TIER_TOP - 5, 406, 46), GOLD_FILL, GOLD_LINE, 1));
-	auto asMap = std::make_shared<CButton>(Point(20, TIER_TOP), AnimationPath::builtin("SPRITES/RanShowButton400"), CButton::tooltip(), [this]()
+	// S313 (K, November 17th: "Game Difficulty is a better wording, but the button needs a pass with our actual font, and probably to shrink it's
+	// size"): the same lettering with 16-pixel capitals on a 310-pixel bar; "Reset This Seat" keeps the lobby's 22 ("looks about right")
+	// S319 (K, November 17th: "the gold buttons are WAYYYYY TOO BIG"): the bar as tall as the check mark button (32) and the lettering at
+	// 14-pixel capitals, both buttons alike
+	tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(17, TIER_TOP - 1, 286, 38), GOLD_FILL, GOLD_LINE, 1));
+	auto asMap = std::make_shared<CButton>(Point(20, TIER_TOP), AnimationPath::builtin("SPRITES/RanShowButtonSmall280"), CButton::tooltip(), [this]()
 	{
 		if(const auto * ps = seat())
 			send(ps->aiAdventure, ps->aiBattle, -1);
 	});
 	asMap->moveBy(Point(0, 18 - asMap->pos.h / 2)); // centred on the chess pieces' row
-	asMap->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.asMap")));
+	auto asMapWords = std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.asMap"));
+	asMapWords->setLetteringCapitals(14);
+	asMap->setOverlay(asMapWords);
 	buttons.push_back(asMap);
 
 	constexpr std::array difButns = {"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"};
 	for(int i = 0; i < 5; i++)
 	{
-		const int x = 438 + i * 44;
+		const int x = 314 + i * 44;
 		tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(x - 3, TIER_TOP - 1, 38, 38), GOLD_FILL, GOLD_LINE, 1));
 		tierButtons.push_back(std::make_shared<CButton>(Point(x, TIER_TOP + 2), AnimationPath::builtin(difButns[i]), LIBRARY->generaltexth->zelp[24 + i], [this, i]()
 		{
@@ -89,7 +95,7 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 		}));
 	}
 
-	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 640, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");
+	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 560, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");
 
 	// S073: the thoughts tick box, under the difficulty's text
 	thoughtsBox = std::make_shared<TransparentFilledRectangle>(Rect(20, 372, 18, 18), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1);
@@ -102,9 +108,12 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	}, nullptr);
 
 	// S312: the same gold bar and lettering, centred on the OK button's row (408 to 440)
-	auto reset = std::make_shared<CButton>(Point(20, 408), AnimationPath::builtin("SPRITES/RanShowButton360"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
+	// S319: as tall as the check mark (32), the lettering at 14-pixel capitals like "Game Difficulty"
+	auto reset = std::make_shared<CButton>(Point(20, 408), AnimationPath::builtin("SPRITES/RanShowButtonSmall250"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
 	reset->moveBy(Point(0, 16 - reset->pos.h / 2));
-	reset->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset")));
+	auto resetWords = std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset"));
+	resetWords->setLetteringCapitals(14);
+	reset->setOverlay(resetWords);
 	buttons.push_back(reset);
 
 	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 408), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));

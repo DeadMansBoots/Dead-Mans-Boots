@@ -387,7 +387,7 @@ void CEngravedLabel::showAll(Canvas & to)
 		// and its a bold, and specific font (that we should match)")
 		if(font == FONT_BIG)
 		{
-			const auto words = GameLettering::buttonWords(shown);
+			const auto words = GameLettering::buttonWords(shown, letteringCapitals);
 			if(words.image && fitsButton(words.letters))
 			{
 				carving = words.image;
@@ -448,6 +448,12 @@ void CEngravedLabel::showAll(Canvas & to)
 			break;
 	}
 	to.draw(carving, where - carvedOrigin);
+}
+
+void CEngravedLabel::setLetteringCapitals(int capitals)
+{
+	letteringCapitals = std::max(8, capitals);
+	carving = nullptr; // drawn again at the new size
 }
 
 bool CEngravedLabel::fitsButton(const Rect & letters) const

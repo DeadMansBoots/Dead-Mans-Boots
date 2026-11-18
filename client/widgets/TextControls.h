@@ -80,9 +80,13 @@ class CEngravedLabel : public CLabel
 	/// is on, between the ends of its bar (or within the label's own width, off a button)
 	bool fitsButton(const Rect & letters) const;
 
+	int letteringCapitals = 22; ///< S313: how many game pixels tall the lettering's capitals are (22, the game's own gold buttons)
+
 public:
 	CEngravedLabel(int x, int y, EFonts font, ETextAlignment align, const std::string & text, int maxWidth = 0);
 	void showAll(Canvas & to) override;
+	/// S313: the lettering at a smaller size, for a smaller gold bar (K: "probably to shrink it's size")
+	void setLetteringCapitals(int capitals);
 };
 
 /// Small helper class to manage group of similar labels

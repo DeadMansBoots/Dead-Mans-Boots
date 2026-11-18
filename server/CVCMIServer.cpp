@@ -1206,6 +1206,20 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 		if(mi->campaign)
 			return;
 
+		// S322 (K, November 17th: "moving to some of the mapgen menus puts me back in the redslot after removing myself"): a player who held
+		// no seat before a random map's settings changed (one who left their seat to watch) keeps holding none; every change of the
+		// generator's settings sends the map again, and this seated every connected player in the first free human seat
+		std::set<PlayerConnectionID> watching;
+		if(keepChoices)
+			for(const auto & name : playerNames)
+				if(std::none_of(previousInfos.begin(), previousInfos.end(), [&name](const auto & before) { return vstd::contains(before.second.connectedPlayerIDs, name.first); }))
+					watching.insert(name.first);
+		const auto nextSeatable = [&]()
+		{
+			while(namesIt != playerNames.cend() && watching.count(namesIt->first))
+				++namesIt;
+		};
+
 		for(int i = 0; i < mi->mapHeader->players.size(); i++)
 		{
 			const PlayerInfo & pinfo = mi->mapHeader->players[i];
@@ -1216,6 +1230,7 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 
 			PlayerSettings & pset = si->playerInfos[PlayerColor(i)];
 			pset.color = PlayerColor(i);
+			nextSeatable();
 			if(pinfo.canHumanPlay && namesIt != playerNames.cend())
 			{
 				setPlayerConnectedId(pset, namesIt++->first);
@@ -1284,7 +1299,8 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 					for(const auto & connectionId : before.second.connectedPlayerIDs)
 						seats.emplace_back(connectionId, before.first);
 
-			bool seatsFit = !seats.empty();
+			// S322: with everyone watching there is no seat to keep, and the seats stay with the computer
+			bool seatsFit = !seats.empty() || !watching.empty();
 			for(const auto & seat : seats)
 			{
 				const auto found = si->playerInfos.find(seat.second);
@@ -1301,6 +1317,8 @@ void CVCMIServer::updateStartInfoOnMapChange(std::shared_ptr<CMapInfo> mapInfo, 
 				{
 					if(std::any_of(seats.begin(), seats.end(), [&](const auto & seat) { return seat.first == name.first; }))
 						continue;
+					if(watching.count(name.first))
+						continue; // S322: still watching
 					for(auto & ps : si->playerInfos)
 						if(!ps.second.compOnly && !ps.second.isControlledByHuman())
 						{

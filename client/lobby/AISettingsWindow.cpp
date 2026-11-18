@@ -18,6 +18,7 @@
 #include "../widgets/Images.h"
 #include "../widgets/MiscWidgets.h"
 #include "../widgets/TextControls.h"
+#include "../../lib/CConfigHandler.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/StartInfo.h"
 #include "../../lib/mapping/CMapHeader.h"
@@ -51,7 +52,7 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	// S312: wider and taller than before, so the two gold bars carry their words in the lobby buttons' own lettering
 	pos = Rect(0, 0, 600, 460);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
-	backgroundTexture->setPlayerColor(color);
+	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? color : PlayerColor(1)); // S302: the setting, on by default
 
 	anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), color.getNum(), 0, 12, 8));
 	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.title")));

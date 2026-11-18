@@ -371,7 +371,17 @@ OptionsTab::CPlayerOptionTooltipBox::CPlayerOptionTooltipBox(CPlayerSettingsHelp
 
 void OptionsTab::CPlayerOptionTooltipBox::genHeader()
 {
-	backgroundTexture = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), pos);
+	// S302 (K, November 17th: "I like having the player color being represented in the AI options for that seat. Let's make that uniform, and an
+	// early test implementation of our forthcoming custom-ui configurability"): the seat's right-click box in its player's colour, with the setting
+	// "Seat windows in the player's colour" (lobby.seatColourWindows, on by default); off, the stock brown
+	if(settings["lobby"]["seatColourWindows"].Bool())
+	{
+		auto seatColoured = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
+		seatColoured->setPlayerColor(playerSettings.color);
+		backgroundTexture = seatColoured;
+	}
+	else
+		backgroundTexture = std::make_shared<CFilledTexture>(ImagePath::builtin("DIBOXBCK"), pos);
 	updateShadow();
 
 	labelTitle = std::make_shared<CLabel>(pos.w / 2 + 8, 21, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, getTitle());
@@ -548,7 +558,8 @@ void OptionsTab::SelectionWindow::recreate(int sliderPos)
 
 	pos = Rect(pos.x, pos.y, x + sliderWidth, y);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w - sliderWidth, pos.h));
-	backgroundTexture->setPlayerColor(PlayerColor(1));
+	// S302: the seat's town, hero and bonus picker in its player's colour (lobby.seatColourWindows, on by default); off, the stock blue
+	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? color : PlayerColor(1));
 	updateShadow();
 
 	if(type == SelType::TOWN)

@@ -1028,6 +1028,8 @@
 	"vcmi.optionsTab.unlimitedReplay.help": "{Unlimited battle replay}\nNo limit of replaying battles.",
 	"vcmi.optionsTab.unlimitedReplay.hover": "Unlimited battle replay",
 	"vcmi.otherOptions.availableCreaturesAsDwellingLabel.help": "{Show Available Creatures}\n\nShow the number of creatures available to purchase instead of their growth in town summary (bottom-left corner of town screen).",
+	"vcmi.dmb.seatColourWindows.hover": "Seat windows in the player's colour",
+	"vcmi.dmb.seatColourWindows.help": "{Seat windows in the player's colour}\nOn: in the lobby, a seat's town, hero and bonus pickers, its right-click box and its AI Settings are drawn in that seat's colour. Off: they keep the game's own blue and brown.",
 	"vcmi.otherOptions.allowJoin.hover": "Allow players to join",
 	"vcmi.otherOptions.allowJoin.help": "{Allow players to join}\nOn: a new player may connect to this running game (you are asked). Off: no new players. A player whose connection dropped can always come back to their own seat. Only the host can change it.",
 	"vcmi.otherOptions.harvest.hover": "Record gameplay data",

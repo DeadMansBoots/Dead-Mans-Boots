@@ -1077,9 +1077,15 @@
 			"type" : "object",
 			"additionalProperties" : false,
 			"default" : {},
-			"required" : [ "mapPreview", "hostname", "port", "roomPlayerLimit", "roomType", "roomMode", "languageRooms" ],
+			"required" : [ "mapPreview", "hostname", "port", "roomPlayerLimit", "roomType", "roomMode", "languageRooms", "seatColourWindows" ],
 			"properties" : {
 				"mapPreview" : {
+					"type" : "boolean",
+					"default" : true
+				},
+				// DMB (S302, K November 17th: "Let's make that uniform, and an early test implementation of our forthcoming custom-ui configurability"):
+				// a seat's windows in the lobby (its town, hero and bonus pickers, its right-click box, AI Settings) in its player's colour; off, the stock look
+				"seatColourWindows" : {
 					"type" : "boolean",
 					"default" : true
 				},

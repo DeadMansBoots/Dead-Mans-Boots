@@ -48,39 +48,38 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 
 	addUsedEvents(LCLICK);
 
-	// S312: wider and taller than before, so the two gold bars carry their words in the lobby buttons' own lettering
-	pos = Rect(0, 0, 680, 460);
+	pos = Rect(0, 0, 500, 420);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
 	backgroundTexture->setPlayerColor(color);
 
 	anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), color.getNum(), 0, 12, 8));
 	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.title")));
 	labels.push_back(std::make_shared<CLabel>(20, 48, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.adventure")));
-	labels.push_back(std::make_shared<CLabel>(340, 48, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.battle")));
+	labels.push_back(std::make_shared<CLabel>(260, 48, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.battle")));
 	labels.push_back(std::make_shared<CLabel>(20, TIER_TOP - 26, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.tier")));
 
 	buildChoices(false, adventureChoices, 20);
-	buildChoices(true, battleChoices, 340);
+	buildChoices(true, battleChoices, 260);
 
-	// the tier: "Game Difficulty", then the five chess pieces of the lobby's own difficulty row
-	// S312 (K, November 17th, on the S306 buttons: "COME ON GUYS, DID YOU EVEN TRY?!", ""As the Map" is also terribly worded", "the buttons look
-	// awful"): the lobby's own RESET widget, the RANSHOW gold bar with its word engraved in the big font (OmniMapGen's mapGenTab.json
-	// defaultsButton: RanShowButton166, "font": "big", "style": "engraved"), which draws the lobby buttons' lettering; at 360 pixels for these words.
-	// The chess pieces' gold mark shows round it when chosen
-	tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(17, TIER_TOP - 5, 406, 46), GOLD_FILL, GOLD_LINE, 1));
-	auto asMap = std::make_shared<CButton>(Point(20, TIER_TOP), AnimationPath::builtin("SPRITES/RanShowButton400"), CButton::tooltip(), [this]()
+	// the tier: "as the map", then the five chess pieces of the lobby's own difficulty row
+	// S301 (K, November 17th: "Let's change the buttons for "as the map" and "Reset to launcher defaults" with the other button schemas we already
+	// have established....no ui diversions unles i okay them") and S306 (K: "I was thinking they would be gold with black text, you know, like most
+	// the other buttons...we don't have any brown background buttons in the rest of the pre-game ui"): the lobby's gold bar (RANSHOW, made at
+	// this width, as the list window's Delete) with its word carved in black, and the chess pieces' gold mark when chosen
+	tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(17, TIER_TOP - 1, 102, 38), GOLD_FILL, GOLD_LINE, 1));
+	auto asMap = std::make_shared<CButton>(Point(20, TIER_TOP), AnimationPath::builtin("SPRITES/RanShowButton96"), CButton::tooltip(), [this]()
 	{
 		if(const auto * ps = seat())
 			send(ps->aiAdventure, ps->aiBattle, -1);
 	});
 	asMap->moveBy(Point(0, 18 - asMap->pos.h / 2)); // centred on the chess pieces' row
-	asMap->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.asMap")));
+	asMap->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_MEDIUM, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.asMap")));
 	buttons.push_back(asMap);
 
 	constexpr std::array difButns = {"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"};
 	for(int i = 0; i < 5; i++)
 	{
-		const int x = 438 + i * 44;
+		const int x = 130 + i * 44;
 		tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(x - 3, TIER_TOP - 1, 38, 38), GOLD_FILL, GOLD_LINE, 1));
 		tierButtons.push_back(std::make_shared<CButton>(Point(x, TIER_TOP + 2), AnimationPath::builtin(difButns[i]), LIBRARY->generaltexth->zelp[24 + i], [this, i]()
 		{
@@ -89,25 +88,25 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 		}));
 	}
 
-	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 640, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");
+	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 460, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");
 
-	// S073: the thoughts tick box, under the difficulty's text
-	thoughtsBox = std::make_shared<TransparentFilledRectangle>(Rect(20, 372, 18, 18), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1);
-	thoughtsTick = std::make_shared<TransparentFilledRectangle>(Rect(24, 376, 10, 10), GOLD_LINE, GOLD_LINE, 1);
-	thoughtsLabel = std::make_shared<CLabel>(44, 381, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.thoughts"), 300);
-	thoughtsArea = std::make_shared<LRClickableArea>(Rect(20, 370, 330, 22), [this]()
+	// S073: the thoughts tick box, under the lists on the right
+	thoughtsBox = std::make_shared<TransparentFilledRectangle>(Rect(260, 372, 18, 18), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1);
+	thoughtsTick = std::make_shared<TransparentFilledRectangle>(Rect(264, 376, 10, 10), GOLD_LINE, GOLD_LINE, 1);
+	thoughtsLabel = std::make_shared<CLabel>(284, 381, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.thoughts"), 170);
+	thoughtsArea = std::make_shared<LRClickableArea>(Rect(260, 370, 210, 22), [this]()
 	{
 		if(const auto * ps = seat())
 			GAME->server().setPlayerAI(color, ps->aiAdventure, ps->aiBattle, ps->aiTier, !ps->aiThoughts);
 	}, nullptr);
 
-	// S312: the same gold bar and lettering, centred on the OK button's row (408 to 440)
-	auto reset = std::make_shared<CButton>(Point(20, 408), AnimationPath::builtin("SPRITES/RanShowButton360"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
+	// S301, S306: the same gold bar at 210 pixels for the longer words, centred on the OK button's row (368 to 400)
+	auto reset = std::make_shared<CButton>(Point(20, 368), AnimationPath::builtin("SPRITES/RanShowButton210"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
 	reset->moveBy(Point(0, 16 - reset->pos.h / 2));
-	reset->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset")));
+	reset->setOverlay(std::make_shared<CEngravedLabel>(0, 0, FONT_MEDIUM, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset")));
 	buttons.push_back(reset);
 
-	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 408), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));
+	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 368), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));
 
 	refresh();
 	updateShadow();

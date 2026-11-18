@@ -12,23 +12,26 @@ The installer is not signed yet, so Windows may say it protected your PC. Choose
 
 ## Known problems and in construction
 
-Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.7, a test build for playtesting.
+Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.8, a test build for playtesting.
 
-In beta 19.7:
+In beta 19.8:
 
 | Feature | Status | Built |
 | --- | --- | --- |
 | Installer, updates and the update notice | Working | 80% |
 | Turn progress bars that show how far each player's turn is | Working | 80% |
 | Folding the turn progress bars with a button, and showing chosen players' bars | Working | 80% |
-| A picture in the random map lobby of the map your settings will make | Partly built | 50% |
+| A picture in the random map lobby of the map your settings will make, full screen with a click, the underground one arrow away | Partly built | 60% |
 | Brown leather around the menus and loading screens | Working | 90% |
 | Loading text clear of the bar's gold ornament | Working | 90% |
 | Mod catalog and mod list in the launcher, with the check for mods that need a newer game version | Working | 80% |
 | "Install Anyway" for a mod version that needs a newer game version (installed and left switched off) | Partly built | 60% |
 | Random maps made by OmniMapGen when you press Begin | Working | 70% |
-| The map template panel: one scrolling page, full-width pictures, full-screen view | Partly built | 40% |
-| The Water layout choice with every layout's picture | In construction | 0% |
+| The map template panel: one scrolling page, full-width pictures of the map the generator makes for each template, full-screen view | Partly built | 60% |
+| The Water layout choice: the list of layouts beside the chosen one's picture and description | Working | 80% |
+| The Scenario Description shows the chosen template's own description | Working | 90% |
+| Random water content: the water amount shows the range it is drawn from | Partly built | 50% |
+| A failed update says why above the "Try Again" button | Working | 90% |
 | Chat with All, Team and Spectators channels, each player's lines in their colour | Partly built | 70% |
 | Watching a game without a seat (Pause, Speed, Battles) | Partly built | 60% |
 | Music in a watched game | Partly built | 40% |
@@ -36,18 +39,19 @@ In beta 19.7:
 | Dark and gold look, the game's own lettering in the launcher, bigger map sizes | Partly built | 60% |
 | Letting people join a running game, and coming back after a dropped connection | Partly built | 65% |
 | Reporting a problem from inside the game (F12) | Partly built | 60% |
-| A computer player and difficulty for each seat (the computer players that come with the game) | In construction | 0% |
+| A computer player and difficulty for each seat (the computer players that come with the game), and a computer player from a mod that cannot load says why | Partly built | 70% |
 | Telling a joining player which content or mods differ from the host's | Partly built | 40% |
-| Looking into every player's kingdom while watching: resources, towns, armies | In construction | 0% |
+| Looking into every player's kingdom while watching: resources, towns, armies | Partly built | 60% |
 
-Known problems in beta 19.7: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, does not yet match the chosen template and water layout in every case, and leaves out portals, underground passages and neutral towns. With OmniMapGen 0.3.33 (offered in the launcher's mod list) the template panel shows a two-level template's levels one above the other; this has not been seen in a game yet. Not yet shown working: scrolling the template panel. In construction: the Water layout choice that shows every layout at once with its picture. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy. Tested side by side with the standard game (VCMI 1.7.5) on this build: a 10-day two-player game with computer players, an elimination (the defeated host stays and watches; on the standard game the host's server closes and the other player loses the connection), battles with spells, retreat and surrender, hero exchange, town building and recruiting, save and load (on the standard game the other player lost the connection when the host loaded), frame time, the random map lobby and the text list. The fixes for leaving a game to the main menu and for coming back after a dropped connection were tested with the exact steps that crashed the previous build. Not tested: the loading screen with your own mods, music and sound (the test setup had no music files), a real network drop (the connection was cut by a test tool), closing the game with alt+F4 or a killed process, games longer than 11 days, and games with more than three players.
+Known problems in beta 19.8: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, and OmniMapGen 0.3.36 or newer to colour each region by its terrain and to show the underground's cave floor with the solid rock left empty; older versions colour regions by their kind and fill the underground. The picture shows what your settings make, not the exact map you get when you press Begin, and it leaves out portals, underground passages and neutral towns. The Random water content's range needs OmniMapGen 0.3.36 or newer to draw the amount from it. In the AI Settings window the Game Difficulty button is larger than it should be, and the lettering on both of its buttons is not yet the font of the other custom buttons. Not yet shown working: scrolling the template panel. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy. Tested side by side with the standard game (VCMI 1.7.5) on this build: a 10-day two-player game with computer players (the turn dialog and the map showed on both players' screens, with no black screen), an elimination with a battle and a retreat (the defeated player was told so; on the standard game the other player's game stopped at the next turn), a battle with the surrender question and surrender accepted, hero exchange, town building and recruiting, save and load (the host saved and loaded and the guest stayed connected; on the standard game the load was never reached in the test), frame time, the random map lobby, the text list (none of the standard game's 1,206 English texts is missing or empty), and watching computer players play each other from the lobby, including OmniAI against Nullkiller 1. Not tested: the loading screen with your own mods, music and sound (the test setup had no music files), a real network drop (the connection was cut by a test tool), closing the game with alt+F4 or a killed process, a screen 3440 pixels wide, games longer than 11 days, and games with more than three players.
 
-Next version, not in beta 19.7:
+Next version, not in beta 19.8:
 
 | Feature | Status | Built |
 | --- | --- | --- |
 | Objects drawn in the right order (a hedge no longer covers a tent, a building no longer hides behind a glacier) | Partly built | 80% |
-| Template and Water layout menus that show the map the generator makes for the chosen template and water, all eight templates listed | Partly built | 70% |
+| Each seat's windows in that player's colour | In construction | 0% |
+| Any colour for any seat, and an options window for every seat, player or computer | In construction | 0% |
 | The first redrawn interface, with the original look kept as an option | In construction | 10% |
 | "Restrict all settings to original template preferences" for map templates | In construction | 0% |
 | The host's full mod list compared with each joining player's, naming every difference | In construction | 0% |

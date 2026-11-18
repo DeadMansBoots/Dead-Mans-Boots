@@ -197,8 +197,8 @@ void AssetGenerator::initialize()
 		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANWEAK", width, 6, {6, 15}, {70, 77});
 	}
 	// 120: the saved settings dialog's Delete button (K, September 29th: black lettering on gold, like the
-	// rest of the menus); 210 and 96: AI Settings' reset and "As the map" (S306, K: "gold with black text, you know, like most the other buttons")
-	for(int width : {337, 210, 166, 120, 96})
+	// rest of the menus); 360: AI Settings' two buttons in the lobby's big lettering (S312)
+	for(int width : {400, 360, 337, 166, 120})
 	{
 		const std::string name = "RanShowButton" + std::to_string(width);
 		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANSHOW", width, 21, {110, 111}, {110, 111});

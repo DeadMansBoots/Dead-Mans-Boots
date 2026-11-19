@@ -1470,13 +1470,43 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 							for(int dx = -2; dx <= 2; ++dx)
 								if(x + dx >= 0 && x + dx < size.x && y + dy >= 0 && y + dy < size.y)
 									nearLetter[static_cast<size_t>(y + dy) * size.x + x + dx] = true;
+			// each row's plate pixels clear of the letters, and its mean luminance; the rows' tone is that mean smoothed over 5 rows, because
+			// a row's clear pixels come from wherever the letters leave room and their mean jumps from row to row (measured on an 800x600
+			// game picture: 12 luminance points a row against BEGIN's 5, the streaks K saw as smeared)
+			const auto luminance = [](const ColorRGBA & c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b; };
+			std::vector<std::vector<ColorRGBA>> rowsPlate(size.y);
+			std::vector<double> rowMean(size.y, -1);
 			for(int y = 0; y < size.y; ++y)
 			{
-				// the row's plate: its gold pixels clear of the letters
-				std::vector<ColorRGBA> plate;
 				for(int x = cap; x < size.x - cap; ++x)
 					if(!nearLetter[static_cast<size_t>(y) * size.x + x])
-						plate.push_back(source.getPixel(Point(x, y)));
+						rowsPlate[y].push_back(source.getPixel(Point(x, y)));
+				if(!rowsPlate[y].empty())
+				{
+					double sum = 0;
+					for(const auto & c : rowsPlate[y])
+						sum += luminance(c);
+					rowMean[y] = sum / rowsPlate[y].size();
+				}
+			}
+			for(int y = 0; y < size.y; ++y)
+			{
+				std::vector<ColorRGBA> plate = rowsPlate[y];
+				if(!plate.empty())
+				{
+					double sum = 0;
+					int count = 0;
+					for(int k = std::max(0, y - 2); k <= std::min(size.y - 1, y + 2); ++k)
+						if(rowMean[k] >= 0)
+						{
+							sum += rowMean[k];
+							++count;
+						}
+					const int shift = static_cast<int>(std::lround(sum / count - rowMean[y]));
+					const auto moved = [shift](uint8_t v) { return static_cast<uint8_t>(std::clamp(v + shift, 0, 255)); };
+					for(auto & c : plate)
+						c = ColorRGBA(moved(c.r), moved(c.g), moved(c.b), c.a);
+				}
 				if(plate.empty())
 				{
 					// a row with no plate (the bar's rim): the source's own row, its first column past the cap, across
@@ -1485,18 +1515,56 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 						canvas.drawPoint(Point(x, y), c);
 					continue;
 				}
-				// there and back along the row's pixels, so a repeat never jumps from one end of the row to the other
+				// each pixel one of the row's own plate pixels, picked by a fixed hash of its place: BEGIN's fine scattered grain; taken in order,
+				// the row's pixels near the letters' shadows ran into long dark dashes, a wood grain BEGIN does not have
+				// BEGIN's plate is smooth from pixel to pixel along the bar (measured on an 800x600 game picture: 2.8 luminance points between
+				// neighbours, ours 13 to 16 when the row's pixels were laid as they came, the letters' gaps leaving jumps). So the row's pixels, in
+				// their order, are averaged over 7 neighbours and laid there and back along the bar
 				const size_t n = plate.size();
+				std::vector<ColorRGBA> smooth(n);
+				for(size_t i = 0; i < n; ++i)
+				{
+					int r = 0, g = 0, b = 0, count = 0;
+					for(size_t j = i >= 3 ? i - 3 : 0; j <= std::min(n - 1, i + 3); ++j)
+					{
+						r += plate[j].r;
+						g += plate[j].g;
+						b += plate[j].b;
+						++count;
+					}
+					smooth[i] = ColorRGBA(r / count, g / count, b / count, 255);
+				}
 				for(int x = cap; x < width - cap; ++x)
 				{
 					const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
-					canvas.drawPoint(Point(x, y), plate[k < n ? k : 2 * n - 2 - k]);
+					canvas.drawPoint(Point(x, y), smooth[k < n ? k : 2 * n - 2 - k]);
 				}
 			}
 			if(scaled)
 			{
+				// S329: each pixel of the smaller bar is the average of the full bar's pixels it covers (a box filter), so the 40 rows' grain
+				// is averaged into 32, not dropped into streaks
 				auto smaller = ENGINE->renderHandler().createImage(Point(finalWidth, height), CanvasScalingPolicy::IGNORE);
-				smaller->getCanvas().drawScaled(newImg->getCanvas(), Point(0, 0), Point(finalWidth, height));
+				Canvas from = newImg->getCanvas();
+				Canvas to = smaller->getCanvas();
+				for(int y = 0; y < height; ++y)
+					for(int x = 0; x < finalWidth; ++x)
+					{
+						const int x0 = x * width / finalWidth, x1 = std::max(x0 + 1, (x + 1) * width / finalWidth);
+						const int y0 = y * size.y / height, y1 = std::max(y0 + 1, (y + 1) * size.y / height);
+						int r = 0, g = 0, b = 0, a = 0, n = 0;
+						for(int sy = y0; sy < y1; ++sy)
+							for(int sx = x0; sx < x1; ++sx)
+							{
+								const ColorRGBA c = from.getPixel(Point(sx, sy));
+								r += c.r;
+								g += c.g;
+								b += c.b;
+								a += c.a;
+								++n;
+							}
+						to.drawPoint(Point(x, y), ColorRGBA(r / n, g / n, b / n, a / n));
+					}
 				return smaller;
 			}
 			return newImg;

@@ -325,13 +325,17 @@ GameLettering::ButtonWords GameLettering::buttonWords(const std::string & text, 
 		for(int col = 0; col < imageW; ++col)
 		{
 			const double letter = at(left + col, top + row);
-			const double light = at(left + col + f, top + row - f);
+			// S329 (K, November 19th: "our buttons ... have text that is too sharp compared to the original"): the light falls to the lower right
+			// of each stroke, as on the lobby's BEGIN (sampled across its letters on an 800x600 game picture: plate, black, 8c8c8c grey, d6c6a5
+			// light, plate; ours read plate, 747474, black, plate, with the light on the left)
+			const double light = at(left + col - f, top + row - f);
 			const double opacity = letter + light * (1 - letter);
 			if(opacity <= 0)
 				continue;
 			const double white = light * (1 - letter) / opacity;
-			const auto value = static_cast<uint8_t>(std::lround(255.0 * white));
-			canvas.drawColor(Rect(col, row, 1, 1), ColorRGBA(value, value, value, static_cast<uint8_t>(std::lround(opacity * 255))));
+			// S329: the light is BEGIN's warm pale gold (ece2bd, its rim and its letters' lit edges), not pure white
+			const auto mix = [white](int to) { return static_cast<uint8_t>(std::lround(to * white)); };
+			canvas.drawColor(Rect(col, row, 1, 1), ColorRGBA(mix(0xec), mix(0xe2), mix(0xbd), static_cast<uint8_t>(std::lround(opacity * 255))));
 		}
 	result.image = image;
 	// the letters' black in game pixels: the words' width, and the capitals' height

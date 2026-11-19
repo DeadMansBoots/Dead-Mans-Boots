@@ -1460,7 +1460,7 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 			{
 				const ColorRGBA c = source.getPixel(Point(x, y));
 				const int lum = (299 * c.r + 587 * c.g + 114 * c.b) / 1000;
-				return lum <= 70 || lum >= 245 || c.r <= c.b + 30;
+				return lum <= 70 || lum >= 235 || c.r <= c.b + 30; // 235: the letters' pale lit edges too, which pulled the plate's median up
 			};
 			std::vector<bool> nearLetter(static_cast<size_t>(size.x) * size.y, false);
 			for(int y = 0; y < size.y; ++y)

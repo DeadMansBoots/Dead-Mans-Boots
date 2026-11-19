@@ -1534,10 +1534,19 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 					}
 					smooth[i] = ColorRGBA(r / count, g / count, b / count, 255);
 				}
+				// stretched across the bar in proportion, so every row is at the same place in its own pixels at a given column (laid there and
+				// back, rows of different lengths fell out of step and the column's brightness jumped from row to row: 7 to 11 points against
+				// BEGIN's 5)
+				const int span = std::max(1, width - 2 * cap);
+				// and BEGIN's fine grain put back: 40 percent of the row's own pixel at that place, the 7-pixel average alone measured 0.6 to
+				// 1.2 between neighbours against BEGIN's 2.8; the raw pixel walks the row at its own pace, so it is not stretched with the tone
 				for(int x = cap; x < width - cap; ++x)
 				{
+					const ColorRGBA & tone = smooth[std::min(n - 1, static_cast<size_t>(x - cap) * n / static_cast<size_t>(span))];
 					const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
-					canvas.drawPoint(Point(x, y), smooth[k < n ? k : 2 * n - 2 - k]);
+					const ColorRGBA & raw = plate[k < n ? k : 2 * n - 2 - k];
+					const auto mix = [](uint8_t a, uint8_t b) { return static_cast<uint8_t>((6 * a + 4 * b) / 10); };
+					canvas.drawPoint(Point(x, y), ColorRGBA(mix(tone.r, raw.r), mix(tone.g, raw.g), mix(tone.b, raw.b), 255));
 				}
 			}
 			if(scaled)

@@ -749,6 +749,41 @@ void CVCMIServer::prepareToRestart()
 	gh = nullptr;
 }
 
+void CVCMIServer::nameComputerSeats()
+{
+	// S323 (K, November 17th: "computers should get their ai-type for their name in game (color will infer the rest), but their ai type would at
+	// least be better than generic "Computer""): each computer seat is named after its adventure AI, the seat's own choice or the launcher's
+	// default for an ally or an enemy of the humans, as the host's client picks it (CClient::aiNameForPlayer). Stock names them all
+	// "Computer" (allTexts[468], setPlayerConnectedId); every place that draws a player's name reads this one
+	const auto shown = [](const std::string & ai) -> std::string
+	{
+		if(ai == "Nullkiller")
+			return "Nullkiller 1";
+		if(ai == "Nullkiller2")
+			return "Nullkiller 2";
+		return ai;
+	};
+	std::set<TeamID> humanTeams;
+	for(const auto & [color, seat] : si->playerInfos)
+		if(seat.isControlledByHuman() && mi && mi->mapHeader && color.getNum() < static_cast<int>(mi->mapHeader->players.size()))
+			humanTeams.insert(mi->mapHeader->players[color.getNum()].team);
+	for(auto & [color, seat] : si->playerInfos)
+	{
+		if(!seat.isControlledByAI())
+			continue;
+		std::string ai = seat.aiAdventure;
+		if(ai.empty())
+		{
+			const bool allied = mi && mi->mapHeader && color.getNum() < static_cast<int>(mi->mapHeader->players.size())
+				&& mi->mapHeader->players[color.getNum()].team != TeamID::NO_TEAM && humanTeams.count(mi->mapHeader->players[color.getNum()].team);
+			ai = settings["ai"][allied ? "adventureAlliedAI" : "adventureEnemyAI"].String();
+		}
+		if(!ai.empty())
+			seat.name = shown(ai);
+		logNetwork->info("S323: the computer seat %s is named %s", color.toString(), seat.name);
+	}
+}
+
 bool CVCMIServer::prepareToStartGame()
 {
 	gameEnded = false; // DMB (S170): a new or restarted game
@@ -803,6 +838,7 @@ bool CVCMIServer::prepareToStartGame()
 			logNetwork->info("Preparing to start new game");
 			si->startTime = std::time(nullptr);
 			si->fileURI = mi->fileURI;
+			nameComputerSeats();
 			newGH->init(si.get(), progressTracking);	// may throw
 			started = true;
 			break;

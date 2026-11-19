@@ -160,6 +160,8 @@ public:
 
 	bool wasStartedByClient() const;
 	bool prepareToStartGame();
+	/// S323: each computer seat named after its adventure AI ("Nullkiller 2", "OmniAI"), where stock says "Computer"
+	void nameComputerSeats();
 	void prepareToRestart();
 	void startGameImmediately();
 	uint16_t startAcceptingIncomingConnections(bool listenForConnections);

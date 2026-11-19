@@ -388,18 +388,91 @@ void coonsPatchInpaint(QImage & image, int l, int t, int r, int b)
 /// Heroes III's gold bar, the Random Map Setup's "Show random maps" button (RANSHOW) with its words
 /// taken out as DMB's RanShowButton pieces are (AssetGenerator): the 21-pixel scrollwork ends, and one
 /// column of the brushed middle (110) repeated, at the launcher's button height
-QImage wordlessBar(const QImage & frame, int height = BAR_HEIGHT)
+QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 {
-	if(frame.width() < 2 * 21 + 112)
+	// S329 (K, November 19th: "ensure the button gold itself looks exactly like the originals...i feel like ours are too bright"): the lobby's
+	// BEGIN (SCNRBEG), as the game's own generated bars are (AssetGenerator::createPlateButton): its 22-pixel scrollwork ends, and each row of
+	// the middle made from that row's own plate pixels, the letters and everything within 2 pixels of them left out; the row's tone smoothed
+	// over 5 rows, its pixels over 7, stretched across in proportion, with 40 percent of the row's own pixel for grain
+	constexpr int cap = 22;
+	if(source.width() < 2 * cap + 20)
 		return {};
-	QImage bar(2 * 21 + 64, frame.height(), QImage::Format_ARGB32);
+	const QImage frame = source.convertToFormat(QImage::Format_ARGB32);
+	const int w = frame.width();
+	const int h = frame.height();
+	const auto lum = [](QRgb c) { return 0.299 * qRed(c) + 0.587 * qGreen(c) + 0.114 * qBlue(c); };
+	const auto letter = [&](int x, int y) { const QRgb c = frame.pixel(x, y); return lum(c) <= 70 || lum(c) >= 235 || qRed(c) <= qBlue(c) + 30; };
+	std::vector<bool> nearLetterMask(static_cast<size_t>(w) * h, false);
+	for(int y = 0; y < h; ++y)
+		for(int x = cap; x < w - cap; ++x)
+			if(letter(x, y))
+				for(int dy = -2; dy <= 2; ++dy)
+					for(int dx = -2; dx <= 2; ++dx)
+						if(x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h)
+							nearLetterMask[static_cast<size_t>(y + dy) * w + x + dx] = true;
+	std::vector<std::vector<QRgb>> rows(h);
+	std::vector<double> mean(h, -1);
+	for(int y = 0; y < h; ++y)
+	{
+		double sum = 0;
+		for(int x = cap; x < w - cap; ++x)
+			if(!nearLetterMask[static_cast<size_t>(y) * w + x])
+			{
+				rows[y].push_back(frame.pixel(x, y));
+				sum += lum(rows[y].back());
+			}
+		if(!rows[y].empty())
+			mean[y] = sum / rows[y].size();
+	}
+	QImage bar(2 * cap + 64, h, QImage::Format_ARGB32);
 	bar.fill(Qt::transparent);
 	QPainter painter(&bar);
-	painter.drawImage(0, 0, frame, 0, 0, 21, frame.height());
-	for(int x = 21; x < bar.width() - 21; ++x)
-		painter.drawImage(x, 0, frame, 110, 0, 1, frame.height());
-	painter.drawImage(bar.width() - 21, 0, frame, frame.width() - 21, 0, 21, frame.height());
+	painter.drawImage(0, 0, frame, 0, 0, cap, h);
+	painter.drawImage(bar.width() - cap, 0, frame, w - cap, 0, cap, h);
 	painter.end();
+	const int span = bar.width() - 2 * cap;
+	for(int y = 0; y < h; ++y)
+	{
+		std::vector<QRgb> plate = rows[y];
+		if(plate.empty())
+		{
+			for(int x = cap; x < bar.width() - cap; ++x)
+				bar.setPixel(x, y, frame.pixel(cap, y));
+			continue;
+		}
+		double sum = 0;
+		int count = 0;
+		for(int k = std::max(0, y - 2); k <= std::min(h - 1, y + 2); ++k)
+			if(mean[k] >= 0)
+			{
+				sum += mean[k];
+				++count;
+			}
+		const int shift = static_cast<int>(std::lround(sum / count - mean[y]));
+		for(auto & c : plate)
+			c = qRgba(std::clamp(qRed(c) + shift, 0, 255), std::clamp(qGreen(c) + shift, 0, 255), std::clamp(qBlue(c) + shift, 0, 255), qAlpha(c));
+		const size_t n = plate.size();
+		std::vector<QRgb> smooth(n);
+		for(size_t i = 0; i < n; ++i)
+		{
+			int r = 0, g = 0, b = 0, c = 0;
+			for(size_t j = i >= 3 ? i - 3 : 0; j <= std::min(n - 1, i + 3); ++j)
+			{
+				r += qRed(plate[j]);
+				g += qGreen(plate[j]);
+				b += qBlue(plate[j]);
+				++c;
+			}
+			smooth[i] = qRgb(r / c, g / c, b / c);
+		}
+		for(int x = cap; x < bar.width() - cap; ++x)
+		{
+			const QRgb tone = smooth[std::min(n - 1, static_cast<size_t>(x - cap) * n / static_cast<size_t>(span))];
+			const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
+			const QRgb raw = plate[k < n ? k : 2 * n - 2 - k];
+			bar.setPixel(x, y, qRgb((6 * qRed(tone) + 4 * qRed(raw)) / 10, (6 * qGreen(tone) + 4 * qGreen(raw)) / 10, (6 * qBlue(tone) + 4 * qBlue(raw)) / 10));
+		}
+	}
 	return bar.scaledToHeight(height, Qt::SmoothTransformation);
 }
 
@@ -719,7 +792,8 @@ QImage carvedButtonWord(const QString & text, double ratio, double scale = 1.0, 
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		painter.setPen(Qt::NoPen);
 		QColor body = light ? QColor(255, 255, 255) : QColor(0, 0, 0);
-		QColor rim = light ? QColor(0, 0, 0) : QColor(255, 255, 255);
+		// S329: dark letters' light in BEGIN's warm pale gold (ece2bd), to the lower right, as the game's own buttons now carve it
+		QColor rim = light ? QColor(0, 0, 0) : QColor(0xec, 0xe2, 0xbd);
 		if(!enabled)
 		{
 			body = light ? QColor(150, 150, 150) : QColor(52, 49, 46);
@@ -731,7 +805,7 @@ QImage carvedButtonWord(const QString & text, double ratio, double scale = 1.0, 
 			// each line centred on the widest, its capitals on its own row of the middle, the widest a whole pixel in
 			const QPointF origin(1.0 + edge + (widest - box.width()) / 2 - box.left(), half + (i - (count - 1) / 2.0) * pitch + cap / 2);
 			painter.setBrush(rim);
-			painter.drawPath(paths[i].translated(origin + QPointF(-edge, edge)));
+			painter.drawPath(paths[i].translated(origin + QPointF(edge, edge)));
 			painter.setBrush(body);
 			painter.drawPath(paths[i].translated(origin));
 		}
@@ -988,7 +1062,7 @@ struct ButtonStyles
 /// painted gold. The switches are the Random Map Setup's blue choices, in the secondary slot's colour.
 ButtonStyles gameButtonStyle(const LookSlots & look_)
 {
-	const AnimationPath path = AnimationPath::builtin("SPRITES/RANSHOW");
+	const AnimationPath path = AnimationPath::builtin("SPRITES/SCNRBEG"); // S329: the lobby's BEGIN, as the game's own generated bars
 	if(!CResourceHandler::get()->existsResource(path))
 		return {};
 	const auto read = readResource(path);
@@ -1062,7 +1136,7 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 			if(file.isEmpty())
 				return {};
 		// the scrollwork ends keep their size, the middle stretches to the button
-		out.end = normal.width() * 21 / (2 * 21 + 64);
+		out.end = normal.width() * 22 / (2 * 22 + 64); // S329: BEGIN's 22-pixel ends
 		return out;
 	};
 	const Bars one = bars(BAR_HEIGHT, "");

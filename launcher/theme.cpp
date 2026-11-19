@@ -410,20 +410,85 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 					for(int dx = -2; dx <= 2; ++dx)
 						if(x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h)
 							nearLetterMask[static_cast<size_t>(y + dy) * w + x + dx] = true;
-	std::vector<std::vector<QRgb>> rows(h);
-	std::vector<double> mean(h, -1);
+	// S329 (the lead's look, November 19th: "blotchy and marbled"): the plate is the row's own colour (smoothed over 5 rows), ONE shading along
+	// the bar shared by every row (BEGIN's column means of its clear pixels less each row's mean, gaps under the letters filled, smoothed over 9
+	// columns, stretched), and the row's fine grain (its clear pixels less their 7-pixel average), as AssetGenerator::createPlateButton does;
+	// each row stretching its own clear pixels gave every row its own shape along the bar
+	constexpr double plateGrain = 0.5; // all of the grain measured 4.8 to 5.4 between neighbours on the launcher, BEGIN's is 2.8
+	const int srcSpan = w - 2 * cap;
+	const auto clear = [&](int x, int y) { return !nearLetterMask[static_cast<size_t>(y) * w + x]; };
+	const auto channel = [](QRgb c, int ch) { return ch == 0 ? qRed(c) : ch == 1 ? qGreen(c) : qBlue(c); };
+	std::vector<std::array<double, 3>> rowMean(h, {0, 0, 0});
+	std::vector<int> rowCount(h, 0);
 	for(int y = 0; y < h; ++y)
 	{
-		double sum = 0;
 		for(int x = cap; x < w - cap; ++x)
-			if(!nearLetterMask[static_cast<size_t>(y) * w + x])
+			if(clear(x, y))
 			{
-				rows[y].push_back(frame.pixel(x, y));
-				sum += lum(rows[y].back());
+				for(int ch = 0; ch < 3; ++ch)
+					rowMean[y][ch] += channel(frame.pixel(x, y), ch);
+				++rowCount[y];
 			}
-		if(!rows[y].empty())
-			mean[y] = sum / rows[y].size();
+		if(rowCount[y] > 0)
+			for(int ch = 0; ch < 3; ++ch)
+				rowMean[y][ch] /= rowCount[y];
 	}
+	std::vector<std::array<double, 3>> column(srcSpan, {0, 0, 0});
+	std::vector<bool> known(srcSpan, false);
+	for(int i = 0; i < srcSpan; ++i)
+	{
+		int count = 0;
+		for(int y = 0; y < h; ++y)
+			if(rowCount[y] > 0 && clear(cap + i, y))
+			{
+				for(int ch = 0; ch < 3; ++ch)
+					column[i][ch] += channel(frame.pixel(cap + i, y), ch) - rowMean[y][ch];
+				++count;
+			}
+		if(count >= 4)
+		{
+			known[i] = true;
+			for(int ch = 0; ch < 3; ++ch)
+				column[i][ch] /= count;
+		}
+	}
+	for(int i = 0; i < srcSpan; ++i)
+		if(!known[i])
+		{
+			int a = i - 1, b = i + 1;
+			while(a >= 0 && !known[a])
+				--a;
+			while(b < srcSpan && !known[b])
+				++b;
+			for(int ch = 0; ch < 3; ++ch)
+			{
+				if(a >= 0 && b < srcSpan)
+					column[i][ch] = column[a][ch] + (column[b][ch] - column[a][ch]) * (i - a) / (b - a);
+				else
+					column[i][ch] = a >= 0 ? column[a][ch] : b < srcSpan ? column[b][ch] : 0;
+			}
+		}
+	std::vector<std::array<double, 3>> shading(srcSpan, {0, 0, 0});
+	for(int i = 0; i < srcSpan; ++i)
+	{
+		int count = 0;
+		for(int j = std::max(0, i - 4); j <= std::min(srcSpan - 1, i + 4); ++j, ++count)
+			for(int ch = 0; ch < 3; ++ch)
+				shading[i][ch] += column[j][ch];
+		for(int ch = 0; ch < 3; ++ch)
+			shading[i][ch] /= count;
+	}
+	std::vector<std::array<double, 3>> rowTone(h, {0, 0, 0});
+	for(int y = 0; y < h; ++y)
+		if(rowCount[y] > 0)
+		{
+			for(int x = cap; x < w - cap; ++x)
+				if(clear(x, y))
+					for(int ch = 0; ch < 3; ++ch)
+						rowTone[y][ch] += channel(frame.pixel(x, y), ch) - shading[x - cap][ch];
+			for(int ch = 0; ch < 3; ++ch)
+				rowTone[y][ch] /= rowCount[y];
+		}
 	QImage bar(2 * cap + 400, h, QImage::Format_ARGB32); // S329: 400 wide in the middle, so a wide button squeezes the plate instead of stretching it into smears
 	bar.fill(Qt::transparent);
 	QPainter painter(&bar);
@@ -433,46 +498,46 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 	const int span = bar.width() - 2 * cap;
 	for(int y = 0; y < h; ++y)
 	{
-		std::vector<QRgb> plate = rows[y];
-		if(plate.empty())
+		if(rowCount[y] == 0)
 		{
 			for(int x = cap; x < bar.width() - cap; ++x)
 				bar.setPixel(x, y, frame.pixel(cap, y));
 			continue;
 		}
-		double sum = 0;
+		std::array<double, 3> tone = {0, 0, 0};
 		int count = 0;
 		for(int k = std::max(0, y - 2); k <= std::min(h - 1, y + 2); ++k)
-			if(mean[k] >= 0)
+			if(rowCount[k] > 0)
 			{
-				sum += mean[k];
+				for(int ch = 0; ch < 3; ++ch)
+					tone[ch] += rowTone[k][ch];
 				++count;
 			}
-		const int shift = static_cast<int>(std::lround(sum / count - mean[y]));
-		for(auto & c : plate)
-			c = qRgba(std::clamp(qRed(c) + shift, 0, 255), std::clamp(qGreen(c) + shift, 0, 255), std::clamp(qBlue(c) + shift, 0, 255), qAlpha(c));
+		for(int ch = 0; ch < 3; ++ch)
+			tone[ch] /= count;
+		std::vector<QRgb> plate;
+		for(int x = cap; x < w - cap; ++x)
+			if(clear(x, y))
+				plate.push_back(frame.pixel(x, y));
 		const size_t n = plate.size();
-		std::vector<QRgb> smooth(n);
+		std::vector<std::array<double, 3>> grain(n, {0, 0, 0});
 		for(size_t i = 0; i < n; ++i)
 		{
-			int r = 0, g = 0, b = 0, c = 0;
-			for(size_t j = i >= 3 ? i - 3 : 0; j <= std::min(n - 1, i + 3); ++j)
-			{
-				r += qRed(plate[j]);
-				g += qGreen(plate[j]);
-				b += qBlue(plate[j]);
-				++c;
-			}
-			smooth[i] = qRgb(r / c, g / c, b / c);
+			std::array<double, 3> sum = {0, 0, 0};
+			int c = 0;
+			for(size_t j = i >= 3 ? i - 3 : 0; j <= std::min(n - 1, i + 3); ++j, ++c)
+				for(int ch = 0; ch < 3; ++ch)
+					sum[ch] += channel(plate[j], ch);
+			for(int ch = 0; ch < 3; ++ch)
+				grain[i][ch] = channel(plate[i], ch) - sum[ch] / c;
 		}
 		for(int x = cap; x < bar.width() - cap; ++x)
 		{
-			const QRgb tone = smooth[std::min(n - 1, static_cast<size_t>(x - cap) * n / static_cast<size_t>(span))];
+			const auto & shade = shading[std::min(srcSpan - 1, (x - cap) * srcSpan / span)];
 			const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
-			const QRgb raw = plate[k < n ? k : 2 * n - 2 - k];
-			// 50 percent of the row's own pixel for grain (measured on the launcher's Game page: 80 percent gave 4.6 to 6.0 between neighbours,
-			// BEGIN's is 2.8)
-			bar.setPixel(x, y, qRgb((qRed(tone) + qRed(raw)) / 2, (qGreen(tone) + qGreen(raw)) / 2, (qBlue(tone) + qBlue(raw)) / 2));
+			const auto & fine = grain[k < n ? k : 2 * n - 2 - k];
+			const auto value = [&](int ch) { return std::clamp(static_cast<int>(std::lround(tone[ch] + shade[ch] + plateGrain * fine[ch])), 0, 255); };
+			bar.setPixel(x, y, qRgb(value(0), value(1), value(2)));
 		}
 	}
 	// to the launcher's height by averaging the pixels each one covers (a box filter), as the game's smaller bars are made; Qt's smooth
@@ -533,17 +598,11 @@ QImage tallBar(const QImage & base, int height)
 	const int endWidth = static_cast<int>(std::lround(base.width() * 22.0 / (2 * 22 + 400)));
 	for(int i = 0; i < rows; ++i)
 	{
-		const double at = rows == 1 ? 0 : static_cast<double>(i) * (inner - 1) / (rows - 1);
-		const int r0 = static_cast<int>(at);
-		const int r1 = std::min(inner - 1, r0 + 1);
-		const double t = at - r0;
+		// each row a whole row of the one-line bar, picked in order down the bar (nearest, never two rows mixed): mixing rows of different
+		// grain blurred the grain into blotches (the lead's look, November 19th)
+		const int r0 = rows == 1 ? 0 : static_cast<int>(std::lround(static_cast<double>(i) * (inner - 1) / (rows - 1)));
 		for(int x = endWidth; x < base.width() - endWidth; ++x)
-		{
-			const QRgb a = base.pixel(x, border + r0);
-			const QRgb b = base.pixel(x, border + r1);
-			const auto mix = [t](int u, int v) { return static_cast<int>(std::lround(u + (v - u) * t)); };
-			out.setPixel(x, border + i, qRgba(mix(qRed(a), qRed(b)), mix(qGreen(a), qGreen(b)), mix(qBlue(a), qBlue(b)), mix(qAlpha(a), qAlpha(b))));
-		}
+			out.setPixel(x, border + i, base.pixel(x, border + r0));
 	}
 	return out;
 }

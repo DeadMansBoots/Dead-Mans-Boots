@@ -205,13 +205,13 @@ void AssetGenerator::initialize()
 	for(int width : {360, 337, 166, 120})
 	{
 		const std::string name = "RanShowButton" + std::to_string(width);
-		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "SCNRBEG", width, 22, {24, 27}, {24, 27});
+		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createPlateButton(name, "SCNRBEG", width, 22);
 	}
 	// S319 (K, November 17th: "the gold buttons are WAYYYYY TOO BIG"): the same gold bar as tall as the check mark button beside it (32)
 	for(int width : {280, 250})
 	{
 		const std::string name = "RanShowButtonSmall" + std::to_string(width);
-		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "SCNRBEG", width, 22, {24, 27}, {24, 27}, 32);
+		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createPlateButton(name, "SCNRBEG", width, 22, 32);
 	}
 	animationFiles[AnimationPath::builtin("SPRITES/MapGenButton190")] = createMapGenButton(190);
 	// DMB: map size buttons for generators with sizes past XL (K, September 27th: lettered to match the
@@ -1423,6 +1423,82 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createMapGenButton(int width)
 			}
 
 			canvas.draw(frame, Point(width - capW, 0), Rect(srcW - capW, 0, capW, srcH));
+			return newImg;
+		};
+
+		layout[0].push_back(ImageLocator(spriteName, EImageBlitMode::SIMPLE));
+	}
+
+	return layout;
+}
+
+AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::string & name, const std::string & source, int finalWidth, int cap, int height)
+{
+	auto baseImg = ENGINE->renderHandler().loadAnimation(AnimationPath::builtin(source), EImageBlitMode::OPAQUE);
+
+	AnimationLayoutMap layout;
+	for(size_t i = 0; i < baseImg->size(0); i++)
+	{
+		ImagePath spriteName = ImagePath::builtin(name + "_" + std::to_string(i) + ".png");
+
+		imageFiles[spriteName] = [baseImg, i, finalWidth, cap, height]()
+		{
+			auto frame = baseImg->getImage(i);
+			const Point size = frame->dimensions();
+			const bool scaled = height > 0 && height < size.y;
+			const int width = scaled ? (finalWidth * size.y + height / 2) / height : finalWidth;
+			// the source frame as pixels
+			auto sourceImg = ENGINE->renderHandler().createImage(size, CanvasScalingPolicy::IGNORE);
+			Canvas source = sourceImg->getCanvas();
+			source.draw(frame, Point(0, 0));
+			auto newImg = ENGINE->renderHandler().createImage(Point(width, size.y), CanvasScalingPolicy::IGNORE);
+			auto canvas = newImg->getCanvas();
+			canvas.draw(frame, Point(0, 0), Rect(0, 0, cap, size.y));
+			canvas.draw(frame, Point(width - cap, 0), Rect(size.x - cap, 0, cap, size.y));
+			// the letters and their edges: black, white light, grey, and every pixel within 2 of one (their brown shading)
+			const auto letterPixel = [&source](int x, int y)
+			{
+				const ColorRGBA c = source.getPixel(Point(x, y));
+				const int lum = (299 * c.r + 587 * c.g + 114 * c.b) / 1000;
+				return lum <= 70 || lum >= 245 || c.r <= c.b + 30;
+			};
+			std::vector<bool> nearLetter(static_cast<size_t>(size.x) * size.y, false);
+			for(int y = 0; y < size.y; ++y)
+				for(int x = cap; x < size.x - cap; ++x)
+					if(letterPixel(x, y))
+						for(int dy = -2; dy <= 2; ++dy)
+							for(int dx = -2; dx <= 2; ++dx)
+								if(x + dx >= 0 && x + dx < size.x && y + dy >= 0 && y + dy < size.y)
+									nearLetter[static_cast<size_t>(y + dy) * size.x + x + dx] = true;
+			for(int y = 0; y < size.y; ++y)
+			{
+				// the row's plate: its gold pixels clear of the letters
+				std::vector<ColorRGBA> plate;
+				for(int x = cap; x < size.x - cap; ++x)
+					if(!nearLetter[static_cast<size_t>(y) * size.x + x])
+						plate.push_back(source.getPixel(Point(x, y)));
+				if(plate.empty())
+				{
+					// a row with no plate (the bar's rim): the source's own row, its first column past the cap, across
+					const ColorRGBA c = source.getPixel(Point(cap, y));
+					for(int x = cap; x < width - cap; ++x)
+						canvas.drawPoint(Point(x, y), c);
+					continue;
+				}
+				// there and back along the row's pixels, so a repeat never jumps from one end of the row to the other
+				const size_t n = plate.size();
+				for(int x = cap; x < width - cap; ++x)
+				{
+					const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
+					canvas.drawPoint(Point(x, y), plate[k < n ? k : 2 * n - 2 - k]);
+				}
+			}
+			if(scaled)
+			{
+				auto smaller = ENGINE->renderHandler().createImage(Point(finalWidth, height), CanvasScalingPolicy::IGNORE);
+				smaller->getCanvas().drawScaled(newImg->getCanvas(), Point(0, 0), Point(finalWidth, height));
+				return smaller;
+			}
 			return newImg;
 		};
 

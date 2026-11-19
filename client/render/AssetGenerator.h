@@ -91,6 +91,9 @@ private:
 	/// S319: `height` above 0 builds the bar at the width that keeps `source`'s proportions and scales it down to width x height
 	AnimationLayoutMap createBlankButton(const std::string & name, const std::string & source, int width, int cap,
 		std::pair<int, int> tileA, std::pair<int, int> tileB, int height = 0);
+	/// S329: a stock gold button without its word at any width: `source`'s end caps, and between them each row made of that row's own plate
+	/// pixels (the letters, their light and their shadow left out), in their order, repeated; so the plate keeps the original's tone and grain
+	AnimationLayoutMap createPlateButton(const std::string & name, const std::string & source, int width, int cap, int height = 0);
 	/// DMB: a map size button in the Random Map Setup's own style (RANSIZS..RANSIZX): `source`'s frames as
 	/// they are when `text` is empty, else the XL button with `text` lettered in place of its letters;
 	/// `width` other than 0 narrows the button to it, columns taken out of the middle of its gold face.

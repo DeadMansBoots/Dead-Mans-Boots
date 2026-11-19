@@ -483,10 +483,14 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 	const bool byTerrain = std::any_of(terrainOf.begin(), terrainOf.end(), [](const auto & color) { return color.has_value(); });
 	const ColorRGBA rock = LIBRARY->terrainTypeHandler->getById(TerrainId(TerrainId::ROCK))->minimapUnblocked;
 	const ColorRGBA waterColor = byTerrain ? LIBRARY->terrainTypeHandler->getById(TerrainId(TerrainId::WATER))->minimapUnblocked : WATER;
+	// S354 (S341, "Second Level Like the Overworld"): a level the generator made like the overworld ("levelKinds" "mirror", MapGen Dev's
+	// 748f150) takes the surface's palette: no rock around the zones and no abyss
+	const JsonNode & levelKinds = layout["levelKinds"];
+	const bool surfaceLike = level == 0 || (levelKinds.isVector() && level < levelKinds.Vector().size() && levelKinds.Vector()[level].isString() && levelKinds.Vector()[level].String() == "mirror");
 	const auto colorOf = [&](int id)
 	{
 		if(id < 0)
-			return level > 0 ? rock : BACKGROUND;
+			return surfaceLike ? BACKGROUND : rock;
 		if(byTerrain && id < static_cast<int>(terrainOf.size()) && terrainOf[id])
 			return *terrainOf[id];
 		if(shade.count(id))
@@ -512,7 +516,7 @@ std::unique_ptr<Canvas> drawLevel(const JsonNode & layout, size_t level, int sid
 	// each floor tile takes its own terrain's colour, else its zone's. Without them the zones fill the level as before
 	std::vector<bool> floor;
 	const JsonNode & floorMask = layout["floorTiles"];
-	if(floorMask.isVector() && level < floorMask.Vector().size())
+	if(!surfaceLike && floorMask.isVector() && level < floorMask.Vector().size())
 	{
 		const auto & tiles = floorMask.Vector()[level].Vector();
 		if(tiles.size() == cells.size())

@@ -47,6 +47,11 @@ public:
 	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
 	std::shared_ptr<CTextInput> textInput(const std::string & name) const;
 	std::shared_ptr<CSlider> slider(const std::string & name) const;
+	template<class T>
+	std::shared_ptr<T> find(const std::string & name) const
+	{
+		return widget<T>(name);
+	}
 };
 
 class MapGenTab : public InterfaceObjectConfigurable
@@ -76,6 +81,9 @@ class MapGenTab : public InterfaceObjectConfigurable
 	void greyCustomSize();
 	/// S278: with the dice picked for Water content, the Amount of water bar is greyed and its text gives the range the generator draws from
 	void greyWaterAmount();
+	/// S354: the "Second Level Like the Overworld" tick greyed on one level or a fixed-map template; "Narrow tunnels" and "Open cave floor"
+	/// greyed while it is on and can work
+	void greyMirrorLevels();
 	/// the module's "reset" block (or its defaults): what the Reset button puts every setting to
 	JsonNode resetValues;
 	bool refreshQueued = false;
@@ -118,6 +126,11 @@ class MapGenTab : public InterfaceObjectConfigurable
 	std::string templateName() const;
 	/// DMB (K, November 1st): the sentence the module's help text takes for {templatePreference}: the chosen template's own start rule (template-info.json)
 	std::string templatePreferenceSentence() const;
+	/// the chosen template's entry in the module's template-info.json (the open layout's or Random's entry for those choices); null when there is none
+	JsonNode chosenTemplateInfo() const;
+	/// S354: whether the "Second Level Like the Overworld" tick can do anything: a map of two levels, on a template that does not list
+	/// mirrorLevels among the levers it ignores (originalPreferences.leversWithNoEffectOnTemplates, a fixed map)
+	bool mirrorLevelsUsable() const;
 	/// the chosen template as a label shows it: its name, "(Random)" or the tab's "none" text
 	std::string templateLabel() const;
 	std::string preset() const;

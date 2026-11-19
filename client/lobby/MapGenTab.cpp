@@ -388,6 +388,48 @@ void MapGenTab::greyWaterAmount()
 	}
 }
 
+/// S354 (K, November 19th, S341: "a map generation tick option somewhere to set the subterranean layer to mimic the overworld"; the lead's order:
+/// greyed on one level and on a fixed-map template, "Narrow tunnels" and "Open cave floor" greyed while it is on). Works on either kind of page
+/// (LayoutPage and MapGenPage both have find<T>); a page is built again after each of these settings changes, so greying is all it does
+template<class Page>
+static void greyMirrorLevelsOn(const Page & page, bool usable)
+{
+	const ColorRGBA grey(120, 120, 120);
+	const JsonNode & stored = persistentStorage["mapGen"]["params"]["mirrorLevels"];
+	const bool on = stored.isNumber() && stored.Float() >= 1;
+	if(!usable)
+	{
+		if(auto tick = page.template find<CToggleButton>("check_mirrorLevels"))
+			tick->block(true);
+		if(auto label = page.template find<CLabel>("label_mirrorLevels"))
+			label->setColor(grey);
+	}
+	if(on && usable)
+		for(const char * lever : {"subterraneanNarrow", "subterraneanOpen"})
+		{
+			if(auto bar = page.template find<CSlider>(std::string("slider_") + lever))
+				bar->block(true);
+			if(auto label = page.template find<CLabel>(std::string("label_") + lever))
+				label->setColor(grey);
+			if(auto value = page.template find<CLabel>(std::string("value_") + lever))
+				value->setColor(grey);
+		}
+}
+
+void MapGenTab::greyMirrorLevels()
+{
+	if(layoutPages)
+	{
+		if(auto page = layoutPages->shownPage())
+			greyMirrorLevelsOn(*page, mirrorLevelsUsable());
+	}
+	else if(pages)
+	{
+		if(auto page = std::dynamic_pointer_cast<MapGenPage>(pages->getItem()))
+			greyMirrorLevelsOn(*page, mirrorLevelsUsable());
+	}
+}
+
 void MapGenTab::greyCustomSize()
 {
 	const bool random = mapSetting("size") < 0;
@@ -588,6 +630,9 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		}
 		if(setting == "persistent:mapGen/map/size" || setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
 			greyCustomSize();
+		// S354: the tick and the two cave levers follow the levels and the tick at once (a blocked bar is only freed by building the page again)
+		if(setting == "persistent:mapGen/map/underground" || setting == "persistent:mapGen/params/mirrorLevels")
+			refreshPagesAfterClick();
 		if(setting == "persistent:mapGen/map/size" || setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height"
 			|| setting == "persistent:mapGen/map/underground" || setting == "persistent:mapGen/map/template")
 			requestBands();
@@ -603,6 +648,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 			name->setText(templateLabel());
 		greyCustomSize();
 		greyWaterAmount();
+		greyMirrorLevelsOn(page, mirrorLevelsUsable());
 	};
 	build(config);
 
@@ -711,6 +757,7 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 					box->setColor(shown);
 			// S278: the same for the Amount of water bar (greyWaterAmount works on the tab's current page, which this one is not yet)
 			greyWaterAmountOn(page.slider("slider_waterCoverage"), page.label("value_waterCoverage"));
+			greyMirrorLevelsOn(page, mirrorLevelsUsable());
 		});
 }
 
@@ -1342,19 +1389,18 @@ std::vector<std::string> MapGenTab::approvedNames() const
 	return names;
 }
 
-std::string MapGenTab::templatePreferenceSentence() const
+JsonNode MapGenTab::chosenTemplateInfo() const
 {
-	const std::string fallback = "the chosen template's own rule";
 	const auto folder = AddonCode::modFolder(generator.modID);
 	if(!folder)
-		return fallback;
+		return JsonNode();
 	std::ifstream in((*folder / "template-info.json").c_str(), std::ios::binary);
 	if(!in)
-		return fallback;
+		return JsonNode();
 	const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 	const JsonNode info(text.data(), text.size(), "template-info.json");
 	if(!info["templates"].isStruct())
-		return fallback;
+		return JsonNode();
 	// the value stored for the choice: empty is the open layout's entry, RANDOM_TEMPLATE the Random entry, else the template of that name
 	const std::string chosen = templateName();
 	std::string key = chosen;
@@ -1369,9 +1415,28 @@ std::string MapGenTab::templatePreferenceSentence() const
 			}
 	}
 	for(const auto & item : info["templates"].Struct())
-		if(boost::iequals(item.first, key) && item.second["templatePreference"].isString() && !item.second["templatePreference"].String().empty())
-			return item.second["templatePreference"].String();
-	return fallback;
+		if(boost::iequals(item.first, key))
+			return item.second;
+	return JsonNode();
+}
+
+std::string MapGenTab::templatePreferenceSentence() const
+{
+	const JsonNode entry = chosenTemplateInfo();
+	if(entry["templatePreference"].isString() && !entry["templatePreference"].String().empty())
+		return entry["templatePreference"].String();
+	return "the chosen template's own rule";
+}
+
+bool MapGenTab::mirrorLevelsUsable() const
+{
+	if(!mapSetting("underground"))
+		return false;
+	const JsonNode entry = chosenTemplateInfo();
+	for(const auto & lever : entry["originalPreferences"]["leversWithNoEffectOnTemplates"].Vector())
+		if(lever.isString() && lever.String() == "mirrorLevels")
+			return false;
+	return true;
 }
 
 static std::vector<std::pair<std::string, bool>> listEntriesFor(const std::string & modID);

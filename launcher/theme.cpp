@@ -424,7 +424,7 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 		if(!rows[y].empty())
 			mean[y] = sum / rows[y].size();
 	}
-	QImage bar(2 * cap + 64, h, QImage::Format_ARGB32);
+	QImage bar(2 * cap + 400, h, QImage::Format_ARGB32); // S329: 400 wide in the middle, so a wide button squeezes the plate instead of stretching it into smears
 	bar.fill(Qt::transparent);
 	QPainter painter(&bar);
 	painter.drawImage(0, 0, frame, 0, 0, cap, h);
@@ -470,10 +470,36 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 			const QRgb tone = smooth[std::min(n - 1, static_cast<size_t>(x - cap) * n / static_cast<size_t>(span))];
 			const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
 			const QRgb raw = plate[k < n ? k : 2 * n - 2 - k];
-			bar.setPixel(x, y, qRgb((6 * qRed(tone) + 4 * qRed(raw)) / 10, (6 * qGreen(tone) + 4 * qGreen(raw)) / 10, (6 * qBlue(tone) + 4 * qBlue(raw)) / 10));
+			// 50 percent of the row's own pixel for grain (measured on the launcher's Game page: 80 percent gave 4.6 to 6.0 between neighbours,
+			// BEGIN's is 2.8)
+			bar.setPixel(x, y, qRgb((qRed(tone) + qRed(raw)) / 2, (qGreen(tone) + qGreen(raw)) / 2, (qBlue(tone) + qBlue(raw)) / 2));
 		}
 	}
-	return bar.scaledToHeight(height, Qt::SmoothTransformation);
+	// to the launcher's height by averaging the pixels each one covers (a box filter), as the game's smaller bars are made; Qt's smooth
+	// scaling of the finished bar smeared the grain into streaks (the lead's look, November 19th)
+	if(height <= 0 || height >= h)
+		return bar;
+	const int outW = std::max(1, static_cast<int>(std::lround(static_cast<double>(bar.width()) * height / h)));
+	QImage out(outW, height, QImage::Format_ARGB32);
+	for(int y = 0; y < height; ++y)
+		for(int x = 0; x < outW; ++x)
+		{
+			const int x0 = x * bar.width() / outW, x1 = std::max(x0 + 1, (x + 1) * bar.width() / outW);
+			const int y0 = y * h / height, y1 = std::max(y0 + 1, (y + 1) * h / height);
+			int r = 0, g = 0, b = 0, a = 0, n = 0;
+			for(int sy = y0; sy < y1; ++sy)
+				for(int sx = x0; sx < x1; ++sx)
+				{
+					const QRgb c = bar.pixel(sx, sy);
+					r += qRed(c);
+					g += qGreen(c);
+					b += qBlue(c);
+					a += qAlpha(c);
+					++n;
+				}
+			out.setPixel(x, y, qRgba(r / n, g / n, b / n, a / n));
+		}
+	return out;
 }
 
 /// `base` (the one line bar) drawn `height` high with its scrollwork ends and brushed middle at the SAME size: the four pixel borders top and bottom kept, and the rows
@@ -501,6 +527,24 @@ QImage tallBar(const QImage & base, int height)
 		painter.drawImage(0, border + i, base, 0, border + row, base.width(), 1);
 	}
 	painter.end();
+	// S329: the plate between the scrollwork ends is one sweep of the one line bar's rows, stretched by interpolation over the taller bar;
+	// mirrored over and over it repeated the gradient as waves (the lead's look of the launcher, November 19th). The ends keep the mirrored
+	// rows, so the ornaments stay the one line bar's size
+	const int endWidth = static_cast<int>(std::lround(base.width() * 22.0 / (2 * 22 + 400)));
+	for(int i = 0; i < rows; ++i)
+	{
+		const double at = rows == 1 ? 0 : static_cast<double>(i) * (inner - 1) / (rows - 1);
+		const int r0 = static_cast<int>(at);
+		const int r1 = std::min(inner - 1, r0 + 1);
+		const double t = at - r0;
+		for(int x = endWidth; x < base.width() - endWidth; ++x)
+		{
+			const QRgb a = base.pixel(x, border + r0);
+			const QRgb b = base.pixel(x, border + r1);
+			const auto mix = [t](int u, int v) { return static_cast<int>(std::lround(u + (v - u) * t)); };
+			out.setPixel(x, border + i, qRgba(mix(qRed(a), qRed(b)), mix(qGreen(a), qGreen(b)), mix(qBlue(a), qBlue(b)), mix(qAlpha(a), qAlpha(b))));
+		}
+	}
 	return out;
 }
 
@@ -1136,7 +1180,7 @@ ButtonStyles gameButtonStyle(const LookSlots & look_)
 			if(file.isEmpty())
 				return {};
 		// the scrollwork ends keep their size, the middle stretches to the button
-		out.end = normal.width() * 22 / (2 * 22 + 64); // S329: BEGIN's 22-pixel ends
+		out.end = normal.width() * 22 / (2 * 22 + 400); // S329: BEGIN's 22-pixel ends
 		return out;
 	};
 	const Bars one = bars(BAR_HEIGHT, "");

@@ -588,6 +588,9 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		}
 		if(setting == "persistent:mapGen/map/size" || setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height")
 			greyCustomSize();
+		if(setting == "persistent:mapGen/map/size" || setting == "persistent:mapGen/map/width" || setting == "persistent:mapGen/map/height"
+			|| setting == "persistent:mapGen/map/underground" || setting == "persistent:mapGen/map/template")
+			requestBands();
 		if(boost::algorithm::starts_with(setting, "persistent:mapGen/"))
 			updateMapInfoByHost();
 	};
@@ -680,7 +683,7 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 		logGlobal->error("Map generator %s: page %d is missing from the mod %s", generator.name, static_cast<int>(index), generator.modID);
 		return std::make_shared<CIntObject>();
 	}
-	return std::make_shared<MapGenPage>(JsonNode(JsonPath::builtin(pageFiles[index]), generator.modID),
+	return std::make_shared<MapGenPage>(withBandDefaults(JsonNode(JsonPath::builtin(pageFiles[index]), generator.modID)),
 		[this](MapGenPage & page)
 		{
 			page.setCallback("chooseMapGenTemplate", [this](int) { chooseTemplate(); });
@@ -809,12 +812,110 @@ void MapGenTab::restoreOwnStateAfterCrash()
 	boost::filesystem::remove(file, ignored);
 }
 
+JsonNode MapGenTab::withBandDefaults(JsonNode page) const
+{
+	if(bandValues.empty())
+		return page;
+	const JsonNode & stored = persistentStorage["mapGen"]["params"];
+	std::function<void(JsonNode &)> visit = [&](JsonNode & node)
+	{
+		if(node.isStruct())
+		{
+			const std::string prefix = "persistent:mapGen/params/";
+			if(node["setting"].isString() && boost::algorithm::starts_with(node["setting"].String(), prefix))
+			{
+				const std::string key = node["setting"].String().substr(prefix.size());
+				const auto found = bandValues.find(key);
+				if(found != bandValues.end() && !stored[key].isNumber())
+					node["valueDefault"].Float() = found->second;
+			}
+			for(auto & child : node.Struct())
+				visit(child.second);
+		}
+		else if(node.isVector())
+			for(auto & child : node.Vector())
+				visit(child);
+	};
+	visit(page);
+	return page;
+}
+
+void MapGenTab::requestBands()
+{
+	// S320 (K, November 17th: Nostalgia and Mini Nostalgia "are all supposed to merge and combine in the classic template"; MapGen Dev's
+	// 1575b1a: the open layout's untouched levers take the value of the map size's band): on Classic, the generator prints those values for a
+	// size (--listbands), and the sliders the player has not moved show them
+	if(GAME->server().isGuest() || !templateName().empty())
+	{
+		if(!bandValues.empty())
+		{
+			bandValues.clear();
+			bandKey.clear();
+			refreshPagesAfterClick();
+		}
+		return;
+	}
+	const auto options = lobbyOptions();
+	const std::string key = std::to_string(options->getWidth()) + "x" + std::to_string(options->getHeight()) + "x" + std::to_string(options->getLevels());
+	if(key == bandKey)
+		return;
+	bandKey = key;
+	const std::vector<std::string> args = {"--listbands", "1", "--w", std::to_string(options->getWidth()), "--h", std::to_string(options->getHeight()),
+		"--underground", options->getLevels() > 1 ? "1" : "0"};
+	const MapGeneratorInfo gen = generator;
+	const std::weak_ptr<bool> tabAlive = alive;
+	std::thread([this, gen, args, key, tabAlive]()
+	{
+		std::map<std::string, double> values;
+		try
+		{
+			if(AddonCode::trustProblem(gen.modID, gen.codeFolder).empty())
+			{
+				const auto logPath = VCMIDirs::get().userLogsPath() / "extmapgen_bands_log.txt";
+				if(MapGenerators::run(gen, args, logPath, std::chrono::seconds(30), nullptr, false) == 0)
+				{
+					std::ifstream in(logPath.string(), std::ios::binary);
+					const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+					const auto at = text.find("{\"levers\"");
+					if(at != std::string::npos)
+					{
+						const std::string line = text.substr(at, text.find('\n', at) == std::string::npos ? std::string::npos : text.find('\n', at) - at);
+						const JsonNode parsed(line.data(), line.size(), "listbands");
+						for(const auto & [lever, value] : parsed["levers"].Struct())
+							if(value.isNumber())
+								values[lever] = value.Float();
+					}
+				}
+			}
+		}
+		catch(const std::exception & e)
+		{
+			logGlobal->warn("Map generator: the size bands could not be read: %s", e.what());
+		}
+		logGlobal->info("Map generator: Classic's size band for %s, %d levers", key, static_cast<int>(values.size()));
+		ENGINE->dispatchMainThread([this, values, key, tabAlive]()
+		{
+			if(tabAlive.expired() || key != bandKey)
+				return;
+			bandValues = values;
+			refreshPages();
+		});
+	}).detach();
+}
+
 void MapGenTab::resetToDefaults()
 {
 	// every setting back to the generator's own default, from the mod's tab layout, then the
-	// open page is rebuilt so it shows them
+	// open page is rebuilt so it shows them. S320: on Classic, a lever the size band sets is cleared instead, so the generator takes the
+	// band's value for the map's size (a stored number would hold it fixed at every size)
 	for(const auto & entry : resetValues["params"].Struct())
 	{
+		Settings params = persistentStorage.write["mapGen"]["params"];
+		if(bandValues.count(entry.first))
+		{
+			params->Struct().erase(entry.first);
+			continue;
+		}
 		Settings value = persistentStorage.write["mapGen"]["params"][entry.first];
 		*value.operator->() = entry.second;
 	}
@@ -900,6 +1001,9 @@ void MapGenTab::updateMapInfoByHost()
 {
 	if(!generator.atBegin || GAME->server().isGuest())
 		return;
+	// S320: Classic's band values for this size; asked here, where the tab knows it is the host's (at its construction the lobby has not said),
+	// and a repeat for the same size is ignored
+	requestBands();
 
 	const auto options = lobbyOptions();
 	MetaString name;

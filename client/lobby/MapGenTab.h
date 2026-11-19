@@ -79,6 +79,13 @@ class MapGenTab : public InterfaceObjectConfigurable
 	/// the module's "reset" block (or its defaults): what the Reset button puts every setting to
 	JsonNode resetValues;
 	bool refreshQueued = false;
+	/// S320: Classic's lever values for the current map size, from the generator's --listbands (empty off Classic or before they land)
+	std::map<std::string, double> bandValues;
+	std::string bandKey; ///< the size and levels the values are for, or are being asked for
+	/// S320: asks the generator for Classic's band values when the size, the levels or the template changed (a background run, low priority)
+	void requestBands();
+	/// S320: the page layout with each banded lever the player has not set showing the band's value
+	JsonNode withBandDefaults(JsonNode page) const;
 
 	std::shared_ptr<CIntObject> createPage(size_t index);
 	void openPage(size_t index);

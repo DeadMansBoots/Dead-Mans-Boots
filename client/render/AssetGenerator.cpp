@@ -198,16 +198,20 @@ void AssetGenerator::initialize()
 	}
 	// 120: the saved settings dialog's Delete button (K, September 29th: black lettering on gold, like the
 	// rest of the menus); 360: AI Settings' two buttons in the lobby's big lettering (S312)
+	// S329 (K, November 19th: "ensure the button gold itself looks exactly like the originals...i feel like ours are too bright the originals had a
+	// semi-tarnished gradient applied to them"): the bar's middle is the lobby's own BEGIN button (SCNRBEG), its word-free columns 24 to 27
+	// between the scrollwork and the B, repeated; RANSHOW's column 110 was a pale cream (luminance about 205 against BEGIN's 140, sampled on
+	// an 800x600 game picture). The scrollwork ends are BEGIN's too
 	for(int width : {360, 337, 166, 120})
 	{
 		const std::string name = "RanShowButton" + std::to_string(width);
-		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANSHOW", width, 21, {110, 111}, {110, 111});
+		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "SCNRBEG", width, 22, {24, 27}, {24, 27});
 	}
 	// S319 (K, November 17th: "the gold buttons are WAYYYYY TOO BIG"): the same gold bar as tall as the check mark button beside it (32)
 	for(int width : {280, 250})
 	{
 		const std::string name = "RanShowButtonSmall" + std::to_string(width);
-		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "RANSHOW", width, 21, {110, 111}, {110, 111}, 32);
+		animationFiles[AnimationPath::builtin("SPRITES/" + name)] = createBlankButton(name, "SCNRBEG", width, 22, {24, 27}, {24, 27}, 32);
 	}
 	animationFiles[AnimationPath::builtin("SPRITES/MapGenButton190")] = createMapGenButton(190);
 	// DMB: map size buttons for generators with sizes past XL (K, September 27th: lettered to match the

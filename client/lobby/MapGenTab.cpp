@@ -49,6 +49,7 @@
 #include "../../lib/rmg/CRmgTemplateStorage.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/texts/MetaString.h"
+#include "../gui/MenuColour.h"
 
 #include <cctype>
 #include <chrono>
@@ -82,7 +83,7 @@ public:
 		center();
 
 		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
-		background->setPlayerColor(PlayerColor(1));
+		background->setPlayerColor(menuColour());
 		title = std::make_shared<CLabel>(150, 20, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, heading);
 		field = std::make_shared<TransparentFilledRectangle>(Rect(20, 45, 260, 22), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64), 1);
 		name = std::make_shared<CTextInput>(Rect(24, 47, 252, 18), FONT_SMALL, ETextAlignment::CENTERLEFT, true);
@@ -1767,7 +1768,7 @@ public:
 		pos.w = area.w;
 		pos.h = area.h;
 		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, area.w, area.h));
-		background->setPlayerColor(PlayerColor(1));
+		background->setPlayerColor(menuColour());
 		slider = std::make_shared<CSlider>(Point(area.w - SLIDER_WIDTH - 2, 2), area.h - 4, [this](int to){ scroll = to; redraw(); }, area.h - 4, area.h - 4, 0, Orientation::VERTICAL, CSlider::BLUE);
 		slider->setScrollStep(24);
 		slider->setScrollBounds(pos - slider->pos.topLeft());
@@ -1886,7 +1887,7 @@ public:
 			OBJECT_CONSTRUCTION_TARGETED(column.get());
 			const auto keep = [this](auto widget) { columnParts.push_back(widget); return widget; };
 			auto columnBackground = keep(std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, width, 1)));
-			columnBackground->setPlayerColor(PlayerColor(1));
+			columnBackground->setPlayerColor(menuColour());
 			keep(std::make_shared<CLabel>(width / 2, 22, FONT_MEDIUM, ETextAlignment::CENTER, Colors::YELLOW, sheet.title));
 			int y = 44;
 			if(!sheet.gallery.empty())

@@ -50,6 +50,7 @@
 #include "../../lib/mapping/CMapInfo.h"
 #include "../../lib/mapping/CMapHeader.h"
 #include "../../lib/GameLibrary.h"
+#include "../gui/MenuColour.h"
 
 static JsonPath optionsTabConfigLocation()
 {
@@ -559,7 +560,7 @@ void OptionsTab::SelectionWindow::recreate(int sliderPos)
 	pos = Rect(pos.x, pos.y, x + sliderWidth, y);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w - sliderWidth, pos.h));
 	// S302: the seat's town, hero and bonus picker in its player's colour (lobby.seatColourWindows, on by default); off, the stock blue
-	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? color : PlayerColor(1));
+	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? color : menuColour());
 	updateShadow();
 
 	if(type == SelType::TOWN)
@@ -835,7 +836,7 @@ OptionsTab::HandicapWindow::HandicapWindow()
 	pos = Rect(0, 0, 660, 100 + SEL->getStartInfo()->playerInfos.size() * 30);
 
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
-	backgroundTexture->setPlayerColor(PlayerColor(1));
+	backgroundTexture->setPlayerColor(menuColour());
 
 	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 8, 15, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.handicap")));
 

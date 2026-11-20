@@ -26,6 +26,7 @@
 #include "../windows/InfoWindows.h"
 
 #include "../../lib/texts/TextOperations.h"
+#include "../gui/MenuColour.h"
 
 constexpr int RIGHT_CLICK_POPUP_MIN_SIZE = 100;
 constexpr int RIGHT_CLICK_POPUP_MAX_HEIGHT_TEXTONLY = 450;
@@ -333,7 +334,7 @@ void CMessage::drawIWindow(CInfoWindow * ret, std::string text, PlayerColor play
 void CMessage::drawBorder(PlayerColor playerColor, Canvas & to, int w, int h, int x, int y)
 {
 	if(playerColor.isSpectator())
-		playerColor = PlayerColor(1);
+		playerColor = menuColour();
 	auto & box = piecesOfBox.at(playerColor.getNum());
 
 	// Note: this code assumes that the corner dimensions are all the same.

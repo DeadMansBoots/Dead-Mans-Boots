@@ -38,6 +38,7 @@
 #include "../../lib/mapObjects/CQuest.h"
 #include "../../lib/mapObjects/MiscObjects.h"
 #include "../../lib/ConditionalWait.h"
+#include "../gui/MenuColour.h"
 
 CSelWindow::CSelWindow( const std::string & Text, PlayerColor player, int charperline, const std::vector<std::shared_ptr<CSelectableComponent>> & comps, const std::vector<std::pair<AnimationPath, CFunctionList<void()>>> & Buttons, QueryID askID)
 {
@@ -156,7 +157,7 @@ void CInfoWindow::close()
 void CInfoWindow::showAll(Canvas & to)
 {
 	CIntObject::showAll(to);
-	CMessage::drawBorder(GAME->interface() ? GAME->interface()->playerID : PlayerColor(1), to, pos.w+28, pos.h+29, pos.x-14, pos.y-15);
+	CMessage::drawBorder(GAME->interface() ? GAME->interface()->playerID : menuColour(), to, pos.w+28, pos.h+29, pos.x-14, pos.y-15);
 }
 
 CInfoWindow::~CInfoWindow() = default;
@@ -199,9 +200,9 @@ bool CRClickPopup::isPopupWindow() const
 
 void CRClickPopup::createAndPush(const std::string & txt, const CInfoWindow::TCompsInfo & comps)
 {
-	PlayerColor player = GAME->interface() ? GAME->interface()->playerID : PlayerColor(1); //if no player, then use blue
+	PlayerColor player = GAME->interface() ? GAME->interface()->playerID : menuColour(); //if no player, then use blue
 	if(settings["session"]["spectate"].Bool()) //TODO: there must be better way to implement this
-		player = PlayerColor(1);
+		player = menuColour();
 
 	auto temp = std::make_shared<CInfoWindow>(txt, player, comps);
 	temp->center(ENGINE->getCursorPosition()); //center on mouse

@@ -56,6 +56,7 @@
 #include "../../lib/entities/faction/CTown.h"
 #include "../../lib/entities/faction/CTownHandler.h"
 #include "../../lib/GameLibrary.h"
+#include "../gui/MenuColour.h"
 
 ISelectionScreenInfo::ISelectionScreenInfo(ESelectionScreen ScreenType)
 	: screenType(ScreenType)
@@ -539,7 +540,7 @@ PvPBox::PvPBox(const Rect & rect)
 	setRedrawParent(true);
 
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, rect.w, rect.h));
-	backgroundTexture->setPlayerColor(PlayerColor(1));
+	backgroundTexture->setPlayerColor(menuColour());
 	backgroundBorder = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, rect.w, rect.h), ColorRGBA(0, 0, 0, 64), ColorRGBA(96, 96, 96, 255), 1);
 
 	townSelector = std::make_shared<TownSelector>(Point(5, 3));

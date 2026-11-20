@@ -44,6 +44,7 @@
 #include "../../lib/CConfigHandler.h"
 #include "../../lib/serializer/JsonSerializer.h"
 #include "../../lib/serializer/JsonDeserializer.h"
+#include "../gui/MenuColour.h"
 
 RandomMapTab::RandomMapTab():
 	InterfaceObjectConfigurable(),
@@ -839,7 +840,7 @@ SetSizeWindow::SetSizeWindow(int3 initSize, const CRmgTemplate * mapTemplate, st
 	center();
 
 	background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
-	background->setPlayerColor(PlayerColor(1));
+	background->setPlayerColor(menuColour());
 	buttonCancel = std::make_shared<CButton>(Point(160, 140), AnimationPath::builtin("MuBcanc"), CButton::tooltip(), [this, cb](){ close();}, EShortcut::GLOBAL_CANCEL);
 	buttonOk = std::make_shared<CButton>(Point(70, 140), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this, cb](){
 		close();

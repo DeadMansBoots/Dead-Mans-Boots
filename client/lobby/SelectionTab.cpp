@@ -56,6 +56,7 @@
 #include "../../lib/GameLibrary.h"
 #include "../../lib/json/JsonUtils.h"
 #include "../../lib/json/JsonNode.h"
+#include "../gui/MenuColour.h"
 
 class ScenarioTabConfigurable : public InterfaceObjectConfigurable
 {
@@ -548,7 +549,7 @@ public:
 		center();
 
 		background = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
-		background->setPlayerColor(PlayerColor(1));
+		background->setPlayerColor(menuColour());
 		title = std::make_shared<CLabel>(150, 20, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, heading);
 		field = std::make_shared<TransparentFilledRectangle>(Rect(20, 45, 260, 22), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64), 1);
 		name = std::make_shared<CTextInput>(Rect(24, 47, 252, 18), FONT_SMALL, ETextAlignment::CENTERLEFT, true);

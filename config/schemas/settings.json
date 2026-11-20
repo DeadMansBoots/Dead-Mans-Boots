@@ -25,6 +25,7 @@
 				"saveRandomMaps",
 				"lastMap",
 				"mainMenuBackground",
+				"menuColour",
 				"loadingScreen",
 				"language",
 				"gameDataLanguage",
@@ -191,6 +192,14 @@
 				"mainMenuBackground" : {
 					"type" : "string",
 					"default" : "random"
+				},
+				// DMB (S339, K November 19th: "the color under the gold/the outline should follow whatever background menu color the player is
+				// using. this is blue by default ... make sure they are dynamically linked"): the one menu colour every window reads outside a
+				// game (client/gui/MenuColour.h); no control for it yet, custom interface colours will set it
+				"menuColour" : {
+					"type" : "string",
+					"enum" : [ "red", "blue", "tan", "green", "orange", "purple", "teal", "pink" ],
+					"default" : "blue"
 				},
 				"loadingScreen" : {
 					"type" : "string",

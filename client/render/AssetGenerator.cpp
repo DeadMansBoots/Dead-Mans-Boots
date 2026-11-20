@@ -1476,6 +1476,9 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 			// shading along the bar shared by every row (BEGIN's column means of its clear pixels, less each row's mean, gaps under the letters
 			// filled, smoothed over 9 columns, stretched to the bar), and the fine grain (the row's own pixels less their 7-pixel average,
 			// walked at the row's own pace)
+			// the plate measured 183 to 185 (pixels clear of the letters, 800x600 picture) against BEGIN's 170: the lead's "one notch" down, a
+			// scale so the gold keeps its hue
+			constexpr double PLATE_LEVEL = 170.0 / 183.0;
 			constexpr double PLATE_GRAIN = 0.5; // how much of the row's own fine grain is put back: all of it measured 4.3 to 5.6 between neighbours on an 800x600 game picture, BEGIN's is 2.8
 			const int srcSpan = size.x - 2 * cap;
 			const auto clear =[&](int x, int y) { return !nearLetter[static_cast<size_t>(y) * size.x + x]; };
@@ -1607,7 +1610,7 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 					const auto & shade = shading[std::min(srcSpan - 1, (x - cap) * srcSpan / span)];
 					const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
 					const auto & fine = grain[k < n ? k : 2 * n - 2 - k];
-					const auto value = [&](int ch) { return static_cast<uint8_t>(std::clamp(static_cast<int>(std::lround(tone[ch] + shade[ch] + PLATE_GRAIN * fine[ch])), 0, 255)); };
+					const auto value = [&](int ch) { return static_cast<uint8_t>(std::clamp(static_cast<int>(std::lround(PLATE_LEVEL * (tone[ch] + shade[ch] + PLATE_GRAIN * fine[ch]))), 0, 255)); };
 					canvas.drawPoint(Point(x, y), ColorRGBA(value(0), value(1), value(2), 255));
 				}
 			}

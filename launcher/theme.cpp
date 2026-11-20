@@ -414,6 +414,7 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 	// the bar shared by every row (BEGIN's column means of its clear pixels less each row's mean, gaps under the letters filled, smoothed over 9
 	// columns, stretched), and the row's fine grain (its clear pixels less their 7-pixel average), as AssetGenerator::createPlateButton does;
 	// each row stretching its own clear pixels gave every row its own shape along the bar
+	constexpr double plateLevel = 170.0 / 185.0; // the launcher's plate measured 185 against BEGIN's 170 (the lead: one notch down, hue kept)
 	constexpr double plateGrain = 0.5; // all of the grain measured 4.8 to 5.4 between neighbours on the launcher, BEGIN's is 2.8
 	const int srcSpan = w - 2 * cap;
 	const auto clear = [&](int x, int y) { return !nearLetterMask[static_cast<size_t>(y) * w + x]; };
@@ -536,7 +537,7 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 			const auto & shade = shading[std::min(srcSpan - 1, (x - cap) * srcSpan / span)];
 			const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
 			const auto & fine = grain[k < n ? k : 2 * n - 2 - k];
-			const auto value = [&](int ch) { return std::clamp(static_cast<int>(std::lround(tone[ch] + shade[ch] + plateGrain * fine[ch])), 0, 255); };
+			const auto value = [&](int ch) { return std::clamp(static_cast<int>(std::lround(plateLevel * (tone[ch] + shade[ch] + plateGrain * fine[ch]))), 0, 255); };
 			bar.setPixel(x, y, qRgb(value(0), value(1), value(2)));
 		}
 	}

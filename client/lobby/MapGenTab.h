@@ -131,6 +131,8 @@ class MapGenTab : public InterfaceObjectConfigurable
 	/// S354: whether the "Second Level Like the Overworld" tick can do anything: a map of two levels, on a template that does not list
 	/// mirrorLevels among the levers it ignores (originalPreferences.leversWithNoEffectOnTemplates, a fixed map)
 	bool mirrorLevelsUsable() const;
+	/// S350: a named template is chosen (anything but the open layout, Classic, or Random), where Special buildings does nothing
+	bool onNamedTemplate() const;
 	/// the chosen template as a label shows it: its name, "(Random)" or the tab's "none" text
 	std::string templateLabel() const;
 	std::string preset() const;

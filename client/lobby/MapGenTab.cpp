@@ -400,7 +400,12 @@ static void greyMirrorLevelsOn(const Page & page, bool usable)
 	if(!usable)
 	{
 		if(auto tick = page.template find<CToggleButton>("check_mirrorLevels"))
+		{
+			// the lead, November 19th: a greyed tick on a map it cannot apply to shows unchecked; only the picture changes, the stored
+			// setting stays for the next two-level map
+			tick->setSelectedSilent(false);
 			tick->block(true);
+		}
 		if(auto label = page.template find<CLabel>("label_mirrorLevels"))
 			label->setColor(grey);
 	}
@@ -414,6 +419,27 @@ static void greyMirrorLevelsOn(const Page & page, bool usable)
 			if(auto value = page.template find<CLabel>(std::string("value_") + lever))
 				value->setColor(grey);
 		}
+}
+
+/// S350 (K's Special buildings lever, MapGen Dev's specialDensity in rel337-1118 32451f1): a named template places its own buildings and the
+/// lever leaves it unchanged, so the row is greyed there; Classic (the open layout) and Random use it
+template<class Page>
+static void greySpecialDensityOn(const Page & page, bool namedTemplate)
+{
+	if(!namedTemplate)
+		return;
+	const ColorRGBA grey(120, 120, 120);
+	if(auto bar = page.template find<CSlider>("slider_specialDensity"))
+		bar->block(true);
+	for(const char * name : {"label_specialDensity", "value_specialDensity"})
+		if(auto label = page.template find<CLabel>(name))
+			label->setColor(grey);
+}
+
+bool MapGenTab::onNamedTemplate() const
+{
+	const std::string chosen = templateName();
+	return !chosen.empty() && chosen != RANDOM_TEMPLATE;
 }
 
 void MapGenTab::greyMirrorLevels()
@@ -649,6 +675,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		greyCustomSize();
 		greyWaterAmount();
 		greyMirrorLevelsOn(page, mirrorLevelsUsable());
+		greySpecialDensityOn(page, onNamedTemplate());
 	};
 	build(config);
 
@@ -758,6 +785,7 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			// S278: the same for the Amount of water bar (greyWaterAmount works on the tab's current page, which this one is not yet)
 			greyWaterAmountOn(page.slider("slider_waterCoverage"), page.label("value_waterCoverage"));
 			greyMirrorLevelsOn(page, mirrorLevelsUsable());
+			greySpecialDensityOn(page, onNamedTemplate());
 		});
 }
 

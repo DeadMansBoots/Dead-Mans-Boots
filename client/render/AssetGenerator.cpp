@@ -1474,12 +1474,11 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 			// a row's clear pixels come from wherever the letters leave room, so every row had its own shape along the bar and the rows disagreed.
 			// Now the plate is three parts, per colour channel: the row's own colour (BEGIN's top-to-bottom gradient, smoothed over 5 rows), ONE
 			// shading along the bar shared by every row (BEGIN's column means of its clear pixels, less each row's mean, gaps under the letters
-			// filled, smoothed over 9 columns, stretched to the bar), and the fine grain (the row's own pixels less their 7-pixel average,
-			// walked at the row's own pace)
+			// filled, smoothed over 9 columns, stretched to the bar), and the grain (the row's own pixels less the shading and the smoothed
+			// colour, walked at the row's own pace; S362 below)
 			// the plate measured 183 to 185 (pixels clear of the letters, 800x600 picture) against BEGIN's 170: the lead's "one notch" down, a
 			// scale so the gold keeps its hue
 			constexpr double PLATE_LEVEL = 170.0 / 183.0;
-			constexpr double PLATE_GRAIN = 0.5; // how much of the row's own fine grain is put back: all of it measured 4.3 to 5.6 between neighbours on an 800x600 game picture, BEGIN's is 2.8
 			const int srcSpan = size.x - 2 * cap;
 			const auto clear =[&](int x, int y) { return !nearLetter[static_cast<size_t>(y) * size.x + x]; };
 			const auto channel = [](const ColorRGBA & c, int ch) { return ch == 0 ? c.r : ch == 1 ? c.g : c.b; };
@@ -1588,29 +1587,28 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 					}
 				for(int ch = 0; ch < 3; ++ch)
 					tone[ch] /= count;
-				// the row's clear pixels in order, and each one less the average of its 7 neighbours: the fine grain alone
-				std::vector<ColorRGBA> plate;
+				// S362 (K, November 19th, on BEGIN: "see how there's almost a "grain" to the background where the text is?"): BEGIN's grain is thin
+				// streaks along the bar, each row lighter or darker than the next (on an 800x600 game picture a plate pixel differs from the one
+				// below it by 7.9 on average and from the one beside it by 2.8; ours was 3.5 and 2.4). So the row's clear pixels, in order, each
+				// less the shading under it and the row's smoothed colour, are put back whole: the row's own streak against its neighbours and
+				// its pieces along the row
+				std::vector<std::array<double, 3>> grain;
 				for(int x = cap; x < size.x - cap; ++x)
 					if(clear(x, y))
-						plate.push_back(source.getPixel(Point(x, y)));
-				const size_t n = plate.size();
-				std::vector<std::array<double, 3>> grain(n, {0, 0, 0});
-				for(size_t i = 0; i < n; ++i)
-				{
-					std::array<double, 3> sum = {0, 0, 0};
-					int c = 0;
-					for(size_t j = i >= 3 ? i - 3 : 0; j <= std::min(n - 1, i + 3); ++j, ++c)
+					{
+						const ColorRGBA c = source.getPixel(Point(x, y));
+						std::array<double, 3> g;
 						for(int ch = 0; ch < 3; ++ch)
-							sum[ch] += channel(plate[j], ch);
-					for(int ch = 0; ch < 3; ++ch)
-						grain[i][ch] = channel(plate[i], ch) - sum[ch] / c;
-				}
+							g[ch] = channel(c, ch) - shading[x - cap][ch] - tone[ch];
+						grain.push_back(g);
+					}
+				const size_t n = grain.size();
 				for(int x = cap; x < width - cap; ++x)
 				{
 					const auto & shade = shading[std::min(srcSpan - 1, (x - cap) * srcSpan / span)];
 					const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
 					const auto & fine = grain[k < n ? k : 2 * n - 2 - k];
-					const auto value = [&](int ch) { return static_cast<uint8_t>(std::clamp(static_cast<int>(std::lround(PLATE_LEVEL * (tone[ch] + shade[ch] + PLATE_GRAIN * fine[ch]))), 0, 255)); };
+					const auto value = [&](int ch) { return static_cast<uint8_t>(std::clamp(static_cast<int>(std::lround(PLATE_LEVEL * (tone[ch] + shade[ch] + fine[ch]))), 0, 255)); };
 					canvas.drawPoint(Point(x, y), ColorRGBA(value(0), value(1), value(2), 255));
 				}
 			}

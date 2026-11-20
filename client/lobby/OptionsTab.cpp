@@ -1068,7 +1068,10 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 			if(!pi->canHumanPlay)
 			{
 				static const std::array<std::string, 5> tierIcons = {{"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"}};
-				aiTierIcon = std::make_shared<CAnimImage>(AnimationPath::builtin(tierIcons[AISettingsWindow::effectiveTier(*s)]), 0, 0, -43, 8);
+				aiTierIcon = std::make_shared<CAnimImage>(AnimationPath::builtin(tierIcons[AISettingsWindow::effectiveTier(*s)]), 0, 0, -43, 0);
+				// S331 (K, November 19th: "the difficulty per seat buttons for ai don't line up with the seat rows"): centred on the row from the
+				// picture's own height; a fixed 8 pixels down hung the piece's frame past the row's bottom into the next seat
+				aiTierIcon->moveBy(Point(0, (background->pos.h - aiTierIcon->pos.h) / 2));
 			}
 			const PlayerColor seatColor = s->color;
 			aiSeatArea = std::make_shared<LRClickableArea>(Rect(6, 3, 95, 15), [seatColor]()

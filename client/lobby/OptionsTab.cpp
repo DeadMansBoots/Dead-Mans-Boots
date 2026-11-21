@@ -51,6 +51,40 @@
 #include "../../lib/mapping/CMapHeader.h"
 #include "../../lib/GameLibrary.h"
 #include "../gui/MenuColour.h"
+#include "../render/Canvas.h"
+
+namespace
+{
+/// S374 (K, November 19th: "the basegame "no handicap" text doesn't fit in their boxes...we should try and help them if we can"): the handicap
+/// box is H3's own row art (ADOPRPNL and the other colours), 20 rows inside, and FONT_TINY's two lines 12 apart need 21 (the "p" of
+/// "Handicap" sat on the box's bottom edge). FONT_TINY is the smallest font, the town column leaves no room to widen the box, and "No Handicap"
+/// on one line is wider than it, so the lines are drawn closer, `pitch` apart. S398 (K, November 19th: "one pixel up, but the "no" line needs to
+/// scoot down a line so they come together"): the first line one pixel lower than stock and the second one pixel higher. Same words, font and colour
+class PitchedLabel : public CMultiLineLabel
+{
+	int pitch;
+public:
+	PitchedLabel(Rect position, EFonts font, const ColorRGBA & color, const std::string & text, int linePitch)
+		: CMultiLineLabel(position, font, ETextAlignment::CENTER, color, text), pitch(linePitch)
+	{
+	}
+	void showAll(Canvas & to) override
+	{
+		CIntObject::showAll(to);
+		const auto & fontPtr = ENGINE->renderHandler().loadFont(font);
+		CanvasClipRectGuard guard(to, pos);
+		const std::vector<std::string> lines = getLines();
+		// one line stays centred in the box as stock draws it; two or more start one pixel below the top, where stock's started once they filled the box
+		Point lineStart = pos.topLeft() + Point(0, lines.size() == 1 ? (pos.h - fontPtr->getLineHeight()) / 2 : 1);
+		for(const std::string & line : lines)
+		{
+			if(!line.empty())
+				blitLine(to, Rect(lineStart, Point(pos.w, fontPtr->getLineHeight())), line);
+			lineStart.y += pitch;
+		}
+	}
+};
+}
 
 static JsonPath optionsTabConfigLocation()
 {
@@ -1091,7 +1125,9 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 
 	auto hasHandicap = [this](){ return s->handicap.startBonus.empty() && s->handicap.percentIncome == 100 && s->handicap.percentGrowth == 100; };
 	std::string labelHandicapText = hasHandicap() ? LIBRARY->generaltexth->arraytxt[210] : MetaString::createFromTextID("vcmi.lobby.handicap").toString();
-	labelHandicap = std::make_shared<CMultiLineLabel>(Rect(55, 23, 46, 24), EFonts::FONT_TINY, ETextAlignment::CENTER, Colors::WHITE, labelHandicapText);
+	// S374, S398: the two lines 2 pixels closer than the font's line height (the first one down, the second one up), so both fit inside the box
+	labelHandicap = std::make_shared<PitchedLabel>(Rect(55, 23, 46, 24), EFonts::FONT_TINY, Colors::WHITE, labelHandicapText,
+		ENGINE->renderHandler().loadFont(EFonts::FONT_TINY)->getLineHeight() - 2);
 	handicap = std::make_shared<LRClickableArea>(Rect(53, 23, 50, 24), [](){
 		if(!GAME->server().isHost())
 			return;

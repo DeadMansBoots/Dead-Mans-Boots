@@ -415,7 +415,6 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 	// columns, stretched), and the row's fine grain (its clear pixels less their 7-pixel average), as AssetGenerator::createPlateButton does;
 	// each row stretching its own clear pixels gave every row its own shape along the bar
 	constexpr double plateLevel = 170.0 / 185.0; // the launcher's plate measured 185 against BEGIN's 170 (the lead: one notch down, hue kept)
-	constexpr double plateGrain = 0.5; // all of the grain measured 4.8 to 5.4 between neighbours on the launcher, BEGIN's is 2.8
 	const int srcSpan = w - 2 * cap;
 	const auto clear = [&](int x, int y) { return !nearLetterMask[static_cast<size_t>(y) * w + x]; };
 	const auto channel = [](QRgb c, int ch) { return ch == 0 ? qRed(c) : ch == 1 ? qGreen(c) : qBlue(c); };
@@ -516,28 +515,26 @@ QImage wordlessBar(const QImage & source, int height = BAR_HEIGHT)
 			}
 		for(int ch = 0; ch < 3; ++ch)
 			tone[ch] /= count;
-		std::vector<QRgb> plate;
+		// S381 (K, November 19th, on the launcher: "give the launcher's two buttons the same grain"), as S362 in the game
+		// (AssetGenerator::createPlateButton): BEGIN's grain is thin streaks along the bar, so each row's clear pixels, less the shading under them
+		// and the row's smoothed colour, are put back whole, walked at the row's own pace
+		std::vector<std::array<double, 3>> grain;
 		for(int x = cap; x < w - cap; ++x)
 			if(clear(x, y))
-				plate.push_back(frame.pixel(x, y));
-		const size_t n = plate.size();
-		std::vector<std::array<double, 3>> grain(n, {0, 0, 0});
-		for(size_t i = 0; i < n; ++i)
-		{
-			std::array<double, 3> sum = {0, 0, 0};
-			int c = 0;
-			for(size_t j = i >= 3 ? i - 3 : 0; j <= std::min(n - 1, i + 3); ++j, ++c)
+			{
+				const QRgb c = frame.pixel(x, y);
+				std::array<double, 3> g;
 				for(int ch = 0; ch < 3; ++ch)
-					sum[ch] += channel(plate[j], ch);
-			for(int ch = 0; ch < 3; ++ch)
-				grain[i][ch] = channel(plate[i], ch) - sum[ch] / c;
-		}
+					g[ch] = channel(c, ch) - shading[x - cap][ch] - tone[ch];
+				grain.push_back(g);
+			}
+		const size_t n = grain.size();
 		for(int x = cap; x < bar.width() - cap; ++x)
 		{
 			const auto & shade = shading[std::min(srcSpan - 1, (x - cap) * srcSpan / span)];
 			const size_t k = n == 1 ? 0 : static_cast<size_t>(x - cap) % (2 * n - 2);
 			const auto & fine = grain[k < n ? k : 2 * n - 2 - k];
-			const auto value = [&](int ch) { return std::clamp(static_cast<int>(std::lround(plateLevel * (tone[ch] + shade[ch] + plateGrain * fine[ch]))), 0, 255); };
+			const auto value = [&](int ch) { return std::clamp(static_cast<int>(std::lround(plateLevel * (tone[ch] + shade[ch] + fine[ch]))), 0, 255); };
 			bar.setPixel(x, y, qRgb(value(0), value(1), value(2)));
 		}
 	}

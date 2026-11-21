@@ -1124,7 +1124,9 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 	labelWhoCanPlay = std::make_shared<CMultiLineLabel>(Rect(6, 21, 45, 26), EFonts::FONT_TINY, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->arraytxt[206 + whoCanPlay]);
 
 	auto hasHandicap = [this](){ return s->handicap.startBonus.empty() && s->handicap.percentIncome == 100 && s->handicap.percentGrowth == 100; };
-	std::string labelHandicapText = hasHandicap() ? LIBRARY->generaltexth->arraytxt[210] : MetaString::createFromTextID("vcmi.lobby.handicap").toString();
+	// S415 (K, November 21st: "Say "Starting" over "Resources" now."): the button names what its window sets, in both states; the window
+	// behind it is still stock's Handicap window, and its right-click text still lists a changed seat's handicap
+	std::string labelHandicapText = LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources");
 	// S374, S398: the two lines 2 pixels closer than the font's line height (the first one down, the second one up), so both fit inside the box
 	labelHandicap = std::make_shared<PitchedLabel>(Rect(55, 23, 46, 24), EFonts::FONT_TINY, Colors::WHITE, labelHandicapText,
 		ENGINE->renderHandler().loadFont(EFonts::FONT_TINY)->getLineHeight() - 2);

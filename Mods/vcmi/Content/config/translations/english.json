@@ -1121,9 +1121,7 @@
 	"vcmi.dmb.mapGenerator.random" : "Random",
 	"vcmi.dmb.lobby.seatSettings" : "Seat Settings",
 	"vcmi.dmb.lobby.seatColour" : "Seat Color",
-	"vcmi.dmb.lobby.seatColour.help" : "{Seat Color}
-
-The colour this seat plays in: its flags, heroes, towns, turn bar and chat. A colour with a grey dot belongs to another seat; picking it swaps the two seats' colours. Only the host can change it.",
+	"vcmi.dmb.lobby.seatColour.help" : "{Seat Color}\n\nThe colour this seat plays in: its flags, heroes, towns, turn bar and chat. A colour with a grey dot belongs to another seat; picking it swaps the two seats' colours. Only the host can change it.",
 	"vcmi.dmb.lobby.startingResources.at" : "starting amounts at",
 	"vcmi.dmb.lobby.startingResources.percent" : "Amount",
 	"vcmi.dmb.lobby.startingResources.seesMap" : "Sees map",

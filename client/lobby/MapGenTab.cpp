@@ -422,6 +422,62 @@ static void greyMirrorLevelsOn(const Page & page, bool usable)
 		}
 }
 
+/// S414 (K, November 21st: "instead of having sliders that don't do anything, we should grey out the ones that don't do anything yet"): a lever the
+/// generator does not act on for the chosen template is blocked, its label and value grey, and its right-click text says it is not available
+/// there yet. Which controls, and where, is the module's own data (mapGenTab.json "inert", MapGen Dev's list); the lobby keeps no list
+template<class Page>
+static void greyInertLever(const Page & page, const std::string & lever, const std::string & reasonId)
+{
+	const ColorRGBA grey(120, 120, 120);
+	if(auto bar = page.template find<CSlider>("slider_" + lever))
+		bar->block(true);
+	if(auto choose = page.template find<CButton>("choose_" + lever))
+		choose->block(true);
+	if(auto tick = page.template find<CToggleButton>("check_" + lever))
+	{
+		tick->setSelectedSilent(false);
+		tick->block(true);
+	}
+	std::string title;
+	if(auto label = page.template find<CLabel>("label_" + lever))
+	{
+		title = label->getText();
+		label->setColor(grey);
+	}
+	if(auto value = page.template find<CLabel>("value_" + lever))
+		value->setColor(grey);
+	if(auto help = page.template find<LRClickableAreaWText>("help_" + lever))
+		help->text = (title.empty() ? std::string() : "{" + title + "}\n\n")
+			+ LIBRARY->generaltexth->translate(reasonId.empty() ? std::string("vcmi.dmb.mapGenerator.notOnNamedTemplate") : reasonId);
+}
+
+std::vector<std::string> MapGenTab::inertKeys() const
+{
+	const std::string chosen = templateName();
+	const JsonNode entry = chosenTemplateInfo();
+	// the open layout (Classic) and Random are marked in template-info (openLayout, randomEntry); any other choice is a named template
+	if(chosen == RANDOM_TEMPLATE || (entry["randomEntry"].isBool() && entry["randomEntry"].Bool()))
+		return {"*random"};
+	if(chosen.empty() || (entry["openLayout"].isBool() && entry["openLayout"].Bool()))
+		return {chosen, "*classic"};
+	return {chosen, "*named"};
+}
+
+/// S414: every control the module's "inert" block names for the chosen template (its own name first, then its kind), greyed
+template<class Page>
+static void greyInertOn(const Page & page, const JsonNode & inert, const std::vector<std::string> & keys)
+{
+	if(!inert.isStruct())
+		return;
+	for(const auto & [lever, where] : inert.Struct())
+		for(const auto & key : keys)
+			if(!key.empty() && where[key].isString())
+			{
+				greyInertLever(page, lever, where[key].String());
+				break;
+			}
+}
+
 void MapGenTab::greyMirrorLevels()
 {
 	if(layoutPages)
@@ -534,6 +590,8 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 	// K, October 4th: "reset should default all settings to the open template, with the most widest and varying settings we offer":
 	// the module's "reset" block, beside its "defaults"; a module without one resets to its defaults
 	resetValues = config["reset"].isStruct() ? config["reset"] : config["defaults"];
+	// S414: the controls the generator does not act on, per template or kind of layout (greyInertOn)
+	inertLevers = config["inert"];
 
 	addCallback("activateMapGenPage", [this](int index) { openPage(index); });
 	addCallback("resetMapGenDefaults", [this](int) { resetToDefaults(); });
@@ -655,6 +713,7 @@ MapGenTab::MapGenTab(const MapGeneratorInfo & info)
 		greyCustomSize();
 		greyWaterAmount();
 		greyMirrorLevelsOn(page, mirrorLevelsUsable());
+		greyInertOn(page, inertLevers, inertKeys());
 	};
 	build(config);
 
@@ -764,6 +823,7 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			// S278: the same for the Amount of water bar (greyWaterAmount works on the tab's current page, which this one is not yet)
 			greyWaterAmountOn(page.slider("slider_waterCoverage"), page.label("value_waterCoverage"));
 			greyMirrorLevelsOn(page, mirrorLevelsUsable());
+			greyInertOn(page, inertLevers, inertKeys());
 		});
 }
 

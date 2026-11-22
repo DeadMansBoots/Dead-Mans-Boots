@@ -86,6 +86,11 @@ class MapGenTab : public InterfaceObjectConfigurable
 	void greyMirrorLevels();
 	/// the module's "reset" block (or its defaults): what the Reset button puts every setting to
 	JsonNode resetValues;
+	/// S414: the module's "inert" block (mapGenTab.json): { "<lever>": { "<template name>" | "*named" | "*classic" | "*random": "<text id>" } },
+	/// the controls the generator does not act on there, each greyed with that sentence as its right-click text
+	JsonNode inertLevers;
+	/// S414: the "inert" key the chosen template answers to first (its own name), then its kind ("*classic", "*random" or "*named")
+	std::vector<std::string> inertKeys() const;
 	bool refreshQueued = false;
 	/// S320: Classic's lever values for the current map size, from the generator's --listbands (empty off Classic or before they land)
 	std::map<std::string, double> bandValues;

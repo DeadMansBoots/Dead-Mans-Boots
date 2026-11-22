@@ -331,10 +331,12 @@ protected:
 	void serializeJsonOptions(JsonSerializeFormat & handler) override;
 
 private:
-	void levelUpAutomatically(IGameRandomizer & gameRandomizer);
 	void attachCommanderToArmy();
 
 public:
+	/// DMB (S380 row 22): public so the game start can raise a seat's first hero to its starting level, its skills rolled as a map hero's are
+	void levelUpAutomatically(IGameRandomizer & gameRandomizer);
+
 	std::string getHeroTypeName() const;
 	void setHeroTypeName(const std::string & identifier);
 

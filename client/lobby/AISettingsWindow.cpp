@@ -33,6 +33,14 @@
 #include "../widgets/CTextInput.h"
 #include "../../lib/entities/artifact/CArtHandler.h"
 #include "../../lib/entities/artifact/CArtifact.h"
+#include "../../lib/DmbSeatBonuses.h"
+#include "../../lib/CCreatureHandler.h"
+#include "../../lib/CSkillHandler.h"
+#include "../../lib/spells/CSpellHandler.h"
+#include "../../lib/entities/building/CBuilding.h"
+#include "../../lib/entities/faction/CFaction.h"
+#include "../../lib/entities/faction/CTown.h"
+#include "../../lib/entities/faction/CTownHandler.h"
 
 namespace
 {
@@ -49,6 +57,334 @@ bool knownAI(const std::string & name)
 {
 	return name == "Nullkiller" || name == "Nullkiller2" || name == "OmniAI" || name == "BattleAI" || name == "MMAI" || name == "StupidAI";
 }
+
+std::string seatText(const std::string & id)
+{
+	return LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses." + id);
+}
+
+/// S380 (K 11-19: "Yes, build all of them in this order: your four ticked ones first, then the rest"; S396 K 11-19: "yes, should implement this
+/// in the per seat settings menu"): rows 6 to 19, 22 to 27 of the S330 table and row 29 (a creature stack), opened from Seat Settings. It
+/// edits the Seat Settings window's copy of the seat's handicap; its OK sends that copy through the Seat Settings window.
+class SeatBonusesWindow final : public CWindowObject
+{
+	std::shared_ptr<Handicap> pending;
+	std::function<void()> send;
+	FactionID faction;
+	std::shared_ptr<FilledTexturePlayerColored> background;
+	std::vector<std::shared_ptr<CIntObject>> parts;
+	std::map<std::string, std::shared_ptr<CTextInput>> numbers;
+	std::map<std::string, std::shared_ptr<TransparentFilledRectangle>> ticks;
+	std::map<std::string, bool> ticked;
+	std::shared_ptr<CLabel> spellLabel;
+	std::shared_ptr<CLabel> skillLabel;
+	std::shared_ptr<CLabel> buildingsLabel;
+	std::shared_ptr<CLabel> creatureLabel;
+	std::shared_ptr<CButton> okButton;
+	SpellID spell;
+	SecondarySkill skill;
+	std::vector<BuildingID> buildings;
+	CreatureID creature;
+
+	static constexpr int LEFT = 20;
+	static constexpr int RIGHT = 312;
+	static constexpr int TOP = 52;
+	static constexpr int STEP = 26;
+
+	void numberField(const std::string & key, int labelX, int fieldX, int y, int width)
+	{
+		const DmbSeatBonusRow * row = dmbSeatBonusRow(key);
+		parts.push_back(std::make_shared<CLabel>(labelX, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key)));
+		const Rect box(fieldX, y + 1, width, 16);
+		parts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
+		auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
+		input->setText(std::to_string(pending->seatValue(key, row->neutral)));
+		std::weak_ptr<CTextInput> self = input;
+		const int maxDigits = static_cast<int>(std::to_string(row->max).size());
+		input->setCallback([self, row, maxDigits](const std::string & s)
+		{
+			// digits only, a minus sign first where the row goes below 0; the top of the range while typing, the bottom on OK
+			const bool negative = row->min < 0 && !s.empty() && s[0] == '-';
+			std::string digits = s;
+			digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
+			digits = digits.substr(0, maxDigits);
+			std::string shown = negative ? "-" : "";
+			if(!digits.empty())
+			{
+				const int value = (negative ? -1 : 1) * std::stoi(digits);
+				shown = std::to_string(std::clamp(value, std::min(row->min, 0), row->max));
+			}
+			auto field = self.lock();
+			if(field && shown != s)
+				field->setText(shown);
+		});
+		input->setPopupCallback([key](){ CRClickPopup::createAndPush(seatText(key + "Help")); });
+		numbers[key] = input;
+	}
+
+	void tickBox(const std::string & key, int x, int y)
+	{
+		parts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(x, y, 18, 18), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1));
+		auto tick = std::make_shared<TransparentFilledRectangle>(Rect(x + 4, y + 4, 10, 10), GOLD_LINE, GOLD_LINE, 1);
+		ticked[key] = pending->seatValue(key, 0) != 0;
+		tick->setEnabled(ticked[key]);
+		ticks[key] = tick;
+		parts.push_back(std::make_shared<CLabel>(x + 24, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key), 120));
+		parts.push_back(std::make_shared<LRClickableArea>(Rect(x, y - 2, 140, 22), [this, key]()
+		{
+			ticked[key] = !ticked[key];
+			ticks[key]->setEnabled(ticked[key]);
+			redraw();
+		}, [key](){ CRClickPopup::createAndPush(seatText(key + "Help")); }));
+	}
+
+	std::shared_ptr<CLabel> pickerRow(const std::string & key, int y, std::function<void()> onClick)
+	{
+		parts.push_back(std::make_shared<CLabel>(RIGHT, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key)));
+		const Rect box(424, y, 156, 18);
+		parts.push_back(std::make_shared<TransparentFilledRectangle>(box, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
+		auto label = std::make_shared<CLabel>(box.x + 6, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", box.w - 10);
+		parts.push_back(std::make_shared<LRClickableArea>(box, onClick, [key](){ CRClickPopup::createAndPush(seatText(key + "Help")); }));
+		return label;
+	}
+
+	/// the list of building choices, named as the seat's own town names them (generic names for a random town)
+	std::vector<std::pair<BuildingID, std::string>> buildingChoices() const
+	{
+		std::vector<BuildingID> ids = {BuildingID::FORT, BuildingID::CITADEL, BuildingID::CASTLE, BuildingID::MAGES_GUILD_1, BuildingID::MAGES_GUILD_2,
+			BuildingID::MAGES_GUILD_3, BuildingID::MAGES_GUILD_4, BuildingID::MAGES_GUILD_5, BuildingID::TOWN_HALL, BuildingID::CITY_HALL,
+			BuildingID::CAPITOL, BuildingID::MARKETPLACE, BuildingID::RESOURCE_SILO, BuildingID::BLACKSMITH};
+		for(int level = 0; level < 7; ++level)
+			ids.push_back(BuildingID::getDwellingFromLevel(level, 0));
+		const CTown * own = faction.isValid() && faction.toFaction() ? faction.toFaction()->town.get() : nullptr;
+		const CTown * generic = nullptr;
+		for(const auto & f : LIBRARY->townh->objects)
+			if(f && f->town && !generic)
+				generic = f->town.get();
+		std::vector<std::pair<BuildingID, std::string>> choices;
+		for(size_t i = 0; i < ids.size(); ++i)
+		{
+			const bool dwelling = i >= ids.size() - 7;
+			const CTown * named = own ? own : (dwelling ? nullptr : generic);
+			std::string name;
+			if(named && named->buildings.count(ids[i]) && named->buildings.at(ids[i]))
+				name = named->buildings.at(ids[i])->getNameTranslated();
+			else if(dwelling)
+				name = seatText("dwelling") + " " + std::to_string(i - (ids.size() - 7) + 1);
+			if(!name.empty())
+				choices.emplace_back(ids[i], name);
+		}
+		return choices;
+	}
+
+	void showPicks()
+	{
+		spellLabel->setText(spell == SpellID::NONE ? seatText("none") : spell.toEntity(LIBRARY)->getNameTranslated());
+		skillLabel->setText(skill == SecondarySkill::NONE ? seatText("none") : skill.toEntity(LIBRARY)->getNameTranslated());
+		creatureLabel->setText(creature == CreatureID::NONE ? seatText("none") : creature.toEntity(LIBRARY)->getNamePluralTranslated());
+		std::string names;
+		for(const auto & choice : buildingChoices())
+			if(vstd::contains(buildings, choice.first))
+				names += (names.empty() ? "" : ", ") + choice.second;
+		buildingsLabel->setText(names.empty() ? seatText("none") : names);
+		redraw();
+	}
+
+	template<typename ID>
+	void openList(const std::string & key, const std::vector<ID> & ids, const std::vector<std::string> & names, ID current, std::function<void(ID)> onPick)
+	{
+		size_t selected = 0;
+		for(size_t i = 0; i < ids.size(); ++i)
+			if(ids[i] == current)
+				selected = i;
+		ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, seatText(key), "", [this, ids, onPick](int index)
+		{
+			if(index < 0 || index >= static_cast<int>(ids.size()))
+				return;
+			onPick(ids[index]);
+			showPicks();
+		}, selected, std::vector<std::shared_ptr<IImage>>{}, true);
+	}
+
+	void chooseSpell()
+	{
+		std::vector<SpellID> ids{SpellID::NONE};
+		std::vector<std::string> names{seatText("none")};
+		for(const auto & s : LIBRARY->spellh->objects)
+			if(s && !s->isSpecial() && !s->isCreatureAbility() && (s->isAdventure() || s->isCombat()))
+			{
+				ids.push_back(s->getId());
+				names.push_back(s->getNameTranslated());
+			}
+		openList<SpellID>("spell", ids, names, spell, [this](SpellID id) { spell = id; });
+	}
+
+	void chooseSkill()
+	{
+		std::vector<SecondarySkill> ids{SecondarySkill::NONE};
+		std::vector<std::string> names{seatText("none")};
+		for(const auto & s : LIBRARY->skillh->objects)
+			if(s)
+			{
+				ids.push_back(s->getId());
+				names.push_back(s->getNameTranslated());
+			}
+		openList<SecondarySkill>("skill", ids, names, skill, [this](SecondarySkill id) { skill = id; });
+	}
+
+	void chooseCreature()
+	{
+		std::vector<CreatureID> ids{CreatureID::NONE};
+		std::vector<std::string> names{seatText("none")};
+		for(const auto & c : LIBRARY->creh->objects)
+			if(c && !c->special)
+			{
+				ids.push_back(c->getId());
+				names.push_back(c->getNamePluralTranslated());
+			}
+		openList<CreatureID>("creature", ids, names, creature, [this](CreatureID id) { creature = id; });
+	}
+
+	void chooseBuilding()
+	{
+		// a pick adds the building, or takes it away when it is already chosen; the first entry clears them all
+		std::vector<BuildingID> ids{BuildingID::NONE};
+		std::vector<std::string> names{seatText("none")};
+		for(const auto & choice : buildingChoices())
+		{
+			ids.push_back(choice.first);
+			names.push_back((vstd::contains(buildings, choice.first) ? "[x] " : "[  ] ") + choice.second);
+		}
+		openList<BuildingID>("buildings", ids, names, BuildingID::NONE, [this](BuildingID id)
+		{
+			if(id == BuildingID::NONE)
+				buildings.clear();
+			else if(vstd::contains(buildings, id))
+				vstd::erase(buildings, id);
+			else
+				buildings.push_back(id);
+		});
+	}
+
+	void resetAll()
+	{
+		for(const auto & field : numbers)
+			field.second->setText(std::to_string(dmbSeatBonusRow(field.first)->neutral));
+		for(auto & tick : ticked)
+		{
+			tick.second = false;
+			ticks[tick.first]->setEnabled(false);
+		}
+		spell = SpellID::NONE;
+		skill = SecondarySkill::NONE;
+		creature = CreatureID::NONE;
+		buildings.clear();
+		showPicks();
+	}
+
+	void accept()
+	{
+		logGlobal->info("S380: More Bonuses OK");
+		for(const auto & field : numbers)
+		{
+			const DmbSeatBonusRow * row = dmbSeatBonusRow(field.first);
+			const std::string text = field.second->getText();
+			const int value = (text.empty() || text == "-") ? row->neutral : std::clamp(std::stoi(text), row->min, row->max);
+			if(value == row->neutral)
+				pending->seatValues.erase(field.first);
+			else
+				pending->seatValues[field.first] = value;
+		}
+		for(const auto & tick : ticked)
+		{
+			if(tick.second)
+				pending->seatValues[tick.first] = 1;
+			else
+				pending->seatValues.erase(tick.first);
+		}
+		pending->startSpell = spell;
+		pending->startSkill = skill;
+		pending->startBuildings = buildings;
+		pending->stackCreature = creature;
+		send();
+		close();
+	}
+
+public:
+	SeatBonusesWindow(PlayerColor color, std::shared_ptr<Handicap> seatHandicap, FactionID seatFaction, std::function<void()> sendAll)
+		: CWindowObject(BORDERED)
+		, pending(std::move(seatHandicap))
+		, send(std::move(sendAll))
+		, faction(seatFaction)
+		, spell(pending->startSpell)
+		, skill(pending->startSkill)
+		, buildings(pending->startBuildings)
+		, creature(pending->stackCreature)
+	{
+		OBJECT_CONSTRUCTION;
+		addUsedEvents(LCLICK);
+		pos = Rect(0, 0, 600, 540);
+		background = std::make_shared<FilledTexturePlayerColored>(pos);
+		background->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour());
+		parts.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(color).getNum(), 0, 12, 8));
+		parts.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, seatText("more")));
+
+		// left: the hero and battle rows (6 to 17 without 14)
+		const std::vector<std::string> left = {"manaRegen", "experience", "attack", "defense", "power", "knowledge", "luck", "morale", "scouting",
+			"speed", "health", "damage", "necromancy", "creatureExperience", "surrender"};
+		for(size_t i = 0; i < left.size(); ++i)
+			numberField(left[i], LEFT, 240, TOP + static_cast<int>(i) * STEP, 40);
+
+		// right: daily resources (row 14), the ticks (18, 19), the town and hero rows (22 to 27) and the creature stack (29)
+		int y = TOP;
+		numberField("daily6", RIGHT, 392, y, 48);
+		y += STEP;
+		const std::vector<std::string> dailies = {"daily0", "daily2", "daily1", "daily3", "daily4", "daily5"}; // wood, ore, mercury, sulfur, crystal, gems
+		for(size_t i = 0; i < dailies.size(); ++i)
+			numberField(dailies[i], RIGHT + static_cast<int>(i % 3) * 92, RIGHT + static_cast<int>(i % 3) * 92 + 60, y + static_cast<int>(i / 3) * STEP, 22);
+		y += 2 * STEP;
+		tickBox("roughGround", RIGHT, y);
+		tickBox("freeBoarding", RIGHT + 140, y);
+		y += STEP;
+		tickBox("waterWalking", RIGHT, y);
+		tickBox("flying", RIGHT + 140, y);
+		y += STEP;
+		tickBox("thievesGuild", RIGHT, y);
+		y += STEP;
+		numberField("heroLevel", RIGHT, 520, y, 40);
+		y += STEP;
+		numberField("extraHeroes", RIGHT, 520, y, 40);
+		y += STEP;
+		numberField("garrisonWeeks", RIGHT, 520, y, 40);
+		y += STEP;
+		spellLabel = pickerRow("spell", y, [this]() { chooseSpell(); });
+		y += STEP;
+		skillLabel = pickerRow("skill", y, [this]() { chooseSkill(); });
+		y += STEP;
+		buildingsLabel = pickerRow("buildings", y, [this]() { chooseBuilding(); });
+		y += STEP;
+		creatureLabel = pickerRow("creature", y, [this]() { chooseCreature(); });
+		y += STEP;
+		numberField("stackCount", RIGHT, 520, y, 48);
+
+		// the Reset framed like the pickers, and the OK check mark where Seat Settings has it
+		const Rect resetBox(LEFT, 494, 160, 22);
+		parts.push_back(std::make_shared<TransparentFilledRectangle>(resetBox, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
+		parts.push_back(std::make_shared<CLabel>(resetBox.center().x, resetBox.center().y, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, seatText("resetMore")));
+		parts.push_back(std::make_shared<LRClickableArea>(resetBox, [this]() { resetAll(); }, [](){ CRClickPopup::createAndPush(seatText("resetMoreHelp")); }));
+		okButton = std::make_shared<CButton>(Point(pos.w - 20 - 64, 488), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { accept(); }, EShortcut::GLOBAL_RETURN);
+
+		showPicks();
+		updateShadow();
+		center();
+	}
+
+	void notFocusedClick() override
+	{
+		logGlobal->info("S380: a click outside More Bonuses closes it, nothing kept");
+		close();
+	}
+};
 }
 
 AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
@@ -152,7 +488,9 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	if(const auto * ps = seat())
 	{
 		bonusParts.push_back(std::make_shared<CLabel>(20, 408, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses")));
-		const auto percentField = [this](int x, const std::string & textId, int value, const std::string & helpId) -> std::shared_ptr<CTextInput>
+		// the ranges are the S330 table's, approved by K with it: movement 75 to 150 (minus 25 to plus 50 percent), spell points 50 to 200,
+		// army size 50 to 300; the top while typing, the bottom on OK
+		const auto percentField = [this](int x, const std::string & textId, int value, const std::string & helpId, int top) -> std::shared_ptr<CTextInput>
 		{
 			bonusParts.push_back(std::make_shared<CLabel>(x, 444, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate(textId)));
 			const Rect box(x + 96, 436, 40, 16);
@@ -160,27 +498,40 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 			auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
 			input->setText(std::to_string(value));
 			std::weak_ptr<CTextInput> self = input;
-			input->setCallback([self](const std::string & s)
+			input->setCallback([self, top](const std::string & s)
 			{
 				std::string digits = s;
 				digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
 				digits = digits.substr(0, 3);
-				if(auto field = self.lock())
-					field->setText(std::to_string(std::min(200, digits.empty() ? 0 : std::stoi(digits))));
+				const std::string shown = digits.empty() ? "" : std::to_string(std::min(top, std::stoi(digits)));
+				auto field = self.lock();
+				if(field && shown != s)
+					field->setText(shown);
 			});
 			input->setPopupCallback([helpId](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate(helpId)); });
 			bonusParts.push_back(std::make_shared<CLabel>(box.topRight().x, box.center().y, FONT_SMALL, ETextAlignment::CENTERRIGHT, Colors::WHITE, "%"));
 			return input;
 		};
-		movementInput = percentField(20, "vcmi.dmb.lobby.seatBonuses.movement", ps->handicap.percentMovement, "vcmi.dmb.lobby.seatBonuses.movementHelp");
-		manaInput = percentField(210, "vcmi.dmb.lobby.seatBonuses.mana", ps->handicap.percentMana, "vcmi.dmb.lobby.seatBonuses.manaHelp");
-		armyInput = percentField(400, "vcmi.dmb.lobby.seatBonuses.army", ps->handicap.percentArmy, "vcmi.dmb.lobby.seatBonuses.armyHelp");
+		movementInput = percentField(20, "vcmi.dmb.lobby.seatBonuses.movement", ps->handicap.percentMovement, "vcmi.dmb.lobby.seatBonuses.movementHelp", 150);
+		manaInput = percentField(210, "vcmi.dmb.lobby.seatBonuses.mana", ps->handicap.percentMana, "vcmi.dmb.lobby.seatBonuses.manaHelp", 200);
+		armyInput = percentField(400, "vcmi.dmb.lobby.seatBonuses.army", ps->handicap.percentArmy, "vcmi.dmb.lobby.seatBonuses.armyHelp", 300);
 		chosenArtifact = ps->handicap.startArtifact;
 		bonusParts.push_back(std::make_shared<CLabel>(20, 468, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifact")));
 		bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(114, 459, 300, 18), ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
 		artifactLabel = std::make_shared<CLabel>(120, 468, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", 290);
 		artifactArea = std::make_shared<LRClickableArea>(Rect(114, 459, 300, 18), [this]() { chooseArtifact(); },
 			[](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifactHelp")); });
+
+		// S380 (rows 6 to 29): "More Bonuses" opens the rest of the seat's bonuses, framed like the artifact box
+		pendingBonuses = std::make_shared<Handicap>(ps->handicap);
+		const Rect moreBox(430, 459, 150, 18);
+		bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(moreBox, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
+		moreLabel = std::make_shared<CLabel>(moreBox.center().x, moreBox.center().y, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, seatText("more"));
+		moreArea = std::make_shared<LRClickableArea>(moreBox, [this]()
+		{
+			const auto * seatNow = seat();
+			ENGINE->windows().createAndPushWindow<SeatBonusesWindow>(color, pendingBonuses, seatNow ? seatNow->castle : FactionID::RANDOM, [this]() { sendBonuses(); });
+		}, [](){ CRClickPopup::createAndPush(seatText("moreHelp")); });
 		artifactLabel->setText(chosenArtifact == ArtifactID::NONE ? LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.none") : chosenArtifact.toEntity(LIBRARY)->getNameTranslated());
 	}
 
@@ -221,7 +572,7 @@ void AISettingsWindow::chooseArtifact()
 		if(ids[i] == chosenArtifact)
 			current = i;
 	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifact"),
-		LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifactHelp"), [this, ids, names](int index)
+		"", [this, ids, names](int index)
 		{
 			if(index < 0 || index >= static_cast<int>(ids.size()))
 				return;
@@ -236,19 +587,33 @@ void AISettingsWindow::sendBonuses() const
 	const auto * ps = seat();
 	if(!ps || !GAME->server().isHost() || !movementInput)
 		return;
-	const auto number = [](const std::shared_ptr<CTextInput> & field)
+	const auto number = [](const std::shared_ptr<CTextInput> & field, int bottom, int top)
 	{
 		const std::string text = field->getText();
-		return text.empty() ? 100 : std::clamp(std::stoi(text), 0, 200);
+		return text.empty() ? 100 : std::clamp(std::stoi(text), bottom, top);
 	};
+	// the lobby's own fields (resources, income, growth, Sees map) as the lobby has them; the bonuses from these two windows
 	Handicap handicap = ps->handicap;
-	handicap.percentMovement = number(movementInput);
-	handicap.percentMana = number(manaInput);
-	handicap.percentArmy = number(armyInput);
+	handicap.percentMovement = number(movementInput, 75, 150);
+	handicap.percentMana = number(manaInput, 50, 200);
+	handicap.percentArmy = number(armyInput, 50, 300);
 	handicap.startArtifact = chosenArtifact;
-	if(handicap.percentMovement != ps->handicap.percentMovement || handicap.percentMana != ps->handicap.percentMana
-		|| handicap.percentArmy != ps->handicap.percentArmy || handicap.startArtifact != ps->handicap.startArtifact)
+	if(pendingBonuses)
+	{
+		handicap.seatValues = pendingBonuses->seatValues;
+		handicap.startSpell = pendingBonuses->startSpell;
+		handicap.startSkill = pendingBonuses->startSkill;
+		handicap.startBuildings = pendingBonuses->startBuildings;
+		handicap.stackCreature = pendingBonuses->stackCreature;
+	}
+	const Handicap & now = ps->handicap;
+	if(handicap.percentMovement != now.percentMovement || handicap.percentMana != now.percentMana || handicap.percentArmy != now.percentArmy
+		|| handicap.startArtifact != now.startArtifact || handicap.seatValues != now.seatValues || handicap.startSpell != now.startSpell
+		|| handicap.startSkill != now.startSkill || handicap.startBuildings != now.startBuildings || handicap.stackCreature != now.stackCreature)
+	{
+		logGlobal->info("S380: seat bonuses of %s sent, %d number rows", color.toString(), static_cast<int>(handicap.seatValues.size()));
 		GAME->server().setPlayerHandicap(color, handicap);
+	}
 }
 
 const PlayerSettings * AISettingsWindow::seat() const
@@ -326,6 +691,7 @@ bool AISettingsWindow::adventureAICanThink(const std::string & name) const
 
 void AISettingsWindow::notFocusedClick()
 {
+	logGlobal->info("S380: a click outside Seat Settings closes it");
 	close();
 }
 

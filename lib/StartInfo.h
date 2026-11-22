@@ -84,12 +84,28 @@ struct DLL_LINKAGE Handicap {
 	int percentMana = 100;
 	int percentArmy = 100;
 	ArtifactID startArtifact = ArtifactID::NONE;
+	/// DMB (S380, the rest of the S330 table; S396 row 29): the number rows by name (DmbSeatBonuses.h), each stored only when it is not its
+	/// row's neutral value; the starting hero's spell and secondary skill, the home town's starting buildings, and a creature stack (with its
+	/// count in seatValues "stackCount") for the first hero
+	std::map<std::string, int32_t> seatValues;
+	SpellID startSpell = SpellID::NONE;
+	SecondarySkill startSkill = SecondarySkill::NONE;
+	std::vector<BuildingID> startBuildings;
+	CreatureID stackCreature = CreatureID::NONE;
+
+	/// a seat's number row, or the row's neutral value when the seat has none
+	int32_t seatValue(const std::string & key, int32_t neutral) const
+	{
+		auto it = seatValues.find(key);
+		return it == seatValues.end() ? neutral : it->second;
+	}
 
 	/// a seat whose handicap differs from stock's (the lobby's gear, S332)
 	bool isCustom() const
 	{
 		return !startBonus.empty() || percentIncome != 100 || percentGrowth != 100 || seesMap >= 0 || percentMovement != 100 || percentMana != 100
-			|| percentArmy != 100 || startArtifact != ArtifactID::NONE;
+			|| percentArmy != 100 || startArtifact != ArtifactID::NONE || !seatValues.empty() || startSpell != SpellID::NONE
+			|| startSkill != SecondarySkill::NONE || !startBuildings.empty() || stackCreature != CreatureID::NONE;
 	}
 
 	template <typename Handler>
@@ -106,6 +122,14 @@ struct DLL_LINKAGE Handicap {
 			h & percentMana;
 			h & percentArmy;
 			h & startArtifact;
+		}
+		if(h.version >= Handler::Version::DMB_SEAT_BONUSES_2)
+		{
+			h & seatValues;
+			h & startSpell;
+			h & startSkill;
+			h & startBuildings;
+			h & stackCreature;
 		}
 	}
 };

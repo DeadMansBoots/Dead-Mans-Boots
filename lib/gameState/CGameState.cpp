@@ -19,6 +19,12 @@
 #include "QuestInfo.h"
 
 #include "../GameSettings.h"
+#include "../DmbSeatBonuses.h"
+#include "../CCreatureHandler.h"
+#include "../CSkillHandler.h"
+#include "../spells/CSpellHandler.h"
+#include "../entities/building/CBuilding.h"
+#include "../entities/hero/CHeroHandler.h"
 #include "../texts/CGeneralTextHandler.h"
 #include "../texts/Languages.h"
 #include "../CPlayerState.h"
@@ -231,9 +237,16 @@ void CGameState::init(const IMapService * mapService, StartInfo * si, IGameRando
 	initStartingBonus(gameRandomizer);
 	initTowns(randomGenerator);
 	initTownNames(randomGenerator);
+	initSeatTownBonuses(); // DMB (S380)
 	placeHeroesInTowns();
 	initMapObjects(gameRandomizer);
 	buildBonusSystemTree();
+	// DMB (S380): a seat's heroes start with full spell points, as stock's initHero means them to ("after all bonuses are taken into account");
+	// the seat's bonuses (spell points percent, Knowledge, the starting level and artifact) reach a hero only here, when it joins its player
+	for(auto & elem : players)
+		if(scenarioOps->playerInfos.count(elem.first) && scenarioOps->playerInfos.at(elem.first).handicap.isCustom())
+			for(auto * hero : elem.second.getHeroes())
+				hero->mana = hero->manaLimit();
 	initVisitingAndGarrisonedHeroes();
 	initFogOfWar();
 
@@ -480,6 +493,53 @@ void CGameState::initDifficulty()
 		percentBonus(BonusType::MOVEMENT, BonusCustomSubtype::heroMovementSea, ps.handicap.percentMovement);
 		percentBonus(BonusType::MANA_PER_KNOWLEDGE_PERCENTAGE, BonusSubtypeID(), ps.handicap.percentMana);
 
+		// DMB (S380): rows 6 to 19 of the S330 table, bonuses on the player the same way; the player passes them to its heroes, towns and
+		// their troops. A number outside its row's range (DmbSeatBonuses.h) is read as the nearest end
+		const auto seatNumber = [&ps](const char * key)
+		{
+			const DmbSeatBonusRow * row = dmbSeatBonusRow(key);
+			return std::clamp<int32_t>(ps.handicap.seatValue(key, row->neutral), row->min, row->max);
+		};
+		const auto seatBonus = [&state](BonusType type, int value, BonusSubtypeID subtype = BonusSubtypeID(), BonusValueType valueType = BonusValueType::BASE_NUMBER)
+		{
+			state.addNewBonus(std::make_shared<Bonus>(BonusDuration::PERMANENT, type, BonusSource::OTHER, value, BonusSourceID(), subtype, valueType));
+		};
+		const auto seatAmount = [&seatBonus](BonusType type, int value, BonusSubtypeID subtype = BonusSubtypeID(), BonusValueType valueType = BonusValueType::BASE_NUMBER)
+		{
+			if(value != 0)
+				seatBonus(type, value, subtype, valueType);
+		};
+		seatAmount(BonusType::MANA_REGENERATION, seatNumber("manaRegen"));
+		seatAmount(BonusType::HERO_EXPERIENCE_GAIN_PERCENT, seatNumber("experience") - 100);
+		seatAmount(BonusType::PRIMARY_SKILL, seatNumber("attack"), BonusSubtypeID(PrimarySkill::ATTACK));
+		seatAmount(BonusType::PRIMARY_SKILL, seatNumber("defense"), BonusSubtypeID(PrimarySkill::DEFENSE));
+		seatAmount(BonusType::PRIMARY_SKILL, seatNumber("power"), BonusSubtypeID(PrimarySkill::SPELL_POWER));
+		seatAmount(BonusType::PRIMARY_SKILL, seatNumber("knowledge"), BonusSubtypeID(PrimarySkill::KNOWLEDGE));
+		seatAmount(BonusType::LUCK, seatNumber("luck"));
+		seatAmount(BonusType::MORALE, seatNumber("morale"));
+		seatAmount(BonusType::SIGHT_RADIUS, seatNumber("scouting"));
+		seatAmount(BonusType::STACKS_SPEED, seatNumber("speed"));
+		seatAmount(BonusType::STACK_HEALTH, seatNumber("health"), BonusSubtypeID(), BonusValueType::PERCENT_TO_ALL);
+		seatAmount(BonusType::GENERAL_DAMAGE_PREMY, seatNumber("damage"));
+		for(int resource = 0; resource < 7; ++resource)
+			seatAmount(BonusType::RESOURCES_CONSTANT_BOOST, seatNumber(("daily" + std::to_string(resource)).c_str()), BonusSubtypeID(GameResID(resource)));
+		seatAmount(BonusType::UNDEAD_RAISE_PERCENTAGE, seatNumber("necromancy"));
+		seatAmount(BonusType::STACK_EXPERIENCE_GAIN_PERCENT, seatNumber("creatureExperience") - 100);
+		seatAmount(BonusType::SURRENDER_DISCOUNT, seatNumber("surrender"));
+		// row 18: rough ground costs as much as road-free grass (the discount stops at the base cost), boarding keeps the movement, and water
+		// walking and flying as the expert spells give them (no penalty)
+		if(seatNumber("roughGround"))
+			seatBonus(BonusType::ROUGH_TERRAIN_DISCOUNT, 1000);
+		if(seatNumber("freeBoarding"))
+			seatBonus(BonusType::FREE_SHIP_BOARDING, 1);
+		if(seatNumber("waterWalking"))
+			seatBonus(BonusType::WATER_WALKING, 0, BonusSubtypeID(), BonusValueType::INDEPENDENT_MIN);
+		if(seatNumber("flying"))
+			seatBonus(BonusType::FLYING_MOVEMENT, 0, BonusSubtypeID(), BonusValueType::INDEPENDENT_MIN);
+		// row 19: the guild shows everything it can (five taverns' worth)
+		if(seatNumber("thievesGuild"))
+			seatBonus(BonusType::THIEVES_GUILD_ACCESS, 5);
+
 		//set global bonuses
 		for(auto & jsonBonus : json["globalBonuses"].Vector())
 			if(auto bonus = JsonUtils::parseBonus(jsonBonus))
@@ -710,6 +770,38 @@ void CGameState::placeStartingHeroes(vstd::RNG & randomGenerator)
 				playerSettingPair.second.hero = heroTypeId;
 
 			placeStartingHero(playerColor, HeroTypeID(heroTypeId), playerInfo.posOfMainTown);
+
+			// DMB (S380 row 25): the seat's extra starting heroes, each on the nearest free land tile beside the home town's entrance (the
+			// entrance has the first hero; a town has room for one visiting hero)
+			const DmbSeatBonusRow * extraRow = dmbSeatBonusRow("extraHeroes");
+			const int extra = std::clamp<int32_t>(playerSettingPair.second.handicap.seatValue("extraHeroes", extraRow->neutral), extraRow->min, extraRow->max);
+			int3 entrance = playerInfo.posOfMainTown;
+			for(const auto & townID : map->getAllTowns())
+				if(getTown(townID)->anchorPos() == playerInfo.posOfMainTown)
+					entrance = getTown(townID)->visitablePos();
+			for(int added = 0; added < extra; ++added)
+			{
+				int3 spot(-1, -1, -1);
+				for(int radius = 1; radius <= 3 && !map->isInTheMap(spot); ++radius)
+					for(int dy = -radius; dy <= radius && !map->isInTheMap(spot); ++dy)
+						for(int dx = -radius; dx <= radius && !map->isInTheMap(spot); ++dx)
+						{
+							const int3 tile = entrance + int3(dx, dy, 0);
+							if(std::max(std::abs(dx), std::abs(dy)) != radius || !map->isInTheMap(tile))
+								continue;
+							const TerrainTile & t = map->getTile(tile);
+							if(t.isLand() && !t.blocked() && !t.visitable() && t.visitableObjects.empty() && t.blockingObjects.empty())
+								spot = tile;
+						}
+				const HeroTypeID another = pickUnusedHeroTypeRandomly(randomGenerator, playerColor);
+				if(!map->isInTheMap(spot) || !another.isValid())
+				{
+					logGlobal->warn("Seat bonuses of %s: no %s for an extra starting hero", playerColor.toString(), another.isValid() ? "free tile" : "unused hero");
+					break;
+				}
+				placeStartingHero(playerColor, another, spot);
+				logGlobal->info("Seat bonuses of %s: extra starting hero %s at %s", playerColor.toString(), another.toHeroType()->getJsonKey(), spot.toString());
+			}
 		}
 	}
 }
@@ -883,6 +975,116 @@ void CGameState::initStartingBonus(IGameRandomizer & gameRandomizer)
 		}
 		logGlobal->info("Seat bonuses of %s: movement %d%%, spell points %d%%, army %d%%, artifact %s", elem.first.toString(), seat.percentMovement,
 			seat.percentMana, seat.percentArmy, seat.startArtifact == ArtifactID::NONE ? std::string("none") : seat.startArtifact.toEntity(LIBRARY)->getJsonKey());
+
+		// DMB (S380 rows 22 to 24, S396 row 29): the first hero's level, spell, secondary skill and creature stack
+		if(elem.second.getHeroes().empty())
+			continue;
+		CGHeroInstance * first = elem.second.getHeroes()[0];
+		const DmbSeatBonusRow * levelRow = dmbSeatBonusRow("heroLevel");
+		const int level = std::clamp<int32_t>(seat.seatValue("heroLevel", levelRow->neutral), levelRow->min, levelRow->max);
+		if(level > first->level && level <= static_cast<int>(LIBRARY->heroh->maxSupportedLevel()))
+		{
+			first->setExperience(LIBRARY->heroh->reqExp(level), ChangeValueMode::ABSOLUTE);
+			first->levelUpAutomatically(gameRandomizer);
+		}
+		if(seat.startSpell != SpellID::NONE && seat.startSpell.hasValue())
+		{
+			if(!first->hasSpellbook() && !giveHeroArtifact(first, ArtifactID::SPELLBOOK))
+				logGlobal->error("Cannot give the seat's starting hero a spellbook for its spell");
+			first->addSpellToSpellbook(seat.startSpell);
+		}
+		if(seat.startSkill != SecondarySkill::NONE && seat.startSkill.hasValue() && first->getSecSkillLevel(seat.startSkill) == 0)
+		{
+			if(first->canLearnSkill())
+				first->setSecSkillLevel(seat.startSkill, 1, ChangeValueMode::ABSOLUTE);
+			else
+				logGlobal->error("Cannot give the seat's starting skill - the hero has no free skill slot");
+		}
+		const int stackCount = seat.seatValue("stackCount", 0);
+		if(seat.stackCreature != CreatureID::NONE && seat.stackCreature.hasValue() && stackCount > 0)
+		{
+			const SlotID slot = first->getSlotFor(seat.stackCreature);
+			if(slot.validSlot())
+				first->addToSlot(slot, seat.stackCreature, stackCount);
+			else
+				logGlobal->error("Cannot give the seat's creature stack - the hero's army has no free slot");
+		}
+		logGlobal->info("Seat bonuses of %s: hero %s level %d, spell %s, skill %s, stack %d %s, %d number rows set", elem.first.toString(),
+			first->getHeroTypeID().toEntity(LIBRARY)->getJsonKey(), static_cast<int>(first->level),
+			seat.startSpell == SpellID::NONE ? std::string("none") : seat.startSpell.toEntity(LIBRARY)->getJsonKey(),
+			seat.startSkill == SecondarySkill::NONE ? std::string("none") : seat.startSkill.toEntity(LIBRARY)->getJsonKey(),
+			stackCount, seat.stackCreature == CreatureID::NONE ? std::string("none") : seat.stackCreature.toEntity(LIBRARY)->getJsonKey(),
+			static_cast<int>(seat.seatValues.size()));
+	}
+}
+
+void CGameState::initSeatTownBonuses()
+{
+	// DMB (S380 rows 26 and 27): the home town's starting buildings and garrison, after initTowns has set the town's own buildings
+	for(auto & elem : players)
+	{
+		if(!scenarioOps->playerInfos.count(elem.first))
+			continue;
+		const Handicap & seat = scenarioOps->playerInfos[elem.first].handicap;
+		const DmbSeatBonusRow * weeksRow = dmbSeatBonusRow("garrisonWeeks");
+		const int weeks = std::clamp<int32_t>(seat.seatValue("garrisonWeeks", weeksRow->neutral), weeksRow->min, weeksRow->max);
+		if(seat.startBuildings.empty() && weeks == 0)
+			continue;
+
+		// the home town: the map's main town of the player, else its first town
+		CGTownInstance * home = nullptr;
+		const auto & playerInfo = map->players[elem.first.getNum()];
+		for(const auto & townID : map->getAllTowns())
+		{
+			auto * town = getTown(townID);
+			if(town->getOwner() != elem.first)
+				continue;
+			if(!home || (playerInfo.hasMainTown && town->anchorPos() == playerInfo.posOfMainTown))
+				home = town;
+		}
+		if(!home)
+		{
+			logGlobal->warn("Seat bonuses of %s: no town for its starting buildings and garrison", elem.first.toString());
+			continue;
+		}
+
+		// a building comes with what it needs (a Citadel with its Fort, Mage Guild level 3 with levels 1 and 2)
+		std::function<void(const BuildingID &, int)> build = [&](const BuildingID & id, int depth)
+		{
+			if(depth > 20 || home->hasBuilt(id) || !home->getTown()->buildings.count(id) || !home->getTown()->buildings.at(id))
+				return;
+			const auto & building = home->getTown()->buildings.at(id);
+			if(building->upgrade != BuildingID::NONE)
+				build(building->upgrade, depth + 1);
+			for(const BuildingID & needed : building->requirements.getFulfillmentCandidates([&](const BuildingID & b) { return home->hasBuilt(b); }))
+				build(needed, depth + 1);
+			home->addBuilding(id);
+		};
+		for(const BuildingID & id : seat.startBuildings)
+			build(id, 0);
+
+		// the garrison: each built dwelling's creatures for the chosen weeks of growth (the upgraded ones where the upgrade is built)
+		if(weeks > 0)
+		{
+			const auto & creatures = home->getTown()->creatures;
+			for(size_t level = 0; level < creatures.size() && level < 7; ++level)
+			{
+				if(creatures[level].empty())
+					continue;
+				const bool upgraded = creatures[level].size() > 1 && home->hasBuilt(BuildingID::getDwellingFromLevel(static_cast<int>(level), 1));
+				if(!upgraded && !home->hasBuilt(BuildingID::getDwellingFromLevel(static_cast<int>(level), 0)))
+					continue;
+				const CreatureID creature = creatures[level][upgraded ? 1 : 0];
+				const int amount = creature.toCreature()->getGrowth() * weeks;
+				const SlotID slot = home->getSlotFor(creature);
+				if(amount > 0 && slot.validSlot())
+					home->addToSlot(slot, creature, amount);
+			}
+		}
+		std::string built;
+		for(const auto & id : home->getBuildings())
+			built += std::to_string(id.getNum()) + " ";
+		logGlobal->info("Seat bonuses of %s: home town %s, garrison weeks %d, buildings now %s", elem.first.toString(), home->getNameTranslated(), weeks, built);
 	}
 }
 

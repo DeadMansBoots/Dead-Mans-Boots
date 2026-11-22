@@ -12,6 +12,7 @@
 
 VCMI_LIB_NAMESPACE_BEGIN
 struct PlayerSettings;
+struct Handicap;
 VCMI_LIB_NAMESPACE_END
 
 class CLabel;
@@ -76,6 +77,11 @@ class AISettingsWindow final : public CWindowObject
 	std::shared_ptr<LRClickableArea> artifactArea;
 	std::vector<std::shared_ptr<CIntObject>> bonusParts;
 	ArtifactID chosenArtifact = ArtifactID::NONE;
+	/// S380 (the rest of the S330 rows, S396 row 29): the More Bonuses window edits this copy of the seat's handicap; OK in either window
+	/// sends it with the four fields above
+	std::shared_ptr<Handicap> pendingBonuses;
+	std::shared_ptr<CLabel> moreLabel;
+	std::shared_ptr<LRClickableArea> moreArea;
 	void chooseArtifact();
 	void sendBonuses() const;
 

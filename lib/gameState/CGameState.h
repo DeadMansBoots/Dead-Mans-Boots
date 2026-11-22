@@ -227,6 +227,7 @@ private:
 	void initStartingBonus(IGameRandomizer & gameRandomizer);
 	void initTowns(vstd::RNG & randomGenerator);
 	void initTownNames(vstd::RNG & randomGenerator);
+	void initSeatTownBonuses(); // DMB (S380): a seat's starting buildings and garrison in its home town
 	void initMapObjects(IGameRandomizer & gameRandomizer);
 	void initVisitingAndGarrisonedHeroes();
 	void initCampaign();

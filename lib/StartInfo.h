@@ -139,6 +139,13 @@ struct DLL_LINKAGE PlayerSettings
 	}
 	/// DMB (S002): the seat's tier when the host set one (0 to 4), else the map's difficulty
 	int aiTierOr(int mapDifficulty) const { return aiTier >= 0 && aiTier <= 4 ? aiTier : mapDifficulty; }
+	/// DMB (S375, K 11-19: "all should first and foremost abide to the general game settings ... ai seat starting resources change based on
+	/// their own difficulty if it is later changed independently"): the difficulty whose config/difficulty.json row this seat starts from:
+	/// a human seat the game's, a computer seat its own tier (else the game's). The handicap's startBonus comes on top of that row, so a
+	/// later change of the seat's tier re-picks the row and keeps what the host added
+	int startingTier(bool human, int gameDifficulty) const { return std::clamp(human ? gameDifficulty : aiTierOr(gameDifficulty), 0, 4); }
+	/// the resources of that row ("human" or "ai" block of config/difficulty.json, with mods)
+	static TResources difficultyResources(bool human, int tier);
 
 	PlayerSettings();
 	bool isControlledByAI() const;

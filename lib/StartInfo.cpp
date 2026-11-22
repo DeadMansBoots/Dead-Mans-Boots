@@ -22,8 +22,18 @@
 #include "mapping/CMapService.h"
 #include "modding/ModIncompatibility.h"
 #include "serializer/JsonSerializeFormat.h"
+#include "json/JsonUtils.h"
+#include "constants/StringConstants.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
+
+TResources PlayerSettings::difficultyResources(bool human, int tier)
+{
+	const JsonNode config = JsonUtils::assembleFromFiles("config/difficulty.json");
+	TResources row;
+	row.resolveFromJson(config[human ? "human" : "ai"][GameConstants::DIFFICULTY_NAMES[std::clamp(tier, 0, 4)]]["resources"]);
+	return row;
+}
 
 PlayerSettings::PlayerSettings()
 	: bonus(PlayerStartingBonus::RANDOM), color(0), compOnly(false)

@@ -12,6 +12,7 @@
 #include "OptionsTabBase.h"
 #include "../windows/CWindowObject.h"
 #include "../widgets/Scrollable.h"
+#include "../../lib/ResourceSet.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
 struct PlayerSettings;
@@ -62,6 +63,9 @@ public:
 		std::vector<std::shared_ptr<CAnimImage>> anim;
 		std::vector<std::shared_ptr<TransparentFilledRectangle>> textinputbackgrounds;
 		std::map<PlayerColor, std::map<EGameResID, std::shared_ptr<CTextInput>>> textinputs;
+		/// DMB (S376 C, S398): each seat's difficulty row (what it starts with before any change) and its typeable "Start %" field
+		std::map<PlayerColor, TResources> startingRows;
+		std::map<PlayerColor, std::shared_ptr<CTextInput>> percentInputs;
 		std::vector<std::shared_ptr<CButton>> buttons;
 
 		void notFocusedClick() override;
@@ -201,6 +205,13 @@ private:
 		/// DMB (S002): a computer seat shows its AI by name with the tier beside it; the host clicks the name to open the seat's AI Settings window
 		std::shared_ptr<LRClickableArea> aiSeatArea;
 		std::shared_ptr<CAnimImage> aiTierIcon;
+		/// S332 (K 11-19: "i should be able to get the seat settings screen by clicking in the red highlighter area"): the "CPU" cell and the
+		/// tier piece open the window too; "When a player sets custom handicaps/cheats, the chess-piece difficulty button should change to a
+		/// wheel cog": a tile with VCMI's gear over the piece
+		std::shared_ptr<LRClickableArea> aiTypeArea;
+		std::shared_ptr<LRClickableArea> aiPieceArea;
+		std::shared_ptr<TransparentFilledRectangle> customTile;
+		std::shared_ptr<CPicture> customGear;
 		std::shared_ptr<CMultiLineLabel> labelWhoCanPlay;
 		std::shared_ptr<CPicture> background;
 		std::shared_ptr<CButton> buttonTownLeft;

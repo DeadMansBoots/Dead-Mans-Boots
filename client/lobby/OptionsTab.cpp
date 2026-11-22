@@ -867,40 +867,52 @@ OptionsTab::HandicapWindow::HandicapWindow()
 
 	addUsedEvents(LCLICK);
 
-	pos = Rect(0, 0, 660, 100 + SEL->getStartInfo()->playerInfos.size() * 30);
-
-	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
-	backgroundTexture->setPlayerColor(menuColour());
-
-	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 8, 15, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.handicap")));
-
 	enum Columns : int32_t
 	{
+		PERCENT = 900,
 		INCOME = 1000,
 		GROWTH = 2000,
 	};
 	// TODO: configurable resources
-	auto columns = std::vector<int>{EGameResID::GOLD, EGameResID::WOOD, EGameResID::MERCURY, EGameResID::ORE, EGameResID::SULFUR, EGameResID::CRYSTAL, EGameResID::GEMS, Columns::INCOME, Columns::GROWTH};
+	// DMB (S376 C, K 11-19: "change it from "handicap" to starting resources, since it seems this covers the starting resources of all players (and
+	// adjusts per difficulty for players and AI seats)"; S398: "the option for the players to add more by percent (probably should be a typeable
+	// field)"): the window shows what each seat starts with (its difficulty row, S375, plus the stock bonus) and a typeable percent of that row;
+	// what is stored is still stock's bonus, the typed amount less the row, so no new field travels
+	auto columns = std::vector<int>{EGameResID::GOLD, EGameResID::WOOD, EGameResID::MERCURY, EGameResID::ORE, EGameResID::SULFUR, EGameResID::CRYSTAL, EGameResID::GEMS, Columns::PERCENT, Columns::INCOME, Columns::GROWTH};
+	auto columnX = [](int j){ return 30 + j * 70 + (j > 0 ? 10 : 0); }; // Gold field is larger
+
+	pos = Rect(0, 0, columnX(columns.size() - 1) + 65, 100 + SEL->getStartInfo()->playerInfos.size() * 30);
+
+	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
+	backgroundTexture->setPlayerColor(menuColour());
+
+	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 8, 15, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources")));
+	const int gameDifficulty = std::clamp<int>(SEL->getStartInfo()->difficulty, 0, 4);
+	labels.push_back(std::make_shared<CLabel>(pos.w - 14, 17, FONT_SMALL, ETextAlignment::CENTERRIGHT, Colors::WHITE,
+		LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources.at") + " " + LIBRARY->generaltexth->arraytxt[142 + gameDifficulty]));
 
 	int i = 0;
 	for(auto & pInfo : SEL->getStartInfo()->playerInfos)
 	{
 		PlayerColor player = pInfo.first;
+		const PlayerSettings &ps = SEL->getStartInfo()->getIthPlayersSettings(player);
+		const TResources row = PlayerSettings::difficultyResources(!ps.isControlledByAI(), ps.startingTier(!ps.isControlledByAI(), gameDifficulty));
+		startingRows[player] = row;
 		anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, 7, 57 + i * 30));
 		for(int j = 0; j < columns.size(); j++)
 		{
+			bool isPercent = int(columns[j]) == Columns::PERCENT;
 			bool isIncome = int(columns[j]) == Columns::INCOME;
 			bool isGrowth = int(columns[j]) == Columns::GROWTH;
 			EGameResID resource = columns[j];
 
-			const PlayerSettings &ps = SEL->getStartInfo()->getIthPlayersSettings(player);
-
-			int xPos = 30 + j * 70;
-			xPos += j > 0 ? 10 : 0; // Gold field is larger
+			int xPos = columnX(j);
 
 			if(i == 0)
 			{
-				if(isIncome)
+				if(isPercent)
+					labels.push_back(std::make_shared<CLabel>(xPos, 38, FONT_TINY, ETextAlignment::TOPLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources.percent")));
+				else if(isIncome)
 					labels.push_back(std::make_shared<CLabel>(xPos, 38, FONT_TINY, ETextAlignment::TOPLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("core.jktext.32")));
 				else if(isGrowth)
 					labels.push_back(std::make_shared<CLabel>(xPos, 38, FONT_TINY, ETextAlignment::TOPLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("core.genrltxt.194")));
@@ -910,32 +922,56 @@ OptionsTab::HandicapWindow::HandicapWindow()
 
 			auto area = Rect(xPos, 60 + i * 30, j == 0 ? 60 : 50, 16);
 			textinputbackgrounds.push_back(std::make_shared<TransparentFilledRectangle>(area.resize(3), ColorRGBA(0,0,0,128), ColorRGBA(64,64,64,64)));
-			textinputs[player][resource] = std::make_shared<CTextInput>(area, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
-			textinputs[player][resource]->setText(std::to_string(isIncome ? ps.handicap.percentIncome : (isGrowth ? ps.handicap.percentGrowth : ps.handicap.startBonus[resource])));
-			textinputs[player][resource]->setCallback([this, player, resource, isIncome, isGrowth](const std::string & s){
-				// text input processing: add/remove sign when pressing "-"; remove non digits; cut length; fill empty field with 0
+			auto input = std::make_shared<CTextInput>(area, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
+			if(isPercent)
+			{
+				percentInputs[player] = input;
+				input->setText(std::to_string(row[EGameResID::GOLD] > 0 ? std::max<int>(0, (row[EGameResID::GOLD] + ps.handicap.startBonus[EGameResID::GOLD]) * 100 / row[EGameResID::GOLD]) : 100));
+				// the percent sets the seven amounts to that share of the seat's row; the amounts are what is kept
+				input->setCallback([this, player](const std::string & s){
+					std::string tmp = s;
+					tmp.erase(std::remove_if(tmp.begin(), tmp.end(), [](char c) { return !isdigit(c); }), tmp.end());
+					tmp = tmp.substr(0, 3);
+					const int percent = tmp.empty() ? 0 : std::stoi(tmp);
+					percentInputs[player]->setText(std::to_string(percent));
+					for(auto & field : textinputs[player])
+						if(int(field.first) < Columns::PERCENT)
+							field.second->setText(std::to_string(static_cast<int64_t>(startingRows[player][field.first]) * percent / 100));
+				});
+				input->setPopupCallback([](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources.percentHelp")); });
+				labels.push_back(std::make_shared<CLabel>(area.topRight().x, area.center().y, FONT_SMALL, ETextAlignment::CENTERRIGHT, Colors::WHITE, "%"));
+				continue;
+			}
+			textinputs[player][resource] = input;
+			const bool isAmount = !isIncome && !isGrowth;
+			input->setText(std::to_string(isIncome ? ps.handicap.percentIncome : (isGrowth ? ps.handicap.percentGrowth : std::max<int>(0, row[resource] + ps.handicap.startBonus[resource]))));
+			input->setCallback([this, player, resource, isIncome, isGrowth, isAmount](const std::string & s){
+				// text input processing: remove non digits; cut length; fill empty field with 0 (an amount is what the seat starts with, never below 0)
 				std::string tmp = s;
-				bool negative = std::count_if( s.begin(), s.end(), []( char c ){ return c == '-'; }) == 1 && !isIncome && !isGrowth;
 				tmp.erase(std::remove_if(tmp.begin(), tmp.end(), [](char c) { return !isdigit(c); }), tmp.end());
 				int maxLength = isIncome || isGrowth ? 3 : (resource == EGameResID::GOLD ? 6 : 5);
 				tmp = tmp.substr(0, maxLength);
-				textinputs[player][resource]->setText(tmp.length() == 0 ? "0" : (negative ? "-" : "") + std::to_string(stoi(tmp)));
+				const int value = tmp.empty() ? 0 : std::stoi(tmp);
+				textinputs[player][resource]->setText(std::to_string(value));
+				// a typed gold amount moves the seat's percent with it
+				if(isAmount && resource == EGameResID::GOLD && startingRows[player][EGameResID::GOLD] > 0)
+					percentInputs[player]->setText(std::to_string(static_cast<int64_t>(value) * 100 / startingRows[player][EGameResID::GOLD]));
 			});
-			textinputs[player][resource]->setPopupCallback([isIncome, isGrowth](){
+			input->setPopupCallback([isIncome, isGrowth](){
 				// Help for the textinputs
 				if(isIncome)
 					CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.lobby.handicap.income"));
 				else if(isGrowth)
 					CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.lobby.handicap.growth"));
 				else
-					CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.lobby.handicap.resource"));
+					CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources.resourceHelp"));
 			});
 			if(isIncome || isGrowth)
 				labels.push_back(std::make_shared<CLabel>(area.topRight().x, area.center().y, FONT_SMALL, ETextAlignment::CENTERRIGHT, Colors::WHITE, "%"));
 		}
 		i++;
 	}
-	
+
 	buttons.push_back(std::make_shared<CButton>(Point(pos.w / 2 - 32, 60 + SEL->getStartInfo()->playerInfos.size() * 30), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this](){
 		for (const auto& player : textinputs)
 		{
@@ -950,8 +986,8 @@ OptionsTab::HandicapWindow::HandicapWindow()
 					income = std::stoi(resource.second->getText());
 				else if(isGrowth)
 					growth = std::stoi(resource.second->getText());
-				else
-					resources[resource.first] = std::stoi(resource.second->getText());
+				else // S376 C: the typed amount less the seat's row is stock's bonus
+					resources[resource.first] = std::stoi(resource.second->getText()) - startingRows[player.first][resource.first];
 			}
 			GAME->server().setPlayerHandicap(player.first, Handicap{resources, income, growth});
 		}
@@ -1109,13 +1145,29 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 				aiTierIcon->moveBy(Point(0, (background->pos.h - aiTierIcon->pos.h) / 2));
 			}
 			const PlayerColor seatColor = s->color;
-			aiSeatArea = std::make_shared<LRClickableArea>(Rect(6, 3, 95, 15), [seatColor]()
+			auto openSeat = [seatColor]()
 			{
 				if(GAME->server().isHost())
 					ENGINE->windows().createAndPushWindow<AISettingsWindow>(seatColor);
-			}, [](){
+			};
+			auto seatHelp = [](){
 				CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.seatHelp"));
-			});
+			};
+			aiSeatArea = std::make_shared<LRClickableArea>(Rect(6, 3, 95, 15), openSeat, seatHelp);
+			// S332: the red area is the name, the "CPU" cell below it and the piece in the margin
+			aiTypeArea = std::make_shared<LRClickableArea>(Rect(6, 21, 45, 26), openSeat, seatHelp);
+			if(aiTierIcon)
+			{
+				const Rect piece(aiTierIcon->pos.topLeft() - pos.topLeft(), aiTierIcon->pos.dimensions());
+				aiPieceArea = std::make_shared<LRClickableArea>(piece, openSeat, seatHelp);
+				const bool custom = !s->handicap.startBonus.empty() || s->handicap.percentIncome != 100 || s->handicap.percentGrowth != 100;
+				if(custom)
+				{
+					customTile = std::make_shared<TransparentFilledRectangle>(piece.resize(-2), ColorRGBA(24, 40, 112, 255), ColorRGBA(150, 160, 210, 255));
+					customGear = std::make_shared<CPicture>(ImagePath::builtin("settingsWindow/gear"), 0, 0);
+					customGear->moveTo(aiTierIcon->pos.center() - Point(customGear->pos.w / 2, customGear->pos.h / 2));
+				}
+			}
 		}
 	}
 	else

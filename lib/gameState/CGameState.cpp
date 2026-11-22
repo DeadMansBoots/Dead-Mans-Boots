@@ -457,9 +457,6 @@ void CGameState::initDifficulty()
 	JsonNode config = JsonUtils::assembleFromFiles("config/difficulty.json");
 	config.setModScope(ModScope::scopeGame()); // FIXME: should be set to actual mod
 	
-	const JsonNode & difficultyAI(config["ai"][GameConstants::DIFFICULTY_NAMES[scenarioOps->difficulty]]);
-	const JsonNode & difficultyHuman(config["human"][GameConstants::DIFFICULTY_NAMES[scenarioOps->difficulty]]);
-	
 	auto setDifficulty = [this](PlayerState & state, const JsonNode & json)
 	{
 		//set starting resources
@@ -468,7 +465,10 @@ void CGameState::initDifficulty()
 		//handicap
 		const PlayerSettings &ps = scenarioOps->getIthPlayersSettings(state.color);
 		state.resources += ps.handicap.startBonus;
-		
+		// DMB (S375): the bonus is kept relative to the row, so a computer seat moved to an easier tier after the host lowered its amounts could
+		// land below 0; stock's own help says the total is limited to 0 (vcmi.lobby.handicap.resource)
+		state.resources.positive();
+
 		//set global bonuses
 		for(auto & jsonBonus : json["globalBonuses"].Vector())
 			if(auto bonus = JsonUtils::parseBonus(jsonBonus))
@@ -484,7 +484,11 @@ void CGameState::initDifficulty()
 	for (auto & elem : players)
 	{
 		PlayerState &p = elem.second;
-		setDifficulty(p, p.human ? difficultyHuman : difficultyAI);
+		// DMB (S375): a computer seat with its own tier starts from that tier's row (resources and bonuses), a human seat and a computer
+		// seat without one from the game's difficulty, as stock
+		const int tier = scenarioOps->getIthPlayersSettings(p.color).startingTier(p.human, scenarioOps->difficulty);
+		setDifficulty(p, config[p.human ? "human" : "ai"][GameConstants::DIFFICULTY_NAMES[tier]]);
+		logGlobal->info("Starting resources of %s: the %s row of %s, gold %d", p.color.toString(), p.human ? "human" : "ai", GameConstants::DIFFICULTY_NAMES[tier], p.resources[EGameResID::GOLD]);
 	}
 
 	if (campaign)

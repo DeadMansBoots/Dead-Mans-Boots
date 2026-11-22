@@ -15,6 +15,7 @@ struct PlayerSettings;
 VCMI_LIB_NAMESPACE_END
 
 class CLabel;
+class CTextInput;
 class CMultiLineLabel;
 class CAnimImage;
 class CButton;
@@ -66,6 +67,17 @@ class AISettingsWindow final : public CWindowObject
 	std::shared_ptr<CLabel> colourTitle;
 	/// the widgets a human seat's window does not show (its AI, tier, thoughts and reset)
 	std::vector<std::shared_ptr<CIntObject>> computerOnly;
+	/// S380 (K 11-19: "Yes, build all of them in this order: your four ticked ones first"): the seat's movement, spell point and army
+	/// percents (typeable, 0 to 200) and a starting artifact, sent with the OK button
+	std::shared_ptr<CTextInput> movementInput;
+	std::shared_ptr<CTextInput> manaInput;
+	std::shared_ptr<CTextInput> armyInput;
+	std::shared_ptr<CLabel> artifactLabel;
+	std::shared_ptr<LRClickableArea> artifactArea;
+	std::vector<std::shared_ptr<CIntObject>> bonusParts;
+	ArtifactID chosenArtifact = ArtifactID::NONE;
+	void chooseArtifact();
+	void sendBonuses() const;
 
 	const PlayerSettings * seat() const;
 	void buildChoices(bool battleList, std::vector<Choice> & into, int x);

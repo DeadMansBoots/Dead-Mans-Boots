@@ -70,10 +70,11 @@ enum class ESerializationVersion : int32_t
 	DMB_AI_SEATS, // DMB: a seat carries its own AI (aiAdventure, aiBattle, aiTier) for the lobby's per-seat AI settings; also the unseated host and observers (no field of its own)
 	DMB_SEAT_SEES_MAP, // DMB (S332): a seat's handicap carries the host's "Sees map" choice for its AI (Nullkiller's map cheat)
 	DMB_SEAT_COLOURS, // DMB (S303, S424): a seat carries the colour it is drawn in (PlayerSettings::shownColor)
+	DMB_SEAT_BONUSES, // DMB (S380): a seat's handicap carries its movement, spell point and army percents and a starting artifact
 
 	RELEASE_170 = HOTA_MAP_STACK_COUNT,
 	RELEASE_174 = CUSTOM_GARRISON_TITLE,
-	CURRENT = DMB_SEAT_COLOURS,
+	CURRENT = DMB_SEAT_BONUSES,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

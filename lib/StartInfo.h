@@ -77,6 +77,20 @@ struct DLL_LINKAGE Handicap {
 	/// level) and allow the player to adjust them as they see fit"): the host's "Sees map" for a computer seat: -1 as the AI and its tier
 	/// decide (Nullkiller's openMap, with cheats allowed and no human ally), 0 never, 1 always
 	int8_t seesMap = -1;
+	/// DMB (S380, K 11-19: "Yes, build all of them in this order: your four ticked ones first, then the rest"): the four K ticked: the seat's
+	/// heroes' movement points (land and sea) and spell points as a percent of normal, the starting heroes' troops as a percent, and an
+	/// artifact for its first hero. 100 and NONE are none; each comes on top of an AI's own bonuses
+	int percentMovement = 100;
+	int percentMana = 100;
+	int percentArmy = 100;
+	ArtifactID startArtifact = ArtifactID::NONE;
+
+	/// a seat whose handicap differs from stock's (the lobby's gear, S332)
+	bool isCustom() const
+	{
+		return !startBonus.empty() || percentIncome != 100 || percentGrowth != 100 || seesMap >= 0 || percentMovement != 100 || percentMana != 100
+			|| percentArmy != 100 || startArtifact != ArtifactID::NONE;
+	}
 
 	template <typename Handler>
 	void serialize(Handler &h)
@@ -86,6 +100,13 @@ struct DLL_LINKAGE Handicap {
 		h & percentGrowth;
 		if(h.version >= Handler::Version::DMB_SEAT_SEES_MAP)
 			h & seesMap;
+		if(h.version >= Handler::Version::DMB_SEAT_BONUSES)
+		{
+			h & percentMovement;
+			h & percentMana;
+			h & percentArmy;
+			h & startArtifact;
+		}
 	}
 };
 

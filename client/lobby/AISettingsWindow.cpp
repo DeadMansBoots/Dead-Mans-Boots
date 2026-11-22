@@ -27,6 +27,12 @@
 #include "../../lib/DmbSeatColours.h"
 #include "../render/Graphics.h"
 #include "../windows/InfoWindows.h"
+#include "../windows/GUIClasses.h"
+#include "../GameEngine.h"
+#include "../gui/WindowHandler.h"
+#include "../widgets/CTextInput.h"
+#include "../../lib/entities/artifact/CArtHandler.h"
+#include "../../lib/entities/artifact/CArtifact.h"
 
 namespace
 {
@@ -54,7 +60,7 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	addUsedEvents(LCLICK);
 
 	// S312: wider and taller than before, so the two gold bars carry their words in the lobby buttons' own lettering
-	pos = Rect(0, 0, 600, 460);
+	pos = Rect(0, 0, 600, 540); // S380: 80 taller for the seat bonuses row
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
 	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour()); // S302: the setting, on by default
 
@@ -114,14 +120,14 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 
 	// S312: the same gold bar and lettering, centred on the OK button's row (408 to 440)
 	// S319: as tall as the check mark (32), the lettering at 14-pixel capitals like "Game Difficulty"
-	auto reset = std::make_shared<CButton>(Point(20, 408), AnimationPath::builtin("SPRITES/RanShowButtonSmall250"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
+	auto reset = std::make_shared<CButton>(Point(20, 488), AnimationPath::builtin("SPRITES/RanShowButtonSmall250"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
 	reset->moveBy(Point(0, 16 - reset->pos.h / 2));
 	auto resetWords = std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset"));
 	resetWords->setLetteringCapitals(14);
 	reset->setOverlay(resetWords);
 	buttons.push_back(reset);
 
-	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 408), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));
+	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 488), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { sendBonuses(); close(); }, EShortcut::GLOBAL_RETURN));
 
 	// S424: the Seat Color list under the Battle AI list, two columns of four; the swatch is the colour itself (not the seat's picked one)
 	colourTitle = std::make_shared<CLabel>(340, 150, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour"));
@@ -142,6 +148,42 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 		}, [](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour.help")); });
 		colourCells.push_back(cell);
 	}
+	// S380: the seat bonuses row (every seat): movement, spell points and army as typeable percents (0 to 200), and a starting artifact
+	if(const auto * ps = seat())
+	{
+		bonusParts.push_back(std::make_shared<CLabel>(20, 408, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses")));
+		const auto percentField = [this](int x, const std::string & textId, int value, const std::string & helpId) -> std::shared_ptr<CTextInput>
+		{
+			bonusParts.push_back(std::make_shared<CLabel>(x, 444, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate(textId)));
+			const Rect box(x + 96, 436, 40, 16);
+			bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
+			auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
+			input->setText(std::to_string(value));
+			std::weak_ptr<CTextInput> self = input;
+			input->setCallback([self](const std::string & s)
+			{
+				std::string digits = s;
+				digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
+				digits = digits.substr(0, 3);
+				if(auto field = self.lock())
+					field->setText(std::to_string(std::min(200, digits.empty() ? 0 : std::stoi(digits))));
+			});
+			input->setPopupCallback([helpId](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate(helpId)); });
+			bonusParts.push_back(std::make_shared<CLabel>(box.topRight().x, box.center().y, FONT_SMALL, ETextAlignment::CENTERRIGHT, Colors::WHITE, "%"));
+			return input;
+		};
+		movementInput = percentField(20, "vcmi.dmb.lobby.seatBonuses.movement", ps->handicap.percentMovement, "vcmi.dmb.lobby.seatBonuses.movementHelp");
+		manaInput = percentField(210, "vcmi.dmb.lobby.seatBonuses.mana", ps->handicap.percentMana, "vcmi.dmb.lobby.seatBonuses.manaHelp");
+		armyInput = percentField(400, "vcmi.dmb.lobby.seatBonuses.army", ps->handicap.percentArmy, "vcmi.dmb.lobby.seatBonuses.armyHelp");
+		chosenArtifact = ps->handicap.startArtifact;
+		bonusParts.push_back(std::make_shared<CLabel>(20, 468, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifact")));
+		bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(114, 459, 300, 18), ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
+		artifactLabel = std::make_shared<CLabel>(120, 468, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", 290);
+		artifactArea = std::make_shared<LRClickableArea>(Rect(114, 459, 300, 18), [this]() { chooseArtifact(); },
+			[](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifactHelp")); });
+		artifactLabel->setText(chosenArtifact == ArtifactID::NONE ? LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.none") : chosenArtifact.toEntity(LIBRARY)->getNameTranslated());
+	}
+
 	// a human seat's window shows only its colour
 	for(const auto & row : adventureChoices)
 		computerOnly.insert(computerOnly.end(), {row.mark, row.label, row.area});
@@ -156,6 +198,57 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	refresh();
 	updateShadow();
 	center();
+}
+
+void AISettingsWindow::chooseArtifact()
+{
+	// S380: every artifact a hero can carry from the start (treasure, minor, major, relic), by name; the first entry is none
+	std::vector<ArtifactID> ids{ArtifactID::NONE};
+	std::vector<std::string> names{LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.none")};
+	for(const auto & art : LIBRARY->arth->objects)
+	{
+		if(!art)
+			continue;
+		const auto kind = art->aClass;
+		if(kind == EArtifactClass::ART_TREASURE || kind == EArtifactClass::ART_MINOR || kind == EArtifactClass::ART_MAJOR || kind == EArtifactClass::ART_RELIC)
+		{
+			ids.push_back(art->getId());
+			names.push_back(art->getNameTranslated());
+		}
+	}
+	size_t current = 0;
+	for(size_t i = 0; i < ids.size(); ++i)
+		if(ids[i] == chosenArtifact)
+			current = i;
+	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifact"),
+		LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifactHelp"), [this, ids, names](int index)
+		{
+			if(index < 0 || index >= static_cast<int>(ids.size()))
+				return;
+			chosenArtifact = ids[index];
+			artifactLabel->setText(names[index]);
+			redraw();
+		}, current, std::vector<std::shared_ptr<IImage>>{}, true);
+}
+
+void AISettingsWindow::sendBonuses() const
+{
+	const auto * ps = seat();
+	if(!ps || !GAME->server().isHost() || !movementInput)
+		return;
+	const auto number = [](const std::shared_ptr<CTextInput> & field)
+	{
+		const std::string text = field->getText();
+		return text.empty() ? 100 : std::clamp(std::stoi(text), 0, 200);
+	};
+	Handicap handicap = ps->handicap;
+	handicap.percentMovement = number(movementInput);
+	handicap.percentMana = number(manaInput);
+	handicap.percentArmy = number(armyInput);
+	handicap.startArtifact = chosenArtifact;
+	if(handicap.percentMovement != ps->handicap.percentMovement || handicap.percentMana != ps->handicap.percentMana
+		|| handicap.percentArmy != ps->handicap.percentArmy || handicap.startArtifact != ps->handicap.startArtifact)
+		GAME->server().setPlayerHandicap(color, handicap);
 }
 
 const PlayerSettings * AISettingsWindow::seat() const

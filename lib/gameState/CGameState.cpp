@@ -469,6 +469,17 @@ void CGameState::initDifficulty()
 		// land below 0; stock's own help says the total is limited to 0 (vcmi.lobby.handicap.resource)
 		state.resources.positive();
 
+		// DMB (S380): the seat's movement and spell point percents, as bonuses on the player the way difficulty.json's globalBonuses are
+		const auto percentBonus = [&state](BonusType type, BonusSubtypeID subtype, int percent)
+		{
+			if(percent == 100)
+				return;
+			state.addNewBonus(std::make_shared<Bonus>(BonusDuration::PERMANENT, type, BonusSource::OTHER, percent - 100, BonusSourceID(), subtype, BonusValueType::PERCENT_TO_ALL));
+		};
+		percentBonus(BonusType::MOVEMENT, BonusCustomSubtype::heroMovementLand, ps.handicap.percentMovement);
+		percentBonus(BonusType::MOVEMENT, BonusCustomSubtype::heroMovementSea, ps.handicap.percentMovement);
+		percentBonus(BonusType::MANA_PER_KNOWLEDGE_PERCENTAGE, BonusSubtypeID(), ps.handicap.percentMana);
+
 		//set global bonuses
 		for(auto & jsonBonus : json["globalBonuses"].Vector())
 			if(auto bonus = JsonUtils::parseBonus(jsonBonus))
@@ -855,6 +866,23 @@ void CGameState::initStartingBonus(IGameRandomizer & gameRandomizer)
 			}
 			break;
 		}
+
+		// DMB (S380): the seat's own starting army percent and starting artifact (the lobby's Seat Settings)
+		const Handicap & seat = scenarioOps->playerInfos[elem.first].handicap;
+		if(seat.percentArmy != 100)
+			for(auto * hero : elem.second.getHeroes())
+				for(const auto & slot : hero->Slots())
+				{
+					const TQuantity scaled = std::max<TQuantity>(1, static_cast<TQuantity>(static_cast<int64_t>(slot.second->getCount()) * seat.percentArmy / 100));
+					hero->setStackCount(slot.first, scaled);
+				}
+		if(seat.startArtifact != ArtifactID::NONE && seat.startArtifact.hasValue() && !elem.second.getHeroes().empty())
+		{
+			if(!giveHeroArtifact(elem.second.getHeroes()[0], seat.startArtifact))
+				logGlobal->error("Cannot give the seat's starting artifact - no free slots!");
+		}
+		logGlobal->info("Seat bonuses of %s: movement %d%%, spell points %d%%, army %d%%, artifact %s", elem.first.toString(), seat.percentMovement,
+			seat.percentMana, seat.percentArmy, seat.startArtifact == ArtifactID::NONE ? std::string("none") : seat.startArtifact.toEntity(LIBRARY)->getJsonKey());
 	}
 }
 

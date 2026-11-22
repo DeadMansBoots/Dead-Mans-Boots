@@ -1074,7 +1074,13 @@ OptionsTab::HandicapWindow::HandicapWindow()
 					resources[resource.first] = std::stoi(resource.second->getText()) - startingRows[player.first][resource.first];
 			}
 			const auto choice = seesMap.find(player.first);
-			GAME->server().setPlayerHandicap(player.first, Handicap{resources, income, growth, choice != seesMap.end() ? choice->second : int8_t(-1)});
+			// S380: the seat's other fields (its bonuses, set in Seat Settings) are kept as they are
+			Handicap handicap = SEL->getStartInfo()->getIthPlayersSettings(player.first).handicap;
+			handicap.startBonus = resources;
+			handicap.percentIncome = income;
+			handicap.percentGrowth = growth;
+			handicap.seesMap = choice != seesMap.end() ? choice->second : int8_t(-1);
+			GAME->server().setPlayerHandicap(player.first, handicap);
 		}
 	    		
 		close();
@@ -1252,7 +1258,7 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 			{
 				const Rect piece(aiTierIcon->pos.topLeft() - pos.topLeft(), aiTierIcon->pos.dimensions());
 				aiPieceArea = std::make_shared<LRClickableArea>(piece, openSeat, seatHelp);
-				const bool custom = !s->handicap.startBonus.empty() || s->handicap.percentIncome != 100 || s->handicap.percentGrowth != 100 || s->handicap.seesMap >= 0;
+				const bool custom = s->handicap.isCustom();
 				if(custom)
 				{
 					customTile = std::make_shared<TransparentFilledRectangle>(piece.resize(-2), ColorRGBA(24, 40, 112, 255), ColorRGBA(150, 160, 210, 255));

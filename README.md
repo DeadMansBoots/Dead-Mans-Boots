@@ -12,9 +12,9 @@ The installer is not signed yet, so Windows may say it protected your PC. Choose
 
 ## Known problems and in construction
 
-Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.8, a test build for playtesting.
+Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.9, a test build for playtesting.
 
-In beta 19.8:
+In beta 19.9:
 
 | Feature | Status | Built |
 | --- | --- | --- |
@@ -42,15 +42,19 @@ In beta 19.8:
 | A computer player and difficulty for each seat (the computer players that come with the game), and a computer player from a mod that cannot load says why | Partly built | 70% |
 | Telling a joining player which content or mods differ from the host's | Partly built | 40% |
 | Looking into every player's kingdom while watching: resources, towns, armies | Partly built | 60% |
+| The gold buttons in the game and the launcher in the lobby BEGIN button's own gold, with its grain | Working | 80% |
+| Each computer seat named after the computer player that plays it, and a seat's lobby windows in its player's colour | Partly built | 70% |
+| A Template position on every map generator slider, and Reset hands the settings back to the template (OmniMapGen 0.3.37) | Partly built | 60% |
+| The underground made like a second overworld, a tick on the Underground page (OmniMapGen 0.3.37) | Partly built | 50% |
+| Special buildings from the original maps: Template, Random, Off or On, and how many (OmniMapGen 0.3.37) | Partly built | 50% |
 
-Known problems in beta 19.8: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, and OmniMapGen 0.3.36 or newer to colour each region by its terrain and to show the underground's cave floor with the solid rock left empty; older versions colour regions by their kind and fill the underground. The picture shows what your settings make, not the exact map you get when you press Begin, and it leaves out portals, underground passages and neutral towns. The Random water content's range needs OmniMapGen 0.3.36 or newer to draw the amount from it. In the AI Settings window the Game Difficulty button is larger than it should be, and the lettering on both of its buttons is not yet the font of the other custom buttons. Not yet shown working: scrolling the template panel. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy. Tested side by side with the standard game (VCMI 1.7.5) on this build: a 10-day two-player game with computer players (the turn dialog and the map showed on both players' screens, with no black screen), an elimination with a battle and a retreat (the defeated player was told so; on the standard game the other player's game stopped at the next turn), a battle with the surrender question and surrender accepted, hero exchange, town building and recruiting, save and load (the host saved and loaded and the guest stayed connected; on the standard game the load was never reached in the test), frame time, the random map lobby, the text list (none of the standard game's 1,206 English texts is missing or empty), and watching computer players play each other from the lobby, including OmniAI against Nullkiller 1. Not tested: the loading screen with your own mods, music and sound (the test setup had no music files), a real network drop (the connection was cut by a test tool), closing the game with alt+F4 or a killed process, a screen 3440 pixels wide, games longer than 11 days, and games with more than three players.
+Known problems in beta 19.9: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, and OmniMapGen 0.3.36 or newer to colour each region by its terrain and to show the underground's cave floor with the solid rock left empty; older versions colour regions by their kind and fill the underground. The picture shows what your settings make, not the exact map you get when you press Begin, and it leaves out portals, underground passages and neutral towns. The Random water content's range needs OmniMapGen 0.3.36 or newer to draw the amount from it. In the AI Settings window the lettering on both of its buttons is not yet the font of the other custom buttons. The seat row's "Starting Resources" button still opens the game's Handicap window. The new map generator settings need OmniMapGen 0.3.37. Not yet shown working: scrolling the template panel. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy.
 
-Next version, not in beta 19.8:
+Next version, not in beta 19.9:
 
 | Feature | Status | Built |
 | --- | --- | --- |
 | Objects drawn in the right order (a hedge no longer covers a tent, a building no longer hides behind a glacier) | Partly built | 80% |
-| Each seat's windows in that player's colour | In construction | 0% |
 | Any colour for any seat, and an options window for every seat, player or computer | In construction | 0% |
 | The first redrawn interface, with the original look kept as an option | In construction | 10% |
 | "Restrict all settings to original template preferences" for map templates | In construction | 0% |

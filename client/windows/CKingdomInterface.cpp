@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "CKingdomInterface.h"
 
 #include "CCastleInterface.h"
@@ -585,7 +586,7 @@ void CKingdomInterface::generatePlayerFlags()
 	int x = 24;
 	for(const PlayerColor & player : kingdomPlayersInGame())
 	{
-		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, x, 6);
+		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(player).getNum(), 0, x, 6); // DMB (S424)
 		auto area = std::make_shared<LRClickableArea>(Rect(x, 6, flag->pos.w, flag->pos.h), [this, player]()
 		{
 			// deferred: the click's own widget must not be rebuilt inside its handler
@@ -1080,7 +1081,7 @@ CKingdPlayersList::CKingdPlayersList(const std::function<void(PlayerColor)> & on
 		const auto * state = GAME->interface()->cb->getPlayerState(player, false);
 		if(!state)
 			continue;
-		widgets.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, 22, y + 4));
+		widgets.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(player).getNum(), 0, 22, y + 4)); // DMB (S424)
 		widgets.push_back(std::make_shared<CLabel>(50, y + 6, FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, LIBRARY->generaltexth->capColors[player.getNum()]));
 		for(int i = 0; i < 7; i++)
 			widgets.push_back(std::make_shared<CLabel>(130 + i * 56 + 16, y + 6, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, kingdomShort(state->resources[GameResID(i)])));

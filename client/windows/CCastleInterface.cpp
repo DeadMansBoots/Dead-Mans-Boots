@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "CCastleInterface.h"
 
 #include "CHeroWindow.h"
@@ -648,7 +649,7 @@ void CHeroGSlot::set(const CGHeroInstance * newHero)
 	else if(!upg && owner->showEmpty) //up garrison
 	{
 		flag->visible = true;
-		flag->setFrame(GAME->interface()->castleInt->town->getOwner().getNum());
+		flag->setFrame(DmbSeatColours::shown(GAME->interface()->castleInt->town->getOwner()).getNum()); // DMB (S424)
 	}
 }
 

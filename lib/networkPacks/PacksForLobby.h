@@ -349,6 +349,21 @@ struct DLL_LINKAGE LobbySetPlayerAI : public CLobbyPackToServer
 	}
 };
 
+/// DMB (S303, S424): the host picks the colour one seat is drawn in; a colour another seat has is swapped with it
+struct DLL_LINKAGE LobbySetSeatColor : public CLobbyPackToServer
+{
+	PlayerColor color = PlayerColor::CANNOT_DETERMINE;
+	PlayerColor shown = PlayerColor::CANNOT_DETERMINE;
+
+	void visitTyped(ICPackVisitor & visitor) override;
+
+	template <typename Handler> void serialize(Handler &h)
+	{
+		h & color;
+		h & shown;
+	}
+};
+
 struct DLL_LINKAGE LobbySetSimturns : public CLobbyPackToServer
 {
 	SimturnsInfo simturnsInfo;

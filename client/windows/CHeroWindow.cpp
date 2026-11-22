@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "CHeroWindow.h"
 #include "wiki/WikiWindow.h"
 
@@ -80,7 +81,7 @@ CHeroWindow::CHeroWindow(const CGHeroInstance * hero)
 
 	// DMB: a spectator is no player (its colour has no crest frame): the hero's owner's crest
 	const PlayerColor crest = GAME->interface()->playerID.isSpectator() ? hero->getOwner() : GAME->interface()->playerID;
-	banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), crest.getNum(), 0, 606, 8);
+	banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), DmbSeatColours::shown(crest).getNum(), 0, 606, 8); // DMB (S424)
 	name = std::make_shared<CLabel>(190, 38, EFonts::FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW);
 	title = std::make_shared<CLabel>(190, 65, EFonts::FONT_MEDIUM, ETextAlignment::CENTER, Colors::WHITE);
 

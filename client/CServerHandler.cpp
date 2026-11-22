@@ -642,6 +642,14 @@ void CServerHandler::setPlayerAI(PlayerColor color, const std::string & aiAdvent
 	sendLobbyPack(lspa);
 }
 
+void CServerHandler::setSeatColor(PlayerColor color, PlayerColor shown) const
+{
+	LobbySetSeatColor pack;
+	pack.color = color;
+	pack.shown = shown;
+	sendLobbyPack(pack);
+}
+
 std::vector<CServerHandler::SeatAIChoice> CServerHandler::seatAIChoices(bool battle, bool withProblems)
 {
 	std::vector<SeatAIChoice> out;

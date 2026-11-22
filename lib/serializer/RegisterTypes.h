@@ -319,6 +319,7 @@ void registerTypes(Serializer &s)
 	s.template registerType<AssignSeat>(319);
 	s.template registerType<JoinPolicy>(320);
 	s.template registerType<LobbySetPlayerAI>(321); // DMB (S002): a seat's own AI and tier
+	s.template registerType<LobbySetSeatColor>(322); // DMB (S303, S424): the colour a seat is drawn in
 }
 
 VCMI_LIB_NAMESPACE_END

@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "AdventureMapWidget.h"
 
 #include "AdventureMapShortcuts.h"
@@ -418,14 +419,14 @@ void AdventureMapWidget::setPlayerChildren(CIntObject * widget, const PlayerColo
 		if(resDataBar)
 			resDataBar->setPlayerColor(player);
 
-		if(icon)
-			icon->setPlayerColor(player);
+		if(icon) // DMB (S424): a frame index and a texture by colour name are not palette-coloured, so they take the seat's picked colour here
+			icon->setPlayerColor(DmbSeatColours::shown(player));
 
 		if(container)
 			setPlayerChildren(container, player);
 
 		if(textureColored)
-			textureColored->setPlayerColor(player);
+			textureColored->setPlayerColor(DmbSeatColours::shown(player));
 
 		if(textureIndexed)
 			textureIndexed->setPlayerColor(player);

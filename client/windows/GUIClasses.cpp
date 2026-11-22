@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "GUIClasses.h"
 
 #include "CCastleInterface.h"
@@ -1296,7 +1297,7 @@ CGarrisonWindow::CGarrisonWindow(const CArmedInstance * up, const CGHeroInstance
 	if(sourceTown != nullptr && down->getVisitedTown() != sourceTown && sourceHero != nullptr)
 		banner = std::make_shared<CAnimImage>(AnimationPath::builtin("PortraitsLarge"), sourceHero->getIconIndex(), 0, 27, 127);
 	else
-		banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), up->getOwner().getNum(), 0, 27, 127);
+		banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), DmbSeatColours::shown(up->getOwner()).getNum(), 0, 27, 127); // DMB (S424)
 
 	portrait = std::make_shared<CAnimImage>(AnimationPath::builtin("PortraitsLarge"), down->getIconIndex(), 0, 27, 223);
 }

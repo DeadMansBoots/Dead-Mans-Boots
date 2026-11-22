@@ -52,6 +52,20 @@ class AISettingsWindow final : public CWindowObject
 	std::shared_ptr<CLabel> thoughtsLabel;
 	std::shared_ptr<LRClickableArea> thoughtsArea;
 	std::vector<std::shared_ptr<CButton>> buttons;
+	/// S424 (K 11-21: "damn you guys didn't even get color picking per seat in here?!"; S376 B: "color menu is everything i wants"): the
+	/// Seat Color list, every colour, the seat's own framed, one another seat has greyed and marked; a pick of a held colour swaps the two
+	struct ColourCell
+	{
+		std::shared_ptr<TransparentFilledRectangle> swatch;
+		std::shared_ptr<TransparentFilledRectangle> mark;
+		std::shared_ptr<TransparentFilledRectangle> heldDot;
+		std::shared_ptr<CLabel> label;
+		std::shared_ptr<LRClickableArea> area;
+	};
+	std::vector<ColourCell> colourCells;
+	std::shared_ptr<CLabel> colourTitle;
+	/// the widgets a human seat's window does not show (its AI, tier, thoughts and reset)
+	std::vector<std::shared_ptr<CIntObject>> computerOnly;
 
 	const PlayerSettings * seat() const;
 	void buildChoices(bool battleList, std::vector<Choice> & into, int x);

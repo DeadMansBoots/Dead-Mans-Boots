@@ -66,6 +66,12 @@ public:
 		/// DMB (S376 C, S398): each seat's difficulty row (what it starts with before any change) and its typeable "Start %" field
 		std::map<PlayerColor, TResources> startingRows;
 		std::map<PlayerColor, std::shared_ptr<CTextInput>> percentInputs;
+		/// S332: each computer seat's "Sees map" (-1 as its AI decides, 0, 1) and the tick that shows what it comes to
+		std::map<PlayerColor, int8_t> seesMap;
+		std::map<PlayerColor, bool> seesMapDefault;
+		std::map<PlayerColor, std::shared_ptr<TransparentFilledRectangle>> seesMapTicks;
+		std::vector<std::shared_ptr<CIntObject>> seesMapParts;
+		void showSeesMap(PlayerColor player);
 		std::vector<std::shared_ptr<CButton>> buttons;
 
 		void notFocusedClick() override;

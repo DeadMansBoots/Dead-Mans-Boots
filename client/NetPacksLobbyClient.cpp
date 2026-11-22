@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../lib/DmbSeatColours.h"
 
 #include "LobbyClientNetPackVisitors.h"
 #include "lobby/CSelectionBase.h"
@@ -261,6 +262,7 @@ void ApplyOnLobbyHandlerNetPackVisitor::visitLobbyUpdateState(LobbyUpdateState &
 {
 	pack.hostChanged = pack.state.hostClientId != handler.hostClientId;
 	static_cast<LobbyState &>(handler) = pack.state;
+	DmbSeatColours::update(handler.si.get()); // DMB (S424): the lobby's rows, flags and seat windows in each seat's picked colour
 	// DMB (S170): a watching host whose game is over waits for the other PCs to leave (NetPacksClient's visitPlayerEndsGame); the server says so here when one goes
 	if(handler.client && handler.client->watchEndStatistic && !handler.otherClientConnected() && ENGINE)
 		ENGINE->dispatchMainThread([](){ GAME->server().endWatchedGame(); });

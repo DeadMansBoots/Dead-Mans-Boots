@@ -78,7 +78,7 @@ void Graphics::loadPaletteAndColors()
 
 	for(int i=0;i<8;i++)
 	{
-		playerColors[i] = colors[i];
+		playerColors.own[i] = colors[i];
 	}
 	//gray
 	neutralColor.r = 0x84;
@@ -130,7 +130,7 @@ void Graphics::setPlayerPalette(SDL_Palette * targetPalette, PlayerColor player)
 	if(player.isValidPlayer())
 	{
 		for(int i=0; i<32; ++i)
-			palette[i] = CSDL_Ext::toSDL(playerColorPalette[player.getNum()][i]);
+			palette[i] = CSDL_Ext::toSDL(playerColorPalette[DmbSeatColours::shown(player).getNum()][i]); // DMB (S424): the seat's picked colour
 	}
 	else
 	{

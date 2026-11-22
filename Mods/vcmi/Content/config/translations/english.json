@@ -1119,8 +1119,15 @@
 	"vcmi.dmb.mapGenerator.template.details.levelsTwo" : "Two (surface and underground)",
 	"vcmi.dmb.lobby.startingResources" : "Starting Resources",
 	"vcmi.dmb.mapGenerator.random" : "Random",
+	"vcmi.dmb.lobby.seatSettings" : "Seat Settings",
+	"vcmi.dmb.lobby.seatColour" : "Seat Color",
+	"vcmi.dmb.lobby.seatColour.help" : "{Seat Color}
+
+The colour this seat plays in: its flags, heroes, towns, turn bar and chat. A colour with a grey dot belongs to another seat; picking it swaps the two seats' colours. Only the host can change it.",
 	"vcmi.dmb.lobby.startingResources.at" : "starting amounts at",
 	"vcmi.dmb.lobby.startingResources.percent" : "Amount",
+	"vcmi.dmb.lobby.startingResources.seesMap" : "Sees map",
+	"vcmi.dmb.lobby.startingResources.seesMapHelp" : "{Sees map}\n\nA computer seat that sees the map knows the whole map from the first day, as if every tile were explored. Nullkiller 1 does this at every difficulty and Nullkiller 2 at none, and only when cheats are allowed and the seat has no human ally. The tick shows what the seat will do; click it to choose for this seat. A seat you change shows a gear in place of its chess piece.",
 	"vcmi.dmb.lobby.startingResources.resourceHelp" : "What this seat starts the game with. It begins at the amount for the seat's difficulty: a human seat uses the game's difficulty, a computer seat its own difficulty if you gave it one. Type a new amount to change it. If you change a computer seat's difficulty later, its amounts follow the new difficulty and keep what you added or took away here.",
 	"vcmi.dmb.lobby.startingResources.percentHelp" : "Sets all seven starting amounts of this seat to this percent of its difficulty's amounts. 100 is the normal amount, 150 gives half as much again, 50 gives half.",
 	"vcmi.dmb.mapGenerator.notOnNamedTemplate" : "Not available on this template yet: the map generator does not act on this setting for a named template in this version. On Classic and on Random it works.",

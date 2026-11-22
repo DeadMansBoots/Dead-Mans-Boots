@@ -9,6 +9,7 @@
  */
 
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "MapRenderer.h"
 
 #include "IMapRendererContext.h"
@@ -452,14 +453,14 @@ std::shared_ptr<CAnimation> MapRendererObjects::getFlagAnimation(const CGObjectI
 	{
 		assert(dynamic_cast<const CGHeroInstance *>(obj) != nullptr);
 		assert(obj->tempOwner.isValidPlayer());
-		return getAnimation(AnimationPath::builtin(heroFlags[obj->tempOwner.getNum()]), true, false);
+		return getAnimation(AnimationPath::builtin(heroFlags[DmbSeatColours::shown(obj->tempOwner).getNum()]), true, false); // DMB (S424): the seat's picked colour
 	}
 
 	if(obj->ID == Obj::BOAT)
 	{
 		const auto * boat = dynamic_cast<const CGBoat *>(obj);
-		if(boat && boat->getBoardedHero() && !boat->flagAnimations[boat->getBoardedHero()->tempOwner.getNum()].empty())
-			return getAnimation(boat->flagAnimations[boat->getBoardedHero()->tempOwner.getNum()], true, false);
+		if(boat && boat->getBoardedHero() && !boat->flagAnimations[DmbSeatColours::shown(boat->getBoardedHero()->tempOwner).getNum()].empty())
+			return getAnimation(boat->flagAnimations[DmbSeatColours::shown(boat->getBoardedHero()->tempOwner).getNum()], true, false);
 	}
 
 	return nullptr;

@@ -68,10 +68,12 @@ enum class ESerializationVersion : int32_t
 	DMB_ARTIFACT_TRANSITION_SLOT, // DMB: an artifact set saves its transition slot, so a picked artifact survives a save
 	DMB_CHAT_CHANNELS, // DMB: a chat line carries its channel (all, team, spectators)
 	DMB_AI_SEATS, // DMB: a seat carries its own AI (aiAdventure, aiBattle, aiTier) for the lobby's per-seat AI settings; also the unseated host and observers (no field of its own)
+	DMB_SEAT_SEES_MAP, // DMB (S332): a seat's handicap carries the host's "Sees map" choice for its AI (Nullkiller's map cheat)
+	DMB_SEAT_COLOURS, // DMB (S303, S424): a seat carries the colour it is drawn in (PlayerSettings::shownColor)
 
 	RELEASE_170 = HOTA_MAP_STACK_COUNT,
 	RELEASE_174 = CUSTOM_GARRISON_TITLE,
-	CURRENT = DMB_AI_SEATS,
+	CURRENT = DMB_SEAT_COLOURS,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

@@ -387,6 +387,24 @@ void ApplyOnServerNetPackVisitor::visitLobbySetPlayerAI(LobbySetPlayerAI & pack)
 	result = true;
 }
 
+void ApplyOnServerNetPackVisitor::visitLobbySetSeatColor(LobbySetSeatColor & pack)
+{
+	// DMB (S303, S424; K's S376 B mockup, "a taken colour swaps the two seats"): the seat is drawn in the picked colour; a seat that was
+	// drawn in it takes the picker's old colour. Only the host gets here (visitForLobby's check). A seat drawn in its own colour stores none
+	auto seat = srv.si->playerInfos.find(pack.color);
+	if(seat == srv.si->playerInfos.end() || !pack.shown.isValidPlayer())
+	{
+		result = false;
+		return;
+	}
+	const PlayerColor previous = seat->second.shown();
+	for(auto & other : srv.si->playerInfos)
+		if(other.first != pack.color && other.second.shown() == pack.shown)
+			other.second.shownColor = previous == other.first ? PlayerColor::CANNOT_DETERMINE : previous;
+	seat->second.shownColor = pack.shown == pack.color ? PlayerColor::CANNOT_DETERMINE : pack.shown;
+	result = true;
+}
+
 void ApplyOnServerNetPackVisitor::visitLobbySetSimturns(LobbySetSimturns & pack)
 {
 	srv.si->simturnsInfo = pack.simturnsInfo;

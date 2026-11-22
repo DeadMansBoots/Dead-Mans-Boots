@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../lib/DmbSeatColours.h"
 #include "Global.h"
 #include "Client.h"
 
@@ -132,6 +133,7 @@ void CClient::newGame(std::shared_ptr<CGameState> initializedGameState)
 	assert(initializedGameState);
 	gamestate = initializedGameState;
 	gamestate->preInit(LIBRARY);
+	DmbSeatColours::update(gamestate->getStartInfo()); // DMB (S424): every seat drawn in the colour picked for it in the lobby
 	logNetwork->trace("\tCreating gamestate: %i", GAME->server().th->getDiff());
 
 	initMapHandler();
@@ -148,6 +150,7 @@ void CClient::loadGame(std::shared_ptr<CGameState> initializedGameState)
 	gamestate = initializedGameState;
 	gamestate->preInit(LIBRARY);
 	gamestate->updateOnLoad(*GAME->server().si);
+	DmbSeatColours::update(gamestate->getStartInfo()); // DMB (S424): a saved game keeps its seats' colours
 	logNetwork->info("Game loaded, initialize interfaces.");
 
 	initMapHandler();

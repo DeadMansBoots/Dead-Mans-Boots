@@ -87,6 +87,8 @@ public:
 	/// DMB (S002): the host sets one seat's adventure AI, battle AI (empty = the launcher's default), tier (-1 = as the map, 0 to 4) and
 	/// whether its AI writes its thoughts to the chat (S073)
 	virtual void setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier, bool aiThoughts = false) const = 0;
+	/// DMB (S424): the host picks the colour a seat is drawn in; a colour another seat has is swapped with it
+	virtual void setSeatColor(PlayerColor color, PlayerColor shown) const = 0;
 	virtual void setPlayerOption(ui8 what, int32_t value, PlayerColor player) const = 0;
 	virtual void setDifficulty(int to) const = 0;
 	virtual void setTurnTimerInfo(const TurnTimerInfo &) const = 0;
@@ -220,6 +222,7 @@ public:
 	void setPlayerName(PlayerColor color, const std::string & name) const override;
 	void setPlayerHandicap(PlayerColor color, Handicap handicap) const override;
 	void setPlayerAI(PlayerColor color, const std::string & aiAdventure, const std::string & aiBattle, int aiTier, bool aiThoughts = false) const override;
+	void setSeatColor(PlayerColor color, PlayerColor shown) const override;
 
 	/// DMB (S002): one AI a seat may use, for the lobby's AI Settings window
 	struct SeatAIChoice

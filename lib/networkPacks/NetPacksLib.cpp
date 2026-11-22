@@ -884,6 +884,11 @@ void LobbySetPlayerAI::visitTyped(ICPackVisitor & visitor)
 	visitor.visitLobbySetPlayerAI(*this);
 }
 
+void LobbySetSeatColor::visitTyped(ICPackVisitor & visitor)
+{
+	visitor.visitLobbySetSeatColor(*this);
+}
+
 void LobbySetSimturns::visitTyped(ICPackVisitor & visitor)
 {
 	visitor.visitLobbySetSimturns(*this);

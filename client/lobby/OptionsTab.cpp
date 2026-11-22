@@ -47,10 +47,13 @@
 #include "../../lib/networkPacks/PacksForLobby.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/json/JsonUtils.h"
+#include "../../lib/constants/StringConstants.h"
 #include "../../lib/mapping/CMapInfo.h"
 #include "../../lib/mapping/CMapHeader.h"
 #include "../../lib/GameLibrary.h"
 #include "../gui/MenuColour.h"
+#include "../../lib/DmbSeatColours.h"
 #include "../render/Canvas.h"
 
 namespace
@@ -412,7 +415,7 @@ void OptionsTab::CPlayerOptionTooltipBox::genHeader()
 	if(settings["lobby"]["seatColourWindows"].Bool())
 	{
 		auto seatColoured = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w, pos.h));
-		seatColoured->setPlayerColor(playerSettings.color);
+		seatColoured->setPlayerColor(DmbSeatColours::shown(playerSettings.color)); // DMB (S424)
 		backgroundTexture = seatColoured;
 	}
 	else
@@ -629,7 +632,7 @@ void OptionsTab::SelectionWindow::recreate(int sliderPos)
 	pos = Rect(pos.x, pos.y, x + sliderWidth, y);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(Rect(0, 0, pos.w - sliderWidth, pos.h));
 	// S302: the seat's town, hero and bonus picker in its player's colour (lobby.seatColourWindows, on by default); off, the stock blue
-	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? color : menuColour());
+	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour()); // DMB (S424): the seat's picked colour
 	updateShadow();
 
 	if(type == SelType::TOWN)
@@ -921,16 +924,17 @@ OptionsTab::HandicapWindow::HandicapWindow()
 		PERCENT = 900,
 		INCOME = 1000,
 		GROWTH = 2000,
+		SEES_MAP = 3000,
 	};
 	// TODO: configurable resources
 	// DMB (S376 C, K 11-19: "change it from "handicap" to starting resources, since it seems this covers the starting resources of all players (and
 	// adjusts per difficulty for players and AI seats)"; S398: "the option for the players to add more by percent (probably should be a typeable
 	// field)"): the window shows what each seat starts with (its difficulty row, S375, plus the stock bonus) and a typeable percent of that row;
 	// what is stored is still stock's bonus, the typed amount less the row, so no new field travels
-	auto columns = std::vector<int>{EGameResID::GOLD, EGameResID::WOOD, EGameResID::MERCURY, EGameResID::ORE, EGameResID::SULFUR, EGameResID::CRYSTAL, EGameResID::GEMS, Columns::PERCENT, Columns::INCOME, Columns::GROWTH};
-	auto columnX = [](int j){ return 30 + j * 70 + (j > 0 ? 10 : 0); }; // Gold field is larger
+	auto columns = std::vector<int>{EGameResID::GOLD, EGameResID::WOOD, EGameResID::MERCURY, EGameResID::ORE, EGameResID::SULFUR, EGameResID::CRYSTAL, EGameResID::GEMS, Columns::PERCENT, Columns::INCOME, Columns::GROWTH, Columns::SEES_MAP};
+	auto columnX = [](int j){ return 30 + j * 66 + (j > 0 ? 10 : 0); }; // Gold field is larger; 66 apart so eleven columns fit 800 pixels
 
-	pos = Rect(0, 0, columnX(columns.size() - 1) + 65, 100 + SEL->getStartInfo()->playerInfos.size() * 30);
+	pos = Rect(0, 0, columnX(columns.size() - 1) + 60, 100 + SEL->getStartInfo()->playerInfos.size() * 30);
 
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
 	backgroundTexture->setPlayerColor(menuColour());
@@ -947,7 +951,7 @@ OptionsTab::HandicapWindow::HandicapWindow()
 		const PlayerSettings &ps = SEL->getStartInfo()->getIthPlayersSettings(player);
 		const TResources row = PlayerSettings::difficultyResources(!ps.isControlledByAI(), ps.startingTier(!ps.isControlledByAI(), gameDifficulty));
 		startingRows[player] = row;
-		anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, 7, 57 + i * 30));
+		anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(player).getNum(), 0, 7, 57 + i * 30));
 		for(int j = 0; j < columns.size(); j++)
 		{
 			bool isPercent = int(columns[j]) == Columns::PERCENT;
@@ -956,6 +960,37 @@ OptionsTab::HandicapWindow::HandicapWindow()
 			EGameResID resource = columns[j];
 
 			int xPos = columnX(j);
+
+			if(int(columns[j]) == Columns::SEES_MAP)
+			{
+				if(i == 0)
+					labels.push_back(std::make_shared<CLabel>(xPos, 38, FONT_TINY, ETextAlignment::TOPLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources.seesMap")));
+				// S332: a computer seat played by Nullkiller has the map cheat; the tick shows what it comes to and the host can set it
+				const std::string ai = ps.isControlledByAI() ? AISettingsWindow::resolvedAdventure(ps) : std::string();
+				const std::string settingsFile = ai == "Nullkiller" ? "config/ai/nkai/nkai-settings" : (ai == "Nullkiller2" ? "config/ai/nk2ai/nk2ai-settings" : "");
+				const Rect box(xPos + 10, 59 + i * 30, 18, 18);
+				if(settingsFile.empty())
+				{
+					labels.push_back(std::make_shared<CLabel>(box.center().x, box.center().y, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "-"));
+					continue;
+				}
+				const JsonNode nk = JsonUtils::assembleFromFiles(settingsFile);
+				const JsonNode & tierNode = nk[GameConstants::DIFFICULTY_NAMES[AISettingsWindow::effectiveTier(ps)]];
+				seesMapDefault[player] = SEL->getStartInfo()->extraOptionsInfo.cheatsAllowed && !AISettingsWindow::alliedToHuman(ps)
+					&& (tierNode["openMap"].Bool() || tierNode["allowObjectGraph"].Bool());
+				seesMap[player] = ps.handicap.seesMap;
+				const ColorRGBA gold(212, 175, 55, 255);
+				seesMapParts.push_back(std::make_shared<TransparentFilledRectangle>(box, ColorRGBA(0, 0, 0, 128), gold, 1));
+				seesMapTicks[player] = std::make_shared<TransparentFilledRectangle>(Rect(box.x + 4, box.y + 4, 10, 10), gold, gold, 1);
+				seesMapParts.push_back(std::make_shared<LRClickableArea>(box.resize(4), [this, player](){
+					// a click sets the opposite of what the tick shows; back to what the AI decides when that is the same again
+					const bool shown = seesMap[player] >= 0 ? seesMap[player] == 1 : seesMapDefault[player];
+					seesMap[player] = (!shown == seesMapDefault[player]) ? -1 : (shown ? 0 : 1);
+					showSeesMap(player);
+				}, [](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.startingResources.seesMapHelp")); }));
+				showSeesMap(player);
+				continue;
+			}
 
 			if(i == 0)
 			{
@@ -1038,7 +1073,8 @@ OptionsTab::HandicapWindow::HandicapWindow()
 				else // S376 C: the typed amount less the seat's row is stock's bonus
 					resources[resource.first] = std::stoi(resource.second->getText()) - startingRows[player.first][resource.first];
 			}
-			GAME->server().setPlayerHandicap(player.first, Handicap{resources, income, growth});
+			const auto choice = seesMap.find(player.first);
+			GAME->server().setPlayerHandicap(player.first, Handicap{resources, income, growth, choice != seesMap.end() ? choice->second : int8_t(-1)});
 		}
 	    		
 		close();
@@ -1046,6 +1082,13 @@ OptionsTab::HandicapWindow::HandicapWindow()
 
 	updateShadow();
 	center();
+}
+
+void OptionsTab::HandicapWindow::showSeesMap(PlayerColor player)
+{
+	const bool shown = seesMap[player] >= 0 ? seesMap[player] == 1 : seesMapDefault[player];
+	seesMapTicks[player]->setEnabled(shown);
+	redraw();
 }
 
 void OptionsTab::HandicapWindow::notFocusedClick()
@@ -1175,7 +1218,7 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 		"ADOPOPNL.bmp", "ADOPPPNL.bmp", "ADOPTPNL.bmp", "ADOPSPNL.bmp"
 	}};
 
-	background = std::make_shared<CPicture>(ImagePath::builtin(bgs[s->color]), 0, 0);
+	background = std::make_shared<CPicture>(ImagePath::builtin(bgs[DmbSeatColours::shown(s->color).getNum()]), 0, 0);
 	if(s->isControlledByAI() || GAME->server().isGuest())
 	{
 		// DMB (S002, K: "a configure AI button where it says computer ... the button text should reflect the currently selected AI"): a computer seat names its AI, with its tier
@@ -1209,7 +1252,7 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 			{
 				const Rect piece(aiTierIcon->pos.topLeft() - pos.topLeft(), aiTierIcon->pos.dimensions());
 				aiPieceArea = std::make_shared<LRClickableArea>(piece, openSeat, seatHelp);
-				const bool custom = !s->handicap.startBonus.empty() || s->handicap.percentIncome != 100 || s->handicap.percentGrowth != 100;
+				const bool custom = !s->handicap.startBonus.empty() || s->handicap.percentIncome != 100 || s->handicap.percentGrowth != 100 || s->handicap.seesMap >= 0;
 				if(custom)
 				{
 					customTile = std::make_shared<TransparentFilledRectangle>(piece.resize(-2), ColorRGBA(24, 40, 112, 255), ColorRGBA(150, 160, 210, 255));
@@ -1223,6 +1266,16 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 		labelPlayerNameEdit = std::make_shared<CTextInputWithConfirm>(Rect(6, 3, 95, 15), EFonts::FONT_SMALL, ETextAlignment::CENTER, name, false, [this](){ updateName(); });
 
 	labelWhoCanPlay = std::make_shared<CMultiLineLabel>(Rect(6, 21, 45, 26), EFonts::FONT_TINY, ETextAlignment::CENTER, Colors::WHITE, LIBRARY->generaltexth->arraytxt[206 + whoCanPlay]);
+	// S424 (with S332's red area): a human seat's "Human or CPU" cell opens its Seat Settings (the Seat Color list), for the host
+	if(!s->isControlledByAI() && !aiTypeArea)
+	{
+		const PlayerColor seatColor = s->color;
+		aiTypeArea = std::make_shared<LRClickableArea>(Rect(6, 21, 45, 26), [seatColor]()
+		{
+			if(GAME->server().isHost())
+				ENGINE->windows().createAndPushWindow<AISettingsWindow>(seatColor);
+		}, [](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour.help")); });
+	}
 
 	auto hasHandicap = [this](){ return s->handicap.startBonus.empty() && s->handicap.percentIncome == 100 && s->handicap.percentGrowth == 100; };
 	// S415 (K, November 21st: "Say "Starting" over "Resources" now."): the button names what its window sets, in both states; the window
@@ -1285,7 +1338,7 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 	{
 		flag = std::make_shared<CButton>(
 			Point(-43, 2),
-			AnimationPath::builtin(flags[s->color.getNum()]),
+			AnimationPath::builtin(flags[DmbSeatColours::shown(s->color).getNum()]),
 			LIBRARY->generaltexth->zelp[180],
 			std::bind(&OptionsTab::onSetPlayerClicked, &parentTab, *s)
 		);

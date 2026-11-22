@@ -332,6 +332,7 @@ set(lib_MAIN_SRCS
 	LogicalExpression.cpp
 	ObstacleHandler.cpp
 	StartInfo.cpp
+	DmbSeatColours.cpp
 	ResourceSet.cpp
 	RiverHandler.cpp
 	RoadHandler.cpp
@@ -843,6 +844,7 @@ set(lib_MAIN_HEADERS
 	ScriptHandler.h
 	ScopeGuard.h
 	StartInfo.h
+	DmbSeatColours.h
 	TerrainHandler.h
 	TurnTimerInfo.h
 	UnlockGuard.h

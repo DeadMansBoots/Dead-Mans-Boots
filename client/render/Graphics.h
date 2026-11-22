@@ -12,6 +12,7 @@
 #include "../lib/constants/NumericConstants.h"
 #include "../lib/constants/EntityIdentifiers.h"
 #include "../lib/Color.h"
+#include "../lib/DmbSeatColours.h"
 
 struct SDL_Palette;
 
@@ -24,8 +25,20 @@ class Graphics
 public:
 	using PlayerPalette = std::array<ColorRGBA, 32>;
 
+	/// DMB (S303, S424): indexed by a seat's PlayerColor, answers with the colour the seat is drawn in (DmbSeatColours); `own` is each
+	/// colour itself (a colour list that names colours, not seats, reads `own`)
+	struct SeatColourTable
+	{
+		std::array<ColorRGBA, 8> own;
+		const ColorRGBA & operator[](size_t seat) const
+		{
+			return own[seat < own.size() ? static_cast<size_t>(DmbSeatColours::shown(PlayerColor(static_cast<int>(seat))).getNum()) : seat];
+		}
+		size_t size() const { return own.size(); }
+	};
+
 	//various graphics
-	std::array<ColorRGBA, 8> playerColors;
+	SeatColourTable playerColors;
 	std::array<PlayerPalette, 8> playerColorPalette; //palette to make interface colors good - array of size [256]
 
 	PlayerPalette neutralColorPalette;

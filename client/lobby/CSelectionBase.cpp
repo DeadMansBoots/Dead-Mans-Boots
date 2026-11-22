@@ -57,6 +57,7 @@
 #include "../../lib/entities/faction/CTownHandler.h"
 #include "../../lib/GameLibrary.h"
 #include "../gui/MenuColour.h"
+#include "../../lib/DmbSeatColours.h"
 
 ISelectionScreenInfo::ISelectionScreenInfo(ESelectionScreen ScreenType)
 	: screenType(ScreenType)
@@ -672,7 +673,7 @@ void CFlagBox::recreate()
 	const int enemiesX = 5 + 133 + (int)labelEnemies->getWidth();
 	for(auto i = GAME->server().si->playerInfos.cbegin(); i != GAME->server().si->playerInfos.cend(); i++)
 	{
-		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS.DEF"), i->first.getNum(), 0);
+		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS.DEF"), DmbSeatColours::shown(i->first).getNum(), 0);
 		if(i->first == GAME->server().myFirstColor() || GAME->server().getPlayerTeamId(i->first) == GAME->server().getPlayerTeamId(GAME->server().myFirstColor()))
 		{
 			flag->moveTo(Point(pos.x + alliesX + (int)flagsAllies.size()*flag->pos.w, pos.y));

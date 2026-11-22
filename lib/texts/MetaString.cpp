@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../DmbSeatColours.h"
 #include "MetaString.h"
 
 #include "CCreatureHandler.h"
@@ -366,7 +367,8 @@ void MetaString::appendName(const SpellID & id)
 
 void MetaString::appendName(const PlayerColor & id)
 {
-	appendTextID(TextIdentifier("vcmi.capitalColors", id.getNum()).get());
+	// DMB (S424): a seat is named by the colour it is drawn in
+	appendTextID(TextIdentifier("vcmi.capitalColors", DmbSeatColours::shown(id).getNum()).get());
 }
 
 void MetaString::appendName(const CreatureID & id, TQuantity count)
@@ -409,7 +411,7 @@ void MetaString::replaceName(const MapObjectID & id, const MapObjectSubID & subI
 
 void MetaString::replaceName(const PlayerColor & id)
 {
-	replaceTextID(TextIdentifier("vcmi.capitalColors", id.getNum()).get());
+	replaceTextID(TextIdentifier("vcmi.capitalColors", DmbSeatColours::shown(id).getNum()).get());
 }
 
 void MetaString::replaceName(const SecondarySkill & id)

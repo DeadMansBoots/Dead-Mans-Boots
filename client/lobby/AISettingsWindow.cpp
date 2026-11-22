@@ -24,6 +24,9 @@
 #include "../../lib/mapping/CMapHeader.h"
 #include "../../lib/texts/CGeneralTextHandler.h"
 #include "../gui/MenuColour.h"
+#include "../../lib/DmbSeatColours.h"
+#include "../render/Graphics.h"
+#include "../windows/InfoWindows.h"
 
 namespace
 {
@@ -53,10 +56,10 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	// S312: wider and taller than before, so the two gold bars carry their words in the lobby buttons' own lettering
 	pos = Rect(0, 0, 600, 460);
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
-	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? color : menuColour()); // S302: the setting, on by default
+	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour()); // S302: the setting, on by default
 
-	anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), color.getNum(), 0, 12, 8));
-	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.title")));
+	anim.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(color).getNum(), 0, 12, 8));
+	labels.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatSettings")));
 	labels.push_back(std::make_shared<CLabel>(20, 48, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.adventure")));
 	labels.push_back(std::make_shared<CLabel>(340, 48, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.battle")));
 	labels.push_back(std::make_shared<CLabel>(20, TIER_TOP - 26, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.tier")));
@@ -119,6 +122,36 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	buttons.push_back(reset);
 
 	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 408), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { close(); }, EShortcut::GLOBAL_RETURN));
+
+	// S424: the Seat Color list under the Battle AI list, two columns of four; the swatch is the colour itself (not the seat's picked one)
+	colourTitle = std::make_shared<CLabel>(340, 150, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour"));
+	for(int i = 0; i < PlayerColor::PLAYER_LIMIT_I; ++i)
+	{
+		const int x = 340 + (i / 4) * 120;
+		const int y = 174 + (i % 4) * 24;
+		ColourCell cell;
+		cell.mark = std::make_shared<TransparentFilledRectangle>(Rect(x - 2, y - 2, 116, 22), GOLD_FILL, GOLD_LINE, 1);
+		cell.swatch = std::make_shared<TransparentFilledRectangle>(Rect(x + 2, y + 2, 14, 14), graphics->playerColors.own[i], ColorRGBA(0, 0, 0, 255), 1);
+		cell.label = std::make_shared<CLabel>(x + 22, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->capColors[i], 80);
+		cell.heldDot = std::make_shared<TransparentFilledRectangle>(Rect(x + 104, y + 7, 5, 5), ColorRGBA(160, 160, 160, 255), ColorRGBA(160, 160, 160, 255), 1);
+		const PlayerColor picked(i);
+		cell.area = std::make_shared<LRClickableArea>(Rect(x - 2, y - 2, 116, 22), [this, picked]()
+		{
+			if(GAME->server().isHost())
+				GAME->server().setSeatColor(color, picked);
+		}, [](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour.help")); });
+		colourCells.push_back(cell);
+	}
+	// a human seat's window shows only its colour
+	for(const auto & row : adventureChoices)
+		computerOnly.insert(computerOnly.end(), {row.mark, row.label, row.area});
+	for(const auto & row : battleChoices)
+		computerOnly.insert(computerOnly.end(), {row.mark, row.label, row.area});
+	computerOnly.insert(computerOnly.end(), tierMarks.begin(), tierMarks.end());
+	computerOnly.insert(computerOnly.end(), tierButtons.begin(), tierButtons.end());
+	computerOnly.insert(computerOnly.end(), {description, thoughtsBox, thoughtsTick, thoughtsLabel, thoughtsArea, asMap, reset});
+	for(size_t i = 1; i < 5 && i < labels.size(); ++i) // the Adventure AI, Battle AI and tier headings (labels[0] is the title)
+		computerOnly.push_back(labels[i]);
 
 	refresh();
 	updateShadow();
@@ -206,9 +239,35 @@ void AISettingsWindow::notFocusedClick()
 void AISettingsWindow::refresh()
 {
 	const auto * ps = seat();
-	if(!ps || !ps->isControlledByAI())
+	if(!ps)
 	{
 		close();
+		return;
+	}
+
+	// S424: the window follows the seat's colour when it changes
+	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour());
+	if(!anim.empty())
+		anim.front()->setFrame(DmbSeatColours::shown(color).getNum());
+	// S424: the colour list, for every seat
+	for(int i = 0; i < static_cast<int>(colourCells.size()); ++i)
+	{
+		const PlayerColor colour(i);
+		bool held = false;
+		for(const auto & other : SEL->getStartInfo()->playerInfos)
+			if(other.first != color && other.second.shown() == colour)
+				held = true;
+		colourCells[i].mark->setEnabled(ps->shown() == colour);
+		colourCells[i].heldDot->setEnabled(held);
+		colourCells[i].label->setColor(held ? ColorRGBA(170, 170, 170) : Colors::WHITE);
+	}
+	const bool computer = ps->isControlledByAI();
+	for(const auto & part : computerOnly)
+		if(part)
+			part->setEnabled(computer);
+	if(!computer)
+	{
+		redraw();
 		return;
 	}
 

@@ -98,6 +98,13 @@ void Nullkiller::init(const std::shared_ptr<CCallback> & cbInput, AIGateway * ai
 		useObjectGraph = false;
 		openMap = false;
 	}
+	// DMB (S332): the host's "Sees map" for this seat (Starting Resources window) wins over the tier's setting and the gates above
+	if(auto seat = cc->getStartInfo()->playerInfos.find(playerID); seat != cc->getStartInfo()->playerInfos.end() && seat->second.handicap.seesMap >= 0)
+	{
+		openMap = seat->second.handicap.seesMap == 1;
+		useObjectGraph = openMap && settings->isObjectGraphAllowed();
+		logAi->info("Sees map: %s (the host's choice for this seat)", openMap ? "yes" : "no");
+	}
 
 	baseGraph.reset();
 	priorityEvaluator.reset(new PriorityEvaluator(this));

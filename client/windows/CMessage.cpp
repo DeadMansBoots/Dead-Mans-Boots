@@ -9,6 +9,7 @@
  */
 
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "CMessage.h"
 
 #include "../GameEngine.h"
@@ -335,7 +336,7 @@ void CMessage::drawBorder(PlayerColor playerColor, Canvas & to, int w, int h, in
 {
 	if(playerColor.isSpectator())
 		playerColor = menuColour();
-	auto & box = piecesOfBox.at(playerColor.getNum());
+	auto & box = piecesOfBox.at(DmbSeatColours::shown(playerColor).getNum()); // DMB (S424)
 
 	// Note: this code assumes that the corner dimensions are all the same.
 

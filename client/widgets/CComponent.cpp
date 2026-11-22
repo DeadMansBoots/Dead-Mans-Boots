@@ -8,6 +8,7 @@
  *
  */
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "CComponent.h"
 
 #include "Images.h"
@@ -217,7 +218,7 @@ size_t CComponent::getIndex() const
 		case ComponentType::HERO_PORTRAIT:
 			return LIBRARY->heroTypes()->getById(data.subType.as<HeroTypeID>())->getIconIndex();
 		case ComponentType::FLAG:
-			return data.subType.getNum();
+			return DmbSeatColours::shown(data.subType.as<PlayerColor>()).getNum(); // DMB (S424): the seat's picked colour
 		default:
 			assert(0);
 			return 0;
@@ -336,7 +337,7 @@ std::string CComponent::getSubtitle() const
 				return building->getNameTranslated();
 			}
 		case ComponentType::FLAG:
-			return LIBRARY->generaltexth->capColors[data.subType.as<PlayerColor>().getNum()];
+			return LIBRARY->generaltexth->capColors[DmbSeatColours::shown(data.subType.as<PlayerColor>()).getNum()];
 		default:
 			assert(0);
 			return "";

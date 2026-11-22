@@ -182,6 +182,7 @@ public:
 	virtual void visitLobbySetPlayerName(LobbySetPlayerName & pack) {}
 	virtual void visitLobbySetPlayerHandicap(LobbySetPlayerHandicap & pack) {}
 	virtual void visitLobbySetPlayerAI(LobbySetPlayerAI & pack) {}
+	virtual void visitLobbySetSeatColor(LobbySetSeatColor & pack) {}
 	virtual void visitLobbySetSimturns(LobbySetSimturns & pack) {}
 	virtual void visitLobbySetTurnTime(LobbySetTurnTime & pack) {}
 	virtual void visitLobbySetExtraOptions(LobbySetExtraOptions & pack) {}

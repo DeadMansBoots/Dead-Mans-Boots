@@ -73,6 +73,10 @@ struct DLL_LINKAGE Handicap {
 	TResources startBonus = TResources();
 	int percentIncome = 100;
 	int percentGrowth = 100;
+	/// DMB (S332, K 11-19: "for ai's that have implicit handicap/cheats, we should dynamically load those (based on the ai and difficulty
+	/// level) and allow the player to adjust them as they see fit"): the host's "Sees map" for a computer seat: -1 as the AI and its tier
+	/// decide (Nullkiller's openMap, with cheats allowed and no human ally), 0 never, 1 always
+	int8_t seesMap = -1;
 
 	template <typename Handler>
 	void serialize(Handler &h)
@@ -80,6 +84,8 @@ struct DLL_LINKAGE Handicap {
 		h & startBonus;
 		h & percentIncome;
 		h & percentGrowth;
+		if(h.version >= Handler::Version::DMB_SEAT_SEES_MAP)
+			h & seesMap;
 	}
 };
 
@@ -109,6 +115,9 @@ struct DLL_LINKAGE PlayerSettings
 	/// DMB (S073, K 11-07: "toggle chat \"thought\" entries per AI slot in the pre-game per-ai config menu"): the seat's AI writes its
 	/// thoughts to the chat; off by default; only an AI whose plugin declares thoughts uses it
 	bool aiThoughts = false;
+	/// DMB (S303, S424): the colour the seat is drawn in, picked in its Seat Settings; CANNOT_DETERMINE = its own (DmbSeatColours.h)
+	PlayerColor shownColor = PlayerColor::CANNOT_DETERMINE;
+	PlayerColor shown() const { return shownColor.isValidPlayer() ? shownColor : color; }
 	template <typename Handler>
 	void serialize(Handler &h)
 	{
@@ -136,6 +145,8 @@ struct DLL_LINKAGE PlayerSettings
 			h & aiTier;
 			h & aiThoughts;
 		}
+		if(h.version >= Handler::Version::DMB_SEAT_COLOURS)
+			h & shownColor;
 	}
 	/// DMB (S002): the seat's tier when the host set one (0 to 4), else the map's difficulty
 	int aiTierOr(int mapDifficulty) const { return aiTier >= 0 && aiTier <= 4 ? aiTier : mapDifficulty; }

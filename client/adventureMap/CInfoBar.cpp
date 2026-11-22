@@ -9,6 +9,7 @@
  */
 
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "CInfoBar.h"
 
 #include "AdventureMapInterface.h"
@@ -149,7 +150,7 @@ CInfoBar::VisibleEnemyTurnInfo::VisibleEnemyTurnInfo(PlayerColor player)
 {
 	OBJECT_CONSTRUCTION;
 	background = std::make_shared<CPicture>(ImagePath::builtin("ADSTATNX"));
-	banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), player.getNum(), 0, 20, 51);
+	banner = std::make_shared<CAnimImage>(AnimationPath::builtin("CREST58"), DmbSeatColours::shown(player).getNum(), 0, 20, 51); // DMB (S424)
 	sand = std::make_shared<CShowableAnim>(99, 51, AnimationPath::builtin("HOURSAND"), 0, 100); // H3 uses around 100 ms per frame
 	glass = std::make_shared<CShowableAnim>(99, 51, AnimationPath::builtin("HOURGLAS"), CShowableAnim::PLAY_ONCE, 1000); // H3 scales this nicely for AI turn duration, don't have anything like that in vcmi
 }
@@ -190,7 +191,7 @@ CInfoBar::VisibleGameStatusInfo::VisibleGameStatusInfo()
 	int posx = allyLabel->pos.w + allyLabel->pos.x - pos.x + 4;
 	for(PlayerColor & player : allies)
 	{
-		auto image = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, posx, 102);
+		auto image = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(player).getNum(), 0, posx, 102); // DMB (S424)
 		posx += image->pos.w;
 		flags.push_back(image);
 	}
@@ -198,7 +199,7 @@ CInfoBar::VisibleGameStatusInfo::VisibleGameStatusInfo()
 	posx = enemyLabel->pos.w + enemyLabel->pos.x - pos.x + 4;
 	for(PlayerColor & player : enemies)
 	{
-		auto image = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), player.getNum(), 0, posx, 132);
+		auto image = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(player).getNum(), 0, posx, 132); // DMB (S424)
 		posx += image->pos.w;
 		flags.push_back(image);
 	}

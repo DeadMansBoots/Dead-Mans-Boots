@@ -9,6 +9,7 @@
  */
 
 #include "StdInc.h"
+#include "../../lib/DmbSeatColours.h"
 #include "MapRendererContext.h"
 
 #include "MapRendererContextState.h"
@@ -492,7 +493,7 @@ size_t MapRendererWorldViewContext::selectOverlayImageForObject(const ObjectPosI
 	size_t ownerIndex = PlayerColor::PLAYER_LIMIT.getNum() * static_cast<size_t>(EWorldViewIcon::ICONS_PER_PLAYER);
 
 	if(object.owner.isValidPlayer())
-		ownerIndex = object.owner.getNum() * static_cast<size_t>(EWorldViewIcon::ICONS_PER_PLAYER);
+		ownerIndex = DmbSeatColours::shown(object.owner).getNum() * static_cast<size_t>(EWorldViewIcon::ICONS_PER_PLAYER); // DMB (S424)
 
 	switch(object.id)
 	{

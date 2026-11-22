@@ -234,10 +234,6 @@
 				{
 					// DMB (K, November 5th: the hot join controls in the game): the host's switch for new players joining a running game, under Video Subtitles
 					"text": "vcmi.otherOptions.allowJoin.hover"
-				},
-				{
-					// DMB (S302): a seat's lobby windows in its player's colour
-					"text": "vcmi.dmb.seatColourWindows.hover"
 				}
 			]
 		},
@@ -260,11 +256,6 @@
 					"name": "allowJoinCheckbox",
 					"help": "vcmi.otherOptions.allowJoin",
 					"callback": "allowJoinChanged"
-				},
-				{
-					"name": "seatColourWindowsCheckbox",
-					"help": "vcmi.dmb.seatColourWindows",
-					"callback": "seatColourWindowsChanged"
 				}
 			]
 		},

@@ -639,7 +639,7 @@ void CSettingsView::buildCategoryPages()
 		const struct { const char * slot; const char * text; } slotRows[] = {
 			{"background", QT_TR_NOOP("Background")}, {"partitions", QT_TR_NOOP("Partitions")},
 			{"primary", QT_TR_NOOP("Primary buttons")}, {"secondary", QT_TR_NOOP("Secondary buttons")} };
-		constexpr int added = 10; // the four slots, the main menu background, the loading screen, the legacy pictures button, the keep-running, building-info and crash-report toggles
+		constexpr int added = 11; // the four slots, the main menu background, the loading screen, the legacy pictures button, the keep-running, building-info, crash-report and seat-colour (S437) toggles
 		constexpr int firstFree = 3;
 		std::map<int, QLabel *> moved;
 		for(auto & [row, header] : starts)
@@ -793,6 +793,25 @@ void CSettingsView::buildCategoryPages()
 			Settings asked = settings.write["launcher"]["crashReportsAsked"]; // pressing the switch is an answer: the launcher's question is not asked after it
 			asked->Bool() = true;
 			updateCheckbuttonText(crashButton);
+		});
+
+		// S437 (K, November 21st: "YOU GUYS JUST SMASHED THE SEAT WINDOWS IN THE PLAYER'S COLOR IN THERE, AND IT DOESNT EVEN FIT....THAT OPTION
+		// NEEDS TO BE IN DMB"): S302's switch lives here, with DMB's own options, not in the game's General settings. It writes lobby.seatColourWindows
+		// in the settings file the game shares, and the game reads it each time a seat window opens
+		auto * seatLabel = new QLabel(tr("Seat windows in the player's colour"), this);
+		seatLabel->setWordWrap(true);
+		auto * seatButton = new QToolButton(this);
+		seatButton->setObjectName("buttonSeatColourWindows");
+		seatButton->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+		seatButton->setCheckable(true);
+		setCheckbuttonState(seatButton, settings["lobby"]["seatColourWindows"].Bool());
+		cells.push_back({new QWidgetItem(seatLabel), row + 6, 0, 1, 1});
+		cells.push_back({new QWidgetItem(seatButton), row + 6, 1, 1, 5});
+		connect(seatButton, &QToolButton::toggled, this, [this, seatButton](bool value)
+		{
+			Settings node = settings.write["lobby"]["seatColourWindows"];
+			node->Bool() = value;
+			updateCheckbuttonText(seatButton);
 		});
 	}
 

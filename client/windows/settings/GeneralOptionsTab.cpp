@@ -206,12 +206,6 @@ GeneralOptionsTab::GeneralOptionsTab()
 
 	// DMB hot join control (K, November 2nd; in the game since November 5th): the host opens or closes the running game to new players. It was on the "other" tab, which has no button,
 	// so no one could see it; a dropped player can always come back (K, November 4th), so only allowJoin is the host's choice
-	// S302: a seat's lobby windows in its player's colour (on by default)
-	addCallback("seatColourWindowsChanged", [](bool value)
-	{
-		setBoolSetting("lobby", "seatColourWindows", value);
-	});
-
 	addCallback("allowJoinChanged", [](bool value)
 	{
 		setBoolSetting("server", "allowJoin", value);
@@ -271,9 +265,6 @@ GeneralOptionsTab::GeneralOptionsTab()
 	std::shared_ptr<CToggleButton> enableSubtitleCheckbox = widget<CToggleButton>("enableSubtitleCheckbox");
 	if (enableSubtitleCheckbox)
 		enableSubtitleCheckbox->setSelected(settings["general"]["enableSubtitle"].Bool());
-
-	if(auto seatColour = widget<CToggleButton>("seatColourWindowsCheckbox"))
-		seatColour->setSelectedSilent(settings["lobby"]["seatColourWindows"].Bool());
 
 	if(auto allowJoin = widget<CToggleButton>("allowJoinCheckbox"))
 	{

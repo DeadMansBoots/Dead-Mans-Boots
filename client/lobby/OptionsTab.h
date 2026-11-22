@@ -174,6 +174,14 @@ private:
 		void notFocusedClick() override;
 		void clickReleased(const Point & cursorPosition) override;
 		void showPopupWindow(const Point & cursorPosition) override;
+		/// S448: a right click anywhere reaches the picker, so one outside it can close it
+		bool receiveEvent(const Point & position, int eventType) const override;
+
+		/// S426, S448: what the picker shows, read from its seat (the constructor, and every lobby update in place)
+		void loadFromSeat();
+		/// S448: the seat is gone or no longer this player's while another window is over the picker: it closes at its next click
+		bool seatGone = false;
+		void closeWhenOnTop();
 
 	public:
 		void reopen();

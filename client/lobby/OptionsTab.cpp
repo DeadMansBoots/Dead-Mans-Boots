@@ -475,9 +475,18 @@ OptionsTab::SelectionWindow::SelectionWindow(const PlayerColor & color, SelType 
 
 	type = _type;
 
-	initialFaction = SEL->getStartInfo()->playerInfos.find(color)->second.castle;
-	initialHero = SEL->getStartInfo()->playerInfos.find(color)->second.hero;
-	initialBonus = SEL->getStartInfo()->playerInfos.find(color)->second.bonus;
+	loadFromSeat();
+	recreate(sliderPos);
+}
+
+void OptionsTab::SelectionWindow::loadFromSeat()
+{
+	unusableHeroes.clear();
+	allowedBonus.clear();
+	const auto & seat = SEL->getStartInfo()->playerInfos.at(color); // callers check the seat is there (reopen, SelectedBox)
+	initialFaction = seat.castle;
+	initialHero = seat.hero;
+	initialBonus = seat.bonus;
 	selectedFaction = initialFaction;
 	selectedHero = initialHero;
 	selectedBonus = initialBonus;
@@ -505,8 +514,6 @@ OptionsTab::SelectionWindow::SelectionWindow(const PlayerColor & color, SelType 
 
 	if(initialFaction.isValid())
 		allowedBonus.push_back(PlayerStartingBonus::RESOURCE);
-
-	recreate(sliderPos);
 }
 
 std::tuple<int, int> OptionsTab::SelectionWindow::calcLines(FactionID faction)
@@ -562,14 +569,42 @@ void OptionsTab::SelectionWindow::setSelection()
 
 void OptionsTab::SelectionWindow::reopen()
 {
-	if(type == SelType::HERO && SEL->getStartInfo()->playerInfos.find(color)->second.castle == FactionID::RANDOM)
-		close();
-	else{
-		auto window = std::make_shared<SelectionWindow>(color, type, slider ? slider->getValue() : 0);
-		close();
-		if(GAME->server().isMyColor(color) || GAME->server().isHost())
-			ENGINE->windows().pushWindow(window);
+	// DMB (S426, K 11-21: "there's a lot of us getting frozen/unable to exit hero selection screens just now"): every lobby update rebuilds an
+	// open picker from its seat; an update can take that seat away (fewer players, another map or template while the picker is open), and
+	// reading the seat list past its end crashed or hung the client. The picker of a seat that is gone closes.
+	// S448 (K 11-21: "when the issue happens, clicking even a hero does nothing"): stock closed the picker and pushed a new one on every
+	// update. close() throws unless the picker is the top window (WindowBase::close), so an update that came while another window was over
+	// the picker stopped halfway, and a click could be handled by a picker that had just been replaced. The picker now stays the same
+	// window and is refreshed in place from its seat; one whose seat is gone (or no longer this player's) closes, at once when it is on
+	// top, else at its next click
+	const auto seat = SEL->getStartInfo()->playerInfos.find(color);
+	const bool gone = seat == SEL->getStartInfo()->playerInfos.end() || (type == SelType::HERO && seat->second.castle == FactionID::RANDOM)
+		|| !(GAME->server().isMyColor(color) || GAME->server().isHost());
+	logGlobal->info("S448: the lobby changed with the %s picker of %s open: %s", type == SelType::TOWN ? "town" : (type == SelType::HERO ? "hero" : "bonus"),
+		color.toString(), gone ? "its seat is gone, it closes" : "refreshed in place");
+	if(gone)
+	{
+		closeWhenOnTop();
+		return;
 	}
+	const int sliderPos = slider ? slider->getValue() : 0;
+	loadFromSeat();
+	recreate(sliderPos);
+	redraw();
+}
+
+void OptionsTab::SelectionWindow::closeWhenOnTop()
+{
+	seatGone = true;
+	if(ENGINE->windows().isTopWindow(this))
+		close();
+}
+
+bool OptionsTab::SelectionWindow::receiveEvent(const Point & position, int eventType) const
+{
+	if(eventType == AEventsReceiver::SHOW_POPUP)
+		return true;
+	return CWindowObject::receiveEvent(position, eventType);
 }
 
 void OptionsTab::SelectionWindow::recreate(int sliderPos)
@@ -837,11 +872,17 @@ void OptionsTab::SelectionWindow::sliderMove(int slidPos)
 
 void OptionsTab::SelectionWindow::notFocusedClick()
 {
+	logGlobal->info("S448: a click outside the picker closes it, the choice unchanged");
 	close();
 }
 
 void OptionsTab::SelectionWindow::clickReleased(const Point & cursorPosition)
 {
+	if(seatGone)
+	{
+		closeWhenOnTop();
+		return;
+	}
 	if(slider && slider->pos.isInside(cursorPosition))
 		return;
 
@@ -852,7 +893,15 @@ void OptionsTab::SelectionWindow::clickReleased(const Point & cursorPosition)
 
 void OptionsTab::SelectionWindow::showPopupWindow(const Point & cursorPosition)
 {
-	if(!pos.isInside(cursorPosition) || (slider && slider->pos.isInside(cursorPosition)))
+	// S448 (K: "should be able to right-click, click outside of the box, click random, or click a hero to close it"): a right click outside
+	// the picker closes it with the choice unchanged; inside, it shows the hero's or town's details as stock
+	if(seatGone || !pos.isInside(cursorPosition))
+	{
+		logGlobal->info("S448: a right click outside the picker closes it, the choice unchanged");
+		closeWhenOnTop();
+		return;
+	}
+	if(slider && slider->pos.isInside(cursorPosition))
 		return;
 
 	int elem = getElement(cursorPosition);

@@ -899,8 +899,10 @@ std::optional<InterfaceObjectConfigurable::SliderMapping> MapGenTab::middleMappi
 	// the Random template has no neutral block: the middle of the bar, named Random (the lead, S444). A named template's lever with no value
 	// (one that template does not act on, greyed by S414) keeps the stock Template notch
 	const bool random = !info["neutral"].isStruct();
-	if(!middleValue && !random)
-		return std::nullopt;
+	// S444 (K: "every slider here needs to start in the middle"; OmniAI Dev's read): a named template's lever with no value of its own (one
+	// that template does not act on, greyed by S414) also starts in the middle, labelled Template; a move still sets a value
+	const bool inert = !middleValue && !random;
+	const std::string inertText = inert ? LIBRARY->generaltexth->translate(stop.Vector()[1].String()) : std::string();
 	const double middle = middleValue ? std::clamp(*middleValue, low, top) : (low + top) / 2;
 
 	JsonNode plain = config;
@@ -935,10 +937,10 @@ std::optional<InterfaceObjectConfigurable::SliderMapping> MapGenTab::middleMappi
 			return middle - low > eps ? static_cast<int>(std::lround(half * (v - low) / (middle - low))) : half;
 		return top - middle > eps ? half + static_cast<int>(std::lround(half * (v - middle) / (top - middle))) : half;
 	};
-	rule.text = [this, plain, templateValue, middle, random, randomText, eps](double v) -> std::string
+	rule.text = [this, plain, templateValue, middle, random, randomText, inert, inertText, eps](double v) -> std::string
 	{
 		if(std::isnan(v) || v < templateValue + eps || v < plain["valueMin"].Float() + eps)
-			return random ? randomText : formatBoundValue(middle, plain);
+			return random ? randomText : (inert ? inertText : formatBoundValue(middle, plain));
 		return formatBoundValue(v, plain);
 	};
 	if(closed != 0)

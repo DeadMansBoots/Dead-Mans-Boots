@@ -603,6 +603,24 @@ void OptionsTab::SelectionWindow::closeWhenOnTop()
 		close();
 }
 
+void OptionsTab::SelectionWindow::activate()
+{
+	CWindowObject::activate();
+	// S448 (OmniAI Dev's gate, November 22nd: after the guest pressed OK on "this player slot no longer exists", the picker of the gone seat
+	// stayed on the screen, live, until a click): a picker whose seat went while a window was over it closes when it is on top again. The
+	// close waits for the window handler to finish the pop that made it the top window
+	if(seatGone)
+		ENGINE->dispatchMainThread([]()
+		{
+			auto top = ENGINE->windows().topWindow<OptionsTab::SelectionWindow>();
+			if(top && top->seatGone)
+			{
+				logGlobal->info("S448: the picker of a gone seat is on top again: it closes");
+				top->close();
+			}
+		});
+}
+
 bool OptionsTab::SelectionWindow::receiveEvent(const Point & position, int eventType) const
 {
 	if(eventType == AEventsReceiver::SHOW_POPUP)

@@ -185,9 +185,11 @@ private:
 
 		/// S426, S448: what the picker shows, read from its seat (the constructor, and every lobby update in place)
 		void loadFromSeat();
-		/// S448: the seat is gone or no longer this player's while another window is over the picker: it closes at its next click
+		/// S448: the seat is gone or no longer this player's while another window is over the picker: it closes as soon as it is the top
+		/// window again (activate), or at its next click
 		bool seatGone = false;
 		void closeWhenOnTop();
+		void activate() override;
 
 	public:
 		void reopen();

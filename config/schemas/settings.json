@@ -26,6 +26,7 @@
 				"lastMap",
 				"mainMenuBackground",
 				"menuColour",
+				"metalColour",
 				"loadingScreen",
 				"language",
 				"gameDataLanguage",
@@ -200,6 +201,14 @@
 					"type" : "string",
 					"enum" : [ "red", "blue", "tan", "green", "orange", "purple", "teal", "pink" ],
 					"default" : "blue"
+				},
+				// DMB (S382, K November 19th: "do all the metal buttons in DMB in this grain style, but remember it needs to handle any color the
+				// user wants with the same affects"): the colour of DMB's metal buttons in the game (lib/MetalTint.h, the launcher's own rule);
+				// gold is the art as it is. No control for it yet: the launcher's preview menu of S379 will set it
+				"metalColour" : {
+					"type" : "string",
+					"enum" : [ "gold", "red", "blue", "tan", "green", "orange", "purple", "teal", "pink", "silver", "black" ],
+					"default" : "gold"
 				},
 				"loadingScreen" : {
 					"type" : "string",

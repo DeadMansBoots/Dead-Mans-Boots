@@ -12,6 +12,7 @@
 #include "gamefont.h"
 
 #include "../lib/CConfigHandler.h"
+#include "../lib/MetalTint.h"
 #include "../lib/VCMIDirs.h"
 #include "../lib/filesystem/Filesystem.h"
 #include "../lib/texts/CGeneralTextHandler.h"
@@ -630,78 +631,14 @@ QImage wordlessChoice(const QImage & frame)
 /// brown leather is stretched to for that player, and are used here the same way on the lightness of any art.
 const std::vector<std::string> SLOT_COLOUR_NAMES = {"red", "blue", "tan", "green", "orange", "purple", "teal", "pink", "silver", "black"};
 
-using ColourRange = std::array<float, 6>; // min r, g, b, max r, g, b
-
-/// The game's player colours: from its own config when the launcher can read it, else the numbers it ships with
-const std::map<std::string, ColourRange> & heroRanges()
-{
-	static const std::map<std::string, ColourRange> ranges = []()
-	{
-		std::map<std::string, ColourRange> shipped = {
-			{"red",    {0.25f, 0.00f, 0.00f, 1.25f, 0.00f, 0.00f}},
-			{"blue",   {0.00f, 0.00f, 0.00f, 0.45f, 1.20f, 4.50f}},
-			{"tan",    {0.40f, 0.27f, 0.23f, 1.10f, 1.20f, 1.15f}},
-			{"green",  {-0.27f, 0.10f, -0.27f, 0.70f, 1.70f, 0.70f}},
-			{"orange", {0.47f, 0.17f, -0.27f, 1.60f, 1.20f, 0.70f}},
-			{"purple", {0.12f, -0.10f, 0.25f, 1.15f, 1.20f, 2.20f}},
-			{"teal",   {-0.13f, 0.23f, 0.23f, 0.90f, 1.20f, 2.20f}},
-			{"pink",   {0.44f, 0.15f, 0.25f, 1.00f, 1.00f, 1.75f}},
-		};
-		try
-		{
-			const JsonNode config(JsonPath::builtin("config/gameConfig.json"));
-			const JsonNode & filters = config["settings"]["interface"]["playerColoredBackground"];
-			for(auto & [name, range] : shipped)
-			{
-				const auto & numbers = filters[name].Vector();
-				if(numbers.size() == range.size())
-					for(size_t i = 0; i < range.size(); ++i)
-						range[i] = static_cast<float>(numbers[i].Float());
-			}
-		}
-		catch(const std::exception &)
-		{
-			// the numbers above stand
-		}
-		return shipped;
-	}();
-	return ranges;
-}
-
 /// One pixel of art as `colour`, keeping its lightness (so the bevels, the marbling and the grain stay): a hero
 /// colour through the game's range for that player, softened a tenth of the way back to grey; silver and black
 /// as greys; `weight` darkens (the dark look). `lightness` is 0 to 255.
 QRgb tintPixel(int lightness, const std::string & colour, double weight)
 {
-	const double l = std::clamp(lightness, 0, 255) / 255.0;
-	double r, g, b;
-	if(colour == "silver")
-	{
-		// the cool tint is added after the weight, so a lifted silver does not turn blue
-		const auto grey = [&](double tint) { return std::clamp(static_cast<int>(std::lround((l * 0.86 * weight + tint / 255.0) * 255.0)), 0, 255); };
-		return qRgb(grey(0), grey(3), grey(8));
-	}
-	else if(colour == "black")
-	{
-		const auto grey = [&](double tint) { return std::clamp(static_cast<int>(std::lround((l * 0.30 * weight + tint / 255.0) * 255.0)), 0, 255); };
-		return qRgb(grey(0), grey(0), grey(2));
-	}
-	else
-	{
-		const auto found = heroRanges().find(colour);
-		if(found == heroRanges().end())
-			return qRgb(lightness, lightness, lightness);
-		const ColourRange & range = found->second;
-		// the lightest art (a button's highlight) a little below the colour's own top, or a pale colour such as tan
-		// would turn it white; softened only a tenth of the way back to grey, so the colour reads
-		const double lit = l * 0.85;
-		const auto channel = [&](int c) { return (lit * (range[3 + c] - range[c]) + range[c]) * 0.9 + lit * 0.1; };
-		r = channel(0);
-		g = channel(1);
-		b = channel(2);
-	}
-	const auto byte = [weight](double v) { return std::clamp(static_cast<int>(std::lround(v * weight * 255.0)), 0, 255); };
-	return qRgb(byte(r), byte(g), byte(b));
+	// S382: the one colour rule of DMB's metal, shared with the game (lib/MetalTint.h)
+	const auto c = MetalTint::pixel(lightness, colour, weight);
+	return qRgb(c[0], c[1], c[2]);
 }
 
 /// `image` as `colour` (tintPixel on each pixel's lightness; the alpha stays)

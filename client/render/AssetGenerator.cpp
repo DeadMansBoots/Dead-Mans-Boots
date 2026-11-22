@@ -31,6 +31,8 @@
 #include "../lib/GameSettings.h"
 #include "../lib/IGameSettings.h"
 #include "../lib/json/JsonNode.h"
+#include "../lib/CConfigHandler.h"
+#include "../lib/MetalTint.h"
 #include "../lib/VCMIDirs.h"
 #include "../lib/GameLibrary.h"
 #include "../lib/RiverHandler.h"
@@ -1612,6 +1614,19 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createPlateButton(const std::
 					canvas.drawPoint(Point(x, y), ColorRGBA(value(0), value(1), value(2), 255));
 				}
 			}
+			// S382 (K, November 19th: "do all the metal buttons in DMB in this grain style, but remember it needs to handle any color the user
+			// wants with the same affects"): the whole bar, ends and plate, in the metal colour the player set (general.metalColour), by the one
+			// rule the launcher uses (lib/MetalTint.h): each pixel keeps its lightness, so the bevel, the shading and the grain stay. Gold, the
+			// default, leaves the art as it is
+			const std::string metal = settings["general"]["metalColour"].String();
+			if(MetalTint::tints(metal))
+				for(int y = 0; y < size.y; ++y)
+					for(int x = 0; x < width; ++x)
+					{
+						const ColorRGBA c = canvas.getPixel(Point(x, y));
+						const auto t = MetalTint::pixel((299 * c.r + 587 * c.g + 114 * c.b) / 1000, metal, 1.0);
+						canvas.drawPoint(Point(x, y), ColorRGBA(t[0], t[1], t[2], c.a));
+					}
 			if(scaled)
 			{
 				// S329: each pixel of the smaller bar is the average of the full bar's pixels it covers (a box filter), so the 40 rows' grain

@@ -291,7 +291,10 @@ void InterfaceObjectConfigurable::refreshBoundLabels() const
 			continue;
 		const double fallback = bound.format["valueDefault"].isNull()
 			? bound.format["valueMin"].Float() : bound.format["valueDefault"].Float();
-		label->setText(formatBoundValue(settingNumber(bound.path, fallback), bound.format));
+		if(bound.text) // S444: an unset lever reads as untouched (NaN)
+			label->setText(bound.text(settingNumber(bound.path, std::numeric_limits<double>::quiet_NaN())));
+		else
+			label->setText(formatBoundValue(settingNumber(bound.path, fallback), bound.format));
 	}
 }
 
@@ -829,6 +832,42 @@ std::shared_ptr<CSlider> InterfaceObjectConfigurable::buildSlider(const JsonNode
 		const std::string labelName = config["valueLabel"].isNull() ? std::string() : config["valueLabel"].String();
 		const JsonNode format = config;
 		const std::string spec = config["setting"].String();
+		// S444: a slider with its own rule (sliderMapper); a position it may not reach is pulled back, which moves the handle again
+		if(auto mapping = sliderMapper ? sliderMapper(config["name"].String(), config) : std::nullopt)
+		{
+			const auto rule = std::make_shared<SliderMapping>(*mapping);
+			const auto self = std::make_shared<std::weak_ptr<CSlider>>();
+			// a lever with no stored value is untouched: the middle (on Classic a lever the size band sets is cleared, S320, and its default is the band's)
+			const double stored = settingNumber(path, std::numeric_limits<double>::quiet_NaN());
+			const int mappedStart = std::clamp(rule->toPosition(stored), 0, rule->total);
+			logGlobal->debug("S444: %s opens at position %d of %d (stored %g)", config["name"].String(), mappedStart, rule->total, stored);
+			auto mappedMove = [this, path, spec, labelName, rule, self](int p)
+			{
+				if(rule->limit)
+				{
+					const int allowed = rule->limit(p);
+					if(allowed != p)
+					{
+						if(auto bar = self->lock())
+							bar->scrollTo(allowed);
+						return;
+					}
+				}
+				const double v = rule->toValue(p);
+				writeSetting(path, JsonNode(v));
+				if(!labelName.empty())
+					if(auto label = widget<CLabel>(labelName))
+						label->setText(rule->text(v));
+				if(onSettingChanged)
+					onSettingChanged(spec);
+			};
+			result = std::make_shared<CSlider>(position, length, mappedMove, 0, rule->total, mappedStart, orientation, style);
+			*self = result;
+			if(!labelName.empty())
+				boundLabels.push_back({labelName, path, format, rule->text});
+		}
+		else
+		{
 		auto moved = [this, path, spec, vmin, vstep, labelName, format](int p)
 		{
 			const double v = std::round((vmin + p * vstep) * 1e6) / 1e6;
@@ -842,6 +881,7 @@ std::shared_ptr<CSlider> InterfaceObjectConfigurable::buildSlider(const JsonNode
 		result = std::make_shared<CSlider>(position, length, moved, 0, total, start, orientation, style);
 		if(!labelName.empty())
 			boundLabels.push_back({labelName, path, format});
+		}
 	}
 	else if (config["items"].isNull())
 	{

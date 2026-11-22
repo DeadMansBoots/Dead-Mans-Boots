@@ -43,6 +43,10 @@ public:
 	void setOnSettingChanged(std::function<void(const std::string &)> callback);
 	/// DMB (item 18): a chooser list of this page may be opened by the tab instead (the water layout list with its panel); see InterfaceObjectConfigurable::chooserOverride
 	template <typename Function> void setChooserOverride(Function && function) { chooserOverride = std::forward<Function>(function); }
+	/// S444: the generator's numeric bars get their middle-at-the-template rule from the tab (InterfaceObjectConfigurable::sliderMapper)
+	template <typename Function> void setSliderMapper(Function && function) { sliderMapper = std::forward<Function>(function); }
+	/// S444: the grey over a bar's closed half, owned by the page
+	std::vector<std::shared_ptr<CIntObject>> closedShades;
 	std::shared_ptr<CLabel> label(const std::string & name) const;
 	std::shared_ptr<CToggleGroup> toggleGroup(const std::string & name) const;
 	std::shared_ptr<CTextInput> textInput(const std::string & name) const;
@@ -133,6 +137,13 @@ class MapGenTab : public InterfaceObjectConfigurable
 	std::string templatePreferenceSentence() const;
 	/// the chosen template's entry in the module's template-info.json (the open layout's or Random's entry for those choices); null when there is none
 	JsonNode chosenTemplateInfo() const;
+	/// S444 (K 11-21: "every slider here needs to start in the middle, with the template's natural value being that value"): the rule of a
+	/// numeric lever's bar with the Template notch: the middle position stores Template and shows the template's value (template-info.json
+	/// neutral, at this size and player count), the left half runs linearly from the lever's minimum to it, the right half from it to the top
+	/// (the template's `max` where it has one); a half with no room is closed (closedHalves, greyed by the page)
+	std::optional<SliderMapping> middleMapping(const std::string & name, const JsonNode & config) const;
+	mutable std::map<std::string, int> closedHalves; // slider name -> -1 the left half is closed, +1 the right half
+	void greyClosedHalves(MapGenPage & page) const;
 	/// S354: whether the "Second Level Like the Overworld" tick can do anything: a map of two levels, on a template that does not list
 	/// mirrorLevels among the levers it ignores (originalPreferences.leversWithNoEffectOnTemplates, a fixed map)
 	bool mirrorLevelsUsable() const;

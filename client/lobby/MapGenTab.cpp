@@ -809,6 +809,7 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			{
 				return chooseWaterLayout(generator.modID, setting, names, values, current, title, help, apply);
 			});
+			page.setSliderMapper([this](const std::string & name, const JsonNode & config) { return middleMapping(name, config); });
 		},
 		[this](MapGenPage & page)
 		{
@@ -824,7 +825,139 @@ std::shared_ptr<CIntObject> MapGenTab::createPage(size_t index)
 			greyWaterAmountOn(page.slider("slider_waterCoverage"), page.label("value_waterCoverage"));
 			greyMirrorLevelsOn(page, mirrorLevelsUsable());
 			greyInertOn(page, inertLevers, inertKeys());
+			greyClosedHalves(page);
 		});
+}
+
+namespace
+{
+/// S444: the template's value of `lever` from template-info.json neutral[side][players], between the measured sides and player counts by
+/// a straight line (as the generator's src/biome/neutral.js: the side is the square root of the area, then the players); a side or player
+/// count outside the measured ones takes the nearest
+std::optional<double> neutralOf(const JsonNode & table, const std::string & lever, double side, int players)
+{
+	const auto bracket = [](const JsonNode & object, double x) -> std::optional<std::tuple<std::string, std::string, double>>
+	{
+		std::vector<std::pair<double, std::string>> keys;
+		for(const auto & entry : object.Struct())
+			try { keys.emplace_back(std::stod(entry.first), entry.first); } catch(const std::exception &) {}
+		if(keys.empty())
+			return std::nullopt;
+		std::sort(keys.begin(), keys.end());
+		x = std::clamp(x, keys.front().first, keys.back().first);
+		for(size_t i = 0; i + 1 < keys.size(); ++i)
+			if(x <= keys[i + 1].first)
+				return std::make_tuple(keys[i].second, keys[i + 1].second, (x - keys[i].first) / (keys[i + 1].first - keys[i].first));
+		return std::make_tuple(keys.back().second, keys.back().second, 0.0);
+	};
+	const auto atSide = [&](const JsonNode & bySide) -> std::optional<double>
+	{
+		const auto p = bracket(bySide, players);
+		if(!p)
+			return std::nullopt;
+		const JsonNode & a = bySide[std::get<0>(*p)][lever];
+		const JsonNode & b = bySide[std::get<1>(*p)][lever];
+		if(!a.isNumber() || !b.isNumber())
+			return std::nullopt;
+		return a.Float() + (b.Float() - a.Float()) * std::get<2>(*p);
+	};
+	if(!table.isStruct())
+		return std::nullopt;
+	const auto s = bracket(table, side);
+	if(!s)
+		return std::nullopt;
+	const auto a = atSide(table[std::get<0>(*s)]);
+	const auto b = atSide(table[std::get<1>(*s)]);
+	if(!a || !b)
+		return std::nullopt;
+	return *a + (*b - *a) * std::get<2>(*s);
+}
+}
+
+std::optional<InterfaceObjectConfigurable::SliderMapping> MapGenTab::middleMapping(const std::string & name, const JsonNode & config) const
+{
+	// only a generator lever with the Template notch: its first named stop is the Template value, below the lever's minimum
+	if(name.rfind("slider_", 0) != 0 || !config["valueNames"].isVector() || config["valueNames"].Vector().empty())
+		return std::nullopt;
+	const JsonNode & stop = config["valueNames"].Vector().front();
+	if(!stop.isVector() || stop.Vector().size() < 2 || stop.Vector()[1].String().find("stopTemplate") == std::string::npos)
+		return std::nullopt;
+	const std::string lever = name.substr(7);
+	const double templateValue = stop.Vector()[0].Float();
+	const double step = config["valueStep"].isNull() ? 1.0 : config["valueStep"].Float();
+	const int items = static_cast<int>(config["itemsTotal"].Integer());
+	const double low = config["valueMin"].Float() + step; // the notch is one step under the lever's minimum
+	double top = config["valueMin"].Float() + items * step;
+
+	const JsonNode info = chosenTemplateInfo();
+	const int size = mapSetting("size") < 0 ? 108 : std::clamp(mapSetting("size"), 36, 252);
+	const int players = std::clamp(mapSetting("players"), 1, 8);
+	const auto middleValue = neutralOf(info["neutral"], lever, size, players);
+	// a named template's wider top for its own biome levers (MapGen Dev, 5bb5971)
+	if(const auto wider = neutralOf(info["max"], lever, size, players))
+		top = std::max(top, *wider);
+	// the Random template has no neutral block: the middle of the bar, named Random (the lead, S444). A named template's lever with no value
+	// (one that template does not act on, greyed by S414) keeps the stock Template notch
+	const bool random = !info["neutral"].isStruct();
+	if(!middleValue && !random)
+		return std::nullopt;
+	const double middle = middleValue ? std::clamp(*middleValue, low, top) : (low + top) / 2;
+
+	JsonNode plain = config;
+	plain.Struct().erase("valueNames"); // the number shown is the plain value (S444: "no marker")
+	const std::string randomText = LIBRARY->generaltexth->translate("vcmi.dmb.mapGenerator.random");
+	constexpr int half = 50;
+	const double eps = step / 2;
+	closedHalves.erase(name);
+	if(middle <= low + eps)
+		closedHalves[name] = -1;
+	else if(middle >= top - eps)
+		closedHalves[name] = +1;
+	const int closed = closedHalves.count(name) ? closedHalves.at(name) : 0;
+	logGlobal->debug("S444: %s on %s, %d wide, %d players: bar %g to %g, middle %g%s%s", lever, templateName(), size, players, low, top, middle,
+		random ? " (no template value: Random)" : "", closed < 0 ? ", left half closed" : (closed > 0 ? ", right half closed" : ""));
+
+	SliderMapping rule;
+	rule.total = 2 * half;
+	rule.toValue = [=](int p) -> double
+	{
+		if(p == half)
+			return templateValue;
+		const double raw = p < half ? low + (middle - low) * p / half : middle + (top - middle) * (p - half) / half;
+		const double stepped = low + std::round((raw - low) / step) * step;
+		return std::round(std::clamp(stepped, low, top) * 1e6) / 1e6;
+	};
+	rule.toPosition = [=](double v) -> int
+	{
+		if(std::isnan(v) || v < low - eps)
+			return half; // Template, or no stored value
+		if(v <= middle)
+			return middle - low > eps ? static_cast<int>(std::lround(half * (v - low) / (middle - low))) : half;
+		return top - middle > eps ? half + static_cast<int>(std::lround(half * (v - middle) / (top - middle))) : half;
+	};
+	rule.text = [this, plain, templateValue, middle, random, randomText, eps](double v) -> std::string
+	{
+		if(std::isnan(v) || v < templateValue + eps || v < plain["valueMin"].Float() + eps)
+			return random ? randomText : formatBoundValue(middle, plain);
+		return formatBoundValue(v, plain);
+	};
+	if(closed != 0)
+		rule.limit = [=](int p) { return (closed < 0 && p < half) || (closed > 0 && p > half) ? half : p; };
+	return rule;
+}
+
+void MapGenTab::greyClosedHalves(MapGenPage & page) const
+{
+	for(const auto & [name, side] : closedHalves)
+	{
+		auto bar = page.slider(name);
+		if(!bar)
+			continue;
+		OBJECT_CONSTRUCTION_TARGETED(&page);
+		const Rect whole = bar->pos - page.pos.topLeft();
+		const Rect closed(side < 0 ? whole.x : whole.x + whole.w / 2, whole.y, whole.w / 2, whole.h);
+		page.closedShades.push_back(std::make_shared<TransparentFilledRectangle>(closed, ColorRGBA(40, 40, 40, 150), ColorRGBA(90, 90, 90, 200)));
+	}
 }
 
 void MapGenTab::openPage(size_t index)

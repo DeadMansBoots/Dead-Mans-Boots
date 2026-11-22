@@ -71,6 +71,19 @@ protected:
 	/// of its own (the setting as written in the layout, the option texts, their values, the index of the stored one, the title, the help, and what to call with the index picked)
 	std::function<bool(const std::string &, const std::vector<std::string> &, const std::vector<JsonNode> &, size_t, const std::string &, const std::string &, std::function<void(int)>)> chooserOverride;
 
+	/// DMB (S444, K 11-21: "every slider here needs to start in the middle, with the template's natural value being that value"): a slider bound
+	/// to a setting may get its own rule from position to stored value (the generator's bars: the middle is the template's value, each half
+	/// linear in its own span). Asked once per settings-bound slider while the layout is built; no value keeps the linear stock rule
+	struct SliderMapping
+	{
+		int total = 0;                              ///< positions 0..total
+		std::function<double(int)> toValue;        ///< what a position stores
+		std::function<int(double)> toPosition;      ///< where a stored value puts the handle
+		std::function<std::string(double)> text;    ///< the value label for a stored value
+		std::function<int(int)> limit;              ///< a position the handle may not reach is pulled back to this one (a closed half); may be empty
+	};
+	std::function<std::optional<SliderMapping>(const std::string & name, const JsonNode & config)> sliderMapper;
+
 	/// DMB: a "pages" widget's page gets its owner's callbacks, conditionals and variables
 	void inheritFrom(const InterfaceObjectConfigurable & owner);
 
@@ -192,9 +205,13 @@ private:
 		std::string label;              ///< widget name of the CLabel to update
 		std::vector<std::string> path;  ///< settings path the value lives at
 		JsonNode format;                ///< the slider's config, for formatting
+		std::function<std::string(double)> text; ///< DMB (S444): the slider's own label rule, when it has a SliderMapping
 	};
 	mutable std::vector<BoundLabel> boundLabels;
+protected:
+	/// a value as its slider's config shows it (named stops, decimals, suffix); S444's bars use it for their own label rule
 	std::string formatBoundValue(double value, const JsonNode & format) const;
+private:
 	/// DMB: the labels bound to a setting, with their layout entries (refreshSettingLabels)
 	mutable std::vector<std::pair<std::weak_ptr<CLabel>, JsonNode>> settingLabels;
 	

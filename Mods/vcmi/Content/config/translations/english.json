@@ -1118,6 +1118,7 @@
 	"vcmi.dmb.mapGenerator.template.details.levelsOne" : "One",
 	"vcmi.dmb.mapGenerator.template.details.levelsTwo" : "Two (surface and underground)",
 	"vcmi.dmb.lobby.startingResources" : "Starting Resources",
+	"vcmi.dmb.mapGenerator.random" : "Random",
 	"vcmi.dmb.lobby.startingResources.at" : "starting amounts at",
 	"vcmi.dmb.lobby.startingResources.percent" : "Amount",
 	"vcmi.dmb.lobby.startingResources.resourceHelp" : "What this seat starts the game with. It begins at the amount for the seat's difficulty: a human seat uses the game's difficulty, a computer seat its own difficulty if you gave it one. Type a new amount to change it. If you change a computer seat's difficulty later, its amounts follow the new difficulty and keep what you added or took away here.",

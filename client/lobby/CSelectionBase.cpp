@@ -150,6 +150,12 @@ void CSelectionBase::toggleTab(std::shared_ptr<CIntObject> tab)
 		curTab.reset();
 	}
 
+	// DMB (S466, K 11-22: "only one of these has the actual advanced options screen behind it, and that's the only time the hero pick menu
+	// should be visible"): a town, hero or bonus picker closes whenever Advanced Options is not the tab shown (the player's own tab change,
+	// or a guest's that follows the host's page)
+	if(curTab != tabOpt)
+		OptionsTab::closePickers("Advanced Options is no longer the tab behind it");
+
 	if(tabSel->showRandom && tab != tabOpt)
 	{
 		tabSel->curFolder = "";

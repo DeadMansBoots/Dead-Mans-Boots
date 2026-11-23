@@ -104,6 +104,15 @@ OptionsTab::OptionsTab()
 	acceptOptionPages("advancedOptions", "core.genrltxt.515");
 }
 
+void OptionsTab::closePickers(const char * why)
+{
+	for(auto picker : ENGINE->windows().findWindows<SelectionWindow>())
+	{
+		logGlobal->info("S466: the picker closes: %s", why);
+		picker->closeWhenOnTop();
+	}
+}
+
 void OptionsTab::recreate()
 {
 	ENGINE->stallDiag.lastLobbyUpdate = std::chrono::steady_clock::now(); // S466
@@ -624,7 +633,7 @@ void OptionsTab::SelectionWindow::activate()
 			auto top = ENGINE->windows().topWindow<OptionsTab::SelectionWindow>();
 			if(top && top->seatGone)
 			{
-				logGlobal->info("S448: the picker of a gone seat is on top again: it closes");
+				logGlobal->info("S448: the picker of a gone seat (or one whose tab is gone, S466) is on top again: it closes");
 				top->close();
 			}
 		});

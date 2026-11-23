@@ -47,6 +47,8 @@ public:
 	OptionsTab();
 	void recreate();
 	void onSetPlayerClicked(const PlayerSettings & ps) const;
+	/// DMB (S466): every open town, hero or bonus picker closes (now, or when it is on top again): the tab behind them is not this one
+	static void closePickers(const char * why);
 	
 	enum SelType
 	{
@@ -188,11 +190,12 @@ private:
 		/// S448: the seat is gone or no longer this player's while another window is over the picker: it closes as soon as it is the top
 		/// window again (activate), or at its next click
 		bool seatGone = false;
-		void closeWhenOnTop();
 		void activate() override;
 
 	public:
 		void reopen();
+		/// S448, S466: closes now when on top, else as soon as it is on top again
+		void closeWhenOnTop();
 
 		SelectionWindow(const PlayerColor & color, SelType _type, int sliderPos = 0);
 		~SelectionWindow();

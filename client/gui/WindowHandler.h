@@ -65,6 +65,9 @@ public:
 	template <typename T>
 	std::shared_ptr<T> topWindow() const;
 
+	/// DMB (S466): the top window's class name, for a log line; "none" when no window is open
+	const char * topWindowName() const;
+
 	/// should be called after frame has been rendered to screen
 	void onFrameRendered();
 

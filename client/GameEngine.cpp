@@ -137,6 +137,9 @@ void GameEngine::fakeMouseMove()
 		const auto drawn = Clock::now();
 		screenHandlerInstance->presentScreenTexture();
 		const auto presented = Clock::now();
+		stallDiag.lastEvents = millis(start, fetched);
+		stallDiag.lastDrawing = millis(fetched, drawn);
+		stallDiag.lastPresenting = millis(drawn, presented);
 		if(millis(start, presented) > 40.0)
 		{
 			if(presented - lastSlowLine >= std::chrono::seconds(1))

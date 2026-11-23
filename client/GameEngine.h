@@ -69,6 +69,17 @@ private:
 public:
 	std::mutex interfaceMutex;
 
+	/// DMB (S466, K 11-22: "SOMETIMES WHEN A PLAYER OPENS THE HERO PICK MENU, THE UI BECOMES UNRESPONSIVE"): what the input-wait log line
+	/// reports: the last frame's parts, when the lobby last changed, and the open picker's widget count (-1: no picker open)
+	struct StallDiag
+	{
+		double lastEvents = 0;
+		double lastDrawing = 0;
+		double lastPresenting = 0;
+		std::chrono::steady_clock::time_point lastLobbyUpdate{};
+		int pickerWidgets = -1;
+	} stallDiag;
+
 	/// returns current position of mouse cursor, relative to vcmi window
 	const Point & getCursorPosition() const;
 

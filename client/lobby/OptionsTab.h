@@ -195,6 +195,7 @@ private:
 		void reopen();
 
 		SelectionWindow(const PlayerColor & color, SelType _type, int sliderPos = 0);
+		~SelectionWindow();
 	};
 
 	/// Image with current town/hero/bonus

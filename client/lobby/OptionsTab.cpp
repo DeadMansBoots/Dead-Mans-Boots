@@ -106,6 +106,7 @@ OptionsTab::OptionsTab()
 
 void OptionsTab::recreate()
 {
+	ENGINE->stallDiag.lastLobbyUpdate = std::chrono::steady_clock::now(); // S466
 	entries.clear();
 	humanPlayers = 0;
 
@@ -482,6 +483,11 @@ OptionsTab::SelectionWindow::SelectionWindow(const PlayerColor & color, SelType 
 	recreate(sliderPos);
 }
 
+OptionsTab::SelectionWindow::~SelectionWindow()
+{
+	ENGINE->stallDiag.pickerWidgets = -1; // S466: no picker open
+}
+
 void OptionsTab::SelectionWindow::loadFromSeat()
 {
 	unusableHeroes.clear();
@@ -554,8 +560,11 @@ void OptionsTab::SelectionWindow::apply()
 
 		close();
 
+		logGlobal->info("S466: picker click: chosen, the picker closes");
 		setSelection();
 	}
+	else
+		logGlobal->info("S466: picker click ignored: %s is the top window", ENGINE->windows().topWindowName());
 }
 
 void OptionsTab::SelectionWindow::setSelection()
@@ -670,6 +679,10 @@ void OptionsTab::SelectionWindow::recreate(int sliderPos)
 	}
 
 	center();
+	// S466: how many widgets the picker draws now, after each build (opening, a scroll, a lobby update)
+	ENGINE->stallDiag.pickerWidgets = static_cast<int>(components.size());
+	logGlobal->info("S466: the %s picker of %s built: %d widgets", type == SelType::TOWN ? "town" : (type == SelType::HERO ? "hero" : "bonus"),
+		color.toString(), static_cast<int>(components.size()));
 }
 
 void OptionsTab::SelectionWindow::drawOutlinedText(int x, int y, ColorRGBA color, std::string text)
@@ -839,7 +852,11 @@ void OptionsTab::SelectionWindow::setElement(int elem, bool doApply)
 		{
 			elem--;
 			if(elem >= heroes.size())
+			{
+				if(doApply)
+					logGlobal->info("S466: picker click on an empty cell (element %d of %d heroes): nothing happens", elem + 1, static_cast<int>(heroes.size()));
 				return;
+			}
 			set.hero = heroes[elem];
 		}
 		else
@@ -848,7 +865,11 @@ void OptionsTab::SelectionWindow::setElement(int elem, bool doApply)
 		}
 
 		if(doApply && unusableHeroes.count(heroes[elem]))
+		{
+			logGlobal->info("S466: picker click on %s ignored: %s is another seat's hero", set.hero == HeroTypeID::RANDOM ? "Random" : "a hero",
+				heroes[elem].toHeroType()->getJsonKey());
 			return;
+		}
 
 		if(set.hero != HeroTypeID::NONE)
 		{

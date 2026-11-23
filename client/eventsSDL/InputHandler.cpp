@@ -22,6 +22,7 @@
 #include "../GameEngineUser.h"
 #include "../gui/CursorHandler.h"
 #include "../gui/EventDispatcher.h"
+#include "../gui/WindowHandler.h"
 #include "../gui/MouseButton.h"
 #include "../media/IMusicPlayer.h"
 #include "../media/ISoundPlayer.h"
@@ -204,6 +205,27 @@ void InputHandler::processEvents()
 	}
 	
 	std::vector<SDL_Event> eventsToProcess = acquireEvents();
+
+	// DMB (S466): a click or key that waited over half a second with a hero, town or bonus picker open is written to the log, with what
+	// the game was doing, so a player's stall can be read from the log without a reproduction
+	const auto & diag = ENGINE->stallDiag;
+	if(diag.pickerWidgets >= 0)
+	{
+		const Uint32 now = SDL_GetTicks();
+		for(const auto & currentEvent : eventsToProcess)
+		{
+			const bool input = currentEvent.type == SDL_MOUSEBUTTONDOWN || currentEvent.type == SDL_MOUSEBUTTONUP || currentEvent.type == SDL_KEYDOWN;
+			const Uint32 waited = now - currentEvent.common.timestamp;
+			if(input && waited > 500)
+			{
+				const auto sinceLobby = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - diag.lastLobbyUpdate).count();
+				logGlobal->warn("S466: input waited %d ms with a picker open: %d events queued, last frame events %.0f ms, drawing %.0f ms, presenting %.0f ms, top window %s, lobby changed %d ms ago, picker widgets %d",
+					static_cast<int>(waited), static_cast<int>(eventsToProcess.size()), diag.lastEvents, diag.lastDrawing, diag.lastPresenting,
+					ENGINE->windows().topWindowName(), static_cast<int>(sinceLobby), diag.pickerWidgets);
+				break;
+			}
+		}
+	}
 
 	for(const auto & currentEvent : eventsToProcess)
 		handleCurrentEvent(currentEvent);

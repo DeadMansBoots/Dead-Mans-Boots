@@ -25,6 +25,12 @@ static const char * windowTypeName(const IShowActivatable & window)
 	return typeid(window).name();
 }
 
+const char * WindowHandler::topWindowName() const
+{
+	const auto top = topWindowImpl();
+	return top ? windowTypeName(*top) : "none";
+}
+
 void WindowHandler::popWindow(std::shared_ptr<IShowActivatable> top)
 {
 	if (windowsStack.back() != top)

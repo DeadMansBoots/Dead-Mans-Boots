@@ -877,10 +877,11 @@ void OptionsTab::SelectionWindow::setElement(int elem, bool doApply)
 			set.hero = HeroTypeID::RANDOM;
 		}
 
-		if(doApply && unusableHeroes.count(heroes[elem]))
+		// S466: only a hero is checked against the other seats' picks; stock checked heroes[elem] for Random too, which with elem 0 is the
+		// faction's first hero, so Random did nothing while another seat held that hero (and read past an empty list)
+		if(doApply && set.hero != HeroTypeID::RANDOM && unusableHeroes.count(set.hero))
 		{
-			logGlobal->info("S466: picker click on %s ignored: %s is another seat's hero", set.hero == HeroTypeID::RANDOM ? "Random" : "a hero",
-				heroes[elem].toHeroType()->getJsonKey());
+			logGlobal->info("S466: picker click on %s ignored: another seat's hero", set.hero.toHeroType()->getJsonKey());
 			return;
 		}
 

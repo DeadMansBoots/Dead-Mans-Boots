@@ -125,8 +125,9 @@ void CResDataBar::showPopupWindow(const Point & cursorPosition)
 	auto playerSettings = GAME->interface()->cb->getPlayerSettings(whose);
 	for(auto & k : LIBRARY->resourceTypeHandler->getAllObjects())
 	{
-		income += playerState->valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(k));
-		income += playerState->valOfBonuses(BonusType::RESOURCES_TOWN_MULTIPLYING_BOOST, BonusSubtypeID(k)) * playerState->getTowns().size();
+		// DMB (S380): each resource's boost to that resource only, as upstream develop has it (1.7.5 added it to every resource)
+		income[k] += playerState->valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(k));
+		income[k] += playerState->valOfBonuses(BonusType::RESOURCES_TOWN_MULTIPLYING_BOOST, BonusSubtypeID(k)) * playerState->getTowns().size();
 	}
 	TResources incomeHandicapped = income;
 	incomeHandicapped.applyHandicap(playerSettings->handicap.percentIncome);

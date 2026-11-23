@@ -228,8 +228,9 @@ ResourceSet NewTurnProcessor::generatePlayerIncome(PlayerColor playerID, bool ne
 
 	for(auto & k : LIBRARY->resourceTypeHandler->getAllObjects())
 	{
-		income += state.valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(k));
-		income += state.valOfBonuses(BonusType::RESOURCES_TOWN_MULTIPLYING_BOOST, BonusSubtypeID(k)) * state.getTowns().size();
+		// DMB (S380): each resource's boost to that resource only, as upstream develop has it (1.7.5 added it to every resource)
+		income[k] += state.valOfBonuses(BonusType::RESOURCES_CONSTANT_BOOST, BonusSubtypeID(k));
+		income[k] += state.valOfBonuses(BonusType::RESOURCES_TOWN_MULTIPLYING_BOOST, BonusSubtypeID(k)) * state.getTowns().size();
 	}
 
 	if(newWeek) //weekly crystal generation if 1 or more crystal dragons in any hero army or town garrison

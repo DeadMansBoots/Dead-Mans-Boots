@@ -641,6 +641,10 @@ void OptionsTab::SelectionWindow::recreate(int sliderPos)
 {
 	OBJECT_CONSTRUCTION;
 
+	// S466: a build replaces the picker's portraits, names and frames; stock kept the old ones under the new (every scroll, and here every
+	// lobby update since the in-place refresh), about 200 more widgets each time for a full hero list
+	components.clear();
+
 	int amountLines = 1;
 	if(type == SelType::BONUS)
 		elementsPerLine = allowedBonus.size();

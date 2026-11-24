@@ -21,6 +21,9 @@
 #include "../render/CAnimation.h"
 #include "../render/CanvasImage.h"
 #include "../render/CDefFile.h"
+#include "../render/IImageLoader.h"
+#include <SDL_surface.h>
+#include <SDL_pixels.h>
 #include "../render/Colors.h"
 #include "../render/ColorFilter.h"
 #include "../render/IScreenHandler.h"
@@ -276,6 +279,169 @@ std::shared_ptr<ScalableImageShared> RenderHandler::loadImageImpl(const ImageLoc
 	return scaledImage;
 }
 
+namespace
+{
+/// S377, S461, S498: a DEF frame read as its palette indices (the cut needs the indices, not colours)
+class DmbIndexLoader final : public IImageLoader
+{
+public:
+	Point size;
+	Point margins;
+	Point fullSize;
+	std::vector<ui8> pixels;
+	std::array<SDL_Color, 256> palette{};
+	size_t position = 0;
+	size_t lineStart = 0;
+
+	void init(Point SpriteSize, Point Margins, Point FullSize, SDL_Color * pal) override
+	{
+		size = SpriteSize;
+		margins = Margins;
+		fullSize = FullSize;
+		pixels.assign(static_cast<size_t>(size.x) * size.y, 0);
+		if(pal)
+			std::copy(pal, pal + palette.size(), palette.begin());
+	}
+	void load(size_t n, const ui8 * data) override
+	{
+		for(size_t i = 0; i < n && position < pixels.size(); ++i)
+			pixels[position++] = data[i];
+	}
+	void load(size_t n, ui8 color) override
+	{
+		for(size_t i = 0; i < n && position < pixels.size(); ++i)
+			pixels[position++] = color;
+	}
+	void endLine() override
+	{
+		lineStart += size.x;
+		position = lineStart;
+	}
+};
+
+/// S377 (K, November 19th: "for these, the buttons backgrounds should match the main background"), S461 and S498 (K, November 24th, on the
+/// cut: "No, nothing is wrongly cut now"): the five difficulty chess pieces (GSPBUT3 to GSPBUT7, frame 0) cut from their blue tile, made here
+/// from the player's own art each time (Heroes III art is never shipped). The rule is the accepted one (skill heroes3-art-extraction, tool
+/// ! LLM Files\Tools\art_extract\s461_pieces.py): the tile is the palette indices read where only the tile is (inside the 2-pixel frame
+/// band, outside each piece's box, the five frames pooled) plus the tile's darker shades (blue, no lighter in red, green or blue than that
+/// texture); the frame band goes and a flood from it takes only tile indices. Every other pixel keeps its index, the player-colour range
+/// (224 to 255) included, so a player's colour can be cast over the piece later
+std::array<std::shared_ptr<ISharedImage>, 5> cutChessPieces(const std::function<std::shared_ptr<CDefFile>(const AnimationPath &)> & defFile)
+{
+	constexpr int BAND = 2;
+	constexpr int PLAYER_FIRST = 224;
+	std::array<DmbIndexLoader, 5> frames;
+	for(int tier = 0; tier < 5; ++tier)
+	{
+		const auto def = defFile(AnimationPath::builtin("GSPBUT" + std::to_string(3 + tier) + ".DEF"));
+		if(!def || !def->hasFrame(0, 0))
+			return {};
+		def->loadFrame(0, 0, frames[tier]);
+	}
+	const auto & palette = frames[0].palette;
+	const auto tileBlue = [&palette](int index)
+	{
+		const SDL_Color & c = palette[index];
+		return index < PLAYER_FIRST && c.b > c.r + 10 && c.b >= c.g;
+	};
+	const auto flood = [](const DmbIndexLoader & frame, const std::function<bool(int)> & through)
+	{
+		const int w = frame.size.x;
+		const int h = frame.size.y;
+		std::vector<char> tile(static_cast<size_t>(w) * h, 0);
+		std::vector<Point> todo;
+		for(int y = 0; y < h; ++y)
+			for(int x = 0; x < w; ++x)
+				if(x < BAND || y < BAND || x >= w - BAND || y >= h - BAND)
+				{
+					tile[y * w + x] = 1;
+					todo.emplace_back(x, y);
+				}
+		while(!todo.empty())
+		{
+			const Point p = todo.back();
+			todo.pop_back();
+			for(const Point & d : {Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1)})
+			{
+				const Point n = p + d;
+				if(n.x < 0 || n.y < 0 || n.x >= w || n.y >= h || tile[n.y * w + n.x] || !through(frame.pixels[n.y * w + n.x]))
+					continue;
+				tile[n.y * w + n.x] = 1;
+				todo.push_back(n);
+			}
+		}
+		return tile;
+	};
+
+	// the tile's own indices, read outside each piece's rough box (the first pass floods by colour only to find the box)
+	std::set<int> tileIndices;
+	for(const auto & frame : frames)
+	{
+		const int w = frame.size.x;
+		const int h = frame.size.y;
+		const auto rough = flood(frame, tileBlue);
+		int x0 = w;
+		int y0 = h;
+		int x1 = -1;
+		int y1 = -1;
+		for(int y = 0; y < h; ++y)
+			for(int x = 0; x < w; ++x)
+				if(!rough[y * w + x])
+				{
+					x0 = std::min(x0, x);
+					y0 = std::min(y0, y);
+					x1 = std::max(x1, x);
+					y1 = std::max(y1, y);
+				}
+		for(int y = BAND; y < h - BAND; ++y)
+			for(int x = BAND; x < w - BAND; ++x)
+				if(!(x >= x0 - 1 && x <= x1 + 1 && y >= y0 - 1 && y <= y1 + 1))
+					tileIndices.insert(frame.pixels[y * w + x]);
+	}
+	// and its darker shades: blue, no lighter than the texture in any channel
+	int ceilR = 0;
+	int ceilG = 0;
+	int ceilB = 0;
+	for(int index : tileIndices)
+	{
+		ceilR = std::max<int>(ceilR, palette[index].r);
+		ceilG = std::max<int>(ceilG, palette[index].g);
+		ceilB = std::max<int>(ceilB, palette[index].b);
+	}
+	for(int index = 0; index < PLAYER_FIRST; ++index)
+		if(tileBlue(index) && palette[index].r <= ceilR && palette[index].g <= ceilG && palette[index].b <= ceilB)
+			tileIndices.insert(index);
+
+	std::array<std::shared_ptr<ISharedImage>, 5> pieces;
+	for(int tier = 0; tier < 5; ++tier)
+	{
+		const auto & frame = frames[tier];
+		const auto tile = flood(frame, [&tileIndices](int index) { return tileIndices.count(index) != 0; });
+		SDL_Surface * surface = SDL_CreateRGBSurface(0, frame.fullSize.x, frame.fullSize.y, 8, 0, 0, 0, 0);
+		if(!surface)
+			return {};
+		SDL_Palette * surfacePalette = SDL_AllocPalette(256);
+		SDL_SetPaletteColors(surfacePalette, frame.palette.data(), 0, 256);
+		SDL_SetSurfacePalette(surface, surfacePalette);
+		SDL_FreePalette(surfacePalette);
+		SDL_FillRect(surface, nullptr, 0);
+		int kept = 0;
+		for(int y = 0; y < frame.size.y; ++y)
+			for(int x = 0; x < frame.size.x; ++x)
+				if(!tile[y * frame.size.x + x])
+				{
+					static_cast<ui8 *>(surface->pixels)[(y + frame.margins.y) * surface->pitch + x + frame.margins.x] = frame.pixels[y * frame.size.x + x];
+					++kept;
+				}
+		SDL_SetColorKey(surface, SDL_TRUE, 0);
+		pieces[tier] = std::make_shared<SDLImageShared>(surface);
+		SDL_FreeSurface(surface); // the image keeps its own reference
+		logGlobal->debug("S498: chess piece %d cut at run time: %d pixels kept of %dx%d", tier, kept, frame.size.x, frame.size.y);
+	}
+	return pieces;
+}
+}
+
 std::shared_ptr<ISharedImage> RenderHandler::loadImageFromFileUncached(const ImageLocator & locator)
 {
 	if(locator.image)
@@ -292,6 +458,15 @@ std::shared_ptr<ISharedImage> RenderHandler::loadImageFromFileUncached(const Ima
 
 		if(CResourceHandler::get()->existsResource(imagePath))
 			return std::make_shared<SDLImageShared>(imagePath);
+
+		// S498: "DmbChessPiece0.png" to "DmbChessPiece4.png", the difficulty pieces cut from their tile (cutChessPieces)
+		for(int tier = 0; tier < 5; ++tier)
+			if(imagePath == ImagePath::builtin("DmbChessPiece" + std::to_string(tier) + ".png"))
+			{
+				const auto pieces = cutChessPieces([this](const AnimationPath & path) { return getAnimationFile(path); });
+				if(pieces[tier])
+					return pieces[tier];
+			}
 
 		auto generated = assetGenerator->generateImage(imagePath);
 		if (generated)

@@ -725,16 +725,21 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	asMap->setOverlay(asMapWords);
 	buttons.push_back(asMap);
 
-	constexpr std::array difButns = {"GSPBUT3.DEF", "GSPBUT4.DEF", "GSPBUT5.DEF", "GSPBUT6.DEF", "GSPBUT7.DEF"};
+	// S377 (K, November 19th: "for these, the buttons backgrounds should match the main background"), S498 (K, November 24th, the cut accepted:
+	// "No, nothing is wrongly cut now"): each piece cut from its blue tile at run time (RenderHandler, "DmbChessPiece<n>"), so the window's own
+	// colour shows round it; a click picks the tier, a right click shows the stock help
 	for(int i = 0; i < 5; i++)
 	{
 		const int x = 314 + i * 44;
 		tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(x - 3, TIER_TOP - 1, 38, 38), GOLD_FILL, GOLD_LINE, 1));
-		tierButtons.push_back(std::make_shared<CButton>(Point(x, TIER_TOP + 2), AnimationPath::builtin(difButns[i]), LIBRARY->generaltexth->zelp[24 + i], [this, i]()
+		auto piece = std::make_shared<CPicture>(ImagePath::builtin("DmbChessPiece" + std::to_string(i) + ".png"), Point(x, TIER_TOP + 2));
+		const std::string help = LIBRARY->generaltexth->zelp[24 + i].second;
+		tierButtons.push_back(std::make_shared<LRClickableArea>(Rect(x - 3, TIER_TOP - 1, 38, 38), [this, i]()
 		{
 			if(const auto * ps = seat())
 				send(ps->aiAdventure, ps->aiBattle, i);
-		}));
+		}, [help](){ CRClickPopup::createAndPush(help); }));
+		tierButtons.push_back(piece);
 	}
 
 	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 560, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");

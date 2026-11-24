@@ -31,6 +31,7 @@
 #include "../GameEngine.h"
 #include "../gui/WindowHandler.h"
 #include "../widgets/CTextInput.h"
+#include "../widgets/Slider.h"
 #include "../../lib/entities/artifact/CArtHandler.h"
 #include "../../lib/entities/artifact/CArtifact.h"
 #include "../../lib/DmbSeatBonuses.h"
@@ -66,38 +67,67 @@ std::string seatText(const std::string & id)
 }
 
 /// S380 (K 11-19: "Yes, build all of them in this order: your four ticked ones first, then the rest"; S396 K 11-19: "yes, should implement this
-/// in the per seat settings menu"): rows 6 to 19, 22 to 27 of the S330 table and row 29 (a creature stack), opened from Seat Settings. It
-/// edits the Seat Settings window's copy of the seat's handicap; its OK sends that copy through the Seat Settings window.
-/// S472 (K, November 22nd: "lets just put all the bonuses on one page (an external page)"): the page has every seat bonus, the four that
-/// were in Seat Settings (movement, spell points, army size, artifact) included, and fits the 800x600 screen (600x540)
+/// in the per seat settings menu"): the seat's bonuses, opened from Seat Settings. It edits the Seat Settings window's copy of the seat's
+/// handicap; its OK sends that copy through the Seat Settings window.
+/// S472 (K, November 22nd: "lets just put all the bonuses on one page (an external page)"): every seat bonus on this one page.
+/// S495, S496 (K, November 24th, all twenty options ticked: "make sure the bonuses among these get put into the bonus settings page, and as
+/// needed, give that page a scrollbar. group like-settings together thematically"): the rows in groups (hero at the start, hero skills,
+/// spells, movement and the map, battle, creatures, home town, resources and trade), two to a line, 18 lines on show with a scrollbar (the
+/// mouse wheel works over the list). Every value is kept in this window while its lines are rebuilt on a scroll.
 class SeatBonusesWindow final : public CWindowObject
 {
+	enum class Kind
+	{
+		NUMBER,
+		PERCENT,
+		TICK,
+		PICKER
+	};
+	struct Cell
+	{
+		Kind kind;
+		std::string key;
+	};
+	struct Line
+	{
+		std::string heading; ///< a group's heading line when not empty
+		std::vector<Cell> cells;
+	};
+
 	std::shared_ptr<Handicap> pending;
 	std::function<void()> send;
 	FactionID faction;
 	std::shared_ptr<FilledTexturePlayerColored> background;
 	std::vector<std::shared_ptr<CIntObject>> parts;
-	std::map<std::string, std::shared_ptr<CTextInput>> numbers;
-	std::map<std::string, std::shared_ptr<TransparentFilledRectangle>> ticks;
-	std::map<std::string, bool> ticked;
-	std::shared_ptr<CLabel> spellLabel;
-	std::shared_ptr<CLabel> skillLabel;
-	std::shared_ptr<CLabel> buildingsLabel;
-	std::shared_ptr<CLabel> creatureLabel;
-	std::shared_ptr<CLabel> artifactLabel;
+	std::vector<std::shared_ptr<CIntObject>> lineParts; ///< the lines on show, made again on a scroll
+	std::shared_ptr<CSlider> slider;
 	std::shared_ptr<CButton> okButton;
+	std::vector<Line> lines;
+	int first = 0;
+	std::map<std::string, std::string> texts; ///< the number and percent fields as typed
+	std::map<std::string, bool> ticked;
 	SpellID spell;
 	SecondarySkill skill;
 	std::vector<BuildingID> buildings;
 	CreatureID creature;
 	ArtifactID artifact;
-	/// S472: the movement, spell point and army percents (Handicap's own fields), by their text key
-	std::map<std::string, std::shared_ptr<CTextInput>> percents;
+	int school = 0; ///< the Tome: 0 none, 1 air, 2 fire, 3 water, 4 earth
 
 	static constexpr int LEFT = 20;
-	static constexpr int RIGHT = 312;
-	static constexpr int TOP = 52;
-	static constexpr int STEP = 24; // S472: 26 before; the four Seat Settings rows came onto this page
+	static constexpr int TOP = 46;
+	static constexpr int STEP = 24;
+	static constexpr int VISIBLE = 18; ///< 46 + 18 * 24 = 478, above the Reset and OK row
+	static constexpr int CELL = 256; ///< two cells a line: x 20 and 300, the gap between them takes a percent's "%"
+	static constexpr int SECOND = 300;
+
+	static Line heading(const std::string & group)
+	{
+		return Line{group, {}};
+	}
+	static Line line(std::vector<Cell> cells)
+	{
+		return Line{"", std::move(cells)};
+	}
 
 	/// S380's percent rows (the S330 table's ranges, approved by K with it): typeable, the top while typing, the bottom on OK
 	struct PercentRange
@@ -114,92 +144,135 @@ class SeatBonusesWindow final : public CWindowObject
 		return {50, 300};
 	}
 
-	void percentField(const std::string & key, int value, int y)
-	{
-		parts.push_back(std::make_shared<CLabel>(LEFT, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key)));
-		const Rect box(240, y + 1, 40, 16);
-		parts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
-		auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
-		input->setText(std::to_string(value));
-		std::weak_ptr<CTextInput> self = input;
-		const int top = percentRange(key).top;
-		input->setCallback([self, top](const std::string & s)
-		{
-			std::string digits = s;
-			digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
-			digits = digits.substr(0, 3);
-			const std::string shown = digits.empty() ? "" : std::to_string(std::min(top, std::stoi(digits)));
-			auto field = self.lock();
-			if(field && shown != s)
-				field->setText(shown);
-		});
-		input->setPopupCallback([key](){ CRClickPopup::createAndPush(seatText(key + "Help")); });
-		parts.push_back(std::make_shared<CLabel>(box.topRight().x + 2, box.center().y, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "%"));
-		percents[key] = input;
-	}
-
 	int percentValue(const std::string & key) const
 	{
-		const std::string text = percents.at(key)->getText();
+		const std::string text = texts.at(key);
 		const auto range = percentRange(key);
 		return text.empty() ? 100 : std::clamp(std::stoi(text), range.bottom, range.top);
 	}
 
-	void numberField(const std::string & key, int labelX, int fieldX, int y, int width)
+	/// a number or percent field: the label at the left of the cell, the box at its right
+	void numberCell(const Cell & cell, int x, int y)
 	{
-		const DmbSeatBonusRow * row = dmbSeatBonusRow(key);
-		parts.push_back(std::make_shared<CLabel>(labelX, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key)));
-		const Rect box(fieldX, y + 1, width, 16);
-		parts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
-		auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
-		input->setText(std::to_string(pending->seatValue(key, row->neutral)));
+		const bool percent = cell.kind == Kind::PERCENT;
+		const int width = (cell.key == "daily6" || cell.key == "stackCount") ? 48 : 40;
+		const int right = x + CELL; // every box ends at the cell's edge; a percent's "%" goes in the gap after it (percent rows are left cells)
+		const Rect box(right - width, y + 4, width, 16);
+		lineParts.push_back(std::make_shared<CLabel>(x, y + 12, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(cell.key), box.x - x - 6));
+		lineParts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
+		auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, false);
+		input->setText(texts[cell.key]);
 		std::weak_ptr<CTextInput> self = input;
-		const int maxDigits = static_cast<int>(std::to_string(row->max).size());
-		input->setCallback([self, row, maxDigits](const std::string & s)
+		int bottom = 0;
+		int top = 0;
+		if(percent)
+			top = percentRange(cell.key).top;
+		else
+		{
+			const DmbSeatBonusRow * row = dmbSeatBonusRow(cell.key);
+			bottom = row->min;
+			top = row->max;
+		}
+		const int maxDigits = static_cast<int>(std::to_string(top).size());
+		const std::string key = cell.key;
+		input->setCallback([this, self, key, bottom, top, maxDigits](const std::string & s)
 		{
 			// digits only, a minus sign first where the row goes below 0; the top of the range while typing, the bottom on OK
-			const bool negative = row->min < 0 && !s.empty() && s[0] == '-';
+			const bool negative = bottom < 0 && !s.empty() && s[0] == '-';
 			std::string digits = s;
 			digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
 			digits = digits.substr(0, maxDigits);
 			std::string shown = negative ? "-" : "";
 			if(!digits.empty())
-			{
-				const int value = (negative ? -1 : 1) * std::stoi(digits);
-				shown = std::to_string(std::clamp(value, std::min(row->min, 0), row->max));
-			}
+				shown = std::to_string(std::clamp((negative ? -1 : 1) * std::stoi(digits), std::min(bottom, 0), top));
+			texts[key] = shown;
 			auto field = self.lock();
 			if(field && shown != s)
 				field->setText(shown);
 		});
 		input->setPopupCallback([key](){ CRClickPopup::createAndPush(seatText(key + "Help")); });
-		numbers[key] = input;
+		lineParts.push_back(input);
+		if(percent)
+			lineParts.push_back(std::make_shared<CLabel>(box.topRight().x + 3, box.center().y, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "%"));
 	}
 
-	void tickBox(const std::string & key, int x, int y)
+	void tickCell(const Cell & cell, int x, int y)
 	{
-		parts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(x, y, 18, 18), ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1));
-		auto tick = std::make_shared<TransparentFilledRectangle>(Rect(x + 4, y + 4, 10, 10), GOLD_LINE, GOLD_LINE, 1);
-		ticked[key] = pending->seatValue(key, 0) != 0;
-		tick->setEnabled(ticked[key]);
-		ticks[key] = tick;
-		parts.push_back(std::make_shared<CLabel>(x + 24, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key), 120));
-		parts.push_back(std::make_shared<LRClickableArea>(Rect(x, y - 2, 140, 22), [this, key]()
+		const Rect frame(x + CELL - 18, y + 3, 18, 18);
+		lineParts.push_back(std::make_shared<CLabel>(x, y + 12, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(cell.key), CELL - 26));
+		lineParts.push_back(std::make_shared<TransparentFilledRectangle>(frame, ColorRGBA(0, 0, 0, 80), GOLD_LINE, 1));
+		auto tick = std::make_shared<TransparentFilledRectangle>(Rect(frame.x + 4, frame.y + 4, 10, 10), GOLD_LINE, GOLD_LINE, 1);
+		tick->setEnabled(ticked[cell.key]);
+		lineParts.push_back(tick);
+		// the click changes the tick in place: the line is not made again from its own click
+		std::weak_ptr<TransparentFilledRectangle> mark = tick;
+		const std::string key = cell.key;
+		lineParts.push_back(std::make_shared<LRClickableArea>(Rect(x, y + 1, CELL, 22), [this, mark, key]()
 		{
 			ticked[key] = !ticked[key];
-			ticks[key]->setEnabled(ticked[key]);
+			if(auto shown = mark.lock())
+				shown->setEnabled(ticked[key]);
 			redraw();
 		}, [key](){ CRClickPopup::createAndPush(seatText(key + "Help")); }));
 	}
 
-	std::shared_ptr<CLabel> pickerRow(const std::string & key, int y, std::function<void()> onClick)
+	std::string pickText(const std::string & key) const
 	{
-		parts.push_back(std::make_shared<CLabel>(RIGHT, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key)));
-		const Rect box(424, y, 156, 18);
-		parts.push_back(std::make_shared<TransparentFilledRectangle>(box, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
-		auto label = std::make_shared<CLabel>(box.x + 6, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", box.w - 10);
-		parts.push_back(std::make_shared<LRClickableArea>(box, onClick, [key](){ CRClickPopup::createAndPush(seatText(key + "Help")); }));
-		return label;
+		if(key == "spell")
+			return spell == SpellID::NONE ? seatText("none") : spell.toEntity(LIBRARY)->getNameTranslated();
+		if(key == "skill")
+			return skill == SecondarySkill::NONE ? seatText("none") : skill.toEntity(LIBRARY)->getNameTranslated();
+		if(key == "creature")
+			return creature == CreatureID::NONE ? seatText("none") : creature.toEntity(LIBRARY)->getNamePluralTranslated();
+		if(key == "artifact")
+			return artifact == ArtifactID::NONE ? seatText("none") : artifact.toEntity(LIBRARY)->getNameTranslated();
+		if(key == "tomeSchool")
+			return school >= 1 && school <= 4 ? seatText("tome" + std::to_string(school)) : seatText("none");
+		std::string names;
+		for(const auto & choice : buildingChoices())
+			if(vstd::contains(buildings, choice.first))
+				names += (names.empty() ? "" : ", ") + choice.second;
+		return names.empty() ? seatText("none") : names;
+	}
+
+	/// a picker takes the whole line: the label, then the framed box with the pick; a click opens its list
+	void pickerCell(const Cell & cell, int y)
+	{
+		const Rect box(LEFT + 150, y + 3, CELL * 2 - 136, 18);
+		lineParts.push_back(std::make_shared<CLabel>(LEFT, y + 12, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(cell.key), 144));
+		lineParts.push_back(std::make_shared<TransparentFilledRectangle>(box, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
+		lineParts.push_back(std::make_shared<CLabel>(box.x + 6, y + 12, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, pickText(cell.key), box.w - 10));
+		const std::string key = cell.key;
+		lineParts.push_back(std::make_shared<LRClickableArea>(box, [this, key]() { choose(key); }, [key](){ CRClickPopup::createAndPush(seatText(key + "Help")); }));
+	}
+
+	void showLines()
+	{
+		lineParts.clear();
+		OBJECT_CONSTRUCTION;
+		for(int i = 0; i < VISIBLE && first + i < static_cast<int>(lines.size()); ++i)
+		{
+			const Line & shown = lines[first + i];
+			const int y = TOP + i * STEP;
+			if(!shown.heading.empty())
+			{
+				lineParts.push_back(std::make_shared<CLabel>(LEFT, y + 13, FONT_MEDIUM, ETextAlignment::CENTERLEFT, Colors::YELLOW, seatText("group." + shown.heading)));
+				lineParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(LEFT, y + STEP - 3, CELL * 2 + SECOND - LEFT - CELL, 1), GOLD_LINE, GOLD_LINE, 1));
+				continue;
+			}
+			for(size_t c = 0; c < shown.cells.size(); ++c)
+			{
+				const Cell & cell = shown.cells[c];
+				const int x = c == 0 ? LEFT : SECOND;
+				if(cell.kind == Kind::PICKER)
+					pickerCell(cell, y);
+				else if(cell.kind == Kind::TICK)
+					tickCell(cell, x, y);
+				else
+					numberCell(cell, x, y);
+			}
+		}
+		redraw();
 	}
 
 	/// the list of building choices, named as the seat's own town names them (generic names for a random town)
@@ -231,39 +304,6 @@ class SeatBonusesWindow final : public CWindowObject
 		return choices;
 	}
 
-	void showPicks()
-	{
-		spellLabel->setText(spell == SpellID::NONE ? seatText("none") : spell.toEntity(LIBRARY)->getNameTranslated());
-		skillLabel->setText(skill == SecondarySkill::NONE ? seatText("none") : skill.toEntity(LIBRARY)->getNameTranslated());
-		creatureLabel->setText(creature == CreatureID::NONE ? seatText("none") : creature.toEntity(LIBRARY)->getNamePluralTranslated());
-		std::string names;
-		for(const auto & choice : buildingChoices())
-			if(vstd::contains(buildings, choice.first))
-				names += (names.empty() ? "" : ", ") + choice.second;
-		buildingsLabel->setText(names.empty() ? seatText("none") : names);
-		artifactLabel->setText(artifact == ArtifactID::NONE ? seatText("none") : artifact.toEntity(LIBRARY)->getNameTranslated());
-		redraw();
-	}
-
-	void chooseArtifact()
-	{
-		// S380: every artifact a hero can carry from the start (treasure, minor, major, relic), by name; the first entry is none
-		std::vector<ArtifactID> ids{ArtifactID::NONE};
-		std::vector<std::string> names{seatText("none")};
-		for(const auto & art : LIBRARY->arth->objects)
-		{
-			if(!art)
-				continue;
-			const auto kind = art->aClass;
-			if(kind == EArtifactClass::ART_TREASURE || kind == EArtifactClass::ART_MINOR || kind == EArtifactClass::ART_MAJOR || kind == EArtifactClass::ART_RELIC)
-			{
-				ids.push_back(art->getId());
-				names.push_back(art->getNameTranslated());
-			}
-		}
-		openList<ArtifactID>("artifact", ids, names, artifact, [this](ArtifactID id) { artifact = id; });
-	}
-
 	template<typename ID>
 	void openList(const std::string & key, const std::vector<ID> & ids, const std::vector<std::string> & names, ID current, std::function<void(ID)> onPick)
 	{
@@ -276,100 +316,123 @@ class SeatBonusesWindow final : public CWindowObject
 			if(index < 0 || index >= static_cast<int>(ids.size()))
 				return;
 			onPick(ids[index]);
-			showPicks();
+			showLines();
 		}, selected, std::vector<std::shared_ptr<IImage>>{}, true);
 	}
 
-	void chooseSpell()
+	void choose(const std::string & key)
 	{
-		std::vector<SpellID> ids{SpellID::NONE};
-		std::vector<std::string> names{seatText("none")};
-		for(const auto & s : LIBRARY->spellh->objects)
-			if(s && !s->isSpecial() && !s->isCreatureAbility() && (s->isAdventure() || s->isCombat()))
-			{
-				ids.push_back(s->getId());
-				names.push_back(s->getNameTranslated());
-			}
-		openList<SpellID>("spell", ids, names, spell, [this](SpellID id) { spell = id; });
-	}
-
-	void chooseSkill()
-	{
-		std::vector<SecondarySkill> ids{SecondarySkill::NONE};
-		std::vector<std::string> names{seatText("none")};
-		for(const auto & s : LIBRARY->skillh->objects)
-			if(s)
-			{
-				ids.push_back(s->getId());
-				names.push_back(s->getNameTranslated());
-			}
-		openList<SecondarySkill>("skill", ids, names, skill, [this](SecondarySkill id) { skill = id; });
-	}
-
-	void chooseCreature()
-	{
-		std::vector<CreatureID> ids{CreatureID::NONE};
-		std::vector<std::string> names{seatText("none")};
-		for(const auto & c : LIBRARY->creh->objects)
-			if(c && !c->special)
-			{
-				ids.push_back(c->getId());
-				names.push_back(c->getNamePluralTranslated());
-			}
-		openList<CreatureID>("creature", ids, names, creature, [this](CreatureID id) { creature = id; });
-	}
-
-	void chooseBuilding()
-	{
-		// a pick adds the building, or takes it away when it is already chosen; the first entry clears them all
-		std::vector<BuildingID> ids{BuildingID::NONE};
-		std::vector<std::string> names{seatText("none")};
-		for(const auto & choice : buildingChoices())
+		if(key == "spell")
 		{
-			ids.push_back(choice.first);
-			names.push_back((vstd::contains(buildings, choice.first) ? "[x] " : "[  ] ") + choice.second);
+			std::vector<SpellID> ids{SpellID::NONE};
+			std::vector<std::string> names{seatText("none")};
+			for(const auto & s : LIBRARY->spellh->objects)
+				if(s && !s->isSpecial() && !s->isCreatureAbility() && (s->isAdventure() || s->isCombat()))
+				{
+					ids.push_back(s->getId());
+					names.push_back(s->getNameTranslated());
+				}
+			openList<SpellID>(key, ids, names, spell, [this](SpellID id) { spell = id; });
 		}
-		openList<BuildingID>("buildings", ids, names, BuildingID::NONE, [this](BuildingID id)
+		else if(key == "skill")
 		{
-			if(id == BuildingID::NONE)
-				buildings.clear();
-			else if(vstd::contains(buildings, id))
-				vstd::erase(buildings, id);
-			else
-				buildings.push_back(id);
-		});
+			std::vector<SecondarySkill> ids{SecondarySkill::NONE};
+			std::vector<std::string> names{seatText("none")};
+			for(const auto & s : LIBRARY->skillh->objects)
+				if(s)
+				{
+					ids.push_back(s->getId());
+					names.push_back(s->getNameTranslated());
+				}
+			openList<SecondarySkill>(key, ids, names, skill, [this](SecondarySkill id) { skill = id; });
+		}
+		else if(key == "creature")
+		{
+			std::vector<CreatureID> ids{CreatureID::NONE};
+			std::vector<std::string> names{seatText("none")};
+			for(const auto & c : LIBRARY->creh->objects)
+				if(c && !c->special)
+				{
+					ids.push_back(c->getId());
+					names.push_back(c->getNamePluralTranslated());
+				}
+			openList<CreatureID>(key, ids, names, creature, [this](CreatureID id) { creature = id; });
+		}
+		else if(key == "artifact")
+		{
+			// S380: every artifact a hero can carry from the start (treasure, minor, major, relic), by name; the first entry is none
+			std::vector<ArtifactID> ids{ArtifactID::NONE};
+			std::vector<std::string> names{seatText("none")};
+			for(const auto & art : LIBRARY->arth->objects)
+			{
+				if(!art)
+					continue;
+				const auto kind = art->aClass;
+				if(kind == EArtifactClass::ART_TREASURE || kind == EArtifactClass::ART_MINOR || kind == EArtifactClass::ART_MAJOR || kind == EArtifactClass::ART_RELIC)
+				{
+					ids.push_back(art->getId());
+					names.push_back(art->getNameTranslated());
+				}
+			}
+			openList<ArtifactID>(key, ids, names, artifact, [this](ArtifactID id) { artifact = id; });
+		}
+		else if(key == "tomeSchool")
+		{
+			std::vector<int> ids{0, 1, 2, 3, 4};
+			std::vector<std::string> names{seatText("none")};
+			for(int i = 1; i <= 4; ++i)
+				names.push_back(seatText("tome" + std::to_string(i)));
+			openList<int>(key, ids, names, school, [this](int id) { school = id; });
+		}
+		else if(key == "buildings")
+		{
+			// a pick adds the building, or takes it away when it is already chosen; the first entry clears them all
+			std::vector<BuildingID> ids{BuildingID::NONE};
+			std::vector<std::string> names{seatText("none")};
+			for(const auto & choice : buildingChoices())
+			{
+				ids.push_back(choice.first);
+				names.push_back((vstd::contains(buildings, choice.first) ? "[x] " : "[  ] ") + choice.second);
+			}
+			openList<BuildingID>(key, ids, names, BuildingID::NONE, [this](BuildingID id)
+			{
+				if(id == BuildingID::NONE)
+					buildings.clear();
+				else if(vstd::contains(buildings, id))
+					vstd::erase(buildings, id);
+				else
+					buildings.push_back(id);
+			});
+		}
 	}
 
 	void resetAll()
 	{
-		for(const auto & field : numbers)
-			field.second->setText(std::to_string(dmbSeatBonusRow(field.first)->neutral));
-		for(auto & tick : ticked)
+		for(auto & field : texts)
 		{
-			tick.second = false;
-			ticks[tick.first]->setEnabled(false);
+			const DmbSeatBonusRow * row = dmbSeatBonusRow(field.first);
+			field.second = std::to_string(row ? row->neutral : 100);
 		}
-		for(const auto & field : percents)
-			field.second->setText("100");
+		for(auto & tick : ticked)
+			tick.second = false;
 		spell = SpellID::NONE;
 		skill = SecondarySkill::NONE;
 		creature = CreatureID::NONE;
 		artifact = ArtifactID::NONE;
+		school = 0;
 		buildings.clear();
-		showPicks();
+		showLines();
 	}
 
 	void accept()
 	{
 		logGlobal->info("S472: Seat Bonuses OK");
-		pending->percentMovement = percentValue("movement");
-		pending->percentMana = percentValue("mana");
-		pending->percentArmy = percentValue("army");
-		pending->startArtifact = artifact;
-		for(const auto & field : numbers)
+		for(const auto & field : texts)
 		{
 			const DmbSeatBonusRow * row = dmbSeatBonusRow(field.first);
-			const std::string text = field.second->getText();
+			if(!row)
+				continue; // a percent field, below
+			const std::string & text = field.second;
 			const int value = (text.empty() || text == "-") ? row->neutral : std::clamp(std::stoi(text), row->min, row->max);
 			if(value == row->neutral)
 				pending->seatValues.erase(field.first);
@@ -383,12 +446,84 @@ class SeatBonusesWindow final : public CWindowObject
 			else
 				pending->seatValues.erase(tick.first);
 		}
+		if(school >= 1 && school <= 4)
+			pending->seatValues["tomeSchool"] = school;
+		else
+			pending->seatValues.erase("tomeSchool");
+		pending->percentMovement = percentValue("movement");
+		pending->percentMana = percentValue("mana");
+		pending->percentArmy = percentValue("army");
+		pending->startArtifact = artifact;
 		pending->startSpell = spell;
 		pending->startSkill = skill;
 		pending->startBuildings = buildings;
 		pending->stackCreature = creature;
 		send();
 		close();
+	}
+
+	void buildLines()
+	{
+		const auto n = [](const char * key) { return Cell{Kind::NUMBER, key}; };
+		const auto p = [](const char * key) { return Cell{Kind::PERCENT, key}; };
+		const auto t = [](const char * key) { return Cell{Kind::TICK, key}; };
+		const auto pick = [](const char * key) { return Cell{Kind::PICKER, key}; };
+		lines = {
+			heading("heroStart"),
+			line({n("heroLevel"), n("extraHeroes")}),
+			line({pick("skill")}),
+			line({pick("artifact")}),
+			line({p("army")}),
+			heading("heroSkills"),
+			line({n("attack"), n("defense")}),
+			line({n("power"), n("knowledge")}),
+			line({n("experience"), n("wisdom")}),
+			heading("spells"),
+			line({pick("spell")}),
+			line({pick("tomeSchool")}),
+			line({p("mana"), n("manaRegen")}),
+			line({n("manaPercentRegen"), n("spellDamage")}),
+			line({n("spellDuration"), n("learnBattleSpells")}),
+			line({n("scholarLevel"), t("twoSpells")}),
+			heading("movement"),
+			line({p("movement"), n("scouting")}),
+			line({t("roughGround"), t("noTerrainPenalty")}),
+			line({t("waterWalking"), t("flying")}),
+			line({t("freeBoarding"), t("whirlpool")}),
+			heading("battle"),
+			line({n("luck"), n("morale")}),
+			line({t("maxLuck"), t("maxMorale")}),
+			line({n("speed"), n("health")}),
+			line({n("damage"), n("magicResistance")}),
+			line({n("surrender"), n("diplomacy")}),
+			heading("creatures"),
+			line({pick("creature")}),
+			line({n("stackCount"), n("legionGrowth")}),
+			line({n("necromancy"), n("creatureExperience")}),
+			heading("town"),
+			line({pick("buildings")}),
+			line({n("garrisonWeeks"), t("thievesGuild")}),
+			heading("resources"),
+			line({n("daily6"), n("markets")}),
+			line({n("daily0"), n("daily2")}),
+			line({n("daily1"), n("daily3")}),
+			line({n("daily4"), n("daily5")}),
+		};
+		for(const auto & shown : lines)
+			for(const auto & cell : shown.cells)
+			{
+				if(cell.kind == Kind::NUMBER)
+				{
+					const DmbSeatBonusRow * row = dmbSeatBonusRow(cell.key);
+					texts[cell.key] = std::to_string(pending->seatValue(cell.key, row->neutral));
+				}
+				else if(cell.kind == Kind::TICK)
+					ticked[cell.key] = pending->seatValue(cell.key, 0) != 0;
+			}
+		texts["movement"] = std::to_string(pending->percentMovement);
+		texts["mana"] = std::to_string(pending->percentMana);
+		texts["army"] = std::to_string(pending->percentArmy);
+		school = pending->seatValue("tomeSchool", 0);
 	}
 
 public:
@@ -411,49 +546,11 @@ public:
 		parts.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(color).getNum(), 0, 12, 8));
 		parts.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses")));
 
-		// left: the hero and battle rows (6 to 17 without 14), then the movement, spell point and army percents (S472: from Seat Settings)
-		const std::vector<std::string> left = {"manaRegen", "experience", "attack", "defense", "power", "knowledge", "luck", "morale", "scouting",
-			"speed", "health", "damage", "necromancy", "creatureExperience", "surrender"};
-		for(size_t i = 0; i < left.size(); ++i)
-			numberField(left[i], LEFT, 240, TOP + static_cast<int>(i) * STEP, 40);
-		const int percentTop = TOP + static_cast<int>(left.size()) * STEP;
-		percentField("movement", pending->percentMovement, percentTop);
-		percentField("mana", pending->percentMana, percentTop + STEP);
-		percentField("army", pending->percentArmy, percentTop + 2 * STEP);
-
-		// right: daily resources (row 14), the ticks (18, 19), the town and hero rows (22 to 27) and the creature stack (29)
-		int y = TOP;
-		numberField("daily6", RIGHT, 392, y, 48);
-		y += STEP;
-		const std::vector<std::string> dailies = {"daily0", "daily2", "daily1", "daily3", "daily4", "daily5"}; // wood, ore, mercury, sulfur, crystal, gems
-		for(size_t i = 0; i < dailies.size(); ++i)
-			numberField(dailies[i], RIGHT + static_cast<int>(i % 3) * 92, RIGHT + static_cast<int>(i % 3) * 92 + 60, y + static_cast<int>(i / 3) * STEP, 22);
-		y += 2 * STEP;
-		tickBox("roughGround", RIGHT, y);
-		tickBox("freeBoarding", RIGHT + 140, y);
-		y += STEP;
-		tickBox("waterWalking", RIGHT, y);
-		tickBox("flying", RIGHT + 140, y);
-		y += STEP;
-		tickBox("thievesGuild", RIGHT, y);
-		y += STEP;
-		numberField("heroLevel", RIGHT, 520, y, 40);
-		y += STEP;
-		numberField("extraHeroes", RIGHT, 520, y, 40);
-		y += STEP;
-		numberField("garrisonWeeks", RIGHT, 520, y, 40);
-		y += STEP;
-		spellLabel = pickerRow("spell", y, [this]() { chooseSpell(); });
-		y += STEP;
-		skillLabel = pickerRow("skill", y, [this]() { chooseSkill(); });
-		y += STEP;
-		buildingsLabel = pickerRow("buildings", y, [this]() { chooseBuilding(); });
-		y += STEP;
-		creatureLabel = pickerRow("creature", y, [this]() { chooseCreature(); });
-		y += STEP;
-		numberField("stackCount", RIGHT, 520, y, 48);
-		y += STEP;
-		artifactLabel = pickerRow("artifact", y, [this]() { chooseArtifact(); }); // S472: from Seat Settings
+		buildLines();
+		const int listHeight = VISIBLE * STEP;
+		slider = std::make_shared<CSlider>(Point(pos.w - 32, TOP), listHeight, [this](int to) { first = to; showLines(); }, VISIBLE,
+			static_cast<int>(lines.size()), 0, Orientation::VERTICAL, CSlider::BLUE);
+		slider->setScrollBounds(Rect(LEFT - slider->pos.x + pos.x, 0, pos.w - LEFT - 8, listHeight)); // the wheel scrolls over the whole list
 
 		// the Reset framed like the pickers, and the OK check mark where Seat Settings has it
 		const Rect resetBox(LEFT, 494, 160, 22);
@@ -462,14 +559,14 @@ public:
 		parts.push_back(std::make_shared<LRClickableArea>(resetBox, [this]() { resetAll(); }, [](){ CRClickPopup::createAndPush(seatText("resetMoreHelp")); }));
 		okButton = std::make_shared<CButton>(Point(pos.w - 20 - 64, 488), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { accept(); }, EShortcut::GLOBAL_RETURN);
 
-		showPicks();
+		showLines();
 		updateShadow();
 		center();
 	}
 
 	void notFocusedClick() override
 	{
-		logGlobal->info("S380: a click outside More Bonuses closes it, nothing kept");
+		logGlobal->info("S380: a click outside the Seat Bonuses page closes it, nothing kept");
 		close();
 	}
 };

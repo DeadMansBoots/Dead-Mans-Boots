@@ -539,6 +539,47 @@ void CGameState::initDifficulty()
 		// row 19: the guild shows everything it can (five taverns' worth)
 		if(seatNumber("thievesGuild"))
 			seatBonus(BonusType::THIEVES_GUILD_ACCESS, 5);
+		// S495 (K, November 24th, all twenty seat options ticked; S496 "make sure the bonuses among these get put into the bonus settings
+		// page"): items 1 to 15, each the bonus the stock skill or artifact it mirrors gives, on the player as above
+		seatAmount(BonusType::SPELL_DAMAGE, seatNumber("spellDamage"), BonusSubtypeID(SpellSchool::ANY)); // Sorcery's
+		seatAmount(BonusType::SPELL_DURATION, seatNumber("spellDuration")); // the Cape of Conjuring's
+		seatAmount(BonusType::MAGIC_RESISTANCE, seatNumber("magicResistance")); // Resistance's
+		if(seatNumber("learnBattleSpells"))
+		{
+			// Eagle Eye's chance and, as at expert, spells up to level 4 (the limit must be set for the chance to count)
+			seatBonus(BonusType::LEARN_BATTLE_SPELL_CHANCE, seatNumber("learnBattleSpells"));
+			seatBonus(BonusType::LEARN_BATTLE_SPELL_LEVEL_LIMIT, 4, BonusSubtypeID(), BonusValueType::INDEPENDENT_MAX);
+		}
+		if(seatNumber("scholarLevel"))
+			seatBonus(BonusType::LEARN_MEETING_SPELL_LIMIT, seatNumber("scholarLevel"), BonusSubtypeID(), BonusValueType::INDEPENDENT_MAX);
+		if(seatNumber("whirlpool"))
+			seatBonus(BonusType::WHIRLPOOL_PROTECTION, 0);
+		if(seatNumber("noTerrainPenalty"))
+		{
+			// the bonus is per terrain (the Sand Walker's sand), so one for every land terrain; native terrain's battle bonuses stay as they are
+			for(const auto & terrain : LIBRARY->terrainTypeHandler->objects)
+				if(terrain && terrain->isLand())
+					seatBonus(BonusType::NO_TERRAIN_PENALTY, 0, BonusSubtypeID(terrain->getId()));
+		}
+		seatAmount(BonusType::WANDERING_CREATURES_JOIN_BONUS, seatNumber("diplomacy")); // Diplomacy's
+		seatAmount(BonusType::MARKETPLACE_ACCESS, seatNumber("markets")); // counted as marketplaces for trade rates
+		if(seatNumber("twoSpells"))
+			seatBonus(BonusType::HERO_SPELL_CASTS_PER_COMBAT_TURN, 1); // on top of the game's one
+		{
+			static const std::array<SpellSchool, 4> schools = {SpellSchool::AIR, SpellSchool::FIRE, SpellSchool::WATER, SpellSchool::EARTH};
+			const int school = seatNumber("tomeSchool");
+			if(school >= 1 && school <= 4)
+				seatBonus(BonusType::SPELLS_OF_SCHOOL, 0, BonusSubtypeID(schools[school - 1])); // the school's Tome
+		}
+		seatAmount(BonusType::MAX_LEARNABLE_SPELL_LEVEL, seatNumber("wisdom")); // Wisdom's, on top of the game's 2
+		if(seatNumber("legionGrowth"))
+			for(int level = 1; level <= 7; ++level)
+				seatBonus(BonusType::CREATURE_GROWTH, seatNumber("legionGrowth"), BonusCustomSubtype::creatureLevel(level)); // the Legion pieces'
+		if(seatNumber("maxMorale"))
+			seatBonus(BonusType::MAX_MORALE, 0);
+		if(seatNumber("maxLuck"))
+			seatBonus(BonusType::MAX_LUCK, 0);
+		seatAmount(BonusType::MANA_PERCENTAGE_REGENERATION, seatNumber("manaPercentRegen")); // the Wizard's Well's
 
 		//set global bonuses
 		for(auto & jsonBonus : json["globalBonuses"].Vector())

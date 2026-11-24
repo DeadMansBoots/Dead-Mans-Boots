@@ -21,6 +21,7 @@
 #include "../render/Graphics.h"
 #include "../render/IFont.h"
 #include "../render/IRenderHandler.h"
+#include "../render/IImage.h"
 #include "../media/ISoundPlayer.h"
 #include "../widgets/CComponent.h"
 #include "../widgets/ComboBox.h"
@@ -1294,6 +1295,11 @@ OptionsTab::PlayerOptionsEntry::PlayerOptionsEntry(const PlayerSettings & S, con
 				// S331 (K, November 19th: "the difficulty per seat buttons for ai don't line up with the seat rows"): centred on the row from the
 				// picture's own height; a fixed 8 pixels down hung the piece's frame past the row's bottom into the next seat
 				aiTierIcon->moveBy(Point(0, (background->pos.h - aiTierIcon->pos.h) / 2));
+				// S470 (K, November 22nd, picture k_lobby_difficulty_buttons_center_1122.png: "we should center the chess-piece/difficulty buttons"):
+				// on the flag column, the piece's centre on the centre of the flag a human seat shows there (the flag is the wider picture, so a
+				// piece drawn from the flag's left edge stood about 5 pixels left of the column)
+				if(const auto flagImage = ENGINE->renderHandler().loadImage(AnimationPath::builtin(flags[0]), 0, 0, EImageBlitMode::COLORKEY))
+					aiTierIcon->moveBy(Point((flagImage->width() - aiTierIcon->pos.w) / 2, 0));
 			}
 			const PlayerColor seatColor = s->color;
 			auto openSeat = [seatColor]()

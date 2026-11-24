@@ -34,6 +34,8 @@
 #include "../../lib/entities/artifact/CArtHandler.h"
 #include "../../lib/entities/artifact/CArtifact.h"
 #include "../../lib/DmbSeatBonuses.h"
+#include "../render/IFont.h"
+#include "../render/IRenderHandler.h"
 #include "../../lib/CCreatureHandler.h"
 #include "../../lib/CSkillHandler.h"
 #include "../../lib/spells/CSpellHandler.h"
@@ -66,6 +68,8 @@ std::string seatText(const std::string & id)
 /// S380 (K 11-19: "Yes, build all of them in this order: your four ticked ones first, then the rest"; S396 K 11-19: "yes, should implement this
 /// in the per seat settings menu"): rows 6 to 19, 22 to 27 of the S330 table and row 29 (a creature stack), opened from Seat Settings. It
 /// edits the Seat Settings window's copy of the seat's handicap; its OK sends that copy through the Seat Settings window.
+/// S472 (K, November 22nd: "lets just put all the bonuses on one page (an external page)"): the page has every seat bonus, the four that
+/// were in Seat Settings (movement, spell points, army size, artifact) included, and fits the 800x600 screen (600x540)
 class SeatBonusesWindow final : public CWindowObject
 {
 	std::shared_ptr<Handicap> pending;
@@ -80,16 +84,66 @@ class SeatBonusesWindow final : public CWindowObject
 	std::shared_ptr<CLabel> skillLabel;
 	std::shared_ptr<CLabel> buildingsLabel;
 	std::shared_ptr<CLabel> creatureLabel;
+	std::shared_ptr<CLabel> artifactLabel;
 	std::shared_ptr<CButton> okButton;
 	SpellID spell;
 	SecondarySkill skill;
 	std::vector<BuildingID> buildings;
 	CreatureID creature;
+	ArtifactID artifact;
+	/// S472: the movement, spell point and army percents (Handicap's own fields), by their text key
+	std::map<std::string, std::shared_ptr<CTextInput>> percents;
 
 	static constexpr int LEFT = 20;
 	static constexpr int RIGHT = 312;
 	static constexpr int TOP = 52;
-	static constexpr int STEP = 26;
+	static constexpr int STEP = 24; // S472: 26 before; the four Seat Settings rows came onto this page
+
+	/// S380's percent rows (the S330 table's ranges, approved by K with it): typeable, the top while typing, the bottom on OK
+	struct PercentRange
+	{
+		int bottom;
+		int top;
+	};
+	static PercentRange percentRange(const std::string & key)
+	{
+		if(key == "movement")
+			return {75, 150};
+		if(key == "mana")
+			return {50, 200};
+		return {50, 300};
+	}
+
+	void percentField(const std::string & key, int value, int y)
+	{
+		parts.push_back(std::make_shared<CLabel>(LEFT, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(key)));
+		const Rect box(240, y + 1, 40, 16);
+		parts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
+		auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
+		input->setText(std::to_string(value));
+		std::weak_ptr<CTextInput> self = input;
+		const int top = percentRange(key).top;
+		input->setCallback([self, top](const std::string & s)
+		{
+			std::string digits = s;
+			digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
+			digits = digits.substr(0, 3);
+			const std::string shown = digits.empty() ? "" : std::to_string(std::min(top, std::stoi(digits)));
+			auto field = self.lock();
+			if(field && shown != s)
+				field->setText(shown);
+		});
+		input->setPopupCallback([key](){ CRClickPopup::createAndPush(seatText(key + "Help")); });
+		parts.push_back(std::make_shared<CLabel>(box.topRight().x + 2, box.center().y, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "%"));
+		percents[key] = input;
+	}
+
+	int percentValue(const std::string & key) const
+	{
+		const std::string text = percents.at(key)->getText();
+		const auto range = percentRange(key);
+		return text.empty() ? 100 : std::clamp(std::stoi(text), range.bottom, range.top);
+	}
 
 	void numberField(const std::string & key, int labelX, int fieldX, int y, int width)
 	{
@@ -187,7 +241,27 @@ class SeatBonusesWindow final : public CWindowObject
 			if(vstd::contains(buildings, choice.first))
 				names += (names.empty() ? "" : ", ") + choice.second;
 		buildingsLabel->setText(names.empty() ? seatText("none") : names);
+		artifactLabel->setText(artifact == ArtifactID::NONE ? seatText("none") : artifact.toEntity(LIBRARY)->getNameTranslated());
 		redraw();
+	}
+
+	void chooseArtifact()
+	{
+		// S380: every artifact a hero can carry from the start (treasure, minor, major, relic), by name; the first entry is none
+		std::vector<ArtifactID> ids{ArtifactID::NONE};
+		std::vector<std::string> names{seatText("none")};
+		for(const auto & art : LIBRARY->arth->objects)
+		{
+			if(!art)
+				continue;
+			const auto kind = art->aClass;
+			if(kind == EArtifactClass::ART_TREASURE || kind == EArtifactClass::ART_MINOR || kind == EArtifactClass::ART_MAJOR || kind == EArtifactClass::ART_RELIC)
+			{
+				ids.push_back(art->getId());
+				names.push_back(art->getNameTranslated());
+			}
+		}
+		openList<ArtifactID>("artifact", ids, names, artifact, [this](ArtifactID id) { artifact = id; });
 	}
 
 	template<typename ID>
@@ -275,16 +349,23 @@ class SeatBonusesWindow final : public CWindowObject
 			tick.second = false;
 			ticks[tick.first]->setEnabled(false);
 		}
+		for(const auto & field : percents)
+			field.second->setText("100");
 		spell = SpellID::NONE;
 		skill = SecondarySkill::NONE;
 		creature = CreatureID::NONE;
+		artifact = ArtifactID::NONE;
 		buildings.clear();
 		showPicks();
 	}
 
 	void accept()
 	{
-		logGlobal->info("S380: More Bonuses OK");
+		logGlobal->info("S472: Seat Bonuses OK");
+		pending->percentMovement = percentValue("movement");
+		pending->percentMana = percentValue("mana");
+		pending->percentArmy = percentValue("army");
+		pending->startArtifact = artifact;
 		for(const auto & field : numbers)
 		{
 			const DmbSeatBonusRow * row = dmbSeatBonusRow(field.first);
@@ -320,6 +401,7 @@ public:
 		, skill(pending->startSkill)
 		, buildings(pending->startBuildings)
 		, creature(pending->stackCreature)
+		, artifact(pending->startArtifact)
 	{
 		OBJECT_CONSTRUCTION;
 		addUsedEvents(LCLICK);
@@ -327,13 +409,17 @@ public:
 		background = std::make_shared<FilledTexturePlayerColored>(pos);
 		background->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour());
 		parts.push_back(std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(color).getNum(), 0, 12, 8));
-		parts.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, seatText("more")));
+		parts.push_back(std::make_shared<CLabel>(pos.w / 2 + 10, 18, FONT_BIG, ETextAlignment::CENTER, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses")));
 
-		// left: the hero and battle rows (6 to 17 without 14)
+		// left: the hero and battle rows (6 to 17 without 14), then the movement, spell point and army percents (S472: from Seat Settings)
 		const std::vector<std::string> left = {"manaRegen", "experience", "attack", "defense", "power", "knowledge", "luck", "morale", "scouting",
 			"speed", "health", "damage", "necromancy", "creatureExperience", "surrender"};
 		for(size_t i = 0; i < left.size(); ++i)
 			numberField(left[i], LEFT, 240, TOP + static_cast<int>(i) * STEP, 40);
+		const int percentTop = TOP + static_cast<int>(left.size()) * STEP;
+		percentField("movement", pending->percentMovement, percentTop);
+		percentField("mana", pending->percentMana, percentTop + STEP);
+		percentField("army", pending->percentArmy, percentTop + 2 * STEP);
 
 		// right: daily resources (row 14), the ticks (18, 19), the town and hero rows (22 to 27) and the creature stack (29)
 		int y = TOP;
@@ -366,6 +452,8 @@ public:
 		creatureLabel = pickerRow("creature", y, [this]() { chooseCreature(); });
 		y += STEP;
 		numberField("stackCount", RIGHT, 520, y, 48);
+		y += STEP;
+		artifactLabel = pickerRow("artifact", y, [this]() { chooseArtifact(); }); // S472: from Seat Settings
 
 		// the Reset framed like the pickers, and the OK check mark where Seat Settings has it
 		const Rect resetBox(LEFT, 494, 160, 22);
@@ -387,6 +475,116 @@ public:
 };
 }
 
+/// S463: the Seat Color list, opened under its box and drawn as the lobby's turn timer dropdown draws its list
+/// (config/widgets/turnOptionsDropdownLibrary.json: the blue DiBoxBck texture, rows of 20 on half-black, a yellow frame on the row under the
+/// mouse): every colour with its name in its own colour, the seat's own marked gold, and beside a colour another seat has, "Seat N" in grey
+/// (N counts the lobby's seat rows from the top). The host's click picks (a held colour swaps the two seats); any other click closes the list
+class SeatColourList final : public CWindowObject
+{
+	static constexpr int ROW = 20;
+	PlayerColor color;
+	std::shared_ptr<FilledTexturePlayerColored> background;
+	std::shared_ptr<TransparentFilledRectangle> frame;
+	std::vector<std::shared_ptr<TransparentFilledRectangle>> rowBacks;
+	std::vector<std::shared_ptr<TransparentFilledRectangle>> marks;
+	std::vector<std::shared_ptr<TransparentFilledRectangle>> swatches;
+	std::vector<std::shared_ptr<CLabel>> names;
+	std::vector<std::shared_ptr<CLabel>> heldBy;
+	std::vector<std::shared_ptr<TransparentFilledRectangle>> hovers;
+	int hovered = -1;
+
+	int rowAt(const Point & cursorPosition) const
+	{
+		if(!pos.isInside(cursorPosition))
+			return -1;
+		const int row = (cursorPosition.y - pos.y - 1) / ROW;
+		return row >= 0 && row < static_cast<int>(names.size()) ? row : -1;
+	}
+
+public:
+	SeatColourList(PlayerColor seatColor, const Point & under, int width)
+		: CWindowObject(SHADOW_DISABLED)
+		, color(seatColor)
+	{
+		OBJECT_CONSTRUCTION;
+		addUsedEvents(LCLICK | MOVE);
+		pos = Rect(0, 0, width, PlayerColor::PLAYER_LIMIT_I * ROW + 2);
+		background = std::make_shared<FilledTexturePlayerColored>(pos);
+		background->setPlayerColor(PlayerColor(1)); // the stock list's "color": "blue"
+		frame = std::make_shared<TransparentFilledRectangle>(Rect(0, 0, pos.w, pos.h), ColorRGBA(0, 0, 0, 0), ColorRGBA(64, 80, 128, 128), 1);
+		const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
+		for(int i = 0; i < PlayerColor::PLAYER_LIMIT_I; ++i)
+		{
+			const int y = 1 + i * ROW;
+			const std::string name = LIBRARY->generaltexth->capColors[i];
+			rowBacks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(1, y, width - 2, ROW - 1), ColorRGBA(0, 0, 0, 128), ColorRGBA(0, 0, 0, 128), 1));
+			marks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(2, y + 1, width - 4, ROW - 3), GOLD_FILL, GOLD_LINE, 1));
+			swatches.push_back(std::make_shared<TransparentFilledRectangle>(Rect(6, y + 3, 13, 13), graphics->playerColors.own[i], ColorRGBA(0, 0, 0, 255), 1));
+			names.push_back(std::make_shared<CLabel>(26, y + ROW / 2, FONT_SMALL, ETextAlignment::CENTERLEFT, graphics->playerColors.own[i], name));
+			heldBy.push_back(std::make_shared<CLabel>(26 + static_cast<int>(font->getStringWidth(name)) + 8, y + ROW / 2, FONT_SMALL, ETextAlignment::CENTERLEFT,
+				ColorRGBA(150, 150, 150), ""));
+			hovers.push_back(std::make_shared<TransparentFilledRectangle>(Rect(2, y + 1, width - 4, ROW - 3), ColorRGBA(0, 0, 0, 0), ColorRGBA(255, 255, 0, 255), 1));
+			hovers.back()->disable();
+		}
+		refresh();
+		moveTo(under);
+		fitToScreen(4);
+	}
+
+	/// the marks and the "Seat N" texts as the lobby state has them now
+	void refresh()
+	{
+		const auto & seats = SEL->getStartInfo()->playerInfos;
+		const auto own = seats.find(color);
+		for(int i = 0; i < static_cast<int>(names.size()); ++i)
+		{
+			const PlayerColor colour(i);
+			std::string holder;
+			int number = 0;
+			for(const auto & other : seats)
+			{
+				++number;
+				if(other.first != color && other.second.shown() == colour)
+				{
+					holder = LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour.heldBy");
+					boost::algorithm::replace_first(holder, "%d", std::to_string(number));
+				}
+			}
+			marks[i]->setEnabled(own != seats.end() && own->second.shown() == colour);
+			heldBy[i]->setText(holder);
+		}
+		redraw();
+	}
+
+	void mouseMoved(const Point & cursorPosition, const Point & lastUpdateDistance) override
+	{
+		const int row = rowAt(cursorPosition);
+		if(row == hovered)
+			return;
+		hovered = row;
+		for(int i = 0; i < static_cast<int>(hovers.size()); ++i)
+			hovers[i]->setEnabled(i == row);
+		redraw();
+	}
+
+	void clickReleased(const Point & cursorPosition) override
+	{
+		const int row = rowAt(cursorPosition);
+		const PlayerColor seatColour = color;
+		close();
+		if(row >= 0 && GAME->server().isHost())
+		{
+			logGlobal->info("S463: Seat Color of %s: %s picked", seatColour.toString(), PlayerColor(row).toString());
+			GAME->server().setSeatColor(seatColour, PlayerColor(row));
+		}
+	}
+
+	void notFocusedClick() override
+	{
+		close();
+	}
+};
+
 AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	: CWindowObject(BORDERED)
 	, color(seatColor)
@@ -396,7 +594,7 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	addUsedEvents(LCLICK);
 
 	// S312: wider and taller than before, so the two gold bars carry their words in the lobby buttons' own lettering
-	pos = Rect(0, 0, 600, 540); // S380: 80 taller for the seat bonuses row
+	pos = Rect(0, 0, 600, 500); // S380: 80 taller for the seat bonuses row; S472: 40 of it back, the row is one button now
 	backgroundTexture = std::make_shared<FilledTexturePlayerColored>(pos);
 	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour()); // S302: the setting, on by default
 
@@ -456,75 +654,35 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 
 	// S312: the same gold bar and lettering, centred on the OK button's row (408 to 440)
 	// S319: as tall as the check mark (32), the lettering at 14-pixel capitals like "Game Difficulty"
-	auto reset = std::make_shared<CButton>(Point(20, 488), AnimationPath::builtin("SPRITES/RanShowButtonSmall250"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
+	auto reset = std::make_shared<CButton>(Point(20, 448), AnimationPath::builtin("SPRITES/RanShowButtonSmall250"), CButton::tooltip(), [this]() { GAME->server().setPlayerAI(color, "", "", -1, false); });
 	reset->moveBy(Point(0, 16 - reset->pos.h / 2));
 	auto resetWords = std::make_shared<CEngravedLabel>(0, 0, FONT_BIG, ETextAlignment::CENTER, LIBRARY->generaltexth->translate("vcmi.lobby.aiSettings.reset"));
 	resetWords->setLetteringCapitals(14);
 	reset->setOverlay(resetWords);
 	buttons.push_back(reset);
 
-	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 488), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { sendBonuses(); close(); }, EShortcut::GLOBAL_RETURN));
+	buttons.push_back(std::make_shared<CButton>(Point(pos.w - 20 - 64, 448), AnimationPath::builtin("MuBchck"), CButton::tooltip(), [this]() { sendBonuses(); close(); }, EShortcut::GLOBAL_RETURN));
 
-	// S424: the Seat Color list under the Battle AI list, two columns of four; the swatch is the colour itself (not the seat's picked one)
+	// S424: Seat Color under the Battle AI list. S463: one box, the lobby's dropdown bar (lobby/dropdown, 200x18, its arrow at the right)
+	// with the seat's colour: the swatch and the name in that colour; a click opens the list under it
 	colourTitle = std::make_shared<CLabel>(340, 150, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour"));
-	for(int i = 0; i < PlayerColor::PLAYER_LIMIT_I; ++i)
+	colourBar = std::make_shared<CAnimImage>(AnimationPath::builtin("lobby/dropdown"), 0, 0, 340, 174);
+	colourName =std::make_shared<CLabel>(364, 183, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", 150);
+	colourArea = std::make_shared<LRClickableArea>(Rect(340, 174, 200, 18), [this]()
 	{
-		const int x = 340 + (i / 4) * 120;
-		const int y = 174 + (i % 4) * 24;
-		ColourCell cell;
-		cell.mark = std::make_shared<TransparentFilledRectangle>(Rect(x - 2, y - 2, 116, 22), GOLD_FILL, GOLD_LINE, 1);
-		cell.swatch = std::make_shared<TransparentFilledRectangle>(Rect(x + 2, y + 2, 14, 14), graphics->playerColors.own[i], ColorRGBA(0, 0, 0, 255), 1);
-		cell.label = std::make_shared<CLabel>(x + 22, y + 9, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->capColors[i], 80);
-		cell.heldDot = std::make_shared<TransparentFilledRectangle>(Rect(x + 104, y + 7, 5, 5), ColorRGBA(160, 160, 160, 255), ColorRGBA(160, 160, 160, 255), 1);
-		const PlayerColor picked(i);
-		cell.area = std::make_shared<LRClickableArea>(Rect(x - 2, y - 2, 116, 22), [this, picked]()
-		{
-			if(GAME->server().isHost())
-				GAME->server().setSeatColor(color, picked);
-		}, [](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour.help")); });
-		colourCells.push_back(cell);
-	}
-	// S380: the seat bonuses row (every seat): movement, spell points and army as typeable percents (0 to 200), and a starting artifact
+		const Point under(colourBar->pos.x, colourBar->pos.y + colourBar->pos.h);
+		auto list = std::make_shared<SeatColourList>(color, under, colourBar->pos.w);
+		colourList = list;
+		ENGINE->windows().pushWindow(list);
+	}, [](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatColour.help")); });
+	// S472 (K, November 22nd: "lets just put all the bonuses on one page (an external page)"): Seat Settings keeps one button, "Bonuses",
+	// which opens the page with every seat bonus (the S380 percents and artifact included); the page edits this copy of the seat's handicap
+	// and its OK sends it
 	if(const auto * ps = seat())
 	{
 		bonusParts.push_back(std::make_shared<CLabel>(20, 408, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses")));
-		// the ranges are the S330 table's, approved by K with it: movement 75 to 150 (minus 25 to plus 50 percent), spell points 50 to 200,
-		// army size 50 to 300; the top while typing, the bottom on OK
-		const auto percentField = [this](int x, const std::string & textId, int value, const std::string & helpId, int top) -> std::shared_ptr<CTextInput>
-		{
-			bonusParts.push_back(std::make_shared<CLabel>(x, 444, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate(textId)));
-			const Rect box(x + 96, 436, 40, 16);
-			bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
-			auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, true);
-			input->setText(std::to_string(value));
-			std::weak_ptr<CTextInput> self = input;
-			input->setCallback([self, top](const std::string & s)
-			{
-				std::string digits = s;
-				digits.erase(std::remove_if(digits.begin(), digits.end(), [](char c) { return !isdigit(c); }), digits.end());
-				digits = digits.substr(0, 3);
-				const std::string shown = digits.empty() ? "" : std::to_string(std::min(top, std::stoi(digits)));
-				auto field = self.lock();
-				if(field && shown != s)
-					field->setText(shown);
-			});
-			input->setPopupCallback([helpId](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate(helpId)); });
-			bonusParts.push_back(std::make_shared<CLabel>(box.topRight().x, box.center().y, FONT_SMALL, ETextAlignment::CENTERRIGHT, Colors::WHITE, "%"));
-			return input;
-		};
-		movementInput = percentField(20, "vcmi.dmb.lobby.seatBonuses.movement", ps->handicap.percentMovement, "vcmi.dmb.lobby.seatBonuses.movementHelp", 150);
-		manaInput = percentField(210, "vcmi.dmb.lobby.seatBonuses.mana", ps->handicap.percentMana, "vcmi.dmb.lobby.seatBonuses.manaHelp", 200);
-		armyInput = percentField(400, "vcmi.dmb.lobby.seatBonuses.army", ps->handicap.percentArmy, "vcmi.dmb.lobby.seatBonuses.armyHelp", 300);
-		chosenArtifact = ps->handicap.startArtifact;
-		bonusParts.push_back(std::make_shared<CLabel>(20, 468, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifact")));
-		bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(Rect(114, 459, 300, 18), ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
-		artifactLabel = std::make_shared<CLabel>(120, 468, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", 290);
-		artifactArea = std::make_shared<LRClickableArea>(Rect(114, 459, 300, 18), [this]() { chooseArtifact(); },
-			[](){ CRClickPopup::createAndPush(LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifactHelp")); });
-
-		// S380 (rows 6 to 29): "More Bonuses" opens the rest of the seat's bonuses, framed like the artifact box
 		pendingBonuses = std::make_shared<Handicap>(ps->handicap);
-		const Rect moreBox(430, 459, 150, 18);
+		const Rect moreBox(180, 407, 160, 22);
 		bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(moreBox, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
 		moreLabel = std::make_shared<CLabel>(moreBox.center().x, moreBox.center().y, FONT_SMALL, ETextAlignment::CENTER, Colors::YELLOW, seatText("more"));
 		moreArea = std::make_shared<LRClickableArea>(moreBox, [this]()
@@ -532,7 +690,6 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 			const auto * seatNow = seat();
 			ENGINE->windows().createAndPushWindow<SeatBonusesWindow>(color, pendingBonuses, seatNow ? seatNow->castle : FactionID::RANDOM, [this]() { sendBonuses(); });
 		}, [](){ CRClickPopup::createAndPush(seatText("moreHelp")); });
-		artifactLabel->setText(chosenArtifact == ArtifactID::NONE ? LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.none") : chosenArtifact.toEntity(LIBRARY)->getNameTranslated());
 	}
 
 	// a human seat's window shows only its colour
@@ -551,55 +708,18 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	center();
 }
 
-void AISettingsWindow::chooseArtifact()
-{
-	// S380: every artifact a hero can carry from the start (treasure, minor, major, relic), by name; the first entry is none
-	std::vector<ArtifactID> ids{ArtifactID::NONE};
-	std::vector<std::string> names{LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.none")};
-	for(const auto & art : LIBRARY->arth->objects)
-	{
-		if(!art)
-			continue;
-		const auto kind = art->aClass;
-		if(kind == EArtifactClass::ART_TREASURE || kind == EArtifactClass::ART_MINOR || kind == EArtifactClass::ART_MAJOR || kind == EArtifactClass::ART_RELIC)
-		{
-			ids.push_back(art->getId());
-			names.push_back(art->getNameTranslated());
-		}
-	}
-	size_t current = 0;
-	for(size_t i = 0; i < ids.size(); ++i)
-		if(ids[i] == chosenArtifact)
-			current = i;
-	ENGINE->windows().createAndPushWindow<CObjectListWindow>(names, nullptr, LIBRARY->generaltexth->translate("vcmi.dmb.lobby.seatBonuses.artifact"),
-		"", [this, ids, names](int index)
-		{
-			if(index < 0 || index >= static_cast<int>(ids.size()))
-				return;
-			chosenArtifact = ids[index];
-			artifactLabel->setText(names[index]);
-			redraw();
-		}, current, std::vector<std::shared_ptr<IImage>>{}, true);
-}
-
 void AISettingsWindow::sendBonuses() const
 {
 	const auto * ps = seat();
-	if(!ps || !GAME->server().isHost() || !movementInput)
+	if(!ps || !GAME->server().isHost() || !pendingBonuses)
 		return;
-	const auto number = [](const std::shared_ptr<CTextInput> & field, int bottom, int top)
-	{
-		const std::string text = field->getText();
-		return text.empty() ? 100 : std::clamp(std::stoi(text), bottom, top);
-	};
-	// the lobby's own fields (resources, income, growth, Sees map) as the lobby has them; the bonuses from these two windows
+	// the lobby's own fields (resources, income, growth, Sees map) as the lobby has them; the bonuses from the Seat Bonuses page
 	Handicap handicap = ps->handicap;
-	handicap.percentMovement = number(movementInput, 75, 150);
-	handicap.percentMana = number(manaInput, 50, 200);
-	handicap.percentArmy = number(armyInput, 50, 300);
-	handicap.startArtifact = chosenArtifact;
-	if(pendingBonuses)
 	{
+		handicap.percentMovement = pendingBonuses->percentMovement;
+		handicap.percentMana = pendingBonuses->percentMana;
+		handicap.percentArmy = pendingBonuses->percentArmy;
+		handicap.startArtifact = pendingBonuses->startArtifact;
 		handicap.seatValues = pendingBonuses->seatValues;
 		handicap.startSpell = pendingBonuses->startSpell;
 		handicap.startSkill = pendingBonuses->startSkill;
@@ -700,7 +820,11 @@ void AISettingsWindow::refresh()
 	const auto * ps = seat();
 	if(!ps)
 	{
-		close();
+		// S463: only the top window can close (WindowBase::close throws otherwise), so the colour list over this window closes first
+		if(auto list = colourList.lock(); list && ENGINE->windows().isTopWindow(list.get()))
+			list->close();
+		if(ENGINE->windows().isTopWindow(this))
+			close();
 		return;
 	}
 
@@ -708,18 +832,17 @@ void AISettingsWindow::refresh()
 	backgroundTexture->setPlayerColor(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour());
 	if(!anim.empty())
 		anim.front()->setFrame(DmbSeatColours::shown(color).getNum());
-	// S424: the colour list, for every seat
-	for(int i = 0; i < static_cast<int>(colourCells.size()); ++i)
+	// S424: the seat's colour, for every seat. S463: in the box, and in the list when it is open
+	const int shownIndex = ps->shown().getNum();
+	if(shownIndex >= 0 && shownIndex < PlayerColor::PLAYER_LIMIT_I)
 	{
-		const PlayerColor colour(i);
-		bool held = false;
-		for(const auto & other : SEL->getStartInfo()->playerInfos)
-			if(other.first != color && other.second.shown() == colour)
-				held = true;
-		colourCells[i].mark->setEnabled(ps->shown() == colour);
-		colourCells[i].heldDot->setEnabled(held);
-		colourCells[i].label->setColor(held ? ColorRGBA(170, 170, 170) : Colors::WHITE);
+		OBJECT_CONSTRUCTION;
+		colourSwatch = std::make_shared<TransparentFilledRectangle>(Rect(345, 177, 12, 12), graphics->playerColors.own[shownIndex], ColorRGBA(0, 0, 0, 255), 1);
+		colourName->setColor(graphics->playerColors.own[shownIndex]);
+		colourName->setText(LIBRARY->generaltexth->capColors[shownIndex]);
 	}
+	if(auto list = colourList.lock())
+		list->refresh();
 	const bool computer = ps->isControlledByAI();
 	for(const auto & part : computerOnly)
 		if(part)

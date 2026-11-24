@@ -23,6 +23,7 @@ class CButton;
 class LRClickableArea;
 class TransparentFilledRectangle;
 class FilledTexturePlayerColored;
+class SeatColourList;
 
 /// DMB (S002, K, November 7th: "that ai config settings let me put any mix of any ai at any difficulty in any slot"; November 5th: "a full 'AI Settings' menu per slot"): one window per
 /// computer seat in the lobby, opened by the host from the seat's name. The adventure AI and the battle AI of the seat are picked from the lists of what is installed, the difficulty
@@ -55,34 +56,24 @@ class AISettingsWindow final : public CWindowObject
 	std::shared_ptr<LRClickableArea> thoughtsArea;
 	std::vector<std::shared_ptr<CButton>> buttons;
 	/// S424 (K 11-21: "damn you guys didn't even get color picking per seat in here?!"; S376 B: "color menu is everything i wants"): the
-	/// Seat Color list, every colour, the seat's own framed, one another seat has greyed and marked; a pick of a held colour swaps the two
-	struct ColourCell
-	{
-		std::shared_ptr<TransparentFilledRectangle> swatch;
-		std::shared_ptr<TransparentFilledRectangle> mark;
-		std::shared_ptr<TransparentFilledRectangle> heldDot;
-		std::shared_ptr<CLabel> label;
-		std::shared_ptr<LRClickableArea> area;
-	};
-	std::vector<ColourCell> colourCells;
+	/// seat's colour; a pick of a colour another seat has swaps the two.
+	/// S463 (K 11-22: "color should be a single dropdown. Currently occupied colors should say what seat number it is used in currently in
+	/// grey test next to the color's text in it's color"): one box with the seat's colour (the lobby's dropdown bar), a click opens the list
 	std::shared_ptr<CLabel> colourTitle;
+	std::shared_ptr<CAnimImage> colourBar;
+	std::shared_ptr<TransparentFilledRectangle> colourSwatch;
+	std::shared_ptr<CLabel> colourName;
+	std::shared_ptr<LRClickableArea> colourArea;
+	std::weak_ptr<SeatColourList> colourList;
 	/// the widgets a human seat's window does not show (its AI, tier, thoughts and reset)
 	std::vector<std::shared_ptr<CIntObject>> computerOnly;
-	/// S380 (K 11-19: "Yes, build all of them in this order: your four ticked ones first"): the seat's movement, spell point and army
-	/// percents (typeable, 0 to 200) and a starting artifact, sent with the OK button
-	std::shared_ptr<CTextInput> movementInput;
-	std::shared_ptr<CTextInput> manaInput;
-	std::shared_ptr<CTextInput> armyInput;
-	std::shared_ptr<CLabel> artifactLabel;
-	std::shared_ptr<LRClickableArea> artifactArea;
+	/// S380 (K 11-19: "Yes, build all of them in this order: your four ticked ones first"), S472 (K 11-22: "lets just put all the bonuses
+	/// on one page (an external page)"): the "Bonuses" button opens the page with every seat bonus; the page edits this copy of the seat's
+	/// handicap, and OK there or here sends it
 	std::vector<std::shared_ptr<CIntObject>> bonusParts;
-	ArtifactID chosenArtifact = ArtifactID::NONE;
-	/// S380 (the rest of the S330 rows, S396 row 29): the More Bonuses window edits this copy of the seat's handicap; OK in either window
-	/// sends it with the four fields above
 	std::shared_ptr<Handicap> pendingBonuses;
 	std::shared_ptr<CLabel> moreLabel;
 	std::shared_ptr<LRClickableArea> moreArea;
-	void chooseArtifact();
 	void sendBonuses() const;
 
 	const PlayerSettings * seat() const;

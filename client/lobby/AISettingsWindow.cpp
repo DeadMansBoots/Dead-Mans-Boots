@@ -155,7 +155,7 @@ class SeatBonusesWindow final : public CWindowObject
 	void numberCell(const Cell & cell, int x, int y)
 	{
 		const bool percent = cell.kind == Kind::PERCENT;
-		const int width = (cell.key == "daily6" || cell.key == "stackCount") ? 48 : 40;
+		const int width = 48; // one width for every box, so they line up (gold and stack counts need four digits; OmniAI Dev's read, November 24th)
 		const int right = x + CELL; // every box ends at the cell's edge; a percent's "%" goes in the gap after it (percent rows are left cells)
 		const Rect box(right - width, y + 4, width, 16);
 		lineParts.push_back(std::make_shared<CLabel>(x, y + 12, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(cell.key), box.x - x - 6));

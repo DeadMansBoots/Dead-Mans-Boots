@@ -50,7 +50,7 @@ public:
 	void addUniversityConfirmBackground(const std::string & fileName, const Point & size, int costElements);
 
 	AnimationLayoutMap createAdventureMapButton(const ImagePath & overlay, bool small);
-	AnimationLayoutMap createSliderBar(bool brown, bool horizontal, int length);
+	AnimationLayoutMap createSliderBar(bool brown, bool horizontal, int length, int colour = -1);
 	AnimationLayoutMap createAdventureOptionsButton(const ImagePath & overlay);
 
 private:

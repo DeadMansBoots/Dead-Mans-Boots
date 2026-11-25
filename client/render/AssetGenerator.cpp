@@ -994,7 +994,7 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createAdventureMapButton(cons
 	return layout;
 }
 
-AssetGenerator::AnimationLayoutMap AssetGenerator::createSliderBar(bool brown, bool horizontal, int length)
+AssetGenerator::AnimationLayoutMap AssetGenerator::createSliderBar(bool brown, bool horizontal, int length, int colour)
 {
 	AnimationLayoutMap layout;
 
@@ -1041,19 +1041,27 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createSliderBar(bool brown, b
 		}
 	};
 
+	// DMB (S501): a window colour (a player colour index) runs the source art through that colour's filter, as the window backgrounds
+	const auto loadSrc = [anim, colour](size_t frame)
+	{
+		auto img = ENGINE->renderHandler().loadAnimation(anim, EImageBlitMode::OPAQUE)->getImage(frame);
+		if(colour >= 0 && img)
+			img->adjustPalette(playerColorFilter(PlayerColor(colour)), 0);
+		return img;
+	};
 	for(int i = 0; i < 4; i++)
 	{
-		std::string baseName = "Slider-" + std::string(brown ? "brown" : "blue") + "-" + std::string(horizontal ? "horizontal" : "vertical") + "-" + std::to_string(length) + "-" + std::to_string(i);
+		std::string baseName = "Slider-" + std::string(brown ? "brown" : "blue") + "-" + std::string(horizontal ? "horizontal" : "vertical") + "-" + std::to_string(length) + (colour >= 0 ? "-c" + std::to_string(colour) : std::string()) + "-" + std::to_string(i);
 		ImagePath spriteName = ImagePath::builtin(baseName + ".png");
 
-		imageFiles[spriteName] = [anim, horizontal, brown, length, i, genSlider](){
+		imageFiles[spriteName] = [horizontal, brown, length, i, genSlider, loadSrc](){
 			auto newImg = ENGINE->renderHandler().createImage(Point(horizontal ? length : 16, horizontal ? 16 : length), CanvasScalingPolicy::IGNORE);
 			auto canvas = newImg->getCanvas();
 			switch(i)
 			{
 			case 0:
 				{
-					auto src = ENGINE->renderHandler().loadAnimation(anim, EImageBlitMode::OPAQUE)->getImage(brown ? 4 : 0);
+					auto src = loadSrc(brown ? 4 : 0);
 					genSlider(src, canvas);
 					return newImg;
 				}
@@ -1061,7 +1069,7 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createSliderBar(bool brown, b
 				{
 					auto tmpImg = ENGINE->renderHandler().createImage(Point(16, 16), CanvasScalingPolicy::IGNORE);
 					auto tmpCanvas = tmpImg->getCanvas();
-					auto srcImg = ENGINE->renderHandler().loadAnimation(anim, EImageBlitMode::OPAQUE)->getImage(brown ? 4 : 1);
+					auto srcImg = loadSrc(brown ? 4 : 1);
 
 					tmpCanvas.drawColor(Rect(Point(0, 0), tmpImg->dimensions()), Colors::BLACK);
 					if(brown)
@@ -1080,7 +1088,7 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createSliderBar(bool brown, b
 				{
 					auto tmpImg = ENGINE->renderHandler().createImage(Point(16, 16), CanvasScalingPolicy::IGNORE);
 					auto tmpCanvas = tmpImg->getCanvas();
-					tmpCanvas.draw(ENGINE->renderHandler().loadAnimation(anim, EImageBlitMode::OPAQUE)->getImage(brown ? 4 : 2), Point(0, 0));
+					tmpCanvas.draw(loadSrc(brown ? 4 : 2), Point(0, 0));
 					// TODO: generate disabled brown slider (not used yet, but filling with dummy avoids warning)
 					genSlider(tmpImg, canvas);
 					return newImg;
@@ -1089,7 +1097,7 @@ AssetGenerator::AnimationLayoutMap AssetGenerator::createSliderBar(bool brown, b
 				{
 					auto tmpImg = ENGINE->renderHandler().createImage(Point(16, 16), CanvasScalingPolicy::IGNORE);
 					auto tmpCanvas = tmpImg->getCanvas();
-					tmpCanvas.draw(ENGINE->renderHandler().loadAnimation(anim, EImageBlitMode::OPAQUE)->getImage(brown ? 4 : 3), Point(0, 0));
+					tmpCanvas.draw(loadSrc(brown ? 4 : 3), Point(0, 0));
 					if(brown)
 						tmpCanvas.drawBorder(Rect(Point(0, 0), tmpImg->dimensions()), Colors::WHITE, 1);
 					genSlider(tmpImg, canvas);

@@ -213,6 +213,15 @@ void FilledTexturePlayerColored::setPlayerColor(PlayerColor player)
 	texture = ENGINE->renderHandler().loadImage(imagePath, EImageBlitMode::COLORKEY);
 }
 
+void CAnimImage::adjustPalette(const ColorFilter & filter)
+{
+	if(!anim)
+		return;
+	for(size_t i = 0; i < anim->size(group); ++i)
+		if(auto img = anim->getImage(i, group))
+			img->adjustPalette(filter, 0);
+}
+
 CAnimImage::CAnimImage(const AnimationPath & name, size_t Frame, size_t Group, int x, int y, ui8 Flags):
 	frame(Frame),
 	group(Group),

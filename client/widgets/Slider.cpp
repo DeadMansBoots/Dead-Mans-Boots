@@ -17,6 +17,7 @@
 #include "../gui/Shortcut.h"
 #include "../GameEngine.h"
 #include "../render/AssetGenerator.h"
+#include "../render/ColorFilter.h"
 #include "../render/Canvas.h"
 #include "../render/Colors.h"
 #include "../render/IRenderHandler.h"
@@ -313,14 +314,36 @@ void CSlider::updateSlider()
 	OBJECT_CONSTRUCTION;
 
 	auto assetGenerator = ENGINE->renderHandler().getAssetGenerator();
-	auto layout = assetGenerator->createSliderBar(style == BROWN, getOrientation() == Orientation::HORIZONTAL, barLength);
-	std::string sliderName = "Slider-" + std::string(style == BROWN ? "brown" : "blue") + "-" + std::string(getOrientation() == Orientation::HORIZONTAL ? "horizontal" : "vertical") + "-" + std::to_string(barLength);
+	const int colourIndex = colour && style == BROWN ? colour->getNum() : -1; // S501: the thumb drawn in the window colour
+	auto layout = assetGenerator->createSliderBar(style == BROWN, getOrientation() == Orientation::HORIZONTAL, barLength, colourIndex);
+	std::string sliderName = "Slider-" + std::string(style == BROWN ? "brown" : "blue") + "-" + std::string(getOrientation() == Orientation::HORIZONTAL ? "horizontal" : "vertical") + "-" + std::to_string(barLength) + (colourIndex >= 0 ? "-c" + std::to_string(colourIndex) : std::string());
 	assetGenerator->addAnimationFile(AnimationPath::builtin("SPRITES/" + sliderName), layout);
 	ENGINE->renderHandler().updateGeneratedAssets();
 
 	slider = std::make_shared<CButton>(Point(), AnimationPath::builtin(sliderName), CButton::tooltip());
 	slider->setActOnDown(true);
 	slider->setSoundDisabled(true);
+}
+
+void CSlider::setColour(PlayerColor windowColour)
+{
+	colour = windowColour;
+	updateSlider(); // the thumb made again in the colour (a generated image: its palette cannot be changed after)
+	updateSliderPos();
+	applyColour();
+	redraw();
+}
+
+void CSlider::applyColour()
+{
+	if(!colour || style != BROWN)
+		return;
+	const ColorFilter filter = AssetGenerator::playerColorFilter(*colour);
+	left->adjustPalette(filter);
+	right->adjustPalette(filter);
+
+	// the track: the darkest brown of the dialog art, through the same filter
+	trackColor = filter.shiftColor(ColorRGBA(33, 21, 8, 255));
 }
 
 void CSlider::setAmount( int to )

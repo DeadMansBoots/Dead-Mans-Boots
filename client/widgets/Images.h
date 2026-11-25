@@ -9,6 +9,8 @@
  */
 #pragma once
 
+class ColorFilter;
+
 #include "../gui/CIntObject.h"
 #include "../battle/BattleConstants.h"
 #include "../../lib/filesystem/ResourcePath.h"
@@ -134,6 +136,9 @@ public:
 
 	/// makes image player-colored to specific player
 	void setPlayerColor(PlayerColor player);
+
+	/// DMB (S501): runs a colour filter over every frame's palette (this widget's own image instances), e.g. brown art to a window's colour
+	void adjustPalette(const ColorFilter & filter);
 
 	/// returns true if image has player-colored effect applied
 	bool isPlayerColored() const;

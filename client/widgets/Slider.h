@@ -57,6 +57,10 @@ private:
 	/// what is drawn behind the handle: black as in the game's own windows (DMB: a window of another colour can ask for its own)
 	ColorRGBA trackColor = ColorRGBA(0, 0, 0, 255);
 
+	/// DMB (S501): the window colour the arrows and the thumb follow (brown art run through that colour's filter); none for stock's art
+	std::optional<PlayerColor> colour;
+	void applyColour();
+
 	void updateSliderPos();
 	void updateSlider();
 
@@ -78,6 +82,10 @@ public:
 	/// Amount modifier
 	void setAmount(int to);
 	void setTrackColor(const ColorRGBA & color) { trackColor = color; }
+	/// DMB (S501, K November 24th: "scrollbar and the arrow colors should match the colors of the background, make sure they are dynamically
+	/// linked"): a BROWN slider whose arrows, thumb and track take this window colour, by the same filter the window's player-coloured
+	/// background is drawn with
+	void setColour(PlayerColor windowColour);
 	virtual void setValue(int to, bool callCallbacks = true);
 
 	/// Accessors

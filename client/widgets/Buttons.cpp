@@ -377,6 +377,12 @@ void ButtonBase::setPlayerColor(PlayerColor player)
 		image->setPlayerColor(player);
 }
 
+void ButtonBase::adjustPalette(const ColorFilter & filter)
+{
+	if(image)
+		image->adjustPalette(filter);
+}
+
 void CButton::showAll(Canvas & to)
 {
 	CIntObject::showAll(to);

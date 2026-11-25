@@ -9,6 +9,8 @@
  */
 #pragma once
 
+class ColorFilter;
+
 #include "../gui/CIntObject.h"
 #include "../render/EFont.h"
 #include "../../lib/FunctionList.h"
@@ -55,6 +57,8 @@ protected:
 public:
 	/// Appearance modifiers
 	void setPlayerColor(PlayerColor player);
+	/// DMB (S501): a colour filter over this button's own frames (CAnimImage::adjustPalette)
+	void adjustPalette(const ColorFilter & filter);
 	void setImage(const AnimationPath & defName, bool playerColoredButton = false);
 	void setConfigurable(const JsonPath & jsonName, bool playerColoredButton = false);
 	void setImageOrder(int state1, int state2, int state3, int state4);

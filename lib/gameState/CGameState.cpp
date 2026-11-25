@@ -246,7 +246,13 @@ void CGameState::init(const IMapService * mapService, StartInfo * si, IGameRando
 	for(auto & elem : players)
 		if(scenarioOps->playerInfos.count(elem.first) && scenarioOps->playerInfos.at(elem.first).handicap.isCustom())
 			for(auto * hero : elem.second.getHeroes())
-				hero->mana = hero->manaLimit();
+				{
+					hero->mana = hero->manaLimit();
+					// S495 diagnostic (OmniAI Dev, November 24th: "Always top morale" and "Always top luck" do not show on the hero)
+					logGlobal->info("S495: a hero of %s in the bonus tree: has MAX_MORALE %d, MAX_LUCK %d, morale %d, luck %d, attack %d; the player has MAX_MORALE %d",
+						elem.first.toString(), hero->hasBonusOfType(BonusType::MAX_MORALE), hero->hasBonusOfType(BonusType::MAX_LUCK), hero->moraleVal(),
+						hero->luckVal(), hero->getPrimSkillLevel(PrimarySkill::ATTACK), elem.second.hasBonusOfType(BonusType::MAX_MORALE));
+				}
 	initVisitingAndGarrisonedHeroes();
 	initFogOfWar();
 

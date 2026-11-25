@@ -76,6 +76,7 @@ inline const std::vector<DmbSeatBonusRow> & dmbSeatBonusRows()
 		{"ballista", 116, 0, 1, 0}, // item 16: the war machines the first hero starts with
 		{"ammoCart", 116, 0, 1, 0},
 		{"firstAidTent", 116, 0, 1, 0},
+		{"extraTurnSeconds", 119, 0, 600, 0}, // item 19: seconds added to the seat's turn timer every turn, when the game has a timer
 	};
 	return rows;
 }

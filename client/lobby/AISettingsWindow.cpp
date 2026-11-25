@@ -505,6 +505,8 @@ class SeatBonusesWindow final : public CWindowObject
 			heading("town"),
 			line({pick("buildings")}),
 			line({n("garrisonWeeks"), t("thievesGuild")}),
+			heading("time"),
+			line({n("extraTurnSeconds")}),
 			heading("resources"),
 			line({n("daily6"), n("markets")}),
 			line({n("daily0"), n("daily2")}),

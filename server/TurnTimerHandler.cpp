@@ -86,7 +86,10 @@ void TurnTimerHandler::onPlayerGetTurn(PlayerColor player)
 			if(si->turnTimerInfo.accumulatingTurnTimer)
 				timer.baseTimer += timer.turnTimer;
 			timer.turnTimer = si->turnTimerInfo.turnTimer;
-			
+			// S495 item 19 (K, November 24th, all twenty seat options ticked): the seat's extra seconds on every turn (Seat Bonuses page)
+			if(si->playerInfos.count(player))
+				timer.turnTimer += std::clamp<int>(si->playerInfos.at(player).handicap.seatValue("extraTurnSeconds", 0), 0, 600) * 1000;
+
 			sendTimerUpdate(player);
 		}
 	}

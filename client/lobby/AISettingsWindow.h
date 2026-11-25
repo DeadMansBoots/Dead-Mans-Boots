@@ -80,6 +80,10 @@ class AISettingsWindow final : public CWindowObject
 	std::vector<std::shared_ptr<CPicture>> tierPieces;
 	PlayerColor tierPiecesColour;
 	void showTierPieces();
+	/// S495 item 18: the seat's team (Handicap::seatValues "team", 0 for the map's)
+	std::shared_ptr<CLabel> teamLabel;
+	std::shared_ptr<LRClickableArea> teamArea;
+	void showTeam();
 	PlayerColor windowColour() const;
 
 	const PlayerSettings * seat() const;

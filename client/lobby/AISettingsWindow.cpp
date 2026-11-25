@@ -802,6 +802,26 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 			const auto * seatNow = seat();
 			ENGINE->windows().createAndPushWindow<SeatBonusesWindow>(color, pendingBonuses, seatNow ? seatNow->castle : FactionID::RANDOM, [this]() { sendBonuses(); });
 		}, [](){ CRClickPopup::createAndPush(seatText("moreHelp")); });
+
+		// S495 item 18 (K, November 24th, all twenty seat options ticked: a team per seat on a scenario map): the seat's team under its colour,
+		// "Team N (as the map)" until the host picks one; a click goes to the next team, after team 8 back to the map's; OK sends it
+		bonusParts.push_back(std::make_shared<CLabel>(340, 204, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, seatText("team")));
+		const Rect teamBox(420, 202, 120, 22);
+		bonusParts.push_back(std::make_shared<TransparentFilledRectangle>(teamBox, ColorRGBA(0, 0, 0, 128), GOLD_LINE, 1));
+		teamLabel = std::make_shared<CLabel>(teamBox.center().x, teamBox.center().y, FONT_SMALL, ETextAlignment::CENTER, Colors::WHITE, "", teamBox.w - 6);
+		teamArea = std::make_shared<LRClickableArea>(teamBox, [this]()
+		{
+			if(!GAME->server().isHost() || !pendingBonuses)
+				return;
+			const int now = pendingBonuses->seatValue("team", 0);
+			const int next = now >= PlayerColor::PLAYER_LIMIT_I ? 0 : now + 1;
+			if(next == 0)
+				pendingBonuses->seatValues.erase("team");
+			else
+				pendingBonuses->seatValues["team"] = next;
+			showTeam();
+		}, [](){ CRClickPopup::createAndPush(seatText("teamHelp")); });
+		showTeam();
 	}
 
 	// a human seat's window shows only its colour
@@ -818,6 +838,30 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	refresh();
 	updateShadow();
 	center();
+}
+
+void AISettingsWindow::showTeam()
+{
+	if(!teamLabel || !pendingBonuses)
+		return;
+	const int chosen = pendingBonuses->seatValue("team", 0);
+	std::string text;
+	if(chosen >= 1)
+		text = seatText("teamN");
+	else
+	{
+		// the map's own team for this seat, when the map is known (a random map's teams come with the map at Begin)
+		int mapTeam = -1;
+		if(const auto * info = SEL->getMapInfo(); info && info->mapHeader && color.getNum() < static_cast<int>(info->mapHeader->players.size()))
+			mapTeam = info->mapHeader->players[color.getNum()].team.getNum();
+		text = mapTeam >= 0 ? seatText("teamAsMap") : seatText("teamMap");
+		if(mapTeam >= 0)
+			boost::algorithm::replace_first(text, "%d", std::to_string(mapTeam + 1));
+	}
+	if(chosen >= 1)
+		boost::algorithm::replace_first(text, "%d", std::to_string(chosen));
+	teamLabel->setText(text);
+	redraw();
 }
 
 PlayerColor AISettingsWindow::windowColour() const

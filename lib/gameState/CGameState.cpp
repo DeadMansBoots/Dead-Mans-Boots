@@ -728,6 +728,14 @@ void CGameState::initPlayerStates()
 		p.color=elem.first;
 		p.human = elem.second.isControlledByHuman();
 		p.team = map->players[elem.first.getNum()].team;
+		// S495 item 18 (K, November 24th, all twenty seat options ticked: a team per seat): a seat the host put in team N (Seat Settings) plays
+		// in team N, the map's own team numbers being the same 1 to 8; 0 keeps the map's team
+		const int chosenTeam = elem.second.handicap.seatValue("team", 0);
+		if(chosenTeam >= 1 && chosenTeam <= PlayerColor::PLAYER_LIMIT_I)
+		{
+			logGlobal->info("S495: seat %s plays in team %d (the map has it in team %d)", elem.first.toString(), chosenTeam, p.team.getNum() + 1);
+			p.team = TeamID(chosenTeam - 1);
+		}
 		logGlobal->debug("Player %d is controlled by %s, team %d", elem.first.getNum(), p.human ? "human" : "AI", p.team.getNum());
 		teams[p.team].id = p.team;//init team
 		teams[p.team].players.insert(elem.first);//add player to team

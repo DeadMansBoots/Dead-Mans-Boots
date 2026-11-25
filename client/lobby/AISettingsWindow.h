@@ -24,6 +24,7 @@ class LRClickableArea;
 class TransparentFilledRectangle;
 class FilledTexturePlayerColored;
 class SeatColourList;
+class CPicture;
 
 /// DMB (S002, K, November 7th: "that ai config settings let me put any mix of any ai at any difficulty in any slot"; November 5th: "a full 'AI Settings' menu per slot"): one window per
 /// computer seat in the lobby, opened by the host from the seat's name. The adventure AI and the battle AI of the seat are picked from the lists of what is installed, the difficulty
@@ -75,6 +76,11 @@ class AISettingsWindow final : public CWindowObject
 	std::shared_ptr<CLabel> moreLabel;
 	std::shared_ptr<LRClickableArea> moreArea;
 	void sendBonuses() const;
+	/// S505: the five chess buttons in the window colour, made again when that colour changes
+	std::vector<std::shared_ptr<CPicture>> tierPieces;
+	PlayerColor tierPiecesColour;
+	void showTierPieces();
+	PlayerColor windowColour() const;
 
 	const PlayerSettings * seat() const;
 	void buildChoices(bool battleList, std::vector<Choice> & into, int x);

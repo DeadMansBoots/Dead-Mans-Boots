@@ -326,7 +326,7 @@ public:
 /// band, outside each piece's box, the five frames pooled) plus the tile's darker shades (blue, no lighter in red, green or blue than that
 /// texture); the frame band goes and a flood from it takes only tile indices. Every other pixel keeps its index, the player-colour range
 /// (224 to 255) included, so a player's colour can be cast over the piece later
-std::array<std::shared_ptr<ISharedImage>, 5> cutChessPieces(const std::function<std::shared_ptr<CDefFile>(const AnimationPath &)> & defFile)
+std::array<std::shared_ptr<ISharedImage>, 5> cutChessPieces(const std::function<std::shared_ptr<CDefFile>(const AnimationPath &)> & defFile, std::set<int> * tileOut = nullptr, std::array<DmbIndexLoader, 5> * framesOut = nullptr)
 {
 	constexpr int BAND = 2;
 	constexpr int PLAYER_FIRST = 224;
@@ -412,6 +412,10 @@ std::array<std::shared_ptr<ISharedImage>, 5> cutChessPieces(const std::function<
 		if(tileBlue(index) && palette[index].r <= ceilR && palette[index].g <= ceilG && palette[index].b <= ceilB)
 			tileIndices.insert(index);
 
+	if(tileOut)
+		*tileOut = tileIndices;
+	if(framesOut)
+		*framesOut = frames;
 	std::array<std::shared_ptr<ISharedImage>, 5> pieces;
 	for(int tier = 0; tier < 5; ++tier)
 	{
@@ -440,6 +444,114 @@ std::array<std::shared_ptr<ISharedImage>, 5> cutChessPieces(const std::function<
 	}
 	return pieces;
 }
+
+/// S505 (K, November 24th: "where's the button part? the edged outline is missing from the chest pieces, keep in mind, these need to look
+/// identical to the blue versions (original) and seamlessly adapt to whatever seat color is being displayed"): the whole button (tile, bevelled
+/// frame and piece, every original pixel) in a window colour. Blue is the original frame, unchanged. For another colour only the button's own
+/// pixels change, the tile and the frame: the pixels cutChessPieces' rule finds as the tile (the 2-pixel bevelled band and the flood from it).
+/// Each keeps its brightness, given the brown dialog art's hue, and goes through the colour's filter, the one the player-coloured window
+/// backgrounds are drawn with, so the bevel's highlights and shadows still read on every colour. A palette entry the piece also uses is copied
+/// to a free entry for the tile's pixels, so no pixel of the piece changes
+std::shared_ptr<ISharedImage> chessButton(const std::function<std::shared_ptr<CDefFile>(const AnimationPath &)> & defFile, int tier, PlayerColor colour)
+{
+	constexpr int BAND = 2;
+	std::set<int> tileIndices;
+	std::array<DmbIndexLoader, 5> frames;
+	if(!cutChessPieces(defFile, &tileIndices, &frames)[tier])
+		return nullptr;
+	const auto & frame = frames[tier];
+	const int w = frame.size.x;
+	const int h = frame.size.y;
+	std::array<SDL_Color, 256> palette = frame.palette;
+	std::vector<ui8> pixels = frame.pixels;
+	if(colour != PlayerColor(1))
+	{
+		// the tile and frame pixels, as the cut finds them
+		std::vector<char> tile(static_cast<size_t>(w) * h, 0);
+		std::vector<Point> todo;
+		for(int y = 0; y < h; ++y)
+			for(int x = 0; x < w; ++x)
+				if(x < BAND || y < BAND || x >= w - BAND || y >= h - BAND)
+				{
+					tile[y * w + x] = 1;
+					todo.emplace_back(x, y);
+				}
+		while(!todo.empty())
+		{
+			const Point p = todo.back();
+			todo.pop_back();
+			for(const Point & d : {Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1)})
+			{
+				const Point n = p + d;
+				if(n.x < 0 || n.y < 0 || n.x >= w || n.y >= h || tile[n.y * w + n.x] || !tileIndices.count(pixels[n.y * w + n.x]))
+					continue;
+				tile[n.y * w + n.x] = 1;
+				todo.push_back(n);
+			}
+		}
+		std::set<int> used(pixels.begin(), pixels.end());
+		std::set<int> pieceIndices;
+		for(size_t i = 0; i < pixels.size(); ++i)
+			if(!tile[i])
+				pieceIndices.insert(pixels[i]);
+		const ColorFilter filter = AssetGenerator::playerColorFilter(colour);
+		const auto recolour = [&filter](const SDL_Color & c)
+		{
+			const float light = 0.30f * c.r + 0.59f * c.g + 0.11f * c.b;
+			// the dialog art's brown at that brightness (its ratios about 1.3, 0.95, 0.55 of the brightness)
+			const auto channel = [light](float k) { return static_cast<uint8_t>(std::clamp(light * k / 1.01f, 0.f, 255.f)); };
+			const ColorRGBA shifted = filter.shiftColor(ColorRGBA(channel(1.3f), channel(0.95f), channel(0.55f), 255));
+			return SDL_Color{shifted.r, shifted.g, shifted.b, 255};
+		};
+		std::map<int, int> moved; // a tile index the piece also uses -> its free copy
+		int nextFree = 1;
+		const auto freeIndex = [&used, &nextFree]()
+		{
+			while(nextFree < 256 && used.count(nextFree))
+				++nextFree;
+			if(nextFree >= 256)
+				return -1;
+			used.insert(nextFree);
+			return nextFree;
+		};
+		std::set<int> recoloured;
+		for(size_t i = 0; i < pixels.size(); ++i)
+		{
+			if(!tile[i])
+				continue;
+			const int index = pixels[i];
+			if(pieceIndices.count(index))
+			{
+				if(!moved.count(index))
+				{
+					const int copy = freeIndex();
+					if(copy < 0)
+						continue; // no free entry: the pixel keeps the original colour
+					palette[copy] = recolour(frame.palette[index]);
+					moved[index] = copy;
+				}
+				pixels[i] = moved[index];
+			}
+			else if(recoloured.insert(index).second)
+				palette[index] = recolour(frame.palette[index]);
+		}
+	}
+	SDL_Surface * surface = SDL_CreateRGBSurface(0, frame.fullSize.x, frame.fullSize.y, 8, 0, 0, 0, 0);
+	if(!surface)
+		return nullptr;
+	SDL_Palette * surfacePalette = SDL_AllocPalette(256);
+	SDL_SetPaletteColors(surfacePalette, palette.data(), 0, 256);
+	SDL_SetSurfacePalette(surface, surfacePalette);
+	SDL_FreePalette(surfacePalette);
+	SDL_FillRect(surface, nullptr, 0);
+	for(int y = 0; y < h; ++y)
+		for(int x = 0; x < w; ++x)
+			static_cast<ui8 *>(surface->pixels)[(y + frame.margins.y) * surface->pitch + x + frame.margins.x] = pixels[y * w + x];
+	SDL_SetColorKey(surface, SDL_TRUE, 0);
+	auto image = std::make_shared<SDLImageShared>(surface);
+	SDL_FreeSurface(surface);
+	return image;
+}
 }
 
 std::shared_ptr<ISharedImage> RenderHandler::loadImageFromFileUncached(const ImageLocator & locator)
@@ -459,6 +571,14 @@ std::shared_ptr<ISharedImage> RenderHandler::loadImageFromFileUncached(const Ima
 		if(CResourceHandler::get()->existsResource(imagePath))
 			return std::make_shared<SDLImageShared>(imagePath);
 
+		// S505: "DmbChessButton<tier>_<colour>.png", the whole button in a seat's colour (chessButton)
+		for(int tier = 0; tier < 5; ++tier)
+			for(int colour = 0; colour < PlayerColor::PLAYER_LIMIT_I; ++colour)
+				if(imagePath == ImagePath::builtin("DmbChessButton" + std::to_string(tier) + "_" + std::to_string(colour) + ".png"))
+				{
+					if(auto button = chessButton([this](const AnimationPath & path) { return getAnimationFile(path); }, tier, PlayerColor(colour)))
+						return button;
+				}
 		// S498: "DmbChessPiece0.png" to "DmbChessPiece4.png", the difficulty pieces cut from their tile (cutChessPieces)
 		for(int tier = 0; tier < 5; ++tier)
 			if(imagePath == ImagePath::builtin("DmbChessPiece" + std::to_string(tier) + ".png"))

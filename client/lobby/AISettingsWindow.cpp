@@ -732,15 +732,16 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	{
 		const int x = 314 + i * 44;
 		tierMarks.push_back(std::make_shared<TransparentFilledRectangle>(Rect(x - 3, TIER_TOP - 1, 38, 38), GOLD_FILL, GOLD_LINE, 1));
-		auto piece = std::make_shared<CPicture>(ImagePath::builtin("DmbChessPiece" + std::to_string(i) + ".png"), Point(x, TIER_TOP + 2));
 		const std::string help = LIBRARY->generaltexth->zelp[24 + i].second;
 		tierButtons.push_back(std::make_shared<LRClickableArea>(Rect(x - 3, TIER_TOP - 1, 38, 38), [this, i]()
 		{
 			if(const auto * ps = seat())
 				send(ps->aiAdventure, ps->aiBattle, i);
 		}, [help](){ CRClickPopup::createAndPush(help); }));
-		tierButtons.push_back(piece);
 	}
+	// S505 (K, November 24th: "where's the button part? ... these need to look identical to the blue versions (original) and seamlessly
+	// adapt to whatever seat color is being displayed"): the whole buttons, in the window's colour (RenderHandler, "DmbChessButton")
+	showTierPieces();
 
 	description = std::make_shared<CMultiLineLabel>(Rect(20, TIER_TOP + 48, 560, 44), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, "");
 
@@ -808,6 +809,29 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	refresh();
 	updateShadow();
 	center();
+}
+
+PlayerColor AISettingsWindow::windowColour() const
+{
+	return settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour();
+}
+
+void AISettingsWindow::showTierPieces()
+{
+	const PlayerColor colour = windowColour();
+	if(!tierPieces.empty() && colour == tierPiecesColour)
+		return;
+	tierPiecesColour = colour;
+	tierPieces.clear();
+	OBJECT_CONSTRUCTION;
+	const auto * ps = seat();
+	for(int i = 0; i < 5; i++)
+	{
+		auto piece = std::make_shared<CPicture>(ImagePath::builtin("DmbChessButton" + std::to_string(i) + "_" + std::to_string(colour.getNum()) + ".png"),
+			Point(314 + i * 44, TIER_TOP + 2));
+		piece->setEnabled(ps && ps->isControlledByAI());
+		tierPieces.push_back(piece);
+	}
 }
 
 void AISettingsWindow::sendBonuses() const
@@ -949,6 +973,9 @@ void AISettingsWindow::refresh()
 	for(const auto & part : computerOnly)
 		if(part)
 			part->setEnabled(computer);
+	showTierPieces(); // S505: in the window colour, again when the seat colour changed
+	for(const auto & piece : tierPieces)
+		piece->setEnabled(computer);
 	if(!computer)
 	{
 		redraw();

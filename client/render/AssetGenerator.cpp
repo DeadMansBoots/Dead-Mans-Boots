@@ -341,6 +341,12 @@ auto getColorFilters()
 	return filters;
 }
 
+ColorFilter AssetGenerator::playerColorFilter(PlayerColor color)
+{
+	static const std::array<ColorFilter, PlayerColor::PLAYER_LIMIT_I> filters = getColorFilters();
+	return filters[color.isValidPlayer() ? color.getNum() : 1];
+}
+
 AssetGenerator::CanvasPtr AssetGenerator::createAdventureOptionsCleanBackground() const
 {
 	auto locator = ImageLocator(ImagePath::builtin("ADVOPTBK"), EImageBlitMode::OPAQUE);

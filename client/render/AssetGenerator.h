@@ -9,6 +9,8 @@
  */
 #pragma once
 
+class ColorFilter;
+
 #include "ImageLocator.h"
 
 VCMI_LIB_NAMESPACE_BEGIN
@@ -28,6 +30,10 @@ public:
 	using ImageGenerationFunctor = std::function<CanvasPtr()>;
 
 	void initialize();
+
+	/// DMB (S501): the filter that turns the brown dialog art into a player colour's (interface.playerColoredBackground), the one the
+	/// player-coloured window backgrounds use, so other brown art drawn on such a window can follow it
+	static ColorFilter playerColorFilter(PlayerColor color);
 
 	std::shared_ptr<ISharedImage> generateImage(const ImagePath & image);
 

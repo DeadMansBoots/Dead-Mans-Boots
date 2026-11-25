@@ -1020,6 +1020,17 @@ void CGameState::initStartingBonus(IGameRandomizer & gameRandomizer)
 			if(!giveHeroArtifact(elem.second.getHeroes()[0], seat.startArtifact))
 				logGlobal->error("Cannot give the seat's starting artifact - no free slots!");
 		}
+		// S495 item 16 (K, November 24th, all twenty seat options ticked): the war machines the seat's first hero starts with; a hero that
+		// already has one keeps it
+		if(!elem.second.getHeroes().empty())
+		{
+			auto * first = elem.second.getHeroes()[0];
+			const std::vector<std::pair<const char *, ArtifactID>> machines = {{"ballista", ArtifactID::BALLISTA}, {"ammoCart", ArtifactID::AMMO_CART},
+				{"firstAidTent", ArtifactID::FIRST_AID_TENT}};
+			for(const auto & [key, machine] : machines)
+				if(seat.seatValue(key, 0) && !first->hasArt(machine) && !giveHeroArtifact(first, machine))
+					logGlobal->error("Cannot give the seat's %s - no free slot", key);
+		}
 		logGlobal->info("Seat bonuses of %s: movement %d%%, spell points %d%%, army %d%%, artifact %s", elem.first.toString(), seat.percentMovement,
 			seat.percentMana, seat.percentArmy, seat.startArtifact == ArtifactID::NONE ? std::string("none") : seat.startArtifact.toEntity(LIBRARY)->getJsonKey());
 

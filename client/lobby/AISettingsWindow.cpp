@@ -474,6 +474,8 @@ class SeatBonusesWindow final : public CWindowObject
 			line({pick("skill")}),
 			line({pick("artifact")}),
 			line({p("army")}),
+			line({t("ballista"), t("ammoCart")}),
+			line({t("firstAidTent")}),
 			heading("heroSkills"),
 			line({n("attack"), n("defense")}),
 			line({n("power"), n("knowledge")}),

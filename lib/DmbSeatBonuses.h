@@ -73,6 +73,9 @@ inline const std::vector<DmbSeatBonusRow> & dmbSeatBonusRows()
 		{"maxMorale", 114, 0, 1, 0},
 		{"maxLuck", 114, 0, 1, 0},
 		{"manaPercentRegen", 115, 0, 100, 0}, // percent of the spell points a day, the Wizard's Well gives 100
+		{"ballista", 116, 0, 1, 0}, // item 16: the war machines the first hero starts with
+		{"ammoCart", 116, 0, 1, 0},
+		{"firstAidTent", 116, 0, 1, 0},
 	};
 	return rows;
 }

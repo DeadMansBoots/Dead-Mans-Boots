@@ -92,6 +92,11 @@ struct DLL_LINKAGE Handicap {
 	SecondarySkill startSkill = SecondarySkill::NONE;
 	std::vector<BuildingID> startBuildings;
 	CreatureID stackCreature = CreatureID::NONE;
+	/// DMB (S495 items 17 and 20, K 11-24: all twenty seat options ticked): the first hero's name and portrait (another hero's), and the home
+	/// town's name, as the host typed or picked them; empty and NONE keep the game's own
+	std::string heroName;
+	HeroTypeID heroPortrait = HeroTypeID::NONE;
+	std::string townName;
 
 	/// a seat's number row, or the row's neutral value when the seat has none
 	int32_t seatValue(const std::string & key, int32_t neutral) const
@@ -105,7 +110,8 @@ struct DLL_LINKAGE Handicap {
 	{
 		return !startBonus.empty() || percentIncome != 100 || percentGrowth != 100 || seesMap >= 0 || percentMovement != 100 || percentMana != 100
 			|| percentArmy != 100 || startArtifact != ArtifactID::NONE || !seatValues.empty() || startSpell != SpellID::NONE
-			|| startSkill != SecondarySkill::NONE || !startBuildings.empty() || stackCreature != CreatureID::NONE;
+			|| startSkill != SecondarySkill::NONE || !startBuildings.empty() || stackCreature != CreatureID::NONE || !heroName.empty()
+			|| heroPortrait != HeroTypeID::NONE || !townName.empty();
 	}
 
 	template <typename Handler>
@@ -130,6 +136,12 @@ struct DLL_LINKAGE Handicap {
 			h & startSkill;
 			h & startBuildings;
 			h & stackCreature;
+		}
+		if(h.version >= Handler::Version::DMB_SEAT_BONUSES_3)
+		{
+			h & heroName;
+			h & heroPortrait;
+			h & townName;
 		}
 	}
 };

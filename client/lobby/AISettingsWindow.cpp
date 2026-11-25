@@ -35,6 +35,8 @@
 #include "../../lib/entities/artifact/CArtHandler.h"
 #include "../../lib/entities/artifact/CArtifact.h"
 #include "../../lib/DmbSeatBonuses.h"
+#include "../../lib/entities/hero/CHeroHandler.h"
+#include "../../lib/entities/hero/CHero.h"
 #include "../render/IFont.h"
 #include "../render/IRenderHandler.h"
 #include "../../lib/CCreatureHandler.h"
@@ -81,7 +83,8 @@ class SeatBonusesWindow final : public CWindowObject
 		NUMBER,
 		PERCENT,
 		TICK,
-		PICKER
+		PICKER,
+		TEXT ///< S495 items 17, 20: a typed name, the whole line
 	};
 	struct Cell
 	{
@@ -111,6 +114,7 @@ class SeatBonusesWindow final : public CWindowObject
 	std::vector<BuildingID> buildings;
 	CreatureID creature;
 	ArtifactID artifact;
+	HeroTypeID portrait; ///< S495 item 17: another hero's portrait for the first hero, NONE for its own
 	int school = 0; ///< the Tome: 0 none, 1 air, 2 fire, 3 water, 4 earth
 
 	static constexpr int LEFT = 20;
@@ -228,11 +232,35 @@ class SeatBonusesWindow final : public CWindowObject
 			return artifact == ArtifactID::NONE ? seatText("none") : artifact.toEntity(LIBRARY)->getNameTranslated();
 		if(key == "tomeSchool")
 			return school >= 1 && school <= 4 ? seatText("tome" + std::to_string(school)) : seatText("none");
+		if(key == "portrait")
+			return portrait == HeroTypeID::NONE ? seatText("portraitOwn") : portrait.toEntity(LIBRARY)->getNameTranslated();
 		std::string names;
 		for(const auto & choice : buildingChoices())
 			if(vstd::contains(buildings, choice.first))
 				names += (names.empty() ? "" : ", ") + choice.second;
 		return names.empty() ? seatText("none") : names;
+	}
+
+	/// S495 items 17, 20: a typed name takes the whole line: the label, then the box (20 letters at most; empty keeps the game's own)
+	void textCell(const Cell & cell, int y)
+	{
+		const Rect box(LEFT + 150, y + 4, CELL * 2 - 136, 16);
+		lineParts.push_back(std::make_shared<CLabel>(LEFT, y + 12, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, seatText(cell.key), 144));
+		lineParts.push_back(std::make_shared<TransparentFilledRectangle>(box.resize(3), ColorRGBA(0, 0, 0, 128), ColorRGBA(64, 64, 64, 64)));
+		auto input = std::make_shared<CTextInput>(box, FONT_SMALL, ETextAlignment::CENTERLEFT, false);
+		input->setText(texts[cell.key]);
+		std::weak_ptr<CTextInput> self = input;
+		const std::string key = cell.key;
+		input->setCallback([this, self, key](const std::string & s)
+		{
+			const std::string shown = s.substr(0, 20);
+			texts[key] = shown;
+			auto field = self.lock();
+			if(field && shown != s)
+				field->setText(shown);
+		});
+		input->setPopupCallback([key](){ CRClickPopup::createAndPush(seatText(key + "Help")); });
+		lineParts.push_back(input);
 	}
 
 	/// a picker takes the whole line: the label, then the framed box with the pick; a click opens its list
@@ -266,6 +294,8 @@ class SeatBonusesWindow final : public CWindowObject
 				const int x = c == 0 ? LEFT : SECOND;
 				if(cell.kind == Kind::PICKER)
 					pickerCell(cell, y);
+				else if(cell.kind == Kind::TEXT)
+					textCell(cell, y);
 				else if(cell.kind == Kind::TICK)
 					tickCell(cell, x, y);
 				else
@@ -376,6 +406,19 @@ class SeatBonusesWindow final : public CWindowObject
 			}
 			openList<ArtifactID>(key, ids, names, artifact, [this](ArtifactID id) { artifact = id; });
 		}
+		else if(key == "portrait")
+		{
+			// S495 item 17: any hero's portrait, by the hero's name; the first entry keeps the hero's own
+			std::vector<HeroTypeID> ids{HeroTypeID::NONE};
+			std::vector<std::string> names{seatText("portraitOwn")};
+			for(const auto & h : LIBRARY->heroh->objects)
+				if(h && !h->special)
+				{
+					ids.push_back(h->getId());
+					names.push_back(h->getNameTranslated());
+				}
+			openList<HeroTypeID>(key, ids, names, portrait, [this](HeroTypeID id) { portrait = id; });
+		}
 		else if(key == "tomeSchool")
 		{
 			std::vector<int> ids{0, 1, 2, 3, 4};
@@ -411,8 +454,9 @@ class SeatBonusesWindow final : public CWindowObject
 		for(auto & field : texts)
 		{
 			const DmbSeatBonusRow * row = dmbSeatBonusRow(field.first);
-			field.second = std::to_string(row ? row->neutral : 100);
+			field.second = row ? std::to_string(row->neutral) : (field.first == "heroName" || field.first == "townName" ? std::string() : std::string("100"));
 		}
+		portrait = HeroTypeID::NONE;
 		for(auto & tick : ticked)
 			tick.second = false;
 		spell = SpellID::NONE;
@@ -454,6 +498,8 @@ class SeatBonusesWindow final : public CWindowObject
 		pending->percentMana = percentValue("mana");
 		pending->percentArmy = percentValue("army");
 		pending->startArtifact = artifact;
+		pending->heroName = texts["heroName"];
+		pending->heroPortrait = portrait;
 		pending->startSpell = spell;
 		pending->startSkill = skill;
 		pending->startBuildings = buildings;
@@ -472,6 +518,8 @@ class SeatBonusesWindow final : public CWindowObject
 			heading("heroStart"),
 			line({n("heroLevel"), n("extraHeroes")}),
 			line({pick("skill")}),
+			line({Cell{Kind::TEXT, "heroName"}}),
+			line({pick("portrait")}),
 			line({pick("artifact")}),
 			line({p("army")}),
 			line({t("ballista"), t("ammoCart")}),
@@ -528,6 +576,7 @@ class SeatBonusesWindow final : public CWindowObject
 		texts["mana"] = std::to_string(pending->percentMana);
 		texts["army"] = std::to_string(pending->percentArmy);
 		school = pending->seatValue("tomeSchool", 0);
+		texts["heroName"] = pending->heroName;
 	}
 
 public:
@@ -541,6 +590,7 @@ public:
 		, buildings(pending->startBuildings)
 		, creature(pending->stackCreature)
 		, artifact(pending->startArtifact)
+		, portrait(pending->heroPortrait)
 	{
 		OBJECT_CONSTRUCTION;
 		addUsedEvents(LCLICK);
@@ -904,11 +954,15 @@ void AISettingsWindow::sendBonuses() const
 		handicap.startSkill = pendingBonuses->startSkill;
 		handicap.startBuildings = pendingBonuses->startBuildings;
 		handicap.stackCreature = pendingBonuses->stackCreature;
+		handicap.heroName = pendingBonuses->heroName;
+		handicap.heroPortrait = pendingBonuses->heroPortrait;
+		handicap.townName = pendingBonuses->townName;
 	}
 	const Handicap & now = ps->handicap;
 	if(handicap.percentMovement != now.percentMovement || handicap.percentMana != now.percentMana || handicap.percentArmy != now.percentArmy
 		|| handicap.startArtifact != now.startArtifact || handicap.seatValues != now.seatValues || handicap.startSpell != now.startSpell
-		|| handicap.startSkill != now.startSkill || handicap.startBuildings != now.startBuildings || handicap.stackCreature != now.stackCreature)
+		|| handicap.startSkill != now.startSkill || handicap.startBuildings != now.startBuildings || handicap.stackCreature != now.stackCreature
+		|| handicap.heroName != now.heroName || handicap.heroPortrait != now.heroPortrait || handicap.townName != now.townName)
 	{
 		logGlobal->info("S380: seat bonuses of %s sent, %d number rows", color.toString(), static_cast<int>(handicap.seatValues.size()));
 		GAME->server().setPlayerHandicap(color, handicap);

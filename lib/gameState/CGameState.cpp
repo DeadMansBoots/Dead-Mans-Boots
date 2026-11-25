@@ -1075,6 +1075,15 @@ void CGameState::initStartingBonus(IGameRandomizer & gameRandomizer)
 			else
 				logGlobal->error("Cannot give the seat's creature stack - the hero's army has no free slot");
 		}
+		// S495 item 17 (K, November 24th, all twenty seat options ticked): the first hero's typed name, a map text as a map's own custom
+		// hero names are (so it reaches every client with the game and stays in saves), and another hero's portrait
+		if(!seat.heroName.empty())
+		{
+			first->nameCustomTextId = mapRegisterLocalizedString("map", *map, TextIdentifier("dmb", "seat", elem.first.toString(), "heroName"), seat.heroName.substr(0, 20));
+			logGlobal->info("S495: the first hero of %s is named %s", elem.first.toString(), seat.heroName.substr(0, 20));
+		}
+		if(seat.heroPortrait != HeroTypeID::NONE && seat.heroPortrait.hasValue())
+			first->customPortraitSource = seat.heroPortrait;
 		logGlobal->info("Seat bonuses of %s: hero %s level %d, spell %s, skill %s, stack %d %s, %d number rows set", elem.first.toString(),
 			first->getHeroTypeID().toEntity(LIBRARY)->getJsonKey(), static_cast<int>(first->level),
 			seat.startSpell == SpellID::NONE ? std::string("none") : seat.startSpell.toEntity(LIBRARY)->getJsonKey(),

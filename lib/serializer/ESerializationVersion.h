@@ -72,10 +72,11 @@ enum class ESerializationVersion : int32_t
 	DMB_SEAT_COLOURS, // DMB (S303, S424): a seat carries the colour it is drawn in (PlayerSettings::shownColor)
 	DMB_SEAT_BONUSES, // DMB (S380): a seat's handicap carries its movement, spell point and army percents and a starting artifact
 	DMB_SEAT_BONUSES_2, // DMB (S380, S396): the rest of the seat bonuses (number rows by name, a starting spell, skill, buildings and creature stack)
+	DMB_SEAT_BONUSES_3, // DMB (S495 items 17, 20): a seat's typed hero name, hero portrait and town name
 
 	RELEASE_170 = HOTA_MAP_STACK_COUNT,
 	RELEASE_174 = CUSTOM_GARRISON_TITLE,
-	CURRENT = DMB_SEAT_BONUSES_2,
+	CURRENT = DMB_SEAT_BONUSES_3,
 };
 
 static_assert(ESerializationVersion::MINIMAL <= ESerializationVersion::CURRENT, "Invalid serialization version definition!");

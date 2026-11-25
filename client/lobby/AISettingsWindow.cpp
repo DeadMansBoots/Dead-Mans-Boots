@@ -553,11 +553,13 @@ public:
 		buildLines();
 		const int listHeight = VISIBLE * STEP;
 		slider = std::make_shared<CSlider>(Point(pos.w - 32, TOP), listHeight, [this](int to) { first = to; showLines(); }, VISIBLE,
-			static_cast<int>(lines.size()), 0, Orientation::VERTICAL, CSlider::BROWN);
+			static_cast<int>(lines.size()), 0, Orientation::VERTICAL, menuColour() == PlayerColor(1) ? CSlider::BLUE : CSlider::BROWN);
 		slider->setScrollBounds(Rect(LEFT - slider->pos.x + pos.x, 0, pos.w - LEFT - 8, listHeight)); // the wheel scrolls over the whole list
-		// S501 (K, November 24th: "scrollbar and the arrow colors should match the colors of the background, make sure they are dynamically
-		// linked"): the arrows, thumb and track in the window's own colour, by the filter its background is drawn with
-		slider->setColour(settings["lobby"]["seatColourWindows"].Bool() ? DmbSeatColours::shown(color) : menuColour());
+		// S501, S509 (K, November 24th: "the scroll bar should not match the seat's color, but the player's main ui background color (the blue
+		// behind the omni menu and whatnot)"): the scrollbar follows the main UI colour (general.menuColour, the lobby's and menus' own):
+		// stock's blue bar for the stock blue, else the brown art through that colour's filter, whatever the seat's window colour
+		if(menuColour() != PlayerColor(1))
+			slider->setColour(menuColour());
 
 		// the Reset framed like the pickers, and the OK check mark where Seat Settings has it
 		const Rect resetBox(LEFT, 494, 160, 22);

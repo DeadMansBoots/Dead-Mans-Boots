@@ -88,7 +88,13 @@ class AISettingsWindow final : public CWindowObject
 	std::vector<std::shared_ptr<CAnimImage>> teamFlags;
 	std::shared_ptr<LRClickableArea> teamArea;
 	std::weak_ptr<SeatTeamList> teamList;
+	/// S517: the bar's width (the dropdown picture's, longer when seven flags need it) and its explanation while the mouse is over it
+	int teamBarWidth = 0;
+	std::string teamTipText;
+	std::shared_ptr<TransparentFilledRectangle> teamTipBack;
+	std::shared_ptr<CMultiLineLabel> teamTip;
 	void showTeam();
+	void showTeamTip(bool on);
 	PlayerColor windowColour() const;
 
 	const PlayerSettings * seat() const;

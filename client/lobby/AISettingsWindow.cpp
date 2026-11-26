@@ -18,6 +18,7 @@
 #include "../widgets/Images.h"
 #include "../widgets/MiscWidgets.h"
 #include "../widgets/TextControls.h"
+#include "../windows/CMessage.h"
 #include "../../lib/CConfigHandler.h"
 #include "../../lib/GameLibrary.h"
 #include "../../lib/StartInfo.h"
@@ -745,8 +746,20 @@ public:
 
 namespace
 {
-/// S513: the team a seat plays in as the lobby has it now: its own pick (Handicap seatValues "team", 1 to 8), else the map's team when the map
-/// is known, else 0 (a random map's teams come with the map at Begin). The seat of the open window counts with its picks not yet sent
+/// the team the map gives a seat, 1 to 8, or 0 when the map is not known yet (a random map's teams come with the map at Begin)
+int mapTeamOf(PlayerColor seat)
+{
+	if(const auto * info = SEL->getMapInfo(); info && info->mapHeader && seat.getNum() < static_cast<int>(info->mapHeader->players.size()))
+	{
+		const int mapTeam = info->mapHeader->players[seat.getNum()].team.getNum();
+		if(mapTeam >= 0)
+			return mapTeam + 1;
+	}
+	return 0;
+}
+
+/// S513: the team a seat plays in as the lobby has it now: its own pick (Handicap seatValues "team", 1 to 8), else the map's team, else 0.
+/// The seat of the open window counts with its picks not yet sent
 int seatTeam(PlayerColor seat, PlayerColor windowSeat, const Handicap * pending)
 {
 	const auto & seats = SEL->getStartInfo()->playerInfos;
@@ -758,13 +771,7 @@ int seatTeam(PlayerColor seat, PlayerColor windowSeat, const Handicap * pending)
 		if(chosen >= 1)
 			return chosen;
 	}
-	if(const auto * info = SEL->getMapInfo(); info && info->mapHeader && seat.getNum() < static_cast<int>(info->mapHeader->players.size()))
-	{
-		const int mapTeam = info->mapHeader->players[seat.getNum()].team.getNum();
-		if(mapTeam >= 0)
-			return mapTeam + 1;
-	}
-	return 0;
+	return mapTeamOf(seat);
 }
 
 /// the seats of the lobby in team `team` (0: the seats whose team is not known yet)
@@ -777,32 +784,46 @@ std::vector<PlayerColor> seatsInTeam(int team, PlayerColor windowSeat, const Han
 	return found;
 }
 
-/// the words of a team entry: 0 is the map's own team ("Team 2 (the map's)", or "As the map" before the map is known), 1 to 8 "Team N"
-std::string teamEntryText(int entry, PlayerColor seat)
+/// the words of a team entry: "Team N" for 1 to 8; 0 (a random map before Begin, whose teams come with the map) "No team yet".
+/// S517 (K, November 26th: "I don't know what "The Map's" means, this is ambiguous ... Get rid of "The Map's""): no entry names the map
+std::string teamEntryText(int team)
 {
-	std::string text;
-	if(entry >= 1)
-	{
-		text = seatText("teamN");
-		boost::algorithm::replace_first(text, "%d", std::to_string(entry));
-		return text;
-	}
-	int mapTeam = -1;
-	if(const auto * info = SEL->getMapInfo(); info && info->mapHeader && seat.getNum() < static_cast<int>(info->mapHeader->players.size()))
-		mapTeam = info->mapHeader->players[seat.getNum()].team.getNum();
-	text = mapTeam >= 0 ? seatText("teamAsMap") : seatText("teamMap");
-	if(mapTeam >= 0)
-		boost::algorithm::replace_first(text, "%d", std::to_string(mapTeam + 1));
+	if(team < 1)
+		return seatText("teamNone");
+	std::string text = seatText("teamN");
+	boost::algorithm::replace_first(text, "%d", std::to_string(team));
 	return text;
 }
 
-/// the seats' flags in a row from x, centred on y, 18 apart as the scenario's team window sets them (CSelectionBase), closer when the room
-/// is short so every flag shows
+/// the width of one team flag (ITGFLAGS)
+int teamFlagWidth()
+{
+	static int width = 0;
+	if(width == 0)
+	{
+		const auto image = ENGINE->renderHandler().loadImage(AnimationPath::builtin("ITGFLAGS"), 0, 0, EImageBlitMode::COLORKEY);
+		width = image ? image->width() : 16;
+	}
+	return width;
+}
+
+/// the room seven flags need side by side at the scenario's 18 pixel step (CSelectionBase's team window); the dropdown picture's arrow
+/// takes the last TEAM_BAR_ARROW pixels of the bar
+constexpr int TEAM_FLAG_STEP = 18;
+constexpr int TEAM_BAR_ARROW = 22;
+int sevenFlagsWidth()
+{
+	return 6 * TEAM_FLAG_STEP + teamFlagWidth();
+}
+
+/// the seats' flags in a row from x, centred on y, 18 apart as the scenario's team window sets them (CSelectionBase), closer only when `room`
+/// (from x to the last flag's right edge) is short, so every flag shows
 void addTeamFlags(std::vector<std::shared_ptr<CAnimImage>> & into, const std::vector<PlayerColor> & seats, int x, int y, int room)
 {
 	if(seats.empty())
 		return;
-	const int step = std::min(18, std::max(4, room / static_cast<int>(seats.size())));
+	const int count = static_cast<int>(seats.size());
+	const int step = count == 1 ? TEAM_FLAG_STEP : std::min(TEAM_FLAG_STEP, std::max(4, (room - teamFlagWidth()) / (count - 1)));
 	for(const auto & seat : seats)
 	{
 		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(seat).getNum(), 0, x, y);
@@ -811,16 +832,39 @@ void addTeamFlags(std::vector<std::shared_ptr<CAnimImage>> & into, const std::ve
 		x += step;
 	}
 }
+
+/// S517 (K: "If need be, put a brief explanation in a hover tooltip that explains how it works"): the Team bar's area; the mouse over it
+/// shows the explanation, a right click shows it too (the game's own help click)
+class HoverClickArea final : public LRClickableArea
+{
+	std::function<void(bool)> onHover;
+
+public:
+	HoverClickArea(const Rect & area, std::function<void()> click, std::function<void()> popup, std::function<void(bool)> hovered)
+		: LRClickableArea(area, std::move(click), std::move(popup))
+		, onHover(std::move(hovered))
+	{
+		addUsedEvents(HOVER);
+	}
+
+	void hover(bool on) override
+	{
+		if(onHover)
+			onHover(on);
+	}
+};
 }
 
 /// S513 (K, November 24th, on the Team box: "the team dropdown should be the same as the seat color, and we should show the flags that are on
-/// each team in the dropdown"): the Team list, opened under its bar and drawn as the Seat Color list: the map's own team, then Team 1 to 8,
-/// each entry with the flags of the seats in that team now; the seat's own entry marked gold. The host's click picks (OK in Seat Settings
-/// sends it, as before); any other click closes the list
+/// each team in the dropdown"): the Team list, opened under its bar and drawn as the Seat Color list: Team 1 to 8, each entry with the flags
+/// of the seats in that team now; the seat's own team marked gold. The host's click picks (OK in Seat Settings sends it, as before); any
+/// other click closes the list. S517 (K, November 26th: "Get rid of "The Map's"" and "Make sure up to 7 flags can fit on any one team bar,
+/// or expand the bar if need be"): no map's-team entry; the seat's team from the map is simply its marked team; every row has room for
+/// seven flags at the full step
 class SeatTeamList final : public CWindowObject
 {
 	static constexpr int ROW = 20;
-	static constexpr int ROWS = PlayerColor::PLAYER_LIMIT_I + 1;
+	static constexpr int ROWS = PlayerColor::PLAYER_LIMIT_I;
 	PlayerColor color;
 	std::shared_ptr<Handicap> pending;
 	std::function<void()> onPick;
@@ -851,19 +895,19 @@ public:
 	{
 		OBJECT_CONSTRUCTION;
 		addUsedEvents(LCLICK | MOVE);
-		// as wide as the bar, wider when the longest words and the fullest team's flags need it
+		// as wide as the bar, wider when the longest words and seven flags (eight when one team has all eight seats) need it
 		const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
 		std::vector<std::string> texts;
 		int widest = 0;
-		size_t fullest = 0;
+		size_t fullest = 7;
 		for(int i = 0; i < ROWS; ++i)
 		{
-			texts.push_back(teamEntryText(i, color));
+			texts.push_back(teamEntryText(i + 1));
 			widest = std::max(widest, static_cast<int>(font->getStringWidth(texts.back())));
-			fullest = std::max(fullest, seatsInTeam(i, color, pending.get()).size());
+			fullest = std::max(fullest, seatsInTeam(i + 1, color, pending.get()).size());
 		}
 		textRight = 8 + widest + 8;
-		const int width = std::max(barWidth, textRight + 18 * static_cast<int>(fullest) + 6);
+		const int width = std::max(barWidth, textRight + TEAM_FLAG_STEP * (static_cast<int>(fullest) - 1) + teamFlagWidth() + 6);
 		pos = Rect(0, 0, width, ROWS * ROW + 2);
 		background = std::make_shared<FilledTexturePlayerColored>(pos);
 		background->setPlayerColor(PlayerColor(1)); // the Seat Color list's (the stock list's "color": "blue")
@@ -885,18 +929,17 @@ public:
 	/// the gold mark on the seat's entry and every entry's flags as the lobby state has them now
 	void refresh()
 	{
-		const int chosen = pending ? pending->seatValue("team", 0) : 0;
-		const int own = chosen >= 1 && chosen <= PlayerColor::PLAYER_LIMIT_I ? chosen : 0;
+		const int own = seatTeam(color, color, pending.get());
 		for(int i = 0; i < ROWS; ++i)
 		{
-			marks[i]->setEnabled(i == own);
-			names[i]->setText(teamEntryText(i, color));
+			marks[i]->setEnabled(i + 1 == own);
+			names[i]->setText(teamEntryText(i + 1));
 		}
 		flags.clear();
 		{
 			OBJECT_CONSTRUCTION;
 			for(int i = 0; i < ROWS; ++i)
-				addTeamFlags(flags, seatsInTeam(i, color, pending.get()), textRight, 1 + i * ROW + ROW / 2, pos.w - textRight - 4);
+				addTeamFlags(flags, seatsInTeam(i + 1, color, pending.get()), textRight, 1 + i * ROW + ROW / 2, pos.w - textRight - 6);
 		}
 		redraw();
 	}
@@ -921,11 +964,13 @@ public:
 		close();
 		if(row >= 0 && handicap && GAME->server().isHost())
 		{
-			logGlobal->info("S513: Team of %s: entry %d picked (0 is the map's team)", seatColour.toString(), row);
-			if(row == 0)
+			const int team = row + 1;
+			logGlobal->info("S513: Team of %s: Team %d picked", seatColour.toString(), team);
+			// the map's own team for the seat is no pick at all: the seat stays as stock has it
+			if(team == mapTeamOf(seatColour))
 				handicap->seatValues.erase("team");
 			else
-				handicap->seatValues["team"] = row;
+				handicap->seatValues["team"] = team;
 			if(picked)
 				picked();
 		}
@@ -1054,16 +1099,39 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 		// each team in the dropdown"): the lobby's dropdown bar under a "Team" title, as Seat Color has it, with the chosen entry's words and
 		// its seats' flags; a click opens the Team list under it
 		bonusParts.push_back(std::make_shared<CLabel>(340, 200, FONT_MEDIUM, ETextAlignment::TOPLEFT, Colors::YELLOW, seatText("team")));
-		teamBar = std::make_shared<CAnimImage>(AnimationPath::builtin("lobby/dropdown"), 0, 0, 340, 224);
-		bonusParts.push_back(teamBar);
-		teamLabel = std::make_shared<CLabel>(346, 233, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", 170);
-		teamArea = std::make_shared<LRClickableArea>(Rect(340, 224, 200, 18), [this]()
+		// S517 (K: "Make sure up to 7 flags can fit on any one team bar, or expand the bar if need be"): the bar is the lobby's dropdown
+		// picture, longer by `extra` when the longest "Team N" and seven flags at the full step do not fit before its arrow: a second copy
+		// of the picture drawn `extra` further right over the first (the first's left end and the second's arrow show)
+		int widestTeamText = 0;
+		const auto font = ENGINE->renderHandler().loadFont(FONT_SMALL);
+		for(int team = 1; team <= PlayerColor::PLAYER_LIMIT_I; ++team)
+			widestTeamText = std::max(widestTeamText, static_cast<int>(font->getStringWidth(teamEntryText(team))));
+		auto barPicture = std::make_shared<CAnimImage>(AnimationPath::builtin("lobby/dropdown"), 0, 0, 340, 224);
+		const int pictureWidth = barPicture->pos.w;
+		const int room = pictureWidth - 6 - 8 - TEAM_BAR_ARROW - widestTeamText;
+		const int extra = std::max(0, sevenFlagsWidth() - room);
+		bonusParts.push_back(barPicture);
+		if(extra > 0)
 		{
-			const Point under(teamBar->pos.x, teamBar->pos.y + teamBar->pos.h);
-			auto list = std::make_shared<SeatTeamList>(color, pendingBonuses, [this]() { showTeam(); }, under, teamBar->pos.w);
+			teamBar = std::make_shared<CAnimImage>(AnimationPath::builtin("lobby/dropdown"), 0, 0, 340 + extra, 224);
+			bonusParts.push_back(teamBar);
+		}
+		else
+			teamBar = barPicture;
+		teamBarWidth = pictureWidth + extra;
+		logGlobal->info("S517: Team bar %d wide (picture %d, %d more), longest team words %d, seven flags %d", teamBarWidth, pictureWidth, extra,
+			widestTeamText, sevenFlagsWidth());
+		teamLabel = std::make_shared<CLabel>(346, 233, FONT_SMALL, ETextAlignment::CENTERLEFT, Colors::WHITE, "", widestTeamText + 4);
+		teamArea = std::make_shared<HoverClickArea>(Rect(340, 224, teamBarWidth, 18), [this]()
+		{
+			showTeamTip(false);
+			const Point under(pos.x + 340, teamBar->pos.y + teamBar->pos.h);
+			auto list = std::make_shared<SeatTeamList>(color, pendingBonuses, [this]() { showTeam(); }, under, teamBarWidth);
 			teamList = list;
 			ENGINE->windows().pushWindow(list);
-		}, [](){ CRClickPopup::createAndPush(seatText("teamHelp")); });
+		}, [](){ CRClickPopup::createAndPush(seatText("teamHelp")); }, [this](bool on) { showTeamTip(on); });
+		// the explanation under the bar while the mouse is over it, drawn over what is below (made last in the window, below)
+		teamTipText = seatText("teamTip");
 		showTeam();
 	}
 
@@ -1078,6 +1146,17 @@ AISettingsWindow::AISettingsWindow(PlayerColor seatColor)
 	for(size_t i = 1; i < 5 && i < labels.size(); ++i) // the Adventure AI, Battle AI and tier headings (labels[0] is the title)
 		computerOnly.push_back(labels[i]);
 
+	if(teamArea) // S517: the Team bar's explanation, made last so it is drawn over the window's other parts; shown while the mouse is over the bar
+	{
+		// as tall as the words need at the box's width (5 pixels of margin each side)
+		const auto tipLines = CMessage::breakText(teamTipText, teamBarWidth - 10, FONT_SMALL);
+		const int tipHeight = static_cast<int>(tipLines.size() * ENGINE->renderHandler().loadFont(FONT_SMALL)->getLineHeight()) + 12;
+		const Rect tipArea(340, 244, teamBarWidth, tipHeight);
+		teamTipBack = std::make_shared<TransparentFilledRectangle>(tipArea, ColorRGBA(0, 0, 0, 230), ColorRGBA(200, 170, 80, 255), 1);
+		teamTip = std::make_shared<CMultiLineLabel>(tipArea.resize(-5), FONT_SMALL, ETextAlignment::TOPLEFT, Colors::WHITE, teamTipText);
+		showTeamTip(false);
+	}
+
 	refresh();
 	updateShadow();
 	center();
@@ -1087,19 +1166,30 @@ void AISettingsWindow::showTeam()
 {
 	if(!teamLabel || !pendingBonuses)
 		return;
-	// S513: the bar draws the chosen entry as the list does: its words, then the flags of the seats in that team (the seat's own among them)
-	const int chosen = pendingBonuses->seatValue("team", 0);
-	const std::string text = teamEntryText(chosen >= 1 ? chosen : 0, color);
+	// S513: the bar draws the seat's team as the list does: its words, then the flags of the seats in that team (the seat's own among them).
+	// S517: the team the map gives the seat shows as plain "Team N", with no word about the map
+	const int team = seatTeam(color, color, pendingBonuses.get());
+	const std::string text = teamEntryText(team);
 	teamLabel->setText(text);
 	const int textWidth = static_cast<int>(ENGINE->renderHandler().loadFont(FONT_SMALL)->getStringWidth(text));
-	const int flagsX = 346 + std::min(textWidth, 170) + 8;
+	const int flagsX = 346 + textWidth + 8;
 	teamFlags.clear();
+	if(team >= 1)
 	{
 		OBJECT_CONSTRUCTION;
-		addTeamFlags(teamFlags, seatsInTeam(seatTeam(color, color, pendingBonuses.get()), color, pendingBonuses.get()), flagsX, 233, 340 + 200 - 22 - flagsX);
+		addTeamFlags(teamFlags, seatsInTeam(team, color, pendingBonuses.get()), flagsX, 233, 340 + teamBarWidth - TEAM_BAR_ARROW - flagsX);
 	}
 	if(auto list = teamList.lock(); list && ENGINE->windows().isTopWindow(list.get())) // a list closed by its own pick is not refreshed
 		list->refresh();
+	redraw();
+}
+
+void AISettingsWindow::showTeamTip(bool on)
+{
+	if(!teamTipBack || !teamTip)
+		return;
+	logGlobal->info("S517: the mouse %s the Team bar", on ? "over" : "off");	teamTipBack->setEnabled(on);
+	teamTip->setEnabled(on);
 	redraw();
 }
 

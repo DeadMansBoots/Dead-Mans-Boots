@@ -39,6 +39,7 @@
 #include "../bonuses/Limiters.h"
 #include "../bonuses/Propagators.h"
 #include "../bonuses/Updaters.h"
+#include "../pathfinder/TurnInfo.h"
 #include "../battle/BattleInfo.h"
 #include "../callback/IGameInfoCallback.h"
 #include "../callback/IGameRandomizer.h"
@@ -255,6 +256,17 @@ void CGameState::init(const IMapService * mapService, StartInfo * si, IGameRando
 						elem.first.toString(), hero->hasBonusOfType(BonusType::MAX_MORALE), hero->hasBonusOfType(BonusType::MAX_LUCK), hero->moraleVal(),
 						hero->luckVal(), hero->getPrimSkillLevel(PrimarySkill::ATTACK), elem.second.hasBonusOfType(BonusType::MAX_MORALE),
 						hero->movementPointsLimit(true), hero->movementPointsLimit(false));
+					// S495 "No terrain penalty" (OmniAI Dev, November 26th: a sand step costs 150 with the box ticked): the bonus on the player and on
+					// the hero, and what the hero's turn information (the pathfinder's) says for sand and swamp
+					{
+						const auto sandSelector = Selector::typeSubtype(BonusType::NO_TERRAIN_PENALTY, BonusSubtypeID(TerrainId(ETerrainId::SAND)));
+						const auto turnInfo = hero->getTurnInfo(0);
+						logGlobal->info("S495: no terrain penalty of %s: the player has %d such bonuses (sand %d), the hero %d (sand %d); the hero's turn info sand %d, swamp %d, native %s",
+							elem.first.toString(), static_cast<int>(elem.second.getBonuses(Selector::type()(BonusType::NO_TERRAIN_PENALTY))->size()),
+							elem.second.hasBonus(sandSelector), static_cast<int>(hero->getBonuses(Selector::type()(BonusType::NO_TERRAIN_PENALTY))->size()),
+							hero->hasBonus(sandSelector), turnInfo->hasNoTerrainPenalty(ETerrainId::SAND), turnInfo->hasNoTerrainPenalty(ETerrainId::SWAMP),
+							hero->getNativeTerrain().hasValue() ? hero->getNativeTerrain().toEntity(LIBRARY)->getJsonKey() : std::string("none"));
+					}
 				}
 	initVisitingAndGarrisonedHeroes();
 	initFogOfWar();

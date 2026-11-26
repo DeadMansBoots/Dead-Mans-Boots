@@ -1078,15 +1078,8 @@ void CGameState::initStartingBonus(IGameRandomizer & gameRandomizer)
 			else
 				logGlobal->error("Cannot give the seat's creature stack - the hero's army has no free slot");
 		}
-		// S495 item 17 (K, November 24th, all twenty seat options ticked): the first hero's typed name, a map text as a map's own custom
-		// hero names are (so it reaches every client with the game and stays in saves), and another hero's portrait
-		if(!seat.heroName.empty())
-		{
-			first->nameCustomTextId = mapRegisterLocalizedString("map", *map, TextIdentifier("dmb", "seat", elem.first.toString(), "heroName"), seat.heroName.substr(0, 20));
-			logGlobal->info("S495: the first hero of %s is named %s", elem.first.toString(), seat.heroName.substr(0, 20));
-		}
-		if(seat.heroPortrait != HeroTypeID::NONE && seat.heroPortrait.hasValue())
-			first->customPortraitSource = seat.heroPortrait;
+		// S519 (K, November 26th: "lets disable these two for now"): item 17's typed hero name and other hero's portrait have no effect; a seat
+		// set before keeps the stock hero. The fields stay in the handicap (save format unchanged); the code that applied them is in 23224760f
 		logGlobal->info("Seat bonuses of %s: hero %s level %d, spell %s, skill %s, stack %d %s, %d number rows set", elem.first.toString(),
 			first->getHeroTypeID().toEntity(LIBRARY)->getJsonKey(), static_cast<int>(first->level),
 			seat.startSpell == SpellID::NONE ? std::string("none") : seat.startSpell.toEntity(LIBRARY)->getJsonKey(),
@@ -1106,7 +1099,7 @@ void CGameState::initSeatTownBonuses()
 		const Handicap & seat = scenarioOps->playerInfos[elem.first].handicap;
 		const DmbSeatBonusRow * weeksRow = dmbSeatBonusRow("garrisonWeeks");
 		const int weeks = std::clamp<int32_t>(seat.seatValue("garrisonWeeks", weeksRow->neutral), weeksRow->min, weeksRow->max);
-		if(seat.startBuildings.empty() && weeks == 0 && seat.townName.empty())
+		if(seat.startBuildings.empty() && weeks == 0)
 			continue;
 
 		// the home town: the map's main town of the player, else its first town
@@ -1126,13 +1119,8 @@ void CGameState::initSeatTownBonuses()
 			continue;
 		}
 
-		// S495 item 20 (K, November 24th, all twenty seat options ticked: town names per seat): the home town starts under the typed name,
-		// set as stock's town rename sets it (CGTownInstance::setCustomName, kept in the game state and in saves); after initTownNames
-		if(!seat.townName.empty())
-		{
-			home->setCustomName(seat.townName.substr(0, 20));
-			logGlobal->info("S495: the home town of %s is named %s", elem.first.toString(), home->getNameTranslated());
-		}
+		// S520 (K, November 26th: "Let's save this ... for later and not turn it on for now"): item 20's typed town name has no effect; the
+		// code that applied it (CGTownInstance::setCustomName after initTownNames) is in 23224760f
 
 		// a building comes with what it needs (a Citadel with its Fort, Mage Guild level 3 with levels 1 and 2)
 		std::function<void(const BuildingID &, int)> build = [&](const BuildingID & id, int depth)

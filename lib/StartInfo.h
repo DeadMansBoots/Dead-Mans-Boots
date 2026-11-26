@@ -105,13 +105,12 @@ struct DLL_LINKAGE Handicap {
 		return it == seatValues.end() ? neutral : it->second;
 	}
 
-	/// a seat whose handicap differs from stock's (the lobby's gear, S332)
+	/// a seat whose handicap differs from stock's (the lobby's gear, S332); S519, S520: heroName, heroPortrait and townName are off and do not count
 	bool isCustom() const
 	{
 		return !startBonus.empty() || percentIncome != 100 || percentGrowth != 100 || seesMap >= 0 || percentMovement != 100 || percentMana != 100
 			|| percentArmy != 100 || startArtifact != ArtifactID::NONE || !seatValues.empty() || startSpell != SpellID::NONE
-			|| startSkill != SecondarySkill::NONE || !startBuildings.empty() || stackCreature != CreatureID::NONE || !heroName.empty()
-			|| heroPortrait != HeroTypeID::NONE || !townName.empty();
+			|| startSkill != SecondarySkill::NONE || !startBuildings.empty() || stackCreature != CreatureID::NONE;
 	}
 
 	template <typename Handler>

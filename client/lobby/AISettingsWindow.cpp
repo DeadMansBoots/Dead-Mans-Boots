@@ -498,9 +498,9 @@ class SeatBonusesWindow final : public CWindowObject
 		pending->percentMana = percentValue("mana");
 		pending->percentArmy = percentValue("army");
 		pending->startArtifact = artifact;
-		pending->heroName = texts["heroName"];
-		pending->townName = texts["townName"];
-		pending->heroPortrait = portrait;
+		pending->heroName.clear(); // S519: off
+		pending->townName.clear(); // S520: off
+		pending->heroPortrait = HeroTypeID::NONE; // S519: off
 		pending->startSpell = spell;
 		pending->startSkill = skill;
 		pending->startBuildings = buildings;
@@ -519,8 +519,8 @@ class SeatBonusesWindow final : public CWindowObject
 			heading("heroStart"),
 			line({n("heroLevel"), n("extraHeroes")}),
 			line({pick("skill")}),
-			line({Cell{Kind::TEXT, "heroName"}}),
-			line({pick("portrait")}),
+			// S519 (K, November 26th, on item 17's Hero name and Hero portrait: "I see, i ticked every option you had and i didn't know what this
+			// meant....lets disable these two for now"): both lines are off the page and OK clears them; the code is in history (23224760f)
 			line({pick("artifact")}),
 			line({p("army")}),
 			line({t("ballista"), t("ammoCart")}),
@@ -552,7 +552,8 @@ class SeatBonusesWindow final : public CWindowObject
 			line({n("stackCount"), n("legionGrowth")}),
 			line({n("necromancy"), n("creatureExperience")}),
 			heading("town"),
-			line({Cell{Kind::TEXT, "townName"}}),
+			// S520 (K, November 26th: "Let's save this and the hero renaming/picture selection thing for later and not turn it on for now"):
+			// item 20's Town name line is off the page and OK clears it; the code is in history (23224760f)
 			line({pick("buildings")}),
 			line({n("garrisonWeeks"), t("thievesGuild")}),
 			heading("time"),
@@ -578,8 +579,6 @@ class SeatBonusesWindow final : public CWindowObject
 		texts["mana"] = std::to_string(pending->percentMana);
 		texts["army"] = std::to_string(pending->percentArmy);
 		school = pending->seatValue("tomeSchool", 0);
-		texts["heroName"] = pending->heroName;
-		texts["townName"] = pending->townName;
 	}
 
 public:

@@ -499,6 +499,7 @@ class SeatBonusesWindow final : public CWindowObject
 		pending->percentArmy = percentValue("army");
 		pending->startArtifact = artifact;
 		pending->heroName = texts["heroName"];
+		pending->townName = texts["townName"];
 		pending->heroPortrait = portrait;
 		pending->startSpell = spell;
 		pending->startSkill = skill;
@@ -551,6 +552,7 @@ class SeatBonusesWindow final : public CWindowObject
 			line({n("stackCount"), n("legionGrowth")}),
 			line({n("necromancy"), n("creatureExperience")}),
 			heading("town"),
+			line({Cell{Kind::TEXT, "townName"}}),
 			line({pick("buildings")}),
 			line({n("garrisonWeeks"), t("thievesGuild")}),
 			heading("time"),
@@ -577,6 +579,7 @@ class SeatBonusesWindow final : public CWindowObject
 		texts["army"] = std::to_string(pending->percentArmy);
 		school = pending->seatValue("tomeSchool", 0);
 		texts["heroName"] = pending->heroName;
+		texts["townName"] = pending->townName;
 	}
 
 public:

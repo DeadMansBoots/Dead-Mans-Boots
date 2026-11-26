@@ -1246,6 +1246,8 @@
 	"vcmi.dmb.lobby.seatBonuses.maxMoraleHelp" : "{Always top morale}\n\nThis seat's troops always have the best morale.",
 	"vcmi.dmb.lobby.seatBonuses.maxLuck" : "Always top luck",
 	"vcmi.dmb.lobby.seatBonuses.maxLuckHelp" : "{Always top luck}\n\nThis seat's troops always have the best luck.",
+	"vcmi.dmb.lobby.seatBonuses.townName" : "Town name",
+	"vcmi.dmb.lobby.seatBonuses.townNameHelp" : "{Town name}\n\nThe name this seat's home town starts under, up to 20 letters. Empty keeps the town's own name.",
 	"vcmi.dmb.lobby.seatBonuses.heroName" : "Hero name",
 	"vcmi.dmb.lobby.seatBonuses.heroNameHelp" : "{Hero name}\n\nThe name this seat's first hero plays under, up to 20 letters. Empty keeps the hero's own name.",
 	"vcmi.dmb.lobby.seatBonuses.portrait" : "Hero portrait",

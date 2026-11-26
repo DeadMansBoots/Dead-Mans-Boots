@@ -1106,7 +1106,7 @@ void CGameState::initSeatTownBonuses()
 		const Handicap & seat = scenarioOps->playerInfos[elem.first].handicap;
 		const DmbSeatBonusRow * weeksRow = dmbSeatBonusRow("garrisonWeeks");
 		const int weeks = std::clamp<int32_t>(seat.seatValue("garrisonWeeks", weeksRow->neutral), weeksRow->min, weeksRow->max);
-		if(seat.startBuildings.empty() && weeks == 0)
+		if(seat.startBuildings.empty() && weeks == 0 && seat.townName.empty())
 			continue;
 
 		// the home town: the map's main town of the player, else its first town
@@ -1122,8 +1122,16 @@ void CGameState::initSeatTownBonuses()
 		}
 		if(!home)
 		{
-			logGlobal->warn("Seat bonuses of %s: no town for its starting buildings and garrison", elem.first.toString());
+			logGlobal->warn("Seat bonuses of %s: no town for its starting buildings, garrison and name", elem.first.toString());
 			continue;
+		}
+
+		// S495 item 20 (K, November 24th, all twenty seat options ticked: town names per seat): the home town starts under the typed name,
+		// set as stock's town rename sets it (CGTownInstance::setCustomName, kept in the game state and in saves); after initTownNames
+		if(!seat.townName.empty())
+		{
+			home->setCustomName(seat.townName.substr(0, 20));
+			logGlobal->info("S495: the home town of %s is named %s", elem.first.toString(), home->getNameTranslated());
 		}
 
 		// a building comes with what it needs (a Citadel with its Fort, Mage Guild level 3 with levels 1 and 2)

@@ -85,7 +85,7 @@ class AISettingsWindow final : public CWindowObject
 	/// the team's seats; a click opens the Team list
 	std::shared_ptr<CAnimImage> teamBar;
 	std::shared_ptr<CLabel> teamLabel;
-	std::vector<std::shared_ptr<CAnimImage>> teamFlags;
+	std::vector<std::shared_ptr<CPicture>> teamFlags;
 	std::shared_ptr<LRClickableArea> teamArea;
 	std::weak_ptr<SeatTeamList> teamList;
 	/// S517: the bar's width (the dropdown picture's, longer when seven flags need it) and its explanation while the mouse is over it

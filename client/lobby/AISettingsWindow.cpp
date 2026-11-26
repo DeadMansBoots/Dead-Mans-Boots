@@ -816,9 +816,14 @@ int sevenFlagsWidth()
 	return 6 * TEAM_FLAG_STEP + teamFlagWidth();
 }
 
+/// S521 (K, November 26th: "either make the selection dropdown rows are actually tall enought to accomodate the flags, or shrink the flags"):
+/// a flag is drawn as the top TEAM_FLAG_HEIGHT pixels of its ITGFLAGS picture (the whole cloth and the top of the pole, unscaled), so it
+/// stays inside a 20 pixel list row and the 18 pixel bar; the full picture's pole ran past both
+constexpr int TEAM_FLAG_HEIGHT = 12;
+
 /// the seats' flags in a row from x, centred on y, 18 apart as the scenario's team window sets them (CSelectionBase), closer only when `room`
 /// (from x to the last flag's right edge) is short, so every flag shows
-void addTeamFlags(std::vector<std::shared_ptr<CAnimImage>> & into, const std::vector<PlayerColor> & seats, int x, int y, int room)
+void addTeamFlags(std::vector<std::shared_ptr<CPicture>> & into, const std::vector<PlayerColor> & seats, int x, int y, int room)
 {
 	if(seats.empty())
 		return;
@@ -826,9 +831,11 @@ void addTeamFlags(std::vector<std::shared_ptr<CAnimImage>> & into, const std::ve
 	const int step = count == 1 ? TEAM_FLAG_STEP : std::min(TEAM_FLAG_STEP, std::max(4, (room - teamFlagWidth()) / (count - 1)));
 	for(const auto & seat : seats)
 	{
-		auto flag = std::make_shared<CAnimImage>(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(seat).getNum(), 0, x, y);
-		flag->moveBy(Point(0, -flag->pos.h / 2));
-		into.push_back(flag);
+		const auto image = ENGINE->renderHandler().loadImage(AnimationPath::builtin("ITGFLAGS"), DmbSeatColours::shown(seat).getNum(), 0, EImageBlitMode::COLORKEY);
+		if(!image)
+			continue;
+		const Rect cloth(0, 0, image->width(), std::min(TEAM_FLAG_HEIGHT, static_cast<int>(image->height())));
+		into.push_back(std::make_shared<CPicture>(image, cloth, x, y - cloth.h / 2));
 		x += step;
 	}
 }
@@ -874,7 +881,7 @@ class SeatTeamList final : public CWindowObject
 	std::vector<std::shared_ptr<TransparentFilledRectangle>> rowBacks;
 	std::vector<std::shared_ptr<TransparentFilledRectangle>> marks;
 	std::vector<std::shared_ptr<CLabel>> names;
-	std::vector<std::shared_ptr<CAnimImage>> flags;
+	std::vector<std::shared_ptr<CPicture>> flags;
 	std::vector<std::shared_ptr<TransparentFilledRectangle>> hovers;
 	int hovered = -1;
 
@@ -939,7 +946,8 @@ public:
 		{
 			OBJECT_CONSTRUCTION;
 			for(int i = 0; i < ROWS; ++i)
-				addTeamFlags(flags, seatsInTeam(i + 1, color, pending.get()), textRight, 1 + i * ROW + ROW / 2, pos.w - textRight - 6);
+				// S521: centred one pixel above the row's middle, so the flag clears the gold mark's lines (1 and 17)
+				addTeamFlags(flags, seatsInTeam(i + 1, color, pending.get()), textRight, 1 + i * ROW + ROW / 2 - 1, pos.w - textRight - 6);
 		}
 		redraw();
 	}

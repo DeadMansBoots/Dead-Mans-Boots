@@ -249,9 +249,12 @@ void CGameState::init(const IMapService * mapService, StartInfo * si, IGameRando
 				{
 					hero->mana = hero->manaLimit();
 					// S495 diagnostic (OmniAI Dev, November 24th: "Always top morale" and "Always top luck" do not show on the hero)
-					logGlobal->info("S495: a hero of %s in the bonus tree: has MAX_MORALE %d, MAX_LUCK %d, morale %d, luck %d, attack %d; the player has MAX_MORALE %d",
+					// S495 Movement row (OmniAI Dev, November 24th: "Movement 150 reaches the server; not shown on a hero"): the hero's land and
+					// sea movement limits, which the day's movement is set from
+					logGlobal->info("S495: a hero of %s in the bonus tree: has MAX_MORALE %d, MAX_LUCK %d, morale %d, luck %d, attack %d; the player has MAX_MORALE %d; movement limit land %d, sea %d",
 						elem.first.toString(), hero->hasBonusOfType(BonusType::MAX_MORALE), hero->hasBonusOfType(BonusType::MAX_LUCK), hero->moraleVal(),
-						hero->luckVal(), hero->getPrimSkillLevel(PrimarySkill::ATTACK), elem.second.hasBonusOfType(BonusType::MAX_MORALE));
+						hero->luckVal(), hero->getPrimSkillLevel(PrimarySkill::ATTACK), elem.second.hasBonusOfType(BonusType::MAX_MORALE),
+						hero->movementPointsLimit(true), hero->movementPointsLimit(false));
 				}
 	initVisitingAndGarrisonedHeroes();
 	initFogOfWar();

@@ -24,6 +24,7 @@ class LRClickableArea;
 class TransparentFilledRectangle;
 class FilledTexturePlayerColored;
 class SeatColourList;
+class SeatTeamList;
 class CPicture;
 
 /// DMB (S002, K, November 7th: "that ai config settings let me put any mix of any ai at any difficulty in any slot"; November 5th: "a full 'AI Settings' menu per slot"): one window per
@@ -80,9 +81,13 @@ class AISettingsWindow final : public CWindowObject
 	std::vector<std::shared_ptr<CPicture>> tierPieces;
 	PlayerColor tierPiecesColour;
 	void showTierPieces();
-	/// S495 item 18: the seat's team (Handicap::seatValues "team", 0 for the map's)
+	/// S495 item 18: the seat's team (Handicap::seatValues "team", 0 for the map's). S513: a dropdown bar like Seat Color's, with the flags of
+	/// the team's seats; a click opens the Team list
+	std::shared_ptr<CAnimImage> teamBar;
 	std::shared_ptr<CLabel> teamLabel;
+	std::vector<std::shared_ptr<CAnimImage>> teamFlags;
 	std::shared_ptr<LRClickableArea> teamArea;
+	std::weak_ptr<SeatTeamList> teamList;
 	void showTeam();
 	PlayerColor windowColour() const;
 

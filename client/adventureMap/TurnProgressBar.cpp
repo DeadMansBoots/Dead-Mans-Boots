@@ -908,7 +908,9 @@ void TurnProgressBars::refresh(bool force)
 	std::vector<TurnProgressMath::Size> sizes;
 	for(const size_t i : shown)
 		sizes.push_back({bars[i]->pos.w, bars[i]->pos.h});
-	const auto places = TurnProgressMath::layout(sizes, {origin.x, origin.y}, 6, mapArea.y + mapArea.h / 2);
+	// S563 (K, November 27th: "bars should never get put into two columns"): one column always. The layout no longer starts a second column at half the map's
+	// height (6ec93c899): eight bars, the most a game has, take about 380 of the map view's 546 pixels at 800x600 and its scaled equivalents
+	const auto places = TurnProgressMath::layout(sizes, {origin.x, origin.y}, 6, std::numeric_limits<int>::max());
 	for(size_t k = 0; k < shown.size(); ++k)
 	{
 		const size_t i = shown[k];

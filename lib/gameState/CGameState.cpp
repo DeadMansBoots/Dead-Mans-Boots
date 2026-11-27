@@ -1142,7 +1142,10 @@ void CGameState::initSeatTownBonuses()
 			const auto & building = home->getTown()->buildings.at(id);
 			if(building->upgrade != BuildingID::NONE)
 				build(building->upgrade, depth + 1);
-			for(const BuildingID & needed : building->requirements.getFulfillmentCandidates([&](const BuildingID & b) { return home->hasBuilt(b); }))
+			// named before the loop: CI's MSVC reads a lambda's braces inside a range-for's range expression as a braced list (S561, CI run 46059012872)
+			const auto hasBuilt = [&](const BuildingID & b) { return home->hasBuilt(b); };
+			const auto candidates = building->requirements.getFulfillmentCandidates(hasBuilt);
+			for(const BuildingID & needed : candidates)
 				build(needed, depth + 1);
 			home->addBuilding(id);
 		};

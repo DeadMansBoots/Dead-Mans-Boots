@@ -12,15 +12,20 @@ The installer is not signed yet, so Windows may say it protected your PC. Choose
 
 ## Known problems and in construction
 
-Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.9, a test build for playtesting.
+Built is approximate: how much of the feature exists and has been seen working in a real game. The current download is beta 19.10, a test build for playtesting.
 
-In beta 19.9:
+In beta 19.10:
 
 | Feature | Status | Built |
 | --- | --- | --- |
 | Installer, updates and the update notice | Working | 80% |
 | Turn progress bars that show how far each player's turn is | Working | 80% |
 | Folding the turn progress bars with a button, and showing chosen players' bars | Working | 80% |
+| Each player's time left on their own turn bar, in their colour, shown and hidden with the bar | In construction | 60% |
+| Any colour for any seat, and a Seat Settings window for every seat, player or computer | Partly built | 70% |
+| A team for each seat, picked in Seat Settings | Partly built | 70% |
+| Starting bonuses for each seat on one Bonuses page | Partly built | 60% |
+| Objects drawn in the right order (a hedge no longer covers a tent, a building no longer hides behind a glacier) | Partly built | 80% |
 | A picture in the random map lobby of the map your settings will make, full screen with a click, the underground one arrow away | Partly built | 60% |
 | Brown leather around the menus and loading screens | Working | 90% |
 | Loading text clear of the bar's gold ornament | Working | 90% |
@@ -49,14 +54,12 @@ In beta 19.9:
 | The underground made like a second overworld, a tick on the Underground page (OmniMapGen 0.3.37) | Partly built | 50% |
 | Special buildings from the original maps: Template, Random, Off or On, and how many (OmniMapGen 0.3.37) | Partly built | 50% |
 
-Known problems in beta 19.9: The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, and OmniMapGen 0.3.36 or newer to colour each region by its terrain and to show the underground's cave floor with the solid rock left empty; older versions colour regions by their kind and fill the underground. The picture shows what your settings make, not the exact map you get when you press Begin, and it leaves out portals, underground passages and neutral towns. The Random water content's range needs OmniMapGen 0.3.36 or newer to draw the amount from it. In the AI Settings window the lettering on both of its buttons is not yet the font of the other custom buttons. The seat row's "Starting Resources" button still opens the game's Handicap window. The column header above the seat rows still says "Handicap Type". The new map generator settings need OmniMapGen 0.3.37; without it they are not there. Not yet shown working: scrolling the template panel. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy.
+Known problems in beta 19.10: A seat's own hero name, hero portrait and town name are switched off for now. Not yet shown working: the turn time on the bars in a battle, in a hot-seat game and for someone watching; a human player with no bar on your screen (an enemy, or one human with no ally) still gets the game's own timer box. The picture of the map your settings will make needs OmniMapGen 0.3.34 or newer, and OmniMapGen 0.3.36 or newer to colour each region by its terrain and to show the underground's cave floor with the solid rock left empty; older versions colour regions by their kind and fill the underground. The picture shows what your settings make, not the exact map you get when you press Begin, and it leaves out portals, underground passages and neutral towns. The Random water content's range needs OmniMapGen 0.3.36 or newer to draw the amount from it. In the AI Settings window the lettering on both of its buttons is not yet the font of the other custom buttons. The seat row's "Starting Resources" button still opens the game's Handicap window. The column header above the seat rows still says "Handicap Type". The new map generator settings need OmniMapGen 0.3.37; without it they are not there. Not yet shown working: scrolling the template panel. After going back to the older version of a mod you installed anyway, switch the mod on again in the mod list. Not yet shown in a game: chat lines from several players at once in their own colours (seen for one player so far); resizing the chat by dragging it; the brown leather behind a campaign's opening screen and behind a loading screen started by loading a save during a game; the one-line message for a player on another version, which has not been tried with a real older copy.
 
-Next version, not in beta 19.9:
+Next version, not in beta 19.10:
 
 | Feature | Status | Built |
 | --- | --- | --- |
-| Objects drawn in the right order (a hedge no longer covers a tent, a building no longer hides behind a glacier) | Partly built | 80% |
-| Any colour for any seat, and an options window for every seat, player or computer | In construction | 0% |
 | The first redrawn interface, with the original look kept as an option | In construction | 10% |
 | "Restrict all settings to original template preferences" for map templates | In construction | 0% |
 | The host's full mod list compared with each joining player's, naming every difference | In construction | 0% |

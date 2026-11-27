@@ -12,6 +12,9 @@
 #include "../../lib/constants/EntityIdentifiers.h"
 
 #include "TurnProgressMath.h"
+#include "../render/EFont.h"
+
+class TurnTimerWidget;
 
 /// DMB (K, October 16th and 17th): a bar at the top left of the adventure map showing how much of a player's turn is done, in the player's colour over the game's
 /// own marble texture. Display only: it reads the game state the client already holds and changes no rule, timer or AI. Measured against a snapshot taken when the
@@ -60,8 +63,15 @@ class TurnProgressBar : public CIntObject
 	};
 	OutlinedText percentText;
 	OutlinedText nameText;
+	/// S554 (K, November 26th: "A: each player's time at the right end of that player's own bar, the box removed"): a human seat's turn time, right of the
+	/// frame's right end piece, in a font about the frame's height, when the game has a turn timer; timeReserve is the room kept for the widest time
+	bool showsTime = false;
+	OutlinedText timeText;
+	int timeReserve = 0;
+	/// the time as the stock turn timer box writes it (TurnTimerWidget::updateTextLabel, adventure map)
+	std::string timeString() const;
 	/// draws `text` centred on `centre`, from the kept image when it is the same text as last time
-	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre);
+	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre, EFonts font);
 	/// which trim is drawn (0 the first trim, 1 and 2 the game's own frame pieces); the corner jewels, rails and gold lines come from AdvMap.pcx at run time
 	static int trimStyle(const PlayerColor & player);
 	void drawStockTrim(Canvas & to, const Rect & outer, int style);
@@ -149,8 +159,12 @@ public:
 /// viewer has an ally. A column ends before half of the map view's height and the next starts to its right.
 class TurnProgressBars : public CIntObject
 {
-	/// the turn timer's area when there is one: the list starts 6 pixels under it, its frames lined up with the timer's left edge
-	std::optional<Rect> timer;
+	/// the stock turn timer box when the game has a timer. S554 (K, November 26th: "A: each player's time at the right end of that player's own bar, the box
+	/// removed"): each human seat's time is on its bar and the box is not drawn, except while a human seat in the game has no bar showing (an enemy, the bars
+	/// folded, one human with no ally): then it is drawn as stock, under the bars (lead, November 26th: a player never loses a time). It ticks either way
+	std::shared_ptr<TurnTimerWidget> timer;
+	/// shows or hides the box and places it under the bars, as above (called every tick)
+	void placeTimer();
 	/// the map view's area: the list stays in its top half
 	Rect mapArea;
 	int humans;
@@ -179,7 +193,7 @@ class TurnProgressBars : public CIntObject
 	void show(Canvas & to) override;
 
 public:
-	TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans);
+	TurnProgressBars(std::shared_ptr<TurnTimerWidget> timer, const Rect & mapArea, int humans);
 	~TurnProgressBars();
 
 	/// the minimize button's area on screen while it is shown, and the folded strip's squares (S162): a click there is theirs, not the map's (MapViewActions::receiveEvent)

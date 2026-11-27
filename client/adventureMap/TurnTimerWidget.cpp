@@ -139,6 +139,37 @@ void TurnTimerWidget::show(Canvas & to)
 	showAll(to);
 }
 
+void TurnTimerWidget::showAll(Canvas & to)
+{
+	// DMB (S554): not drawn while every human seat's time shows on its turn bar; it keeps ticking, so its end-of-turn sounds stay
+	if(!drawn)
+		return;
+	CIntObject::showAll(to);
+}
+
+void TurnTimerWidget::setDrawn(bool on)
+{
+	drawn = on;
+	// a part's own redraw (a bar's setPercent, a label's setText) draws it straight to the screen; through the box instead, which draws nothing while it is not
+	// drawn (S554 first pictures: the side bars showed over the turn bars with the box gone)
+	const auto throughBox = [](const auto & parts)
+	{
+		for(const auto & part : parts)
+			if(part.second)
+				part.second->setRedrawParent(true);
+	};
+	throughBox(playerLabelsMain);
+	throughBox(playerLabelsBattle);
+	throughBox(playerLabelsUnit);
+	throughBox(playerBarsMovement);
+	throughBox(playerBarsBattle);
+}
+
+bool TurnTimerWidget::isDrawn() const
+{
+	return drawn;
+}
+
 void TurnTimerWidget::updateNotifications(PlayerColor player, int timeMs)
 {
 	if(player != GAME->interface()->playerID)

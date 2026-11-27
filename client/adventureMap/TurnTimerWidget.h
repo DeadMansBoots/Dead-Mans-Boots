@@ -55,12 +55,19 @@ class TurnTimerWidget : public CIntObject
 	void updateTimer(PlayerColor player, uint32_t msPassed);
 
 	void show(Canvas & to) override;
+	void showAll(Canvas & to) override;
 	void tick(uint32_t msPassed) override;
-	
+
 	void updateNotifications(PlayerColor player, int timeMs);
 	void updateTextLabel(PlayerColor player, const TurnTimerInfo & timer);
 
+	/// DMB (S554): false while every human seat's time shows on its turn bar (TurnProgressBars); the widget still ticks
+	bool drawn = true;
+
 public:
+	void setDrawn(bool on);
+	bool isDrawn() const;
+
 	/// Activates adventure map mode in which widget will display timer for all players
 	TurnTimerWidget(const Point & position);
 

@@ -86,7 +86,8 @@ AdventureMapInterface::AdventureMapInterface():
 		for(const auto & info : GAME->interface()->cb->getStartInfo()->playerInfos)
 			if(info.second.isControlledByHuman())
 				humans++;
-		turnBars = std::make_shared<TurnProgressBars>(watches ? std::optional<Rect>(watches->pos) : std::nullopt, widget->getMapView()->pos, humans);
+		// S554: the bars also show or hide the stock turn timer box and place it (TurnProgressBars::placeTimer)
+		turnBars = std::make_shared<TurnProgressBars>(watches, widget->getMapView()->pos, humans);
 	}
 	
 	// DMB observer mode (K, October 20th): in a game the client only watches, the bar with Pause, Step and the day, at the top of the map view

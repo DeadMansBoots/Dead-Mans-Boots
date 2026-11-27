@@ -12,6 +12,7 @@
 #include "../GameEngine.h"
 #include "../gui/WindowHandler.h"
 #include "AdventureMapInterface.h"
+#include "TurnTimerWidget.h"
 #include "../GameInstance.h"
 #include "../render/Colors.h"
 #include "../render/Graphics.h"
@@ -37,6 +38,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <iomanip>
 
 namespace
 {
@@ -48,6 +50,10 @@ const int NAME_ABOVE = 8;   // the small font's line is taller than the tiny one
 /// the name and the percent use the font of the resource bar and the date beside it (FONT_TINY drew a smooth sans face at 150 and 200 percent, K's
 /// screen, while the stock text around it is the game's serif: the Reviewer's pre-read, October 22nd)
 const EFonts LABEL_FONT = FONT_SMALL;
+/// S554 (K: "make sure the font is about the same tallness as the meter itself"): the time's font is the stock timer box's own (FONT_BIG), its digits 14 pixels
+/// tall at 800x600 beside the 18 pixel frame; it starts TIME_GAP past the right end piece
+const EFonts TIME_FONT = FONT_BIG;
+const int TIME_GAP = 3;
 }
 
 TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
@@ -62,7 +68,39 @@ TurnProgressBar::TurnProgressBar(const Point & position, PlayerColor player)
 	pos.w = FRAME_SIZE.x + 2 * END_PIECE;
 	pos.h = above + FRAME_SIZE.y;
 	recActions &= ~DEACTIVATE;
+	// S554: a human seat's time, when the game has a turn timer (the stock box is made on the same test, AdventureMapInterface); computers have none, as in stock
+	if(GAME->interface() && GAME->interface()->cb)
+	{
+		const auto * startInfo = GAME->interface()->cb->getStartInfo();
+		const auto seat = startInfo->playerInfos.find(player);
+		showsTime = startInfo->turnTimerInfo.turnTimer != 0 && seat != startInfo->playerInfos.end() && seat->second.isControlledByHuman();
+		if(showsTime)
+		{
+			const bool twoParts = !startInfo->turnTimerInfo.accumulatingTurnTimer && startInfo->turnTimerInfo.baseTimer != 0;
+			timeReserve = static_cast<int>(ENGINE->renderHandler().loadFont(TIME_FONT)->getStringWidth(twoParts ? "88:88+88:88" : "88:88")) + 2;
+			// the time's line (with its outline) is taller than the frame and centred on it: pos reaches below the frame by the overhang, so the map paints the
+			// tiles under all of it fresh each frame
+			const int timeHeight = static_cast<int>(ENGINE->renderHandler().loadFont(TIME_FONT)->getLineHeight()) + 2;
+			pos.h += std::max(0, (timeHeight + 1) / 2 - FRAME_SIZE.y / 2);
+		}
+	}
 	readName();
+}
+
+std::string TurnProgressBar::timeString() const
+{
+	const auto toText = [](int timeMs)
+	{
+		const int seconds = std::max(0, timeMs) / 1000;
+		std::ostringstream text;
+		text << seconds / 60 << ":" << std::setw(2) << std::setfill('0') << seconds % 60;
+		return text.str();
+	};
+	const auto & settingsNow = GAME->interface()->cb->getStartInfo()->turnTimerInfo;
+	const auto & timer = GAME->interface()->cb->getPlayerTurnTime(player);
+	if(!settingsNow.accumulatingTurnTimer && settingsNow.baseTimer != 0)
+		return toText(timer.baseTimer) + "+" + toText(timer.turnTimer);
+	return toText(timer.baseTimer + timer.turnTimer);
 }
 
 PlayerColor TurnProgressBar::getPlayer() const
@@ -95,9 +133,11 @@ void TurnProgressBar::fitName()
 	const int nameWidth = playerName.empty() ? 0 : static_cast<int>(ENGINE->renderHandler().loadFont(LABEL_FONT)->getStringWidth(playerName)) + 2;
 	const int frameReach = frame.x + frame.w + END_PIECE;
 	const int nameReach = std::max(frame.x + frame.w / 2 + nameWidth / 2, nameWidth) + 1;
+	// S554: the time right of the right end piece
+	const int timeReach = showsTime ? frameReach + TIME_GAP + timeReserve : 0;
 	// pos never narrows: the map paints fresh only the tiles under pos, so a longer name drawn before (a teammate's) would stay on the map
 	// past a narrower pos until those tiles changed
-	pos.w = std::max({pos.w, frameReach, nameReach});
+	pos.w = std::max({pos.w, frameReach, nameReach, timeReach});
 }
 
 TurnProgressMath::TownStart TurnProgressBar::readTownStart(const CGTownInstance * town)
@@ -314,19 +354,19 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	}
 }
 
-void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre)
+void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre, EFonts fontId)
 {
 	if(!kept.image || kept.text != text)
 	{
-		const auto & font = ENGINE->renderHandler().loadFont(LABEL_FONT);
+		const auto & font = ENGINE->renderHandler().loadFont(fontId);
 		kept.text = text;
 		kept.size = Point(static_cast<int>(font->getStringWidth(text)) + 2, static_cast<int>(font->getLineHeight()) + 2);
 		kept.image = std::make_shared<Canvas>(kept.size, CanvasScalingPolicy::AUTO);
 		for(int dx = -1; dx <= 1; ++dx)
 			for(int dy = -1; dy <= 1; ++dy)
 				if(dx != 0 || dy != 0)
-					kept.image->drawText(Point(1 + dx, 1 + dy), LABEL_FONT, Colors::BLACK, ETextAlignment::TOPLEFT, text);
-		kept.image->drawText(Point(1, 1), LABEL_FONT, Colors::WHITE, ETextAlignment::TOPLEFT, text);
+					kept.image->drawText(Point(1 + dx, 1 + dy), fontId, Colors::BLACK, ETextAlignment::TOPLEFT, text);
+		kept.image->drawText(Point(1, 1), fontId, Colors::WHITE, ETextAlignment::TOPLEFT, text);
 		kept.image->applyTransparency(true);
 	}
 	to.draw(*kept.image, centre - kept.size / 2);
@@ -545,12 +585,19 @@ void TurnProgressBar::show(Canvas & to)
 
 	{
 		// the percent and the player's name, white with a solid black outline so they read over any terrain
-		drawOutlined(to, percentText, std::to_string(static_cast<int>(std::lround(shown))) + "%", Point(outer.x + outer.w / 2, outer.y + outer.h / 2));
+		drawOutlined(to, percentText, std::to_string(static_cast<int>(std::lround(shown))) + "%", Point(outer.x + outer.w / 2, outer.y + outer.h / 2), LABEL_FONT);
 		if(!playerName.empty())
 		{
 			// centred over the frame, or from pos's left edge when wider (fitName)
 			const int nameWidth = static_cast<int>(ENGINE->renderHandler().loadFont(LABEL_FONT)->getStringWidth(playerName)) + 2;
-			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE));
+			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE), LABEL_FONT);
+		}
+		// S554: the seat's turn time, its left edge TIME_GAP past the right end piece, centred on the frame's height
+		if(showsTime && GAME->interface() && GAME->interface()->cb)
+		{
+			const std::string time = timeString();
+			const int width = static_cast<int>(ENGINE->renderHandler().loadFont(TIME_FONT)->getStringWidth(time)) + 2;
+			drawOutlined(to, timeText, time, Point(outer.x + outer.w + END_PIECE + TIME_GAP + width / 2, outer.y + outer.h / 2), TIME_FONT);
 		}
 	}
 }
@@ -682,7 +729,7 @@ bool TurnProgressBars::coversPoint(const Point & point)
 	return std::any_of(clickAreas.begin(), clickAreas.end(), [&point](const Rect & area){ return area.isInside(point); });
 }
 
-TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapArea, int humans)
+TurnProgressBars::TurnProgressBars(std::shared_ptr<TurnTimerWidget> timer, const Rect & mapArea, int humans)
 	: CIntObject(TIME)
 	, timer(timer)
 	, mapArea(mapArea)
@@ -696,6 +743,7 @@ TurnProgressBars::TurnProgressBars(std::optional<Rect> timer, const Rect & mapAr
 	}
 	foldButton->setFolded(folded);
 	refresh(true);
+	placeTimer(); // S554: before the first frame, so the box is never drawn over the first bar
 }
 
 TurnProgressBars::~TurnProgressBars()
@@ -808,11 +856,11 @@ void TurnProgressBars::refresh(bool force)
 		return;
 	}
 
-	// placed by what each draws: with the timer, the first bar's top is 6 pixels below the timer's bottom and its frame lines up with the timer's left edge; without
-	// one, its frame is where the timer would be. S015: the minimize button takes that corner, level with the first bar's frame, and the bars start right of it
+	// placed by what each draws: the first bar's frame is where the stock turn timer box stands (24, 24). S554: the box no longer sits above the bars; when it is
+	// drawn it goes under them (placeTimer). S015: the minimize button takes that corner, level with the first bar's frame, and the bars start right of it
 	const Point frame = bars.front()->frameOffset();
-	const Point corner = timer ? Point(timer->x, timer->y + timer->h + 6 + frame.y) : Point(24, 24);
-	const int frameHeight = bars.front()->pos.h - frame.y;
+	const Point corner(24, 24);
+	const int frameHeight = FRAME_SIZE.y;
 	setShown(*foldButton, true);
 	foldButton->moveTo(Point(corner.x, corner.y + (frameHeight - TurnBarFoldButton::SIZE) / 2));
 	clickAreas.push_back(foldButton->pos);
@@ -868,6 +916,60 @@ void TurnProgressBars::tick(uint32_t)
 	const bool force = pendingRefresh;
 	pendingRefresh = false;
 	refresh(force);
+	placeTimer();
+}
+
+void TurnProgressBars::placeTimer()
+{
+	if(!timer || !GAME->interface() || !GAME->interface()->cb)
+		return;
+	const auto & cb = GAME->interface()->cb;
+	// a human seat still in the game whose bar does not show: its time is only in the box
+	bool missing = false;
+	for(const auto & seat : cb->getStartInfo()->playerInfos)
+	{
+		if(!seat.second.isControlledByHuman() || cb->getPlayerStatus(seat.first, false) != EPlayerStatus::INGAME)
+			continue;
+		const auto bar = std::find_if(bars.begin(), bars.end(), [&seat](const auto & b){ return b->getPlayer() == seat.first; });
+		const bool barShows = bar != bars.end() && (!folded || picked.count(seat.first));
+		if(!barShows)
+		{
+			missing = true;
+			break;
+		}
+	}
+	if(!missing)
+	{
+		if(timer->isDrawn())
+		{
+			vacated.push_back(timer->pos);
+			timer->setDrawn(false);
+			logGlobal->info("S554: every human seat's time is on its turn bar: the turn timer box is not drawn");
+		}
+		return;
+	}
+	// drawn as stock, 6 pixels under the lowest of the minimize button, the strip's squares and the bars that show; at the stock place when there are no bars
+	int bottom = -1;
+	if(!bars.empty())
+	{
+		bottom = foldButton->pos.y + foldButton->pos.h;
+		for(const auto & square : squares)
+			bottom = std::max(bottom, square->pos.y + square->pos.h);
+		for(const auto & bar : bars)
+			if(!folded || picked.count(bar->getPlayer()))
+				bottom = std::max(bottom, bar->pos.y + bar->pos.h);
+	}
+	const Point place = bottom < 0 ? Point(24, 24) : Point(24, bottom + 6);
+	if(timer->pos.topLeft() != place)
+	{
+		vacated.push_back(timer->pos);
+		timer->moveTo(place);
+	}
+	if(!timer->isDrawn())
+	{
+		timer->setDrawn(true);
+		logGlobal->info("S554: a human seat's time has no turn bar showing: the turn timer box is drawn at %d,%d", place.x, place.y);
+	}
 }
 
 void TurnProgressBars::showAll(Canvas & to)

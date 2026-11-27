@@ -354,19 +354,20 @@ void TurnProgressBar::tick(uint32_t msPassed)
 	}
 }
 
-void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre, EFonts fontId)
+void TurnProgressBar::drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre, EFonts fontId, const ColorRGBA & colour)
 {
-	if(!kept.image || kept.text != text)
+	if(!kept.image || kept.text != text || !(kept.colour == colour))
 	{
 		const auto & font = ENGINE->renderHandler().loadFont(fontId);
 		kept.text = text;
+		kept.colour = colour;
 		kept.size = Point(static_cast<int>(font->getStringWidth(text)) + 2, static_cast<int>(font->getLineHeight()) + 2);
 		kept.image = std::make_shared<Canvas>(kept.size, CanvasScalingPolicy::AUTO);
 		for(int dx = -1; dx <= 1; ++dx)
 			for(int dy = -1; dy <= 1; ++dy)
 				if(dx != 0 || dy != 0)
 					kept.image->drawText(Point(1 + dx, 1 + dy), fontId, Colors::BLACK, ETextAlignment::TOPLEFT, text);
-		kept.image->drawText(Point(1, 1), fontId, Colors::WHITE, ETextAlignment::TOPLEFT, text);
+		kept.image->drawText(Point(1, 1), fontId, colour, ETextAlignment::TOPLEFT, text);
 		kept.image->applyTransparency(true);
 	}
 	to.draw(*kept.image, centre - kept.size / 2);
@@ -585,19 +586,22 @@ void TurnProgressBar::show(Canvas & to)
 
 	{
 		// the percent and the player's name, white with a solid black outline so they read over any terrain
-		drawOutlined(to, percentText, std::to_string(static_cast<int>(std::lround(shown))) + "%", Point(outer.x + outer.w / 2, outer.y + outer.h / 2), LABEL_FONT);
+		drawOutlined(to, percentText, std::to_string(static_cast<int>(std::lround(shown))) + "%", Point(outer.x + outer.w / 2, outer.y + outer.h / 2), LABEL_FONT, Colors::WHITE);
 		if(!playerName.empty())
 		{
 			// centred over the frame, or from pos's left edge when wider (fitName)
 			const int nameWidth = static_cast<int>(ENGINE->renderHandler().loadFont(LABEL_FONT)->getStringWidth(playerName)) + 2;
-			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE), LABEL_FONT);
+			drawOutlined(to, nameText, playerName, Point(std::max(outer.x + outer.w / 2, pos.x + 1 + nameWidth / 2), outer.y - NAME_ABOVE), LABEL_FONT, Colors::WHITE);
 		}
-		// S554: the seat's turn time, its left edge TIME_GAP past the right end piece, centred on the frame's height
+		// S554: the seat's turn time, its left edge TIME_GAP past the right end piece, centred on the frame's height. S556 (K, November 27th: "The top picture
+		// looks correct, only we want the time remaining text in each player's color"): in the seat's own colour, the one the stock timer box gives it
+		// (TurnTimerWidget, graphics->playerColors), with the same black outline as the bar's other text
 		if(showsTime && GAME->interface() && GAME->interface()->cb)
 		{
 			const std::string time = timeString();
 			const int width = static_cast<int>(ENGINE->renderHandler().loadFont(TIME_FONT)->getStringWidth(time)) + 2;
-			drawOutlined(to, timeText, time, Point(outer.x + outer.w + END_PIECE + TIME_GAP + width / 2, outer.y + outer.h / 2), TIME_FONT);
+			const ColorRGBA timeColour = player.isValidPlayer() && player.getNum() < 8 ? graphics->playerColors[player.getNum()] : Colors::WHITE;
+			drawOutlined(to, timeText, time, Point(outer.x + outer.w + END_PIECE + TIME_GAP + width / 2, outer.y + outer.h / 2), TIME_FONT, timeColour);
 		}
 	}
 }

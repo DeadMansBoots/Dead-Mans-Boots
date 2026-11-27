@@ -9,6 +9,7 @@
 
 #include "../gui/CIntObject.h"
 
+#include "../../lib/Color.h"
 #include "../../lib/constants/EntityIdentifiers.h"
 
 #include "TurnProgressMath.h"
@@ -58,6 +59,7 @@ class TurnProgressBar : public CIntObject
 	struct OutlinedText
 	{
 		std::string text;
+		ColorRGBA colour;
 		std::shared_ptr<Canvas> image;
 		Point size;
 	};
@@ -71,7 +73,7 @@ class TurnProgressBar : public CIntObject
 	/// the time as the stock turn timer box writes it (TurnTimerWidget::updateTextLabel, adventure map)
 	std::string timeString() const;
 	/// draws `text` centred on `centre`, from the kept image when it is the same text as last time
-	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre, EFonts font);
+	static void drawOutlined(Canvas & to, OutlinedText & kept, const std::string & text, const Point & centre, EFonts font, const ColorRGBA & colour);
 	/// which trim is drawn (0 the first trim, 1 and 2 the game's own frame pieces); the corner jewels, rails and gold lines come from AdvMap.pcx at run time
 	static int trimStyle(const PlayerColor & player);
 	void drawStockTrim(Canvas & to, const Rect & outer, int style);

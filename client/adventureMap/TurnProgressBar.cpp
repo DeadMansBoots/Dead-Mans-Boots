@@ -23,6 +23,7 @@
 #include "../widgets/TextControls.h"
 
 #include "../../lib/CConfigHandler.h"
+#include "../../lib/DmbSeatColours.h"
 #include "../../lib/CPlayerState.h"
 #include "../../lib/StartInfo.h"
 #include "../../lib/callback/CCallback.h"
@@ -600,7 +601,12 @@ void TurnProgressBar::show(Canvas & to)
 		{
 			const std::string time = timeString();
 			const int width = static_cast<int>(ENGINE->renderHandler().loadFont(TIME_FONT)->getStringWidth(time)) + 2;
-			const ColorRGBA timeColour = player.isValidPlayer() && player.getNum() < 8 ? graphics->playerColors[player.getNum()] : Colors::WHITE;
+			ColorRGBA timeColour = player.isValidPlayer() && player.getNum() < 8 ? graphics->playerColors[player.getNum()] : Colors::WHITE;
+			// S558 (K, November 27th: "i think teal needs to match its in-game color better...it looks grey to me"): the table's teal (9,156,165) has the hue of the
+			// game's teal (the flags, the bar's frame and gems: PLAYERS.PAL, about 184 degrees) but less light than the other seven digits, so it reads dull on the dark
+			// ground; the same hue brighter. The other seven are within 8 degrees of their flags' hue and stay as the table has them
+			if(player.isValidPlayer() && DmbSeatColours::shown(player).getNum() == 6)
+				timeColour = ColorRGBA(0, 190, 200, 255);
 			drawOutlined(to, timeText, time, Point(outer.x + outer.w + END_PIECE + TIME_GAP + width / 2, outer.y + outer.h / 2), TIME_FONT, timeColour);
 		}
 	}
@@ -928,15 +934,16 @@ void TurnProgressBars::placeTimer()
 	if(!timer || !GAME->interface() || !GAME->interface()->cb)
 		return;
 	const auto & cb = GAME->interface()->cb;
-	// a human seat still in the game whose bar does not show: its time is only in the box
+	// S558 (K, November 27th: "the timers should get displayed or hidden based on the state of the associated turn bar and how the player has their ui setup"): a
+	// time is drawn with its own bar, so a bar folded by the minimize button or put away from the strip hides its time, and the box does not stand in for it.
+	// The box is drawn only for a human seat still in the game that has no bar in this player's list at all (an enemy human; one human with a timer and no ally):
+	// what that seat should get is K's choice (S558), the S554 fallback meanwhile
 	bool missing = false;
 	for(const auto & seat : cb->getStartInfo()->playerInfos)
 	{
 		if(!seat.second.isControlledByHuman() || cb->getPlayerStatus(seat.first, false) != EPlayerStatus::INGAME)
 			continue;
-		const auto bar = std::find_if(bars.begin(), bars.end(), [&seat](const auto & b){ return b->getPlayer() == seat.first; });
-		const bool barShows = bar != bars.end() && (!folded || picked.count(seat.first));
-		if(!barShows)
+		if(std::none_of(bars.begin(), bars.end(), [&seat](const auto & b){ return b->getPlayer() == seat.first; }))
 		{
 			missing = true;
 			break;
@@ -948,7 +955,7 @@ void TurnProgressBars::placeTimer()
 		{
 			vacated.push_back(timer->pos);
 			timer->setDrawn(false);
-			logGlobal->info("S554: every human seat's time is on its turn bar: the turn timer box is not drawn");
+			logGlobal->info("S558: every human seat in the game has a turn bar in the list (its time shows or hides with that bar): the turn timer box is not drawn");
 		}
 		return;
 	}
@@ -972,7 +979,7 @@ void TurnProgressBars::placeTimer()
 	if(!timer->isDrawn())
 	{
 		timer->setDrawn(true);
-		logGlobal->info("S554: a human seat's time has no turn bar showing: the turn timer box is drawn at %d,%d", place.x, place.y);
+		logGlobal->info("S558: a human seat in the game has no turn bar in the list: the turn timer box is drawn at %d,%d", place.x, place.y);
 	}
 }
 
